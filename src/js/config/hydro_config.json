@@ -1,0 +1,146 @@
+{
+  "moors": {
+    "curry_moor": {
+      "id": "curry_moor",
+      "name": "Curry Moor & Hay Moor System",
+      "catchment": "River Tone",
+      "river_tag": "Catchment: River Tone",
+      "subtitle": "Fed by River Tone via Hookbridge Spillway",
+      "measures": {
+        "river": "52118-level-stage-i-15_min-mAOD",
+        "moor": "52127-level-stage-i-15_min-mAOD"
+      },
+      "spillway": {
+        "name": "Hookbridge Spillway",
+        "baseline_crest_mAOD": 7.45,
+        "sill_elevation_mAOD": 4.50,
+        "crest_history": [
+          { "valid_from": "1970-01-01T00:00:00Z", "valid_to": "2021-09-30T23:59:59Z", "crest_mAOD": 7.45, "notes": "Pre-SRA Upgrade Baseline" },
+          { "valid_from": "2021-10-01T00:00:00Z", "valid_to": null, "crest_mAOD": 7.45, "notes": "EA Survey Baseline (Post-Phase 1 Works)" }
+        ]
+      },
+      "athelney_spillway": {
+        "name": "Athelney Spillway",
+        "baseline_crest_mAOD": 7.35,
+        "crest_history": [
+          { "valid_from": "1970-01-01T00:00:00Z", "valid_to": null, "crest_mAOD": 7.35, "notes": "Standard Hydraulic Profile" }
+        ]
+      },
+      "pumping_stations": [
+        {
+          "id": "currymoor_ps",
+          "name": "Currymoor PS",
+          "total_pumps": 2,
+          "thresholds": {
+            "summer": { "lead": 4.60, "duty": 4.80, "mobile_order": 5.10, "mobile_active": 5.40, "critical_spill": 7.45 },
+            "winter": { "lead": 4.00, "duty": 4.30, "mobile_order": 4.40, "mobile_active": 4.60, "critical_spill": 4.85 }
+          }
+        },
+        {
+          "id": "stanmoor_ps",
+          "name": "Stanmoor PS",
+          "total_pumps": 2,
+          "thresholds": {
+            "summer": { "lead": 4.70, "duty": 4.90, "mobile_order": 5.20, "mobile_active": 5.50, "critical_spill": 7.45 },
+            "winter": { "lead": 4.10, "duty": 4.40, "mobile_order": 4.50, "mobile_active": 4.70, "critical_spill": 4.85 }
+          }
+        }
+      ]
+    },
+    "northmoor": {
+      "id": "northmoor",
+      "name": "Northmoor & Saltmoor System",
+      "catchment": "River Parrett (+ Tone Overflow)",
+      "river_tag": "Catchment: River Parrett",
+      "subtitle": "Fed by River Parrett & Curry Moor overflow (Baltmoor Wall)",
+      "measures": {
+        "river": "52158-level-stage-i-15_min-mAOD",
+        "moor": "52159-level-stage-i-15_min-mAOD"
+      },
+      "spillway": {
+        "name": "Baltmoor Wall Crest",
+        "baseline_crest_mAOD": 7.80,
+        "sill_elevation_mAOD": 4.00,
+        "crest_history": [
+          { "valid_from": "1970-01-01T00:00:00Z", "valid_to": "2014-04-30T23:59:59Z", "crest_mAOD": 7.70, "notes": "Pre-2014 Flood Wall Profile" },
+          { "valid_from": "2014-05-01T00:00:00Z", "valid_to": null, "crest_mAOD": 7.80, "notes": "Post-2014 EA Raising & Parrett Levee Strengthening" }
+        ]
+      },
+      "beer_wall": {
+        "name": "Beer Wall / Allens Spillway",
+        "baseline_crest_mAOD": 7.30,
+        "crest_history": [
+          { "valid_from": "1970-01-01T00:00:00Z", "valid_to": "2022-08-31T23:59:59Z", "crest_mAOD": 7.30, "notes": "Pre-SRA Capacity Scheme" },
+          { "valid_from": "2022-09-01T00:00:00Z", "valid_to": null, "crest_mAOD": 7.30, "notes": "SRA / EA Greylake Relief Channel Upgrade" }
+        ]
+      },
+      "pumping_stations": [
+        {
+          "id": "saltmoor_ps",
+          "name": "Saltmoor PS",
+          "total_pumps": 2,
+          "thresholds": {
+            "summer": { "lead": 4.00, "duty": 4.20, "mobile_order": 4.40, "mobile_active": 4.60, "critical_spill": 7.80 },
+            "winter": { "lead": 3.40, "duty": 3.70, "mobile_order": 3.80, "mobile_active": 4.00, "critical_spill": 4.25 }
+          }
+        },
+        {
+          "id": "northmoor_ps",
+          "name": "Northmoor PS",
+          "total_pumps": 2,
+          "thresholds": {
+            "summer": { "lead": 4.10, "duty": 4.30, "mobile_order": 4.50, "mobile_active": 4.70, "critical_spill": 7.80 },
+            "winter": { "lead": 3.50, "duty": 3.80, "mobile_order": 3.90, "mobile_active": 4.10, "critical_spill": 4.35 }
+          }
+        }
+      ]
+    },
+    "sowy_channel": {
+      "id": "sowy_channel",
+      "name": "Sowy Relief Channel",
+      "catchment": "River Parrett ➔ Sedgemoor Drain",
+      "river_tag": "Diverts: Parrett ➔ Sedgemoor Drain",
+      "subtitle": "Diverts River Parrett flows into Sedgemoor Drain",
+      "measures": {
+        "up": "52233-level-stage-i-15_min-mAOD",
+        "down": "52234-level-downstage-i-15_min-mAOD"
+      },
+      "sluices": [
+        {
+          "id": "monks_leaze",
+          "name": "Monk's Leaze Clyse",
+          "structure_height_mAOD": 6.70,
+          "diversion_threshold_mAOD": 4.20,
+          "max_flow_m3s": 17.0
+        }
+      ],
+      "beer_wall_intake": {
+        "name": "Beer Wall Intake (Greylake)",
+        "ksd_conveyance_threshold_mAOD": 6.00
+      }
+    },
+    "dunball_outfall": {
+      "id": "dunball_outfall",
+      "name": "Dunball Sea Outfall",
+      "catchment": "Sedgemoor Drain ➔ Parrett Estuary",
+      "river_tag": "Outfall: Sedgemoor Drain ➔ Parrett Estuary",
+      "subtitle": "Discharges Sedgemoor Drain into Parrett Estuary (Tidal)",
+      "measures": {
+        "inland": "E9094-level-stage-i-15_min-mAOD",
+        "sea": "52163-level-tidal_level-i-15_min-mAOD"
+      },
+      "gates": [
+        { "id": "dunball_clyse", "name": "Dunball Clyse", "type": "Tidal Flap Sluice" }
+      ],
+      "emergency_pumps": {
+        "id": "dunball_mobile_ps",
+        "name": "Dunball Emergency Mobile Pumps",
+        "total_pumps": 4,
+        "thresholds": {
+          "summer": { "lead": 3.10, "duty": 3.30, "mobile_order": 3.50, "mobile_active": 3.70, "critical_spill": 4.10 },
+          "winter": { "lead": 2.80, "duty": 3.10, "mobile_order": 3.30, "mobile_active": 3.50, "critical_spill": 3.80 }
+        }
+      }
+    }
+  }
+}

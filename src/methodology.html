@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Methodology & Telemetry Provenance | Somerset Levels Flood Status</title>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+  <header>
+    <div class="header-top">
+      <div class="title-group">
+        <h1>Somerset Levels Flood Status</h1>
+        <div class="live-pill" title="Telemetry System Operational">
+          <span class="live-dot"></span>
+          <span>METHODOLOGY & PROVENANCE</span>
+        </div>
+      </div>
+      <nav class="nav-links">
+        <a href="index.html" class="nav-btn">📊 Live Dashboard</a>
+        <a href="methodology.html" class="nav-btn active">📖 Methodology & Provenance</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="methodology-container">
+    <div class="doc-hero">
+      <h2>Hydrological Physics Engine & Telemetry Methodology</h2>
+      <p class="doc-lead">
+        This document outlines the real-time data sources, hydraulic physics equations, data provenance confidence tiers, and operational rules governing the Somerset Levels & Moors Flood Monitoring Dashboard.
+      </p>
+    </div>
+
+    <!-- Section 1: Open Data & Infrastructure Architecture -->
+    <section class="doc-section">
+      <h3 class="section-heading"><span class="heading-icon">🌐</span> 1. Open Data Feeds & Server Architecture</h3>
+      <p>
+        The application ingests high-frequency 15-minute telemetry directly from the UK Environment Agency (EA) open API:
+      </p>
+      
+      <div class="grid-2col">
+        <div class="info-card">
+          <h4>📡 EA Flood Monitoring API</h4>
+          <p>
+            Fetches live stage elevations in meters above Ordnance Datum Newlyn (<strong>mAOD</strong>) across 8 critical gauging stations.
+          </p>
+          <code class="code-block">https://environment.data.gov.uk/flood-monitoring/id/measures/{id}/readings</code>
+        </div>
+        <div class="info-card">
+          <h4>⚡ SQLite Embedded WAL Cache</h4>
+          <p>
+            A background process (<code>server.js</code>) syncs all 8 station measures every 5 minutes into a local SQLite database (<code>telemetry.db</code> in WAL mode). The frontend fetches <code>/api/status</code> for instant <strong>&lt; 20ms page loads</strong> without waiting for external API calls.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 2: Data Provenance & Confidence System -->
+    <section class="doc-section">
+      <h3 class="section-heading"><span class="heading-icon">🏷️</span> 2. Data Provenance & Visual Confidence Badges</h3>
+      <p>
+        To ensure complete scientific integrity, every infrastructure card displays an explicit data provenance badge indicating whether its status is directly measured, physically enforced, or inferred from operational models:
+      </p>
+
+      <div class="provenance-legend-grid">
+        <div class="prov-card prov-high-box">
+          <div class="prov-header">
+            <span class="provenance-tag prov-high">📡 DEDICATED SENSORS</span>
+            <span class="prov-confidence">HIGH CONFIDENCE</span>
+          </div>
+          <p>
+            Derived directly from paired physical sensors deployed at the structure (e.g. Monk's Leaze Upstream <code>52233</code> vs Downstream Sowy <code>52234</code>).
+          </p>
+        </div>
+
+        <div class="prov-card prov-high-box">
+          <div class="prov-header">
+            <span class="provenance-tag prov-high">⚖️ HYDROSTATIC LAW</span>
+            <span class="prov-confidence">HIGH CONFIDENCE</span>
+          </div>
+          <p>
+            Governed by absolute head differential pressure laws (e.g., Dunball Tidal Outfall flap doors where seawater stage exceeding inland drain stage physically forces passive doors shut).
+          </p>
+        </div>
+
+        <div class="prov-card prov-medium-box">
+          <div class="prov-header">
+            <span class="provenance-tag prov-medium">⚡ LEVEL SOP MODEL</span>
+            <span class="prov-confidence">MEDIUM CONFIDENCE</span>
+          </div>
+          <p>
+            Inferred from official EA Standard Operating Procedure (SOP) level triggers because public EA telemetry does not expose real-time SCADA electrical pump status.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 3: Hydrological & Hydraulic Core Logic -->
+    <section class="doc-section">
+      <h3 class="section-heading"><span class="heading-icon">📐</span> 3. Hydrological & Hydraulic Core Equations</h3>
+      
+      <div class="equation-card">
+        <h4>A. Spillway Overtopping & Submergence (Villemonte Weir Model)</h4>
+        <p>
+          Given upstream river stage $h_{\text{river}}$, moor basin stage $h_{\text{moor}}$, and surveyed crest elevation $Z_{\text{crest}}$:
+        </p>
+        <div class="math-box">
+          $$H_u = h_{\text{river}} - Z_{\text{crest}} \quad \text{and} \quad H_d = h_{\text{moor}} - Z_{\text{crest}}$$
+          $$\text{Submergence Ratio } S = \frac{H_d}{H_u}$$
+        </div>
+        <ul class="doc-list">
+          <li><strong>SECURE:</strong> $H_u < -0.15\text{m}$ (River level is &gt;15cm below spillway crest).</li>
+          <li><strong>NEAR CREST:</strong> $-0.15\text{m} \le H_u < 0\text{m}$ (River level is within 15cm of overtopping).</li>
+          <li><strong>FREE OVERTOPPING:</strong> $H_u \ge 0\text{m}$ and $S < 0.70$ (Water flows freely over spillway crest into moor).</li>
+          <li><strong>DROWNED / SUBMERGED:</strong> $H_u \ge 0\text{m}$ and $S \ge 0.70$ (High tailwater in flooded moor drowns the spillway).</li>
+          <li><strong>REVERSE SPILL:</strong> $H_d > H_u \ge 0\text{m}$ (Flooded moor level exceeds river level, spilling back into channel).</li>
+        </ul>
+      </div>
+
+      <div class="equation-card">
+        <h4>B. Submerged Gate Volumetric Discharge Equation</h4>
+        <p>
+          Discharge across Monk's Leaze Clyse into the Sowy Relief Channel is estimated using the hydraulic submerged gate formula:
+        </p>
+        <div class="math-box">
+          $$Q = C_d \cdot B \cdot H_{\text{head}} \cdot \sqrt{2g \Delta h}$$
+        </div>
+        <p class="math-subtext">
+          Where $C_d = 0.60$ (discharge coefficient), $B = 4.20\text{m}$ (gate width), $H_{\text{head}} = h_{\text{up}} - Z_{\text{threshold}}$ (Diversion Threshold $Z_{\text{threshold}} = 4.20\text{m}$ AOD; Structure Sill / Wall Height $Z_{\text{structure}} = 6.70\text{m}$ AOD), and $\Delta h = h_{\text{up}} - h_{\text{down}}$.
+        </p>
+      </div>
+
+      <div class="equation-card">
+        <h4>C. Level-Triggered SOP Pumping Station Model</h4>
+        <p>
+          Pumping station activity is evaluated by comparing live basin water levels against official EA operating plan thresholds:
+        </p>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Pumping Station</th>
+              <th>Monitored Gauge</th>
+              <th>Seasonal Regime</th>
+              <th>Lead Duty Start</th>
+              <th>Full Capacity</th>
+              <th>Mobile Order Trigger</th>
+              <th>Mobile Active Trigger</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td rowspan="2"><strong>Currymoor PS</strong></td>
+              <td rowspan="2">Curry Moor Basin (52127)</td>
+              <td>☀️ Summer (Apr 15 - Oct 15)</td>
+              <td>4.60m AOD</td>
+              <td>4.80m AOD</td>
+              <td>5.10m AOD</td>
+              <td>5.40m AOD</td>
+            </tr>
+            <tr>
+              <td>❄️ Winter (Oct 16 - Apr 14)</td>
+              <td>4.00m AOD</td>
+              <td>4.30m AOD</td>
+              <td>4.40m AOD</td>
+              <td>4.60m AOD</td>
+            </tr>
+            <tr>
+              <td rowspan="2"><strong>Stanmoor PS</strong></td>
+              <td rowspan="2">Curry Moor Basin (52127)</td>
+              <td>☀️ Summer (Apr 15 - Oct 15)</td>
+              <td>4.70m AOD</td>
+              <td>4.90m AOD</td>
+              <td>5.20m AOD</td>
+              <td>5.50m AOD</td>
+            </tr>
+            <tr>
+              <td>❄️ Winter (Oct 16 - Apr 14)</td>
+              <td>4.10m AOD</td>
+              <td>4.40m AOD</td>
+              <td>4.50m AOD</td>
+              <td>4.70m AOD</td>
+            </tr>
+            <tr>
+              <td rowspan="2"><strong>Saltmoor PS</strong></td>
+              <td rowspan="2">Northmoor Main Drain (52159)</td>
+              <td>☀️ Summer (Apr 15 - Oct 15)</td>
+              <td>4.00m AOD</td>
+              <td>4.20m AOD</td>
+              <td>4.40m AOD</td>
+              <td>4.60m AOD</td>
+            </tr>
+            <tr>
+              <td>❄️ Winter (Oct 16 - Apr 14)</td>
+              <td>3.40m AOD</td>
+              <td>3.70m AOD</td>
+              <td>3.80m AOD</td>
+              <td>4.00m AOD</td>
+            </tr>
+            <tr>
+              <td rowspan="2"><strong>Northmoor PS</strong></td>
+              <td rowspan="2">Northmoor Main Drain (52159)</td>
+              <td>☀️ Summer (Apr 15 - Oct 15)</td>
+              <td>4.10m AOD</td>
+              <td>4.30m AOD</td>
+              <td>4.50m AOD</td>
+              <td>4.70m AOD</td>
+            </tr>
+            <tr>
+              <td>❄️ Winter (Oct 16 - Apr 14)</td>
+              <td>3.50m AOD</td>
+              <td>3.80m AOD</td>
+              <td>3.90m AOD</td>
+              <td>4.10m AOD</td>
+            </tr>
+            <tr>
+              <td rowspan="2"><strong>Dunball Mobile PS</strong></td>
+              <td rowspan="2">Dunball Inland KSD (E9094)</td>
+              <td>☀️ Summer (Apr 15 - Oct 15)</td>
+              <td>3.10m AOD</td>
+              <td>3.30m AOD</td>
+              <td>3.50m AOD</td>
+              <td>3.70m AOD</td>
+            </tr>
+            <tr>
+              <td>❄️ Winter (Oct 16 - Apr 14)</td>
+              <td>2.80m AOD</td>
+              <td>3.10m AOD</td>
+              <td>3.30m AOD</td>
+              <td>3.50m AOD</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Section 4: Telemetry Gauge Registry -->
+    <section class="doc-section">
+      <h3 class="section-heading"><span class="heading-icon">📊</span> 4. Environment Agency Station Registry</h3>
+      <p>
+        Full listing of the 8 telemetry stations ingested by the system:
+      </p>
+
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Station ID</th>
+            <th>Station Name</th>
+            <th>Catchment / Waterbody</th>
+            <th>Parameter</th>
+            <th>Unit</th>
+            <th>Verification Link</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>52118</code></td>
+            <td>River Tone at Currymoor PS</td>
+            <td>River Tone</td>
+            <td>Stage Level</td>
+            <td>mAOD</td>
+            <td><a href="https://check-for-flooding.service.gov.uk/station/3073" target="_blank" rel="noopener noreferrer" class="table-link">GOV.UK 3073 ↗</a></td>
+          </tr>
+          <tr>
+            <td><code>52127</code></td>
+            <td>Curry Moor Basin Level</td>
+            <td>Curry Moor Reservoir</td>
+            <td>Stage Level</td>
+            <td>mAOD</td>
+            <td><a href="https://check-for-flooding.service.gov.uk/station/3064" target="_blank" rel="noopener noreferrer" class="table-link">GOV.UK 3064 ↗</a></td>
+          </tr>
+          <tr>
+            <td><code>52158</code></td>
+            <td>Baltmoor Wall Saltmoor Barrier</td>
+            <td>River Parrett</td>
+            <td>Stage Level</td>
+            <td>mAOD</td>
+            <td><a href="https://check-for-flooding.service.gov.uk/station/3400" target="_blank" rel="noopener noreferrer" class="table-link">GOV.UK 3400 ↗</a></td>
+          </tr>
+          <tr>
+            <td><code>52159</code></td>
+            <td>Northmoor Main Drain</td>
+            <td>Northmoor Drain</td>
+            <td>Stage Level</td>
+            <td>mAOD</td>
+            <td><a href="https://check-for-flooding.service.gov.uk/station/3415" target="_blank" rel="noopener noreferrer" class="table-link">GOV.UK 3415 ↗</a></td>
+          </tr>
+          <tr>
+            <td><code>52233</code></td>
+            <td>Monk's Leaze River Level</td>
+            <td>River Parrett (Upstream Sowy)</td>
+            <td>Stage Level</td>
+            <td>mAOD</td>
+            <td><a href="https://environment.data.gov.uk/flood-monitoring/id/stations/52233.html" target="_blank" rel="noopener noreferrer" class="table-link">EA 52233 ↗</a></td>
+          </tr>
+          <tr>
+            <td><code>52234</code></td>
+            <td>Monk's Leaze Downstream Sowy</td>
+            <td>Sowy Relief Channel</td>
+            <td>Downstage Level</td>
+            <td>mAOD</td>
+            <td><a href="https://environment.data.gov.uk/flood-monitoring/id/stations/52234.html" target="_blank" rel="noopener noreferrer" class="table-link">EA 52234 ↗</a></td>
+          </tr>
+          <tr>
+            <td><code>E9094</code></td>
+            <td>Dunball Inland KSD</td>
+            <td>King's Sedgemoor Drain</td>
+            <td>Stage Level</td>
+            <td>mAOD</td>
+            <td><a href="https://check-for-flooding.service.gov.uk/station/9499" target="_blank" rel="noopener noreferrer" class="table-link">GOV.UK 9499 ↗</a></td>
+          </tr>
+          <tr>
+            <td><code>52163</code></td>
+            <td>Dunball Tidal Parrett</td>
+            <td>Parrett Estuary</td>
+            <td>Tidal Level</td>
+            <td>mAOD</td>
+            <td><a href="https://check-for-flooding.service.gov.uk/station/9129" target="_blank" rel="noopener noreferrer" class="table-link">GOV.UK 9129 ↗</a></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- Section 5: Dynamic Spillway Crest Tracking & Future Innovations -->
+    <section class="doc-section">
+      <h3 class="section-heading"><span class="heading-icon">📡</span> 5. Dynamic Crest History & Future Remote Sensing Innovations</h3>
+      <div class="equation-card">
+        <h4>A. Time-Versioned Crest Elevation Engine (<code>crest_history</code>)</h4>
+        <p>
+          Spillway crest elevations ($Z_{\text{crest}}$) are evaluated dynamically using date-stamped configuration records in <code>hydro_config.json</code>. When inspecting historical archives or replaying multi-year flood events, <code>getActiveCrestHeight()</code> matches the telemetry timestamp against effective survey date windows (e.g., pre- vs. post-2014 Baltmoor Wall raising or SRA capacity improvement schemes).
+        </p>
+      </div>
+      <div class="equation-card">
+        <h4>B. Future Roadmap: Automated Remote Sensing (DEFRA LiDAR & InSAR)</h4>
+        <p>
+          To move beyond static SOP manuals, future roadmap iterations will integrate automated external validation pipelines:
+        </p>
+        <ul class="doc-list">
+          <li><strong>DEFRA 25cm / 1m LiDAR DTM API:</strong> Programmatically sampling ground elevation rasters along spillway vector transects across survey years (1998–present) to derive true minimum crest elevations ($Z_{\text{crest}}$).</li>
+          <li><strong>Copernicus Sentinel-1 InSAR (EGMS):</strong> Utilizing Interferometric Synthetic Aperture Radar time-series to monitor millimeter-scale embankment settling and track post-construction bank height modifications continuously.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- Section 6: Legal Disclaimer & Open Data Terms -->
+    <section class="doc-section">
+      <h3 class="section-heading"><span class="heading-icon">⚠️</span> 6. Legal Disclaimer & Open Data Terms</h3>
+      <div class="info-card" style="border-left: 4px solid #f59e0b;">
+        <h4>Public Telemetry Disclaimer</h4>
+        <p>
+          Information displayed across this dashboard is synthesized from Environment Agency (EA) open telemetry APIs and hydraulic physics evaluation models. This is an independent open-source visualization project developed for public transparency.
+        </p>
+        <p>
+          <strong>No Advice Warranty:</strong> Content on this site does <em>not</em> constitute official flood warning advice, emergency instructions, or life-safety guidance. Data is served "as-is" without warranty of completeness or uninterrupted availability.
+        </p>
+        <p>
+          <strong>Official Action Required:</strong> For official UK Government flood warnings, emergency evacuation procedures, and official public safety advice, always consult the 
+          <a href="https://check-for-flooding.service.gov.uk" target="_blank" rel="noopener noreferrer" class="table-link">GOV.UK Flood Warning Service ↗</a> 
+          or contact EA Floodline directly at <strong>0345 988 1188</strong>.
+        </p>
+      </div>
+    </section>
+
+    <footer class="doc-footer">
+      <p>Somerset Levels Flood & Infrastructure Status System | Open Data & Operational Methodology</p>
+      <p><a href="index.html" class="ext-link-btn">← Back to Live Dashboard</a></p>
+    </footer>
+  </main>
+
+</body>
+</html>
+

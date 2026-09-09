@@ -1,0 +1,16 @@
+{
+  "name": "somerset-flood-dashboard",
+  "version": "1.0.0",
+  "description": "Human-friendly real-time telemetry dashboard for Somerset Levels & Moors flood status",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.8.1",
+    "express": "^4.21.2"
+  }
+}

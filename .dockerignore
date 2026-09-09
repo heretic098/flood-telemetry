@@ -1,0 +1,5 @@
+node_modules
+.git
+telemetry.db*
+.agents
+.env

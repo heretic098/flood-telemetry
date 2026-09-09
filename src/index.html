@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Somerset Levels Flood & Infrastructure Status</title>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+  <header>
+    <div class="header-top">
+      <div class="title-group">
+        <h1>Somerset Levels Flood Status</h1>
+        <div class="live-pill" id="live-toggle" title="Click to toggle Historical Replay Mode">
+          <span class="live-dot"></span>
+          <span>LIVE STREAM</span>
+        </div>
+      </div>
+      <nav class="nav-links">
+        <a href="index.html" class="nav-btn active">📊 Live Dashboard</a>
+        <a href="methodology.html" class="nav-btn">📖 Methodology & Provenance</a>
+      </nav>
+      <div class="time-preset-group" id="time-preset-group" title="Select historical lookback window for sparklines and status evaluation">
+        <span class="preset-label">Period:</span>
+        <button class="preset-btn active" data-range="24h" id="btn-preset-24h">24h</button>
+        <button class="preset-btn" data-range="7d" id="btn-preset-7d">7d</button>
+        <button class="preset-btn" data-range="30d" id="btn-preset-30d">30d Archive</button>
+      </div>
+      <div class="header-right-group">
+        <div class="counter-pill" id="counter-pill">[ Loading... ]</div>
+        <div class="telemetry-freshness-pill prov-high" id="ea-freshness-pill" title="Timestamp of latest Environment Agency physical gauge reading">📡 Telemetry: Loading...</div>
+        <button class="sys-health-btn" id="sys-health-toggle" title="Click to view Telemetry Health & Database Sync details">🟢 DB Sync ⚙️</button>
+      </div>
+    </div>
+    
+    <div class="alert-banner" id="alert-banner">
+      INITIALIZING SYSTEM TELEMETRY...
+    </div>
+
+    <div class="global-timestamp-bar" id="global-timestamp-banner">
+      <div class="gt-left-group">
+        <span class="gt-badge-pill" id="gt-mode-badge">📡 REAL-TIME STREAM</span>
+        <span class="gt-timestamp-display" id="gt-time-display">Showing latest live telemetry across all catchments</span>
+        <span class="gt-relative-age" id="gt-age-display"></span>
+      </div>
+      <div class="gt-right-group">
+        <span class="gt-sync-status" id="gt-sync-status">💡 Hover over or scrub any sparkline to inspect synchronized crosshair</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="grid-container" id="cards-container">
+    <!-- Rendered dynamically by app.js -->
+  </main>
+
+  <!-- System Health & Telemetry Freshness Modal Drawer -->
+  <div class="sys-health-backdrop" id="sys-health-backdrop">
+    <div class="sys-health-drawer">
+      <div class="drawer-header">
+        <div>
+          <h3>⚙️ System Health & Telemetry Provenance</h3>
+          <p class="drawer-subtitle">3-Tier Telemetry Pipeline & Sensor Cadence Status</p>
+        </div>
+        <button class="close-drawer-btn" id="sys-health-close">✕</button>
+      </div>
+
+      <div class="health-summary-grid">
+        <div class="health-card">
+          <span class="health-label">Upstream EA Telemetry</span>
+          <strong class="health-value" id="modal-ea-time">--</strong>
+          <span class="health-subtext" id="modal-ea-age">Physical Gauge Reading</span>
+        </div>
+        <div class="health-card">
+          <span class="health-label">Local SQLite WAL Cache</span>
+          <strong class="health-value" id="modal-db-time">--</strong>
+          <span class="health-subtext">Background Ingest Sync</span>
+        </div>
+        <div class="health-card">
+          <span class="health-label">Browser Client State</span>
+          <strong class="health-value" id="modal-client-time">--</strong>
+          <span class="health-subtext">3-Min Auto Refresh</span>
+        </div>
+      </div>
+
+      <div class="matrix-section">
+        <h4>📡 Station Telemetry Freshness Matrix</h4>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Station / Measure</th>
+              <th>Latest EA Reading</th>
+              <th>Age</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="modal-station-matrix">
+            <tr><td colspan="4">Loading telemetry health metrics...</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="matrix-section" style="margin-top: 1.25rem;">
+        <h4>🏗️ Infrastructure Baseline & Crest Survey Matrix</h4>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Spillway Structure</th>
+              <th>Active Crest</th>
+              <th>Survey & Scheme Origin</th>
+              <th>Effective Period</th>
+            </tr>
+          </thead>
+          <tbody id="modal-infra-matrix">
+            <tr><td colspan="4">Loading infrastructure baseline metrics...</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="drawer-footer-note">
+        <p>Telemetry updated every 15 minutes by the UK Environment Agency. Database sync runs every 5 minutes.</p>
+      </div>
+    </div>
+  </div>
+
+  <footer class="app-disclaimer-footer">
+    <div class="disclaimer-content">
+      <p>
+        <strong>⚠️ Data Disclaimer & Public Notice:</strong> Information displayed on this dashboard is synthesized from publicly available Environment Agency (EA) open telemetry APIs and hydrological physics models. 
+        This is an independent open-source visualization tool and <strong>does not constitute official flood warning advice, forecasting, or emergency instructions</strong>.
+      </p>
+      <p>
+        For official UK Government flood warnings, emergency guidance, and life-safety instructions, always consult the official 
+        <a href="https://check-for-flooding.service.gov.uk" target="_blank" rel="noopener noreferrer" class="disclaimer-link">GOV.UK Flood Warning Service ↗</a> 
+        or call EA Floodline at <strong>0345 988 1188</strong>.
+      </p>
+    </div>
+  </footer>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
+
