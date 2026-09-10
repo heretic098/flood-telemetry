@@ -1,6 +1,7 @@
-import { evaluateSpillway, evaluateGateState, aggregateGlobalStatus, evaluatePumpStatus, evaluateSowyChannel, estimateClyseFlow, evaluateAthelneySpillway, evaluateGravityClyse, evaluateBeerWall, evaluateOathLock, evaluateDunballEmergencyPumping, getSeasonalRegime, getActiveCrestHeight } from './hydro_engine.js';
+import { evaluateSpillway, evaluateGateState, aggregateGlobalStatus, evaluatePumpStatus, evaluateSowyChannel, estimateClyseFlow, evaluateAthelneySpillway, evaluateGravityClyse, evaluateBeerWall, evaluateOathLock, evaluateDunballEmergencyPumping, getSeasonalRegime, getActiveCrestHeight, getActiveCatchmentId, loadCatchmentConfig } from './hydro_engine.js';
 
 let hydroConfig = null;
+let activeCatchmentId = 'somerset';
 
 // Fetch live readings from the Environment Agency REST API
 // Fetch 96 readings = 24 hours of 15-minute telemetry backfill
@@ -69,14 +70,44 @@ export function formatHeadDelta(deltaInMeters) {
 
 let currentActiveRange = '24h';
 
-export async function initApp() {
+export async function setupCatchmentNav(currentCatchmentId) {
+  const navContainer = document.querySelector('.nav-links');
+  if (!navContainer) return;
+
   try {
-    const res = await fetch('./js/config/hydro_config.json');
-    hydroConfig = await res.json();
+    const res = await fetch('/api/catchments');
+    if (res.ok) {
+      const data = await res.json();
+      if (data.catchments && Array.isArray(data.catchments)) {
+        navContainer.innerHTML = data.catchments.map(c => {
+          const isActive = c.id === currentCatchmentId;
+          const activeClass = isActive ? 'nav-btn active' : 'nav-btn';
+          return `<a href="${c.path || '/' + c.id}" class="${activeClass}">📊 ${escapeHTML(c.name)}</a>`;
+        }).join('') + `<a href="/methodology.html" class="nav-btn">📖 Methodology & Provenance</a>`;
+      }
+    }
   } catch (err) {
-    console.warn("Using default hydro_config", err);
+    console.warn("Could not fetch catchments nav:", err);
+  }
+}
+
+export async function initApp() {
+  activeCatchmentId = getActiveCatchmentId();
+  try {
+    hydroConfig = await loadCatchmentConfig(activeCatchmentId);
+  } catch (err) {
+    console.warn(`Failed to load catchment config for ${activeCatchmentId}:`, err);
   }
 
+  if (hydroConfig && hydroConfig.name) {
+    const h1Elem = document.querySelector('h1');
+    if (h1Elem) {
+      h1Elem.innerText = `${hydroConfig.name} Flood Status`;
+    }
+    document.title = `${hydroConfig.name} Flood & Infrastructure Status`;
+  }
+
+  await setupCatchmentNav(activeCatchmentId);
   setupModalListeners();
   setupPeriodListeners();
   await refreshLiveDashboard();
@@ -122,7 +153,7 @@ function setupPeriodListeners() {
 
 async function fetchAllTelemetryFromDB(range = currentActiveRange) {
   try {
-    const endpoint = range === '24h' ? './api/status' : `./api/history?range=${range}`;
+    const endpoint = range === '24h' ? '/api/status' : `/api/history?range=${range}`;
     const res = await fetch(endpoint);
     const data = await res.json();
     if (data.measures && Object.keys(data.measures).length > 0) {

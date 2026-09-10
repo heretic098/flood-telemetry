@@ -3,7 +3,7 @@
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
 
-app = 'somerset-flood-dashboard'
+app = 'flood-telemetry'
 primary_region = 'lhr'
 
 [build]
@@ -14,7 +14,7 @@ primary_region = 'lhr'
   DB_PATH = '/data/telemetry.db'
 
 [mounts]
-  source = 'somerset_telemetry_data'
+  source = 'flood_telemetry_data'
   destination = '/data'
   initial_size = '1gb'
 

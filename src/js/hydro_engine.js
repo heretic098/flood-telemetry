@@ -416,6 +416,94 @@ export function getActiveCrestHeight(spillwayConfig, timestamp = new Date(), fal
   return spillwayConfig.baseline_crest_mAOD || fallbackCrest;
 }
 
+/**
+ * Detects the active catchment ID from a location object, URL string, or pathname.
+ * Precedence:
+ * 1. Query parameter ?catchment=<id>
+ * 2. URL path /<id> (e.g. /somerset or /fens)
+ * 3. Default fallback: 'somerset'
+ */
+export function getActiveCatchmentId(inputLocation) {
+  let searchStr = '';
+  let pathStr = '';
+
+  if (typeof inputLocation === 'string') {
+    try {
+      const parsed = new URL(inputLocation, 'http://localhost');
+      searchStr = parsed.search;
+      pathStr = parsed.pathname;
+    } catch {
+      pathStr = inputLocation;
+    }
+  } else if (inputLocation && typeof inputLocation === 'object') {
+    searchStr = inputLocation.search || '';
+    pathStr = inputLocation.pathname || '';
+  } else if (typeof window !== 'undefined' && window.location) {
+    searchStr = window.location.search;
+    pathStr = window.location.pathname;
+  }
+
+  if (searchStr) {
+    const params = new URLSearchParams(searchStr);
+    const paramCatchment = params.get('catchment');
+    if (paramCatchment && paramCatchment.trim()) {
+      return paramCatchment.trim().toLowerCase();
+    }
+  }
+
+  if (pathStr) {
+    const segments = pathStr.split('/').filter(Boolean);
+    if (segments.length > 0) {
+      const first = segments[0].toLowerCase();
+      const nonCatchments = ['api', 'css', 'js', 'index.html', 'methodology.html'];
+      if (!nonCatchments.includes(first) && !first.endsWith('.html')) {
+        return first;
+      }
+    }
+  }
+
+  return 'somerset';
+}
+
+/**
+ * Dynamically loads catchment configuration by ID via API endpoint with file fallback.
+ */
+export async function loadCatchmentConfig(catchmentId = 'somerset', fetchFn = globalThis.fetch) {
+  const activeId = catchmentId || 'somerset';
+
+  if (!fetchFn) return null;
+
+  try {
+    const res = await fetchFn(`/api/catchments/${activeId}`);
+    if (res && res.ok) {
+      return await res.json();
+    }
+  } catch (err) {
+    // API endpoint unavailable, try direct static config file
+  }
+
+  try {
+    const res = await fetchFn(`/js/config/catchments/${activeId}.json`);
+    if (res && res.ok) {
+      return await res.json();
+    }
+  } catch (err) {
+    // Direct file unavailable
+  }
+
+  try {
+    const res = await fetchFn('/js/config/hydro_config.json');
+    if (res && res.ok) {
+      return await res.json();
+    }
+  } catch (err) {
+    // Fallback unavailable
+  }
+
+  return null;
+}
+
+
 
 
 

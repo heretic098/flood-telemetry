@@ -1,0 +1,38 @@
+{
+  "id": "fens",
+  "name": "The Fens & South Level",
+  "region": "East Anglia",
+  "description": "Real-time telemetry dashboard for The Fens drainage and washlands status",
+  "moors": {
+    "great_ould_fen": {
+      "id": "great_ould_fen",
+      "name": "Great Ouse & Washes System",
+      "catchment": "River Great Ouse",
+      "river_tag": "Catchment: River Great Ouse",
+      "subtitle": "Fed by River Great Ouse via Earith Sluice",
+      "measures": {
+        "river": "E21856-level-stage-i-15_min-mAOD",
+        "moor": "E21859-level-stage-i-15_min-mAOD"
+      },
+      "spillway": {
+        "name": "Earith Overspill Crest",
+        "baseline_crest_mAOD": 4.50,
+        "sill_elevation_mAOD": 2.10,
+        "crest_history": [
+          { "valid_from": "1970-01-01T00:00:00Z", "valid_to": null, "crest_mAOD": 4.50, "notes": "EA Fens Flood Defense Profile" }
+        ]
+      },
+      "pumping_stations": [
+        {
+          "id": "earith_ps",
+          "name": "Earith PS",
+          "total_pumps": 3,
+          "thresholds": {
+            "summer": { "lead": 2.20, "duty": 2.50, "mobile_order": 2.80, "mobile_active": 3.10, "critical_spill": 4.50 },
+            "winter": { "lead": 1.80, "duty": 2.10, "mobile_order": 2.40, "mobile_active": 2.70, "critical_spill": 3.20 }
+          }
+        }
+      ]
+    }
+  }
+}

@@ -1,8 +1,8 @@
-# Somerset Levels & Moors Flood Monitoring Dashboard
+# UK Flood Telemetry Dashboard
 
-An open-source, human-friendly real-time telemetry dashboard for tracking water levels, clyse/sluice gate operation, spillway overtopping states, and pumping station operational stages across the Somerset Levels and Moors (River Tone and Parrett catchments).
+An open-source, human-friendly real-time telemetry dashboard for tracking water levels, clyse/sluice gate operation, spillway overtopping states, and pumping station operational stages across UK catchments (starting with the Somerset Levels and Moors).
 
-🌐 **Live Production App:** [https://somerset-flood-dashboard.fly.dev](https://somerset-flood-dashboard.fly.dev)
+🌐 **Live Production Domain:** [https://floodtelemetry.uk](https://floodtelemetry.uk) (Fly.io target: `https://somerset-flood-dashboard.fly.dev`)
 
 ---
 

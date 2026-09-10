@@ -1,4 +1,4 @@
-# Somerset Levels Flood & Infrastructure Status Dashboard
+# UK Flood Telemetry Dashboard (floodtelemetry.uk)
 
 ## Project Overview
 An open-source, human-friendly real-time telemetry dashboard for tracking water levels, clyse/sluice gate operation, and spillway overtopping states across the Somerset Levels and Moors (River Tone and Parrett catchments).

@@ -1,5 +1,5 @@
 {
-  "name": "somerset-flood-dashboard",
+  "name": "flood-telemetry",
   "version": "1.0.0",
   "description": "Human-friendly real-time telemetry dashboard for Somerset Levels & Moors flood status",
   "main": "server.js",

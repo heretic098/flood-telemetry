@@ -200,18 +200,50 @@ function getStoredTelemetry() {
   };
 }
 
-// Initial 24h sync on boot & set 5-minute background polling interval
-syncAllTelemetry();
-setInterval(syncAllTelemetry, 5 * 60 * 1000);
+const isMainModule = process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url));
 
-// Check for BACKFILL_TELEMETRY flag to trigger non-blocking 28-day backfill worker
-if (shouldTriggerBackfill()) {
-  console.log('[SQLite Ingest] BACKFILL_TELEMETRY flag active. Triggering non-blocking background worker...');
-  setImmediate(() => {
-    syncBackfillTelemetry().catch(err => {
-      console.error('[Backfill Worker Exception]', err);
+if (isMainModule) {
+  // Initial 24h sync on boot & set 5-minute background polling interval
+  syncAllTelemetry();
+  const syncTimer = setInterval(syncAllTelemetry, 5 * 60 * 1000);
+  if (syncTimer && syncTimer.unref) syncTimer.unref();
+
+  // Check for BACKFILL_TELEMETRY flag to trigger non-blocking 28-day backfill worker
+  if (shouldTriggerBackfill()) {
+    console.log('[SQLite Ingest] BACKFILL_TELEMETRY flag active. Triggering non-blocking background worker...');
+    setImmediate(() => {
+      syncBackfillTelemetry().catch(err => {
+        console.error('[Backfill Worker Exception]', err);
+      });
     });
+  }
+
+  server.listen(PORT, () => {
+    console.log(`===================================================`);
+    console.log(`Somerset Flood Dashboard Server (SQLite Embedded WAL)`);
+    console.log(`Running locally at: http://localhost:${PORT}`);
+    console.log(`===================================================`);
   });
+}
+
+const CATCHMENTS_DIR = path.join(PUBLIC_DIR, 'js', 'config', 'catchments');
+
+export function getAvailableCatchments() {
+  try {
+    const indexPath = path.join(PUBLIC_DIR, 'js', 'config', 'catchments.json');
+    if (fs.existsSync(indexPath)) {
+      const data = JSON.parse(fs.readFileSync(indexPath, 'utf8'));
+      if (data && Array.isArray(data.catchments)) {
+        return data.catchments;
+      }
+    }
+  } catch (err) {
+    console.warn('[Server Warning] Could not read catchments.json:', err.message);
+  }
+  return [
+    { id: 'somerset', name: 'Somerset Levels & Moors', region: 'South West', path: '/somerset', configFile: 'somerset.json' },
+    { id: 'fens', name: 'The Fens & South Level', region: 'East Anglia', path: '/fens', configFile: 'fens.json' }
+  ];
 }
 
 const MIME_TYPES = {
@@ -225,9 +257,82 @@ const MIME_TYPES = {
 };
 
 const server = http.createServer(async (req, res) => {
-  if (req.url.startsWith('/api/history')) {
+  const urlObj = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+  let pathname = urlObj.pathname;
+
+  const availableCatchments = getAvailableCatchments();
+  const knownCatchmentIds = availableCatchments.map(c => c.id.toLowerCase());
+
+  // Handle catchment path prefixes (e.g., /somerset, /somerset/, /fens, /somerset/css/styles.css)
+  let activeCatchmentPrefix = null;
+  for (const cId of knownCatchmentIds) {
+    if (pathname.toLowerCase() === `/${cId}` || pathname.toLowerCase() === `/${cId}/`) {
+      activeCatchmentPrefix = cId;
+      pathname = '/index.html';
+      break;
+    } else if (pathname.toLowerCase().startsWith(`/${cId}/`)) {
+      activeCatchmentPrefix = cId;
+      pathname = pathname.substring(cId.length + 1); // Remove /somerset
+      break;
+    }
+  }
+
+  // API Route: List available catchments
+  if (pathname === '/api/catchments' || pathname === '/api/catchments/') {
+    res.writeHead(200, {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'no-cache',
+      'Access-Control-Allow-Origin': '*'
+    });
+    res.end(JSON.stringify({ status: "ok", catchments: availableCatchments }));
+    return;
+  }
+
+  // API Route: Return specific catchment config
+  if (pathname.startsWith('/api/catchments/')) {
+    const rawId = pathname.substring('/api/catchments/'.length).split('/')[0];
+    const catchmentId = rawId.toLowerCase();
+
+    const configFile = path.join(CATCHMENTS_DIR, `${catchmentId}.json`);
+    let configData = null;
+
+    if (fs.existsSync(configFile)) {
+      try {
+        configData = fs.readFileSync(configFile, 'utf8');
+      } catch (err) {
+        console.error(`[API Error] Failed to read config for ${catchmentId}:`, err);
+      }
+    } else if (catchmentId === 'somerset') {
+      const fallbackFile = path.join(PUBLIC_DIR, 'js', 'config', 'hydro_config.json');
+      if (fs.existsSync(fallbackFile)) {
+        try {
+          configData = fs.readFileSync(fallbackFile, 'utf8');
+        } catch (err) {
+          console.error(`[API Error] Failed to read fallback hydro_config.json:`, err);
+        }
+      }
+    }
+
+    if (configData) {
+      res.writeHead(200, {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-cache',
+        'Access-Control-Allow-Origin': '*'
+      });
+      res.end(configData);
+    } else {
+      res.writeHead(404, {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*'
+      });
+      res.end(JSON.stringify({ status: "error", message: `Catchment config '${catchmentId}' not found` }));
+    }
+    return;
+  }
+
+  // API Route: Historical telemetry
+  if (pathname.startsWith('/api/history')) {
     try {
-      const urlObj = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
       const rawRange = urlObj.searchParams.get('range') || '30d';
       const validRanges = { '24h': 1, '7d': 7, '30d': 30 };
       const range = validRanges[rawRange] ? rawRange : '30d';
@@ -271,7 +376,8 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  if (req.url.startsWith('/api/status')) {
+  // API Route: Status
+  if (pathname.startsWith('/api/status')) {
     let stored = getStoredTelemetry();
 
     // If SQLite has missing measures or caller asks for refresh, trigger sync
@@ -282,7 +388,7 @@ const server = http.createServer(async (req, res) => {
 
     res.writeHead(200, { 
       'Content-Type': 'application/json',
-      'Cache-Control': 'no-cache',
+      'Cache-Control': 'public, max-age=60, s-maxage=60, stale-while-revalidate=120',
       'Access-Control-Allow-Origin': '*'
     });
     res.end(JSON.stringify({
@@ -299,16 +405,23 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  const reqFile = req.url.split('?')[0];
-  const safePath = path.resolve(path.join(PUBLIC_DIR, reqFile === '/' ? 'index.html' : reqFile));
+  let reqFile = pathname === '/' ? 'index.html' : pathname;
+  let safePath = path.resolve(path.join(PUBLIC_DIR, reqFile));
+
   if (!safePath.startsWith(PUBLIC_DIR)) {
     res.writeHead(403, { 'Content-Type': 'text/plain' });
     res.end('403 Forbidden');
     return;
   }
 
+  // Fallback to index.html for extensionless catchment routes if file doesn't exist
+  if (!fs.existsSync(safePath) && !path.extname(safePath)) {
+    safePath = path.resolve(path.join(PUBLIC_DIR, 'index.html'));
+  }
+
   const ext = path.extname(safePath).toLowerCase();
   const contentType = MIME_TYPES[ext] || 'application/octet-stream';
+  const cacheControl = (ext === '.html') ? 'public, max-age=300' : 'public, max-age=86400, s-maxage=86400';
 
   fs.readFile(safePath, (err, content) => {
     if (err) {
@@ -320,16 +433,14 @@ const server = http.createServer(async (req, res) => {
         res.end('500 Internal Server Error');
       }
     } else {
-      res.writeHead(200, { 'Content-Type': contentType });
+      res.writeHead(200, { 
+        'Content-Type': contentType,
+        'Cache-Control': cacheControl
+      });
       res.end(content, 'utf-8');
     }
   });
 });
 
-server.listen(PORT, () => {
-  console.log(`===================================================`);
-  console.log(`Somerset Flood Dashboard Server (SQLite Embedded WAL)`);
-  console.log(`Running locally at: http://localhost:${PORT}`);
-  console.log(`===================================================`);
-});
+export { server };
 

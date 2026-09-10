@@ -1,0 +1,18 @@
+{
+  "catchments": [
+    {
+      "id": "somerset",
+      "name": "Somerset Levels & Moors",
+      "region": "South West",
+      "path": "/somerset",
+      "configFile": "somerset.json"
+    },
+    {
+      "id": "fens",
+      "name": "The Fens & South Level",
+      "region": "East Anglia",
+      "path": "/fens",
+      "configFile": "fens.json"
+    }
+  ]
+}
