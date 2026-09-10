@@ -1362,6 +1362,31 @@ svg.micro-sparkline {
   color: #7dd3fc;
 }
 
+/* Ko-fi Support Banner */
+.kofi-support-banner {
+  background: rgba(255, 95, 95, 0.08);
+  border: 1px solid rgba(255, 95, 95, 0.25);
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.5rem;
+  color: #f1f5f9;
+  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.kofi-link {
+  color: #ff5e5e;
+  font-weight: 700;
+  text-decoration: underline;
+  transition: color 0.2s ease;
+}
+
+.kofi-link:hover {
+  color: #ff8585;
+}
+
 
 
 
