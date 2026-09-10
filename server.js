@@ -217,13 +217,6 @@ if (isMainModule) {
       });
     });
   }
-
-  server.listen(PORT, () => {
-    console.log(`===================================================`);
-    console.log(`Somerset Flood Dashboard Server (SQLite Embedded WAL)`);
-    console.log(`Running locally at: http://localhost:${PORT}`);
-    console.log(`===================================================`);
-  });
 }
 
 const CATCHMENTS_DIR = path.join(PUBLIC_DIR, 'js', 'config', 'catchments');
@@ -441,6 +434,15 @@ const server = http.createServer(async (req, res) => {
     }
   });
 });
+
+if (isMainModule) {
+  server.listen(PORT, () => {
+    console.log(`===================================================`);
+    console.log(`Flood Telemetry Dashboard Server (SQLite Embedded WAL)`);
+    console.log(`Running locally at: http://localhost:${PORT}`);
+    console.log(`===================================================`);
+  });
+}
 
 export { server };
 
