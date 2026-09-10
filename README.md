@@ -78,3 +78,17 @@ Deploy updates using `flyctl`:
 ```bash
 /home/jonathan/.fly/bin/flyctl deploy
 ```
+
+---
+
+## Data Attribution & Acknowledgements
+
+This application uses public open data provided by UK government bodies under the **Open Government Licence v3.0**:
+* **Environment Agency (EA):** Real-time flood monitoring telemetry & hydrology APIs.
+* **Crown Copyright:** *Contains Environment Agency data © Crown copyright and database right 2026, licensed under the [Open Government Licence v3.0](https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/).*
+
+---
+
+## License
+
+This project is licensed under the **Apache License 2.0** - see the [LICENSE](LICENSE) file for details.

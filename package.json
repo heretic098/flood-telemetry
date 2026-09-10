@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Human-friendly real-time telemetry dashboard for Somerset Levels & Moors flood status",
   "main": "server.js",
+  "license": "Apache-2.0",
   "type": "module",
   "scripts": {
     "start": "node server.js",
