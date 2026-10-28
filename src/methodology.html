@@ -17,9 +17,10 @@
           <span>METHODOLOGY & PROVENANCE</span>
         </div>
       </div>
-      <nav class="nav-links">
+      <nav class="nav-links" aria-label="Main Navigation">
         <a href="index.html" class="nav-btn">📊 Live Dashboard</a>
-        <a href="methodology.html" class="nav-btn active">📖 Methodology & Provenance</a>
+        <a href="topology.html" class="nav-btn">🗺️ River Network Map</a>
+        <a href="methodology.html" class="nav-btn active" aria-current="page">📖 Methodology &amp; Provenance</a>
       </nav>
     </div>
   </header>
@@ -116,6 +117,12 @@
           <li><strong>DROWNED / SUBMERGED:</strong> $H_u \ge 0\text{m}$ and $S \ge 0.70$ (High tailwater in flooded moor drowns the spillway).</li>
           <li><strong>REVERSE SPILL:</strong> $H_d > H_u \ge 0\text{m}$ (Flooded moor level exceeds river level, spilling back into channel).</li>
         </ul>
+        <p class="math-subtext">
+          Applied across all engineered weirs and inter-moor cascades:
+          <strong>Hookbridge Spillway</strong> ($Z_{\text{crest}} = 7.45\text{m AOD}$, Tone ➔ Curry Moor),
+          <strong>Athelney Spillway &amp; Cuts Road</strong> ($Z_{\text{crest}} = 7.35\text{m AOD}$, Curry Moor ➔ Northmoor cascade), and
+          <strong>Baltmoor Wall Defense</strong> ($Z_{\text{crest}} = 7.80\text{m AOD}$, Parrett confluence levee defense).
+        </p>
       </div>
 
       <div class="equation-card">
@@ -162,8 +169,8 @@
               <td>❄️ Winter (Oct 16 - Apr 14)</td>
               <td>4.00m AOD</td>
               <td>4.30m AOD</td>
-              <td>4.40m AOD</td>
-              <td>4.60m AOD</td>
+              <td>5.80m AOD</td>
+              <td>6.10m AOD</td>
             </tr>
             <tr>
               <td rowspan="2"><strong>Stanmoor PS</strong></td>
@@ -178,8 +185,8 @@
               <td>❄️ Winter (Oct 16 - Apr 14)</td>
               <td>4.10m AOD</td>
               <td>4.40m AOD</td>
-              <td>4.50m AOD</td>
-              <td>4.70m AOD</td>
+              <td>5.90m AOD</td>
+              <td>6.20m AOD</td>
             </tr>
             <tr>
               <td rowspan="2"><strong>Saltmoor PS</strong></td>
@@ -194,8 +201,8 @@
               <td>❄️ Winter (Oct 16 - Apr 14)</td>
               <td>3.40m AOD</td>
               <td>3.70m AOD</td>
-              <td>3.80m AOD</td>
-              <td>4.00m AOD</td>
+              <td>4.80m AOD</td>
+              <td>5.20m AOD</td>
             </tr>
             <tr>
               <td rowspan="2"><strong>Northmoor PS</strong></td>
@@ -210,8 +217,8 @@
               <td>❄️ Winter (Oct 16 - Apr 14)</td>
               <td>3.50m AOD</td>
               <td>3.80m AOD</td>
-              <td>3.90m AOD</td>
-              <td>4.10m AOD</td>
+              <td>4.80m AOD</td>
+              <td>5.20m AOD</td>
             </tr>
             <tr>
               <td rowspan="2"><strong>Dunball Mobile PS</strong></td>
@@ -229,6 +236,31 @@
               <td>3.30m AOD</td>
               <td>3.50m AOD</td>
             </tr>
+            <tr>
+              <td rowspan="2"><strong>Huish Episcopi PS</strong></td>
+              <td rowspan="2">Huish Episcopi (52120)</td>
+              <td>☀️ Summer (Apr 15 - Oct 15)</td>
+              <td>6.70m AOD</td>
+              <td>6.90m AOD</td>
+              <td>7.30m AOD (Road)</td>
+              <td>8.20m AOD (Cut-off)</td>
+            </tr>
+            <tr>
+              <td>❄️ Winter (Oct 16 - Apr 14)</td>
+              <td>6.30m AOD</td>
+              <td>6.50m AOD</td>
+              <td>7.30m AOD (Road)</td>
+              <td>8.20m AOD (Cut-off)</td>
+            </tr>
+            <tr>
+              <td><strong>Midelney PS</strong></td>
+              <td>Midelney (52153)</td>
+              <td>Annual Regime</td>
+              <td>6.40m AOD</td>
+              <td>6.70m AOD</td>
+              <td>8.20m AOD (Overflow)</td>
+              <td>8.20m AOD (Alert)</td>
+            </tr>
           </tbody>
         </table>
       </div>
@@ -238,7 +270,7 @@
     <section class="doc-section">
       <h3 class="section-heading"><span class="heading-icon">📊</span> 4. Environment Agency Station Registry</h3>
       <p>
-        Full listing of the 8 telemetry stations ingested by the system:
+        Full listing of the 19 telemetry stations ingested across the Somerset Levels &amp; Moors topological network:
       </p>
 
       <table class="data-table">
@@ -246,75 +278,170 @@
           <tr>
             <th>Station ID</th>
             <th>Station Name</th>
+            <th>Asset Taxonomy</th>
             <th>Catchment / Waterbody</th>
-            <th>Parameter</th>
-            <th>Unit</th>
+            <th>Datum / Reference</th>
             <th>Verification Link</th>
           </tr>
         </thead>
         <tbody>
+          <!-- River Tone Reaches -->
+          <tr>
+            <td><code>52108</code></td>
+            <td>Greenham (Upper Tone)</td>
+            <td><code>gauge</code></td>
+            <td>River Tone</td>
+            <td>mASD (+75.69m AOD)</td>
+            <td><a href="https://environment.data.gov.uk/flood-monitoring/id/stations/52108.html" target="_blank" rel="noopener noreferrer" class="table-link">EA 52108 ↗</a></td>
+          </tr>
+          <tr>
+            <td><code>52109</code></td>
+            <td>Bishops Hull (Mid Tone)</td>
+            <td><code>gauge</code></td>
+            <td>River Tone</td>
+            <td>mASD (+16.58m AOD)</td>
+            <td><a href="https://environment.data.gov.uk/flood-monitoring/id/stations/52109.html" target="_blank" rel="noopener noreferrer" class="table-link">EA 52109 ↗</a></td>
+          </tr>
+          <tr>
+            <td><code>52111</code></td>
+            <td>Taunton Market / Firepool</td>
+            <td><code>gauge</code></td>
+            <td>River Tone</td>
+            <td>mASD (+12.47m AOD)</td>
+            <td><a href="https://environment.data.gov.uk/flood-monitoring/id/stations/52111.html" target="_blank" rel="noopener noreferrer" class="table-link">EA 52111 ↗</a></td>
+          </tr>
+          <tr>
+            <td><code>52162</code></td>
+            <td>Bathpool Outfall (Lower Tone)</td>
+            <td><code>gauge</code></td>
+            <td>River Tone</td>
+            <td>mAOD (Direct)</td>
+            <td><a href="https://environment.data.gov.uk/flood-monitoring/id/stations/52162.html" target="_blank" rel="noopener noreferrer" class="table-link">EA 52162 ↗</a></td>
+          </tr>
           <tr>
             <td><code>52118</code></td>
-            <td>River Tone at Currymoor PS</td>
+            <td>River Tone at Currymoor PS (Hookbridge)</td>
+            <td><code>spillway</code> (Crest 7.45m)</td>
             <td>River Tone</td>
-            <td>Stage Level</td>
-            <td>mAOD</td>
+            <td>mAOD (Direct)</td>
             <td><a href="https://check-for-flooding.service.gov.uk/station/3073" target="_blank" rel="noopener noreferrer" class="table-link">GOV.UK 3073 ↗</a></td>
           </tr>
           <tr>
             <td><code>52127</code></td>
             <td>Curry Moor Basin Level</td>
+            <td><code>polder_basin</code> (Ground 2.10m; Athelney Spillway 7.35m)</td>
             <td>Curry Moor Reservoir</td>
-            <td>Stage Level</td>
-            <td>mAOD</td>
+            <td>mAOD (Direct)</td>
             <td><a href="https://check-for-flooding.service.gov.uk/station/3064" target="_blank" rel="noopener noreferrer" class="table-link">GOV.UK 3064 ↗</a></td>
+          </tr>
+
+          <!-- River Parrett Reaches -->
+          <tr>
+            <td><code>52116</code></td>
+            <td>Chiselborough (Upper Parrett)</td>
+            <td><code>gauge</code></td>
+            <td>River Parrett</td>
+            <td>m (+20.70m AOD)</td>
+            <td><a href="https://environment.data.gov.uk/flood-monitoring/id/stations/52116.html" target="_blank" rel="noopener noreferrer" class="table-link">EA 52116 ↗</a></td>
+          </tr>
+          <tr>
+            <td><code>52119</code></td>
+            <td>Gaw Bridge (Mid Parrett)</td>
+            <td><code>gauge</code></td>
+            <td>River Parrett</td>
+            <td>mASD (+10.00m AOD)</td>
+            <td><a href="https://environment.data.gov.uk/flood-monitoring/id/stations/52119.html" target="_blank" rel="noopener noreferrer" class="table-link">EA 52119 ↗</a></td>
+          </tr>
+          <tr>
+            <td><code>52233</code></td>
+            <td>Monk's Leaze Clyse (Upstream)</td>
+            <td><code>clyse_gate</code> (Sill 4.20m)</td>
+            <td>River Parrett</td>
+            <td>mAOD (Direct)</td>
+            <td><a href="https://environment.data.gov.uk/flood-monitoring/id/stations/52233.html" target="_blank" rel="noopener noreferrer" class="table-link">EA 52233 ↗</a></td>
           </tr>
           <tr>
             <td><code>52158</code></td>
             <td>Baltmoor Wall Saltmoor Barrier</td>
+            <td><code>spillway</code> (Crest 7.80m Parrett Defense)</td>
             <td>River Parrett</td>
-            <td>Stage Level</td>
-            <td>mAOD</td>
+            <td>mAOD (Direct)</td>
             <td><a href="https://check-for-flooding.service.gov.uk/station/3400" target="_blank" rel="noopener noreferrer" class="table-link">GOV.UK 3400 ↗</a></td>
+          </tr>
+          <tr>
+            <td><code>52124</code></td>
+            <td>West Quay Bridgwater</td>
+            <td><code>gauge</code></td>
+            <td>River Parrett</td>
+            <td>mAOD (Direct)</td>
+            <td><a href="https://environment.data.gov.uk/flood-monitoring/id/stations/52124.html" target="_blank" rel="noopener noreferrer" class="table-link">EA 52124 ↗</a></td>
           </tr>
           <tr>
             <td><code>52159</code></td>
             <td>Northmoor Main Drain</td>
+            <td><code>polder_basin</code> (Ground 1.80m; Dual Inflow 7.35m &amp; 7.80m)</td>
             <td>Northmoor Drain</td>
-            <td>Stage Level</td>
-            <td>mAOD</td>
+            <td>mAOD (Direct)</td>
             <td><a href="https://check-for-flooding.service.gov.uk/station/3415" target="_blank" rel="noopener noreferrer" class="table-link">GOV.UK 3415 ↗</a></td>
           </tr>
+
+          <!-- Tributaries (River Yeo & River Isle Confluences) -->
           <tr>
-            <td><code>52233</code></td>
-            <td>Monk's Leaze River Level</td>
-            <td>River Parrett (Upstream Sowy)</td>
-            <td>Stage Level</td>
-            <td>mAOD</td>
-            <td><a href="https://environment.data.gov.uk/flood-monitoring/id/stations/52233.html" target="_blank" rel="noopener noreferrer" class="table-link">EA 52233 ↗</a></td>
+            <td><code>52120</code></td>
+            <td>Huish Episcopi Pumping Station</td>
+            <td><code>gauge</code> (Cut-off 8.20m AOD)</td>
+            <td>River Yeo</td>
+            <td>mASD (+5.000m AOD)</td>
+            <td><a href="https://environment.data.gov.uk/flood-monitoring/id/stations/52120.html" target="_blank" rel="noopener noreferrer" class="table-link">EA 52120 ↗</a></td>
           </tr>
           <tr>
+            <td><code>52153</code></td>
+            <td>Midelney (West Moor PS &amp; Sluice)</td>
+            <td><code>gauge</code> (Alert 8.20m AOD)</td>
+            <td>River Isle</td>
+            <td>mASD (+5.185m AOD)</td>
+            <td><a href="https://environment.data.gov.uk/flood-monitoring/id/stations/52153.html" target="_blank" rel="noopener noreferrer" class="table-link">EA 52153 ↗</a></td>
+          </tr>
+
+          <!-- Sowy Relief Channel & Sedgemoor Drain -->
+          <tr>
             <td><code>52234</code></td>
-            <td>Monk's Leaze Downstream Sowy</td>
+            <td>Monk's Leaze Clyse (Downstream Sowy)</td>
+            <td><code>gauge</code></td>
             <td>Sowy Relief Channel</td>
-            <td>Downstage Level</td>
-            <td>mAOD</td>
+            <td>mAOD (Direct)</td>
             <td><a href="https://environment.data.gov.uk/flood-monitoring/id/stations/52234.html" target="_blank" rel="noopener noreferrer" class="table-link">EA 52234 ↗</a></td>
           </tr>
           <tr>
-            <td><code>E9094</code></td>
-            <td>Dunball Inland KSD</td>
+            <td><code>52157</code></td>
+            <td>Beer Wall Upstream (Greylake)</td>
+            <td><code>spillway</code> (Crest 7.30m)</td>
+            <td>Sowy Relief Channel</td>
+            <td>mAOD (Direct)</td>
+            <td><a href="https://environment.data.gov.uk/flood-monitoring/id/stations/52157.html" target="_blank" rel="noopener noreferrer" class="table-link">EA 52157 ↗</a></td>
+          </tr>
+          <tr>
+            <td><code>E9531</code></td>
+            <td>Bradney (King's Sedgemoor Drain)</td>
+            <td><code>gauge</code></td>
             <td>King's Sedgemoor Drain</td>
-            <td>Stage Level</td>
-            <td>mAOD</td>
+            <td>mAOD (Direct)</td>
+            <td><a href="https://environment.data.gov.uk/flood-monitoring/id/stations/E9531.html" target="_blank" rel="noopener noreferrer" class="table-link">EA E9531 ↗</a></td>
+          </tr>
+          <tr>
+            <td><code>E9094</code></td>
+            <td>Dunball Inland KSD Outfall</td>
+            <td><code>gauge</code></td>
+            <td>King's Sedgemoor Drain</td>
+            <td>mAOD (Direct)</td>
             <td><a href="https://check-for-flooding.service.gov.uk/station/9499" target="_blank" rel="noopener noreferrer" class="table-link">GOV.UK 9499 ↗</a></td>
           </tr>
           <tr>
             <td><code>52163</code></td>
             <td>Dunball Tidal Parrett</td>
+            <td><code>tidal_outfall</code></td>
             <td>Parrett Estuary</td>
-            <td>Tidal Level</td>
-            <td>mAOD</td>
+            <td>mAOD (Direct)</td>
             <td><a href="https://check-for-flooding.service.gov.uk/station/9129" target="_blank" rel="noopener noreferrer" class="table-link">GOV.UK 9129 ↗</a></td>
           </tr>
         </tbody>

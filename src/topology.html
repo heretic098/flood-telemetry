@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>River Network Topology Map | Somerset Levels Flood Status</title>
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+  <header role="banner">
+    <div class="header-top">
+      <div class="title-group">
+        <h1>Somerset Levels Flood Status</h1>
+        <div class="live-pill" id="live-toggle" title="Telemetry System Operational" role="status" aria-live="polite">
+          <span class="live-dot"></span>
+          <span>RIVER NETWORK MAP</span>
+        </div>
+      </div>
+      <nav class="nav-links" aria-label="Main Navigation">
+        <a href="index.html" class="nav-btn">📊 Live Dashboard</a>
+        <a href="topology.html" class="nav-btn active" aria-current="page">🗺️ River Network Map</a>
+        <a href="methodology.html" class="nav-btn">📖 Methodology &amp; Provenance</a>
+      </nav>
+      <div class="header-right-group">
+        <div class="counter-pill" id="counter-pill" role="status" aria-live="polite">[ Loading Topology... ]</div>
+        <div class="telemetry-freshness-pill freshness-fresh" id="ea-freshness-pill" role="status" aria-live="polite">📡 Telemetry: Loading...</div>
+      </div>
+    </div>
+    
+    <div class="alert-banner" id="alert-banner" role="status" aria-live="polite">
+      INITIALIZING RIVER TOPOLOGY TELEMETRY...
+    </div>
+  </header>
+
+  <main class="topology-page-container" role="main" aria-label="River Network Topology Interactive Map">
+    <section class="topology-controls-bar" aria-label="Catchment Filter & Status Legend Controls">
+      <div class="filter-group">
+        <label for="catchment-filter" class="filter-label">Catchment View:</label>
+        <div class="filter-buttons" role="toolbar" aria-label="Catchment Filter Buttons">
+          <button class="filter-btn active" data-catchment="all" id="filter-all" aria-pressed="true">All Catchments</button>
+          <button class="filter-btn" data-catchment="tone" id="filter-tone" aria-pressed="false">River Tone</button>
+          <button class="filter-btn" data-catchment="parrett" id="filter-parrett" aria-pressed="false">River Parrett</button>
+          <button class="filter-btn" data-catchment="tributaries" id="filter-tribs" aria-pressed="false">Tributaries (Yeo &amp; Isle)</button>
+          <button class="filter-btn" data-catchment="sowy_ksd" id="filter-sowy" aria-pressed="false">Sowy / KSD</button>
+        </div>
+      </div>
+
+      <div class="topology-legend" aria-label="Node Status Color Legend">
+        <button type="button" class="legend-item" data-status="SECURE" title="Click to filter Nominal nodes" aria-label="Filter by Secure status"><span class="legend-dot status-secure"></span> 🟢 Nominal / Secure</button>
+        <button type="button" class="legend-item" data-status="ALERT" title="Click to filter Alert nodes" aria-label="Filter by Alert status"><span class="legend-dot status-alert"></span> 🟡 Alert (&lt;30cm Crest)</button>
+        <button type="button" class="legend-item" data-status="OVERSPILLING" title="Click to filter Overspilling nodes" aria-label="Filter by Overspilling status"><span class="legend-dot status-overspilling"></span> 🔴 Overspilling</button>
+        <button type="button" class="legend-item" data-status="DIVERTING" title="Click to filter Diverting nodes" aria-label="Filter by Diverting status"><span class="legend-dot status-diverting"></span> 🔵 Diverting</button>
+        <button type="button" class="legend-item" data-status="CLOSED" title="Click to filter Closed nodes" aria-label="Filter by Closed status"><span class="legend-dot status-closed"></span> ⛔ Closed / Tide-Locked</button>
+      </div>
+    </section>
+
+    <div class="topology-main-content">
+      <!-- Interactive SVG Network Container -->
+      <section class="topology-canvas-container" aria-label="Interactive Hydrological Flow Canvas">
+        <div class="canvas-header-info">
+          <h2>Somerset Levels Hydrological Topology</h2>
+          <span class="canvas-subtext">Click or tap any node to inspect real-time telemetry, stage elevations, engineered crests, and 24h hydrographs.</span>
+        </div>
+        <div class="svg-wrapper" id="svg-wrapper">
+          <div class="zoom-controls-overlay" aria-label="Map Zoom and Pan Controls" role="toolbar">
+            <button class="zoom-btn" id="btn-zoom-in" title="Zoom In (+20%)" aria-label="Zoom In">🔍+</button>
+            <button class="zoom-btn" id="btn-zoom-out" title="Zoom Out (-20%)" aria-label="Zoom Out">🔍-</button>
+            <button class="zoom-btn" id="btn-zoom-reset" title="Reset View (100%)" aria-label="Reset View">↺ Reset</button>
+            <span class="zoom-level-indicator" id="zoom-level-display">100%</span>
+          </div>
+          <svg id="topology-svg" viewBox="0 0 960 620" preserveAspectRatio="xMidYMid meet" role="region" aria-label="Somerset Levels Hydrological River Network Topology Schematic">
+            <title>Somerset Levels River Network Topology</title>
+            <desc>Interactive topology map rendering River Tone, River Parrett, Sowy Relief Channel, Curry Moor, Northmoor, and Dunball Sea Outfall.</desc>
+            <!-- SVG content rendered dynamically by topology.js -->
+          </svg>
+        </div>
+      </section>
+
+      <!-- Side-by-Side Node Inspector Drawer -->
+      <aside class="node-inspector-drawer" id="node-inspector-drawer" aria-label="Node Telemetry Inspector" aria-live="polite">
+        <div class="inspector-placeholder" id="inspector-placeholder">
+          <span class="placeholder-icon">📍</span>
+          <h3>No Node Selected</h3>
+          <p>Select any station node on the map to inspect live stage telemetry, engineered crest clearance, and historical trend hydrographs.</p>
+        </div>
+
+        <div class="inspector-content hidden" id="inspector-content">
+          <div class="inspector-header">
+            <div>
+              <div class="node-type-badge" id="node-type-badge">Gauge Node</div>
+              <h3 class="node-title" id="node-title">Station Title</h3>
+              <span class="node-subtitle" id="node-subtitle">River Corridor</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+              <div class="status-pill status-secure" id="node-status-pill">🟢 SECURE</div>
+              <button type="button" class="inspector-close-btn" id="btn-inspector-close" title="Close Inspector" aria-label="Close node inspector drawer">✕</button>
+            </div>
+          </div>
+
+          <div class="inspector-hero-metric">
+            <div class="metric-stage-group">
+              <span class="stage-num" id="node-stage-num">0.00</span>
+              <span class="stage-unit">mAOD</span>
+            </div>
+            <div class="metric-crest-group">
+              <span class="crest-label" id="node-crest-label">Engineered Crest:</span>
+              <span class="crest-val" id="node-crest-val">0.00mAOD</span>
+              <span class="clearance-pill" id="node-clearance-pill">+0.17m over crest</span>
+            </div>
+          </div>
+
+          <div class="inspector-track-section" id="node-track-section">
+            <div class="track-labels">
+              <span id="node-track-min">Normal: 5.50m</span>
+              <span id="node-track-max">Crest: 7.45mAOD</span>
+            </div>
+            <div class="track-bar-container" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" aria-label="Water level relative to spillway crest" id="node-progressbar">
+              <div class="track-bar-fill" id="node-track-fill"></div>
+            </div>
+          </div>
+
+          <div class="inspector-stats-grid" id="node-stats-grid">
+            <div class="stat-card">
+              <span class="stat-title">Spill / Flow Duration</span>
+              <strong class="stat-val" id="node-duration-val">⏱️ 04h 12m</strong>
+            </div>
+          </div>
+
+          <!-- Upstream Feeder Chain Accordion (for Confluence Gateways) -->
+          <div class="inspector-tributary-chain hidden" id="node-tributary-chain" aria-label="Upstream Sub-Catchment Feeder Gauges">
+            <h4 class="tributary-chain-title">📡 Upstream Feeder Chain (Sub-Catchment Gauges)</h4>
+            <div class="tributary-chain-stepper" id="tributary-chain-stepper">
+              <!-- Rendered dynamically -->
+            </div>
+          </div>
+
+          <div class="inspector-sparkline-section">
+            <div class="sparkline-title-row">
+              <span>24h Stage Hydrograph Trend</span>
+              <span class="sparkline-station-badge" id="node-sparkline-badge">52118</span>
+            </div>
+            <div class="inspector-sparkline-box" id="node-sparkline-box">
+              <!-- Hydrograph rendered dynamically -->
+            </div>
+          </div>
+
+          <div class="inspector-narrative" id="node-narrative">
+            Live telemetry readings confirm normal stage height below engineered spillway crest.
+          </div>
+
+          <div class="inspector-footer-links" id="node-footer-links">
+            <a href="#" target="_blank" rel="noopener noreferrer" class="ext-link-btn" id="node-govuk-link">📊 View on GOV.UK ↗</a>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </main>
+
+  <footer class="app-disclaimer-footer" role="contentinfo">
+    <div class="disclaimer-content">
+      <div class="kofi-support-banner">
+        <span>☕ <strong>Independent &amp; Open Source:</strong> Flood Telemetry is built for the community. View the open-source code on <a href="https://github.com/heretic098/flood-telemetry" target="_blank" rel="noopener noreferrer" class="disclaimer-link">GitHub ↗</a> or <a href="https://ko-fi.com/heretic098" target="_blank" rel="noopener noreferrer" class="kofi-link">support the developer on Ko-fi ↗</a></span>
+      </div>
+      <p>
+        <strong>⚠️ Data Disclaimer &amp; Public Notice:</strong> Information displayed on this topology map is synthesized from publicly available Environment Agency (EA) open telemetry APIs and hydrological physics models. 
+        This is an independent open-source visualization tool and <strong>does not constitute official flood warning advice, forecasting, or emergency instructions</strong>.
+      </p>
+      <p>
+        For official UK Government flood warnings, emergency guidance, and life-safety instructions, always consult the official 
+        <a href="https://check-for-flooding.service.gov.uk" target="_blank" rel="noopener noreferrer" class="disclaimer-link">GOV.UK Flood Warning Service ↗</a> 
+        or call EA Floodline at <strong>0345 988 1188</strong>.
+      </p>
+      <p class="ogl-attribution">
+        Contains Environment Agency data © Crown copyright and database right 2026, licensed under the <a href="https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/" target="_blank" rel="noopener noreferrer" class="disclaimer-link">Open Government Licence v3.0 ↗</a>.
+      </p>
+    </div>
+  </footer>
+
+  <script type="module" src="js/topology.js?v=1.2.0"></script>
+</body>
+</html>

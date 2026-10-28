@@ -503,6 +503,296 @@ export async function loadCatchmentConfig(catchmentId = 'somerset', fetchFn = gl
   return null;
 }
 
+/**
+ * Single Authoritative Hydrological Threshold Registry (mAOD)
+ */
+export const HYDRO_THRESHOLDS = {
+  HOOKBRIDGE: {
+    CREST_MAOD: 7.45,
+    ALERT_MAOD: 7.15
+  },
+  BALTMOOR: {
+    CREST_MAOD: 7.80,
+    ALERT_MAOD: 7.50
+  },
+  MONKS_LEAZE: {
+    SILL_MAOD: 4.20,
+    MIN_DELTA_H: 0.05,
+    UPSTREAM_ALERT_MAOD: 7.90,
+    DOWNSTREAM_ALERT_MAOD: 7.60
+  },
+  BEERWALL: {
+    CREST_MAOD: 7.30,
+    ALERT_MAOD: 4.20
+  },
+  CURRY_MOOR: {
+    GROUND_MAOD: 2.10,
+    ALERT_MAOD: 6.50,
+    CREST_MAOD: 7.45
+  },
+  NORTHMOOR: {
+    GROUND_MAOD: 1.80,
+    ALERT_MAOD: 3.80,
+    CREST_MAOD: 7.80
+  },
+  DUNBALL: {
+    ESTUARY_ALERT_MAOD: 6.50,
+    INLAND_ALERT_MAOD: 3.50
+  },
+  HUISH_EPISCOPI: {
+    DATUM_MAOD: 5.000,
+    GROUND_INVERT_MAOD: 5.80,
+    LEAD_PUMP_WINTER: 6.30,
+    DUTY_PUMP_WINTER: 6.50,
+    LEAD_PUMP_SUMMER: 6.70,
+    DUTY_PUMP_SUMMER: 6.90,
+    MUCHELNEY_ROAD_MAOD: 7.30,
+    RIVER_CUTOFF_MAOD: 8.20,
+    ALERT_MAOD: 8.48,
+    EMBANKMENT_CREST_MAOD: 8.80
+  },
+  MIDELNEY: {
+    DATUM_MAOD: 5.185,
+    GROUND_INVERT_MAOD: 5.50,
+    LEAD_PUMP: 6.40,
+    DUTY_PUMP: 6.70,
+    HEADLOCK_OVERFLOW_MAOD: 8.20,
+    ALERT_MAOD: 8.20
+  }
+};
+
+/**
+ * Pre-Overtopping 30cm Warning Alert Thresholds (mAOD)
+ */
+export const PRE_OVERTOPPING_THRESHOLDS = {
+  HOOKBRIDGE_ALERT_MAOD: HYDRO_THRESHOLDS.HOOKBRIDGE.ALERT_MAOD, // 30cm below 7.45m crest
+  BALTMOOR_ALERT_MAOD: HYDRO_THRESHOLDS.BALTMOOR.ALERT_MAOD     // 30cm below 7.80m crest
+};
+
+/**
+ * Sanitizes and validates stage values against plausibility bounds (-2.0m to 15.0m AOD) (SEC-06).
+ */
+export function sanitizeStageValue(val) {
+  if (val === null || val === undefined || typeof val !== 'number' || isNaN(val)) {
+    return null;
+  }
+  if (val < -2.0 || val > 100.0) {
+    return null; // Out of bounds telemetry outlier
+  }
+  return val;
+}
+
+/**
+ * Calculates estimated overtopping discharge flow (m³/s & Megalitres/day)
+ * using the Villemonte broad-crested submerged weir formulation.
+ */
+export function calculateVillemonteDischarge(h_river, h_moor, Z_crest, B = 45.0, Cd = 0.575) {
+  const cleanRiver = sanitizeStageValue(h_river);
+  const cleanMoor = sanitizeStageValue(h_moor);
+
+  if (cleanRiver === null) {
+    return { flowM3s: 0, flowMLD: 0, submergenceRatio: 0, state: "INVALID_TELEMETRY" };
+  }
+
+  const H_u = cleanRiver - Z_crest;
+  const H_d = cleanMoor !== null ? cleanMoor - Z_crest : 0;
+
+  if (H_u <= 0) {
+    return { flowM3s: 0, flowMLD: 0, submergenceRatio: 0, state: "DRY" };
+  }
+
+  const g = 9.81;
+  const submergenceRatio = H_u > 0 && H_d > 0 ? Math.min(1.0, H_d / H_u) : 0;
+  const freeFlow = (2 / 3) * Cd * B * Math.pow(H_u, 1.5) * Math.sqrt(2 * g);
+
+  let flowM3s = freeFlow;
+  if (submergenceRatio > 0 && submergenceRatio < 1.0) {
+    const submergenceFactor = Math.pow(1.0 - Math.pow(submergenceRatio, 1.5), 0.385);
+    flowM3s = freeFlow * submergenceFactor;
+  } else if (submergenceRatio >= 1.0) {
+    flowM3s = 0; // Equalized tailwater head
+  }
+
+  flowM3s = Math.round(flowM3s * 10) / 10;
+  const flowMLD = Math.round(flowM3s * 86.4);
+
+  return {
+    flowM3s,
+    flowMLD,
+    submergenceRatio,
+    state: submergenceRatio >= 0.70 ? "SUBMERGED" : "FREE_FLOW"
+  };
+}
+
+/**
+ * Sanitizes HTML string inputs to prevent XSS (SEC-01).
+ */
+export function escapeHTML(str) {
+  if (typeof str !== 'string') return str;
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+/**
+ * Sanitizes HTML attribute values (SEC-01).
+ */
+export function escapeAttr(str) {
+  if (typeof str !== 'string') return str;
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+/**
+ * Formats head differential values in centimeters.
+ */
+export function formatHeadDelta(deltaInMeters) {
+  if (typeof deltaInMeters !== 'number' || isNaN(deltaInMeters)) return '--';
+  const cm = Math.round(deltaInMeters * 100);
+  if (cm > 0) return `+${cm} cm`;
+  return `${cm} cm`;
+}
+
+/**
+ * Evaluates Huish Episcopi Pumping Station on the River Yeo, including
+ * automatic receiving river cut-off interlock (8.20m AOD) and Muchelney road inundation (7.30m AOD).
+ */
+export function evaluateHuishEpiscopi(stage_mAOD, isSummer = false) {
+  const cleanStage = sanitizeStageValue(stage_mAOD);
+  if (cleanStage === null) {
+    return { code: "OFFLINE", label: "OFFLINE", badgeClass: "badge-offline", narrative: "No telemetry", severity: 1 };
+  }
+
+  const t = HYDRO_THRESHOLDS.HUISH_EPISCOPI;
+  const leadPump = isSummer ? t.LEAD_PUMP_SUMMER : t.LEAD_PUMP_WINTER;
+  const dutyPump = isSummer ? t.DUTY_PUMP_SUMMER : t.DUTY_PUMP_WINTER;
+  const muchelneyRoad = t.MUCHELNEY_ROAD_MAOD;
+  const riverCutoff = t.RIVER_CUTOFF_MAOD;
+  const alertLevel = t.ALERT_MAOD;
+
+  const roadMargin = Number((muchelneyRoad - cleanStage).toFixed(2));
+  const cutoffClearance = Number((riverCutoff - cleanStage).toFixed(2));
+
+  let pumpStatus = "STANDBY";
+  let pumpLabel = "STANDBY (GRAVITY DRAINAGE)";
+  if (cleanStage >= riverCutoff) {
+    pumpStatus = "CUT_OFF";
+    pumpLabel = "PUMPS LOCKED (RIVER FULL)";
+  } else if (cleanStage >= dutyPump) {
+    pumpStatus = "DUTY_PUMPING";
+    pumpLabel = "DUTY PUMPS ACTIVE";
+  } else if (cleanStage >= leadPump) {
+    pumpStatus = "LEAD_PUMPING";
+    pumpLabel = "LEAD PUMP ACTIVE";
+  }
+
+  let code = "SECURE";
+  let label = "SECURE (CONVEYING)";
+  let badgeClass = "badge-secure";
+  let symbol = "✓";
+  let severity = 5;
+  let narrative = `River Yeo level is ${cleanStage.toFixed(2)}m AOD. ${cutoffClearance > 0 ? `+${cutoffClearance.toFixed(2)}m clearance to 8.20m river cut-off.` : 'Receiving river is bankfull.'}`;
+
+  if (cleanStage >= alertLevel) {
+    code = "ALERT";
+    label = "FLOOD ALERT";
+    badgeClass = "badge-alert";
+    symbol = "▲";
+    severity = 3;
+    narrative = `Flood Alert: River Yeo level (${cleanStage.toFixed(2)}m AOD) exceeds typical high (${alertLevel}m AOD).`;
+  } else if (cleanStage >= riverCutoff) {
+    code = "CUT_OFF";
+    label = "RIVER FULL / PUMPS LOCKED";
+    badgeClass = "badge-restricted";
+    symbol = "🔒";
+    severity = 3;
+    narrative = `River Yeo stage has reached ${cleanStage.toFixed(2)}m AOD (≥ 8.20m bankfull limit). Huish Episcopi permanent pumps are automatically locked out to prevent levee breach.`;
+  } else if (cleanStage >= muchelneyRoad) {
+    code = "ROAD_INUNDATED";
+    label = "MUCHELNEY ROAD FLOODED";
+    badgeClass = "badge-warning";
+    symbol = "⚠️";
+    severity = 4;
+    narrative = `Warning: River Yeo stage (${cleanStage.toFixed(2)}m AOD) exceeds 7.30m road threshold. Muchelney-Langport road is inundated.`;
+  }
+
+  return {
+    code,
+    label,
+    badgeClass,
+    symbol,
+    severity,
+    stage_mAOD: cleanStage,
+    pumpStatus,
+    pumpLabel,
+    muchelneyRoadMargin: roadMargin,
+    cutoffClearance: cutoffClearance,
+    clearanceText: cutoffClearance >= 0 ? `+${cutoffClearance.toFixed(2)}m to Cut-off` : `${Math.abs(cutoffClearance).toFixed(2)}m above Cut-off`,
+    isRoadFlooded: cleanStage >= muchelneyRoad,
+    isPumpsCutoff: cleanStage >= riverCutoff,
+    narrative
+  };
+}
+
+/**
+ * Evaluates Midelney on the River Isle, including gravity sluice vs headlocked pumping
+ * and flood storage area (FSA) overflow status.
+ */
+export function evaluateMidelney(stage_mAOD, parrettStage_mAOD = null) {
+  const cleanStage = sanitizeStageValue(stage_mAOD);
+  const cleanParrett = sanitizeStageValue(parrettStage_mAOD);
+  if (cleanStage === null) {
+    return { code: "OFFLINE", label: "OFFLINE", badgeClass: "badge-offline", narrative: "No telemetry", severity: 1 };
+  }
+
+  const t = HYDRO_THRESHOLDS.MIDELNEY;
+  const isHeadLocked = cleanParrett !== null && cleanParrett >= cleanStage;
+  const isPumping = cleanStage >= t.LEAD_PUMP;
+  const isAlert = cleanStage >= t.ALERT_MAOD;
+
+  let code = "SECURE";
+  let label = "GRAVITY DISCHARGE";
+  let badgeClass = "badge-secure";
+  let symbol = "✓";
+  let severity = 5;
+
+  if (isAlert) {
+    code = "ALERT";
+    label = "FLOOD ALERT / FSA OVERFLOW";
+    badgeClass = "badge-alert";
+    symbol = "▲";
+    severity = 3;
+  } else if (isHeadLocked) {
+    code = "HEAD_LOCKED";
+    label = isPumping ? "HEAD-LOCKED (PUMPING)" : "HEAD-LOCKED";
+    badgeClass = "badge-restricted";
+    symbol = "🕒";
+    severity = 4;
+  }
+
+  return {
+    code,
+    label,
+    badgeClass,
+    symbol,
+    severity,
+    stage_mAOD: cleanStage,
+    isHeadLocked,
+    isPumping,
+    isAlert,
+    clearanceText: (t.ALERT_MAOD - cleanStage).toFixed(2) + 'm to Alert',
+    narrative: `River Isle stage is ${cleanStage.toFixed(2)}m AOD. ${isHeadLocked ? 'Parrett head backpressure forces Midelney gravity flaps shut; West Moor pumping required.' : 'Free gravity discharge into River Parrett active.'}`
+  };
+}
+
+
 
 
 

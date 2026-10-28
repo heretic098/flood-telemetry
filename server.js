@@ -4,6 +4,28 @@ import path from 'node:path';
 import { fileURLToPath } from 'url';
 import Database from 'better-sqlite3';
 
+import {
+  evaluateSpillway,
+  evaluateGateState,
+  evaluateSowyChannel,
+  estimateClyseFlow,
+  calculateVillemonteDischarge,
+  evaluateHuishEpiscopi,
+  evaluateMidelney,
+  sanitizeStageValue,
+  PRE_OVERTOPPING_THRESHOLDS,
+  HYDRO_THRESHOLDS
+} from './src/js/hydro_engine.js';
+
+import {
+  fetchWebcamImageSecure,
+  computeImageHash,
+  isDaylight,
+  callGeminiVision,
+  generateLocalFallback,
+  escapeHTML
+} from './src/js/api/ai_vision_client.js';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -14,9 +36,10 @@ const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'telemetry.db');
 // Ensure target directory exists for SQLite database
 fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
 
-// Initialize SQLite database
+// Initialize SQLite database in WAL mode
 const db = new Database(DB_PATH);
 db.pragma('journal_mode = WAL');
+db.pragma('synchronous = NORMAL');
 
 // Ensure database tables exist
 db.exec(`
@@ -35,17 +58,57 @@ db.exec(`
 
   CREATE INDEX IF NOT EXISTS idx_historical_telemetry_measure_dt 
     ON historical_telemetry(measure_id, date_time DESC);
+
+  CREATE TABLE IF NOT EXISTS spill_events (
+    event_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    spillway_id TEXT NOT NULL,
+    start_time TEXT NOT NULL,
+    end_time TEXT,
+    peak_overtop_depth_m REAL NOT NULL,
+    peak_discharge_m3s REAL NOT NULL,
+    total_volume_m3 REAL DEFAULT 0,
+    status TEXT NOT NULL CHECK(status IN ('ACTIVE', 'CLOSED'))
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_spill_events_spillway_status 
+    ON spill_events(spillway_id, status);
+
+  CREATE TABLE IF NOT EXISTS camera_analysis (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    camera_id TEXT NOT NULL,
+    image_hash TEXT NOT NULL,
+    image_url TEXT NOT NULL,
+    fetched_at TEXT NOT NULL,
+    ai_evaluated INTEGER NOT NULL CHECK(ai_evaluated IN (0, 1)),
+    analysis_json TEXT,
+    trigger_reason TEXT NOT NULL,
+    fallback_mode TEXT
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_camera_analysis_cam_fetched 
+    ON camera_analysis(camera_id, fetched_at DESC);
 `);
 
 const MEASURE_IDS = [
+  '52108-level-stage-i-15_min-mASD',
+  '52109-level-stage-i-15_min-mASD',
+  '52111-level-stage-i-15_min-mASD',
+  '52162-level-stage-i-15_min-mAOD',
   '52118-level-stage-i-15_min-mAOD',
   '52127-level-stage-i-15_min-mAOD',
-  '52158-level-stage-i-15_min-mAOD',
-  '52159-level-stage-i-15_min-mAOD',
+  '52116-level-stage-i-15_min-m',
+  '52119-level-stage-i-15_min-mASD',
   '52233-level-stage-i-15_min-mAOD',
   '52234-level-downstage-i-15_min-mAOD',
+  '52158-level-stage-i-15_min-mAOD',
+  '52159-level-stage-i-15_min-mAOD',
+  '52124-level-tidal_level-i-15_min-mAOD',
+  '52163-level-tidal_level-i-15_min-mAOD',
+  '52157-level-stage-i-15_min-mAOD',
+  'E9531-level-stage-i-15_min-mAOD',
   'E9094-level-stage-i-15_min-mAOD',
-  '52163-level-tidal_level-i-15_min-mAOD'
+  '52120-level-stage-i-15_min-mASD',
+  '52153-level-stage-i-15_min-mASD'
 ];
 
 /**
@@ -68,15 +131,6 @@ export async function syncBackfillTelemetry(dbInstance = db, measures = MEASURE_
 
   console.log(`[Backfill Worker] Starting 28-day telemetry backfill for ${measures.length} measures (since ${sinceDate})...`);
 
-  dbInstance.exec(`
-    CREATE TABLE IF NOT EXISTS historical_telemetry (
-      measure_id TEXT NOT NULL,
-      date_time TEXT NOT NULL,
-      value REAL,
-      PRIMARY KEY (measure_id, date_time)
-    )
-  `);
-
   const stmt = dbInstance.prepare(`
     INSERT OR IGNORE INTO historical_telemetry (measure_id, date_time, value)
     VALUES (?, ?, ?)
@@ -85,7 +139,8 @@ export async function syncBackfillTelemetry(dbInstance = db, measures = MEASURE_
   const transaction = dbInstance.transaction((readings) => {
     let count = 0;
     for (const r of readings) {
-      const info = stmt.run(r.measure_id, r.dateTime, r.value);
+      const cleanVal = sanitizeStageValue(r.value);
+      const info = stmt.run(r.measure_id, r.dateTime, cleanVal);
       if (info.changes > 0) count++;
     }
     return count;
@@ -96,7 +151,6 @@ export async function syncBackfillTelemetry(dbInstance = db, measures = MEASURE_
   for (const id of measures) {
     const url = `https://environment.data.gov.uk/flood-monitoring/id/measures/${id}/readings?since=${sinceDate}&_sorted&_limit=10000`;
     try {
-      console.log(`[Backfill Worker] Querying EA API for ${id}...`);
       const res = await fetchFn(url);
       if (!res.ok) {
         console.warn(`[Backfill Worker Warning] HTTP ${res.status} for measure ${id}`);
@@ -113,9 +167,7 @@ export async function syncBackfillTelemetry(dbInstance = db, measures = MEASURE_
 
         const inserted = transaction(items);
         totalInserted += inserted;
-        console.log(`[Backfill Worker] ${id}: Fetched ${items.length} items, inserted ${inserted} new readings.`);
 
-        // Mirror recent readings to telemetry table for backwards compatibility
         if (items.length > 0) {
           const telemetryStmt = dbInstance.prepare("INSERT OR REPLACE INTO telemetry (measure_id, readings_json, updated_at) VALUES (?, ?, datetime('now'))");
           telemetryStmt.run(id, JSON.stringify(items.slice(0, 2688)));
@@ -124,7 +176,6 @@ export async function syncBackfillTelemetry(dbInstance = db, measures = MEASURE_
     } catch (err) {
       console.warn(`[Backfill Worker Error] Partial backfill failure for ${id}:`, err.message);
     }
-    // Small inter-request delay to respect EA API rate limits
     await new Promise(r => setTimeout(r, 100));
   }
 
@@ -132,20 +183,20 @@ export async function syncBackfillTelemetry(dbInstance = db, measures = MEASURE_
   return totalInserted;
 }
 
-async function syncMeasure(measureId, limit = 96) {
+async function syncMeasure(measureId, limit = 96, fetchFn = globalThis.fetch) {
   const url = `https://environment.data.gov.uk/flood-monitoring/id/measures/${measureId}/readings?_sorted&_limit=${limit}`;
   try {
-    const res = await fetch(url);
+    const res = await fetchFn(url);
     const data = await res.json();
     if (data.items && data.items.length > 0) {
       const stmt = db.prepare("INSERT OR REPLACE INTO telemetry (measure_id, readings_json, updated_at) VALUES (?, ?, datetime('now'))");
       stmt.run(measureId, JSON.stringify(data.items));
 
-      // Sync into historical_telemetry for retention & deduplication
       const histStmt = db.prepare("INSERT OR IGNORE INTO historical_telemetry (measure_id, date_time, value) VALUES (?, ?, ?)");
       const histTx = db.transaction((items) => {
         for (const item of items) {
-          histStmt.run(measureId, item.dateTime, item.value);
+          const cleanVal = sanitizeStageValue(item.value);
+          histStmt.run(measureId, item.dateTime, cleanVal);
         }
       });
       histTx(data.items);
@@ -158,13 +209,85 @@ async function syncMeasure(measureId, limit = 96) {
   return null;
 }
 
-export async function syncAllTelemetry(overrideLimit = null) {
-  const isBackfill = shouldTriggerBackfill();
-  const limit = overrideLimit || (isBackfill ? 2688 : 96);
-  const modeLabel = isBackfill ? 'FULL 28-DAY BACKFILL' : 'Standard 24h Sync';
-  console.log(`[SQLite Ingest] Running ${modeLabel} (limit=${limit}) for ${MEASURE_IDS.length} EA measures (${new Date().toLocaleTimeString()})...`);
-  await Promise.all(MEASURE_IDS.map(id => syncMeasure(id, limit)));
-  console.log(`[SQLite Ingest] Sync complete. SQLite DB updated!`);
+let isSyncRunning = false;
+
+export async function syncAllTelemetry(overrideLimit = null, fetchFn = globalThis.fetch) {
+  if (isSyncRunning) {
+    console.log('[SQLite Ingest] Sync already in progress, skipping concurrent run.');
+    return;
+  }
+  isSyncRunning = true;
+  try {
+    const isBackfill = shouldTriggerBackfill();
+    const limit = overrideLimit || (isBackfill ? 2688 : 96);
+    await Promise.all(MEASURE_IDS.map(id => syncMeasure(id, limit, fetchFn)));
+    updateSpillEvents();
+  } finally {
+    isSyncRunning = false;
+  }
+}
+
+/**
+ * Updates active overtopping spill event timers in spill_events table
+ */
+function updateSpillEvents() {
+  const stored = getStoredTelemetry();
+  const measures = stored.measures;
+
+  const hookbridgeReadings = measures['52118-level-stage-i-15_min-mAOD'] || [];
+  const baltmoorReadings = measures['52158-level-stage-i-15_min-mAOD'] || [];
+  const curryMoorReadings = measures['52127-level-stage-i-15_min-mAOD'] || [];
+  const northMoorReadings = measures['52159-level-stage-i-15_min-mAOD'] || [];
+
+  const hookbridgeStage = hookbridgeReadings[0]?.value ?? null;
+  const curryMoorStage = curryMoorReadings[0]?.value ?? null;
+  const baltmoorStage = baltmoorReadings[0]?.value ?? null;
+  const northMoorStage = northMoorReadings[0]?.value ?? null;
+
+  const dateNow = new Date().toISOString();
+
+  // Hookbridge Spillway check (crest: 7.45m)
+  if (hookbridgeStage !== null) {
+    const isSpilling = hookbridgeStage >= 7.45;
+    const discharge = calculateVillemonteDischarge(hookbridgeStage, curryMoorStage || 2.10, 7.45);
+    updateSpillwayRecord('hookbridge_spillway', isSpilling, hookbridgeStage - 7.45, discharge.flowM3s, hookbridgeReadings[0]?.dateTime || dateNow);
+  }
+
+  // Baltmoor Wall Spillway check (crest: 7.80m)
+  if (baltmoorStage !== null) {
+    const isSpilling = baltmoorStage >= 7.80;
+    const discharge = calculateVillemonteDischarge(baltmoorStage, northMoorStage || 1.80, 7.80);
+    updateSpillwayRecord('baltmoor_wall', isSpilling, baltmoorStage - 7.80, discharge.flowM3s, baltmoorReadings[0]?.dateTime || dateNow);
+  }
+}
+
+function updateSpillwayRecord(spillwayId, isSpilling, overtopDepth, dischargeFlow, readingTime) {
+  const activeEvent = db.prepare("SELECT * FROM spill_events WHERE spillway_id = ? AND status = 'ACTIVE'").get(spillwayId);
+
+  if (isSpilling) {
+    if (!activeEvent) {
+      db.prepare(`
+        INSERT INTO spill_events (spillway_id, start_time, peak_overtop_depth_m, peak_discharge_m3s, total_volume_m3, status)
+        VALUES (?, ?, ?, ?, ?, 'ACTIVE')
+      `).run(spillwayId, readingTime, Math.max(0, overtopDepth), dischargeFlow, dischargeFlow * 900);
+    } else {
+      const newPeakDepth = Math.max(activeEvent.peak_overtop_depth_m, overtopDepth);
+      const newPeakFlow = Math.max(activeEvent.peak_discharge_m3s, dischargeFlow);
+      const newVolume = activeEvent.total_volume_m3 + (dischargeFlow * 900);
+
+      db.prepare(`
+        UPDATE spill_events 
+        SET peak_overtop_depth_m = ?, peak_discharge_m3s = ?, total_volume_m3 = ?
+        WHERE event_id = ?
+      `).run(newPeakDepth, newPeakFlow, newVolume, activeEvent.event_id);
+    }
+  } else if (activeEvent) {
+    db.prepare(`
+      UPDATE spill_events 
+      SET end_time = ?, status = 'CLOSED'
+      WHERE event_id = ?
+    `).run(readingTime, activeEvent.event_id);
+  }
 }
 
 function getStoredTelemetry() {
@@ -203,12 +326,10 @@ function getStoredTelemetry() {
 const isMainModule = process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url));
 
 if (isMainModule) {
-  // Initial 24h sync on boot & set 5-minute background polling interval
   syncAllTelemetry();
-  const syncTimer = setInterval(syncAllTelemetry, 5 * 60 * 1000);
+  const syncTimer = setInterval(syncAllTelemetry, 15 * 60 * 1000); // 15-minute sync loop
   if (syncTimer && syncTimer.unref) syncTimer.unref();
 
-  // Check for BACKFILL_TELEMETRY flag to trigger non-blocking 28-day backfill worker
   if (shouldTriggerBackfill()) {
     console.log('[SQLite Ingest] BACKFILL_TELEMETRY flag active. Triggering non-blocking background worker...');
     setImmediate(() => {
@@ -234,8 +355,7 @@ export function getAvailableCatchments() {
     console.warn('[Server Warning] Could not read catchments.json:', err.message);
   }
   return [
-    { id: 'somerset', name: 'Somerset Levels & Moors', region: 'South West', path: '/somerset', configFile: 'somerset.json' },
-    { id: 'fens', name: 'The Fens & South Level', region: 'East Anglia', path: '/fens', configFile: 'fens.json' }
+    { id: 'somerset', name: 'Somerset Levels & Moors', region: 'South West', path: '/somerset', configFile: 'somerset.json' }
   ];
 }
 
@@ -249,14 +369,83 @@ const MIME_TYPES = {
   '.svg': 'image/svg+xml'
 };
 
+// Simple In-Memory Rate Limiting (SEC-04)
+const requestCounts = new Map();
+
+// Periodically purge stale IP records every 5 minutes to prevent memory leaks
+setInterval(() => {
+  const now = Date.now();
+  const windowMs = 60 * 1000;
+  for (const [ip, record] of requestCounts.entries()) {
+    if (now - record.startTime > windowMs) {
+      requestCounts.delete(ip);
+    }
+  }
+}, 5 * 60 * 1000).unref();
+
+function checkRateLimit(req, res) {
+  const ip = req.socket.remoteAddress || '127.0.0.1';
+  const now = Date.now();
+  const windowMs = 60 * 1000;
+  const maxReqs = 60;
+
+  let record = requestCounts.get(ip);
+  if (!record || now - record.startTime > windowMs) {
+    if (requestCounts.size > 10000) {
+      requestCounts.clear(); // Emergency safeguard against unbounded memory ballooning
+    }
+    record = { startTime: now, count: 1 };
+    requestCounts.set(ip, record);
+  } else {
+    record.count++;
+  }
+
+  if (record.count > maxReqs) {
+    res.writeHead(429, {
+      'Content-Type': 'application/json',
+      'Retry-After': '60'
+    });
+    res.end(JSON.stringify({ status: "error", message: "Rate limit exceeded. Maximum 60 requests per minute." }));
+    return false;
+  }
+  return true;
+}
+
+function setSecurityHeaders(res) {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Content-Security-Policy', "default-src 'self'; img-src 'self' data: https://environment.data.gov.uk; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';");
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-goog-api-key');
+}
+
 const server = http.createServer(async (req, res) => {
+  setSecurityHeaders(res);
+
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204);
+    res.end();
+    return;
+  }
+
+  if (req.method !== 'GET' && req.method !== 'HEAD') {
+    res.writeHead(405, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ status: "error", message: "Method Not Allowed. Only GET and HEAD requests are permitted." }));
+    return;
+  }
+
+  if (req.url.startsWith('/api/') && !checkRateLimit(req, res)) {
+    return;
+  }
+
   const urlObj = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   let pathname = urlObj.pathname;
 
   const availableCatchments = getAvailableCatchments();
   const knownCatchmentIds = availableCatchments.map(c => c.id.toLowerCase());
 
-  // Handle catchment path prefixes (e.g., /somerset, /somerset/, /fens, /somerset/css/styles.css)
   let activeCatchmentPrefix = null;
   for (const cId of knownCatchmentIds) {
     if (pathname.toLowerCase() === `/${cId}` || pathname.toLowerCase() === `/${cId}/`) {
@@ -265,17 +454,497 @@ const server = http.createServer(async (req, res) => {
       break;
     } else if (pathname.toLowerCase().startsWith(`/${cId}/`)) {
       activeCatchmentPrefix = cId;
-      pathname = pathname.substring(cId.length + 1); // Remove /somerset
+      pathname = pathname.substring(cId.length + 1);
       break;
     }
   }
 
-  // API Route: List available catchments
+  // API Route: Health Check (<10ms)
+  if (pathname === '/api/health') {
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' });
+    res.end(JSON.stringify({
+      status: "ok",
+      uptime: process.uptime(),
+      timestamp: new Date().toISOString()
+    }));
+    return;
+  }
+
+  // API Route: Topology schematic payload
+  if (pathname === '/api/topology' || pathname === '/api/topology/') {
+    const stored = getStoredTelemetry();
+    const measures = stored.measures;
+
+    const greenhamRaw = (measures['52108-level-stage-i-15_min-mASD'] || measures['52108-level-stage-i-15_min-m'])?.[0]?.value ?? 0.45;
+    const greenhamStage = Number((greenhamRaw + 75.69).toFixed(2));
+
+    const bishopsHullRaw = (measures['52109-level-stage-i-15_min-mASD'] || measures['52109-level-stage-i-15_min-m'])?.[0]?.value ?? 0.35;
+    const bishopsHullStage = Number((bishopsHullRaw + 16.58).toFixed(2));
+
+    const tauntonRaw = (measures['52111-level-stage-i-15_min-mASD'] || measures['52111-level-stage-i-15_min-m'])?.[0]?.value ?? 0.65;
+    const tauntonStage = Number((tauntonRaw + 12.47).toFixed(2));
+
+    const bathpoolStage = measures['52162-level-stage-i-15_min-mAOD']?.[0]?.value ?? 5.92;
+    const toneStage = measures['52118-level-stage-i-15_min-mAOD']?.[0]?.value ?? 4.466;
+    const curryMoorStage = measures['52127-level-stage-i-15_min-mAOD']?.[0]?.value ?? 4.466;
+
+    const chiselboroughRaw = measures['52116-level-stage-i-15_min-m']?.[0]?.value ?? 0.05;
+    const chiselboroughStage = Number((chiselboroughRaw + 20.70).toFixed(2));
+
+    const gawBridgeRaw = measures['52119-level-stage-i-15_min-mASD']?.[0]?.value ?? 0.42;
+    const gawBridgeStage = Number((gawBridgeRaw + 10.00).toFixed(2));
+
+    const huishRaw = measures['52120-level-stage-i-15_min-mASD']?.[0]?.value ?? 1.681;
+    const huishStage = Number((huishRaw + 5.00).toFixed(2));
+
+    const midelneyRaw = measures['52153-level-stage-i-15_min-mASD']?.[0]?.value ?? 1.417;
+    const midelneyStage = Number((midelneyRaw + 5.185).toFixed(2));
+
+    const monksUpStage = measures['52233-level-stage-i-15_min-mAOD']?.[0]?.value ?? 6.732;
+    const monksDownStage = measures['52234-level-downstage-i-15_min-mAOD']?.[0]?.value ?? 6.729;
+    const parrettStage = measures['52158-level-stage-i-15_min-mAOD']?.[0]?.value ?? 3.779;
+    const northmoorStage = measures['52159-level-stage-i-15_min-mAOD']?.[0]?.value ?? 3.181;
+    const westQuayStage = measures['52124-level-tidal_level-i-15_min-mAOD']?.[0]?.value ?? 4.80;
+    const seaStage = measures['52163-level-tidal_level-i-15_min-mAOD']?.[0]?.value ?? 0.84;
+    const beerwallStage = measures['52157-level-stage-i-15_min-mAOD']?.[0]?.value ?? 3.92;
+    const dunballInlandStage = measures['E9094-level-stage-i-15_min-mAOD']?.[0]?.value ?? 2.62;
+    const bradneyStage = measures['E9531-level-stage-i-15_min-mAOD']?.[0]?.value ?? Math.max(3.20, dunballInlandStage + 0.3);
+
+    const isMonksDiverting = monksUpStage >= HYDRO_THRESHOLDS.MONKS_LEAZE.SILL_MAOD &&
+      (monksUpStage - monksDownStage) > HYDRO_THRESHOLDS.MONKS_LEAZE.MIN_DELTA_H;
+
+    const hasLiveTelemetry = (stationId) => {
+      return Object.keys(measures).some(k => k.startsWith(stationId) && Array.isArray(measures[k]) && measures[k].length > 0);
+    };
+
+    res.writeHead(200, {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'public, max-age=300'
+    });
+    res.end(JSON.stringify({
+      status: "ok",
+      catchment_id: "somerset",
+      updated_at: new Date().toISOString(),
+      chains: [
+        {
+          id: "tone",
+          name: "River Tone Chain",
+          direction: "West → East",
+          nodes: ["52108", "52109", "52111", "52162", "52118", "52158"]
+        },
+        {
+          id: "currymoor_polder",
+          name: "Curry Moor Polder Basin",
+          direction: "Storage Area",
+          nodes: ["52118", "52127"]
+        },
+        {
+          id: "parrett",
+          name: "River Parrett Chain",
+          direction: "South → North",
+          nodes: ["52116", "52119", "52233", "52158", "52124", "52163"]
+        },
+        {
+          id: "tributaries",
+          name: "River Yeo & River Isle Tributaries",
+          direction: "Upland → Langport Confluence",
+          nodes: ["52120", "52153", "52233"]
+        },
+        {
+          id: "northmoor_polder",
+          name: "Northmoor Polder Basin",
+          direction: "Storage Area",
+          nodes: ["52158", "52159"]
+        },
+        {
+          id: "sowy_ksd",
+          name: "Sowy Relief Channel & Sedgemoor Drain",
+          direction: "Diversion Route",
+          nodes: ["52233", "52234", "52157", "E9531", "E9094", "52163"]
+        }
+      ],
+      nodes: [
+        {
+          id: "52108",
+          name: "Greenham (Upper Tone)",
+          river: "River Tone",
+          catchment: "tone",
+          gauge_id: "52108",
+          node_type: "gauge",
+          stage_mAOD: greenhamStage,
+          alert_level_mAOD: 76.99,
+          status: greenhamStage >= 76.99 ? "ALERT" : "SECURE",
+          downstream_node_id: "52109",
+          has_sparkline: true
+        },
+        {
+          id: "52109",
+          name: "Bishops Hull (Mid Tone)",
+          river: "River Tone",
+          catchment: "tone",
+          gauge_id: "52109",
+          node_type: "gauge",
+          stage_mAOD: bishopsHullStage,
+          alert_level_mAOD: 17.48,
+          status: bishopsHullStage >= 17.48 ? "ALERT" : "SECURE",
+          downstream_node_id: "52111",
+          has_sparkline: true
+        },
+        {
+          id: "52111",
+          name: "Taunton Market (Urban Tone)",
+          river: "River Tone",
+          catchment: "tone",
+          gauge_id: "52111",
+          node_type: "gauge",
+          stage_mAOD: tauntonStage,
+          alert_level_mAOD: 14.24,
+          status: tauntonStage >= 14.24 ? "ALERT" : "SECURE",
+          downstream_node_id: "52162",
+          has_sparkline: true
+        },
+        {
+          id: "52162",
+          name: "Bathpool Outfall (Lower Tone)",
+          river: "River Tone",
+          catchment: "tone",
+          gauge_id: "52162",
+          node_type: "gauge",
+          stage_mAOD: bathpoolStage,
+          ground_elevation_mAOD: 7.50,
+          alert_level_mAOD: 9.50,
+          status: bathpoolStage >= 9.50 ? "ALERT" : "SECURE",
+          downstream_node_id: "52118",
+          has_sparkline: true
+        },
+        {
+          id: "52118",
+          name: "Hookbridge Spillway / Currymoor PS",
+          river: "River Tone",
+          catchment: "tone",
+          gauge_id: "52118",
+          node_type: "spillway",
+          stage_mAOD: toneStage,
+          crest_elevation_mAOD: HYDRO_THRESHOLDS.HOOKBRIDGE.CREST_MAOD,
+          alert_level_mAOD: HYDRO_THRESHOLDS.HOOKBRIDGE.ALERT_MAOD,
+          status: toneStage >= HYDRO_THRESHOLDS.HOOKBRIDGE.CREST_MAOD ? "OVERSPILLING" : (toneStage >= HYDRO_THRESHOLDS.HOOKBRIDGE.ALERT_MAOD ? "ALERT" : "SECURE"),
+          downstream_node_id: "athelney_junction",
+          diverts_to_node_id: "52127",
+          has_sparkline: true,
+          govuk_link: "https://check-for-flooding.service.gov.uk/station/3073"
+        },
+        {
+          id: "52127",
+          name: "Curry Moor Basin",
+          river: "Curry Moor Basin",
+          catchment: "tone",
+          gauge_id: "52127",
+          node_type: "polder_basin",
+          stage_mAOD: curryMoorStage,
+          ground_elevation_mAOD: HYDRO_THRESHOLDS.CURRY_MOOR.GROUND_MAOD,
+          alert_level_mAOD: HYDRO_THRESHOLDS.CURRY_MOOR.ALERT_MAOD,
+          crest_elevation_mAOD: HYDRO_THRESHOLDS.CURRY_MOOR.CREST_MAOD,
+          status: curryMoorStage >= HYDRO_THRESHOLDS.CURRY_MOOR.ALERT_MAOD ? "ALERT" : "SECURE",
+          downstream_node_id: "currymoor_ps",
+          has_sparkline: true,
+          govuk_link: "https://check-for-flooding.service.gov.uk/station/3064"
+        },
+        {
+          id: "52116",
+          name: "Chiselborough (Upper Parrett)",
+          river: "River Parrett",
+          catchment: "parrett",
+          gauge_id: "52116",
+          node_type: "gauge",
+          stage_mAOD: chiselboroughStage,
+          alert_level_mAOD: 22.50,
+          status: chiselboroughStage >= 22.50 ? "ALERT" : "SECURE",
+          downstream_node_id: "52119",
+          has_sparkline: true
+        },
+        {
+          id: "52119",
+          name: "Gaw Bridge (Mid Parrett)",
+          river: "River Parrett",
+          catchment: "parrett",
+          gauge_id: "52119",
+          node_type: "gauge",
+          stage_mAOD: gawBridgeStage,
+          alert_level_mAOD: 12.80,
+          status: gawBridgeStage >= 12.80 ? "ALERT" : "SECURE",
+          downstream_node_id: "52233",
+          has_sparkline: true
+        },
+        {
+          id: "52120",
+          name: "Huish Episcopi PS (River Yeo)",
+          river: "River Yeo",
+          catchment: "tributaries",
+          gauge_id: "52120",
+          node_type: "gauge",
+          stage_mAOD: huishStage,
+          alert_level_mAOD: 8.48,
+          status: huishStage >= 8.48 ? "ALERT" : (huishStage >= 8.20 ? "ALERT" : (huishStage >= 7.30 ? "ALERT" : "SECURE")),
+          downstream_node_id: "52233",
+          upstream_tributaries: ["52121", "52117", "52112"],
+          has_sparkline: true,
+          govuk_link: "https://check-for-flooding.service.gov.uk/station/3071"
+        },
+        {
+          id: "52153",
+          name: "Midelney (River Isle)",
+          river: "River Isle",
+          catchment: "tributaries",
+          gauge_id: "52153",
+          node_type: "gauge",
+          stage_mAOD: midelneyStage,
+          alert_level_mAOD: 8.20,
+          status: midelneyStage >= 8.20 ? "ALERT" : "SECURE",
+          downstream_node_id: "52233",
+          upstream_tributaries: ["52115", "52114"],
+          has_sparkline: true,
+          govuk_link: "https://check-for-flooding.service.gov.uk/station/3380"
+        },
+        {
+          id: "52233",
+          name: "Monk's Leaze Clyse (Upstream)",
+          river: "River Parrett",
+          catchment: "parrett",
+          gauge_id: "52233",
+          node_type: "clyse_gate",
+          stage_mAOD: monksUpStage,
+          sill_elevation_mAOD: HYDRO_THRESHOLDS.MONKS_LEAZE.SILL_MAOD,
+          alert_level_mAOD: HYDRO_THRESHOLDS.MONKS_LEAZE.UPSTREAM_ALERT_MAOD,
+          status: monksUpStage >= HYDRO_THRESHOLDS.MONKS_LEAZE.UPSTREAM_ALERT_MAOD ? "ALERT" : (isMonksDiverting ? "DIVERTING" : "CLOSED"),
+          downstream_node_id: "52158",
+          diverts_to_node_id: "52234",
+          has_sparkline: true,
+          ea_link: "https://environment.data.gov.uk/flood-monitoring/id/stations/52233.html"
+        },
+        {
+          id: "52158",
+          name: "Baltmoor Wall (Burrowbridge Confluence)",
+          river: "River Parrett",
+          catchment: "parrett",
+          gauge_id: "52158",
+          node_type: "spillway",
+          stage_mAOD: parrettStage,
+          crest_elevation_mAOD: HYDRO_THRESHOLDS.BALTMOOR.CREST_MAOD,
+          alert_level_mAOD: HYDRO_THRESHOLDS.BALTMOOR.ALERT_MAOD,
+          status: parrettStage >= HYDRO_THRESHOLDS.BALTMOOR.CREST_MAOD ? "OVERSPILLING" : (parrettStage >= HYDRO_THRESHOLDS.BALTMOOR.ALERT_MAOD ? "ALERT" : "SECURE"),
+          downstream_node_id: "52124",
+          diverts_to_node_id: "52159",
+          has_sparkline: true,
+          govuk_link: "https://check-for-flooding.service.gov.uk/station/3400"
+        },
+        {
+          id: "52159",
+          name: "Northmoor Basin",
+          river: "Northmoor Basin",
+          catchment: "parrett",
+          gauge_id: "52159",
+          node_type: "polder_basin",
+          stage_mAOD: northmoorStage,
+          ground_elevation_mAOD: HYDRO_THRESHOLDS.NORTHMOOR.GROUND_MAOD,
+          alert_level_mAOD: HYDRO_THRESHOLDS.NORTHMOOR.ALERT_MAOD,
+          crest_elevation_mAOD: HYDRO_THRESHOLDS.NORTHMOOR.CREST_MAOD,
+          status: northmoorStage >= HYDRO_THRESHOLDS.NORTHMOOR.ALERT_MAOD ? "ALERT" : "SECURE",
+          downstream_node_id: "saltmoor_ps",
+          has_sparkline: true,
+          govuk_link: "https://check-for-flooding.service.gov.uk/station/3415"
+        },
+        {
+          id: "52124",
+          name: "West Quay Bridgwater",
+          river: "River Parrett",
+          catchment: "parrett",
+          gauge_id: "52124",
+          node_type: "gauge",
+          stage_mAOD: westQuayStage,
+          alert_level_mAOD: 6.10,
+          status: westQuayStage >= 6.10 ? "ALERT" : "SECURE",
+          downstream_node_id: "52163",
+          has_sparkline: true
+        },
+        {
+          id: "52163",
+          name: "Dunball Tidal (Parrett Estuary)",
+          river: "Parrett Estuary",
+          catchment: "parrett",
+          gauge_id: "52163",
+          node_type: "tidal_outfall",
+          stage_mAOD: seaStage,
+          alert_level_mAOD: HYDRO_THRESHOLDS.DUNBALL.ESTUARY_ALERT_MAOD,
+          status: seaStage >= HYDRO_THRESHOLDS.DUNBALL.ESTUARY_ALERT_MAOD ? "ALERT" : "SECURE",
+          downstream_node_id: "sea_outfall",
+          has_sparkline: true,
+          govuk_link: "https://check-for-flooding.service.gov.uk/station/9129"
+        },
+        {
+          id: "52234",
+          name: "Monk's Leaze Clyse (Downstream Sowy)",
+          river: "Sowy Relief Channel",
+          catchment: "sowy_ksd",
+          gauge_id: "52234",
+          node_type: "gauge",
+          stage_mAOD: monksDownStage,
+          alert_level_mAOD: HYDRO_THRESHOLDS.MONKS_LEAZE.DOWNSTREAM_ALERT_MAOD,
+          status: monksDownStage >= HYDRO_THRESHOLDS.MONKS_LEAZE.DOWNSTREAM_ALERT_MAOD ? "ALERT" : (isMonksDiverting ? "DIVERTING" : "SECURE"),
+          downstream_node_id: "52157",
+          has_sparkline: true,
+          ea_link: "https://environment.data.gov.uk/flood-monitoring/id/stations/52234.html"
+        },
+        {
+          id: "52157",
+          name: "Beerwall Upstream (Greylake)",
+          river: "Sowy Relief Channel",
+          catchment: "sowy_ksd",
+          gauge_id: "52157",
+          node_type: "spillway",
+          stage_mAOD: beerwallStage,
+          crest_elevation_mAOD: HYDRO_THRESHOLDS.BEERWALL.CREST_MAOD,
+          alert_level_mAOD: HYDRO_THRESHOLDS.BEERWALL.ALERT_MAOD,
+          status: beerwallStage >= HYDRO_THRESHOLDS.BEERWALL.ALERT_MAOD ? "ALERT" : "SECURE",
+          downstream_node_id: "E9531",
+          has_sparkline: true
+        },
+        {
+          id: "E9531",
+          name: "Bradney (King's Sedgemoor Drain)",
+          river: "King's Sedgemoor Drain",
+          catchment: "sowy_ksd",
+          gauge_id: "E9531",
+          node_type: "gauge",
+          stage_mAOD: bradneyStage,
+          alert_level_mAOD: 3.50,
+          status: bradneyStage >= 3.50 ? "ALERT" : "SECURE",
+          downstream_node_id: "E9094",
+          has_sparkline: true,
+          ea_link: "https://environment.data.gov.uk/flood-monitoring/id/stations/E9531.html"
+        },
+        {
+          id: "E9094",
+          name: "Dunball Inland KSD Outfall",
+          river: "King's Sedgemoor Drain",
+          catchment: "sowy_ksd",
+          gauge_id: "E9094",
+          node_type: "gauge",
+          stage_mAOD: dunballInlandStage,
+          alert_level_mAOD: HYDRO_THRESHOLDS.DUNBALL.INLAND_ALERT_MAOD,
+          status: (seaStage >= dunballInlandStage) ? "SLACK_RESTRICTED" : (dunballInlandStage >= HYDRO_THRESHOLDS.DUNBALL.INLAND_ALERT_MAOD ? "ALERT" : "SECURE"),
+          downstream_node_id: "52163",
+          has_sparkline: true,
+          govuk_link: "https://check-for-flooding.service.gov.uk/station/9499"
+        }
+      ].map(node => ({
+        ...node,
+        telemetry_source: hasLiveTelemetry(node.id) ? "live" : "cached_fallback"
+      })),
+      edges: [
+        { from: "52108", to: "52109", type: "main_river", flow_active: true },
+        { from: "52109", to: "52111", type: "main_river", flow_active: true },
+        { from: "52111", to: "52162", type: "main_river", flow_active: true },
+        { from: "52162", to: "52118", type: "main_river", flow_active: true },
+        { from: "52118", to: "52158", type: "main_river", flow_active: true },
+        { from: "52118", to: "52127", type: "spillway_overtopping", flow_active: toneStage >= 7.45 },
+        { from: "52116", to: "52119", type: "main_river", flow_active: true },
+        { from: "52119", to: "52233", type: "main_river", flow_active: true },
+        { from: "52120", to: "52233", type: "tributary_inflow", flow_active: huishStage < 8.20 },
+        { from: "52153", to: "52233", type: "tributary_inflow", flow_active: midelneyStage > monksUpStage },
+        { from: "52233", to: "52158", type: "main_river", flow_active: true },
+        { from: "52158", to: "52159", type: "spillway_overtopping", flow_active: parrettStage >= 7.80 },
+        { from: "52127", to: "52159", type: "polder_overflow", flow_active: curryMoorStage >= 7.35 },
+        { from: "52158", to: "52124", type: "main_river", flow_active: true },
+        { from: "52124", to: "52163", type: "sea_outfall", flow_active: westQuayStage > seaStage },
+        { from: "52233", to: "52234", type: "diversion_clyse", flow_active: isMonksDiverting },
+        { from: "52234", to: "52157", type: "diversion_route", flow_active: isMonksDiverting },
+        { from: "52157", to: "E9531", type: "diversion_route", flow_active: isMonksDiverting },
+        { from: "E9531", to: "E9094", type: "diversion_route", flow_active: true },
+        { from: "E9094", to: "52163", type: "sea_outfall", flow_active: dunballInlandStage > seaStage }
+      ]
+    }));
+    return;
+  }
+
+  // API Route: Camera Analysis
+  if (pathname.startsWith('/api/camera-analysis')) {
+    const cameraId = urlObj.searchParams.get('camera_id') || 'monks_leaze_clyse';
+    const imageUrl = 'https://environment.data.gov.uk/flood-monitoring/data/images/52233.jpg';
+
+    let cached = db.prepare('SELECT * FROM camera_analysis WHERE camera_id = ? ORDER BY id DESC LIMIT 1').get(cameraId);
+
+    if (!cached || req.url.includes('refresh=true')) {
+      const stored = getStoredTelemetry();
+      const monksUp = stored.measures['52233-level-stage-i-15_min-mAOD']?.[0]?.value ?? 6.85;
+      const monksDown = stored.measures['52234-level-downstage-i-15_min-mAOD']?.[0]?.value ?? 6.30;
+      const deltaH = monksUp - monksDown;
+
+      const telemetryState = { deltaH, isOvertopping: false };
+      const cameraConfig = { name: "Monk's Leaze Clyse Gate Cam" };
+
+      let analysisJson = null;
+      let aiEvaluated = 0;
+      let fallbackMode = null;
+      let imageHash = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+
+      if (!isDaylight()) {
+        fallbackMode = 'NIGHT_TELEMETRY';
+        analysisJson = JSON.stringify({
+          gate_status: deltaH >= 0.05 ? "OPEN" : "CLOSED",
+          debris_detected: false,
+          flow_character: deltaH > 0.15 ? "TURBULENT" : "SLACK",
+          overtopping_detected: false,
+          confidence: 0.80,
+          summary: escapeHTML("Night mode fallback: AI vision skipped during darkness. Telemetry active.")
+        });
+      } else if (!process.env.GEMINI_API_KEY) {
+        fallbackMode = 'NO_API_KEY';
+        analysisJson = JSON.stringify(generateLocalFallback(cameraConfig, telemetryState));
+      } else {
+        try {
+          const buffer = await fetchWebcamImageSecure(imageUrl);
+          imageHash = computeImageHash(buffer);
+          const result = await callGeminiVision(buffer, 'image/jpeg', process.env.GEMINI_API_KEY);
+          analysisJson = JSON.stringify(result);
+          aiEvaluated = 1;
+        } catch (err) {
+          fallbackMode = 'FETCH_ERROR';
+          analysisJson = JSON.stringify(generateLocalFallback(cameraConfig, telemetryState));
+        }
+      }
+
+      db.prepare(`
+        INSERT INTO camera_analysis (camera_id, image_hash, image_url, fetched_at, ai_evaluated, analysis_json, trigger_reason, fallback_mode)
+        VALUES (?, ?, ?, datetime('now'), ?, ?, 'SCHEDULED_SYNC', ?)
+      `).run(cameraId, imageHash, imageUrl, aiEvaluated, analysisJson, fallbackMode);
+
+      cached = db.prepare('SELECT * FROM camera_analysis WHERE camera_id = ? ORDER BY id DESC LIMIT 1').get(cameraId);
+    }
+
+    res.writeHead(200, {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'public, max-age=300'
+    });
+    res.end(JSON.stringify({
+      status: "ok",
+      camera_id: cameraId,
+      camera_name: "Monk's Leaze Clyse Gate Cam",
+      fetched_at: cached.fetched_at,
+      image_url: cached.image_url,
+      image_hash: cached.image_hash,
+      ai_evaluated: cached.ai_evaluated === 1,
+      trigger_reason: cached.trigger_reason,
+      fallback_mode: cached.fallback_mode,
+      analysis: JSON.parse(cached.analysis_json)
+    }));
+    return;
+  }
+
+  // API Route: List catchments
   if (pathname === '/api/catchments' || pathname === '/api/catchments/') {
     res.writeHead(200, {
       'Content-Type': 'application/json',
-      'Cache-Control': 'no-cache',
-      'Access-Control-Allow-Origin': '*'
+      'Cache-Control': 'no-cache'
     });
     res.end(JSON.stringify({ status: "ok", catchments: availableCatchments }));
     return;
@@ -309,15 +978,11 @@ const server = http.createServer(async (req, res) => {
     if (configData) {
       res.writeHead(200, {
         'Content-Type': 'application/json',
-        'Cache-Control': 'no-cache',
-        'Access-Control-Allow-Origin': '*'
+        'Cache-Control': 'no-cache'
       });
       res.end(configData);
     } else {
-      res.writeHead(404, {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*'
-      });
+      res.writeHead(404, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ status: "error", message: `Catchment config '${catchmentId}' not found` }));
     }
     return;
@@ -350,8 +1015,7 @@ const server = http.createServer(async (req, res) => {
 
       res.writeHead(200, { 
         'Content-Type': 'application/json',
-        'Cache-Control': 'public, max-age=300, s-maxage=300',
-        'Access-Control-Allow-Origin': '*'
+        'Cache-Control': 'public, max-age=300, s-maxage=300'
       });
       res.end(JSON.stringify({
         status: "ok",
@@ -369,20 +1033,59 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // API Route: Status
+  // API Route: Status with all 7 UI/UX Status Tokens & Weir Math
   if (pathname.startsWith('/api/status')) {
     let stored = getStoredTelemetry();
 
-    // If SQLite has missing measures or caller asks for refresh, trigger sync
     if (Object.keys(stored.measures).length < MEASURE_IDS.length || req.url.includes('refresh=true')) {
       await syncAllTelemetry();
       stored = getStoredTelemetry();
     }
 
+    const measures = stored.measures;
+    const hookbridgeStage = measures['52118-level-stage-i-15_min-mAOD']?.[0]?.value ?? 7.52;
+    const curryMoorStage = measures['52127-level-stage-i-15_min-mAOD']?.[0]?.value ?? 4.80;
+    const baltmoorStage = measures['52158-level-stage-i-15_min-mAOD']?.[0]?.value ?? 7.35;
+    const northMoorStage = measures['52159-level-stage-i-15_min-mAOD']?.[0]?.value ?? 2.10;
+    const monksUpStage = measures['52233-level-stage-i-15_min-mAOD']?.[0]?.value ?? 6.85;
+    const monksDownStage = measures['52234-level-downstage-i-15_min-mAOD']?.[0]?.value ?? 6.30;
+    const huishRaw = measures['52120-level-stage-i-15_min-mASD']?.[0]?.value ?? 1.681;
+    const huishStage = Number((huishRaw + 5.000).toFixed(2));
+    const midelneyRaw = measures['52153-level-stage-i-15_min-mASD']?.[0]?.value ?? 1.417;
+    const midelneyStage = Number((midelneyRaw + 5.185).toFixed(2));
+    const gawRaw = measures['52119-level-stage-i-15_min-mASD']?.[0]?.value ?? 0.42;
+    const gawStage = Number((gawRaw + 10.00).toFixed(2));
+
+    const hookbridgeOverspill = evaluateSpillway(hookbridgeStage, curryMoorStage, HYDRO_THRESHOLDS.HOOKBRIDGE.CREST_MAOD);
+    const baltmoorOverspill = evaluateSpillway(baltmoorStage, northMoorStage, HYDRO_THRESHOLDS.BALTMOOR.CREST_MAOD);
+    const sowyEval = evaluateSowyChannel(monksUpStage, monksDownStage, HYDRO_THRESHOLDS.MONKS_LEAZE.SILL_MAOD);
+    const clyseFlow = estimateClyseFlow(monksUpStage, monksDownStage, HYDRO_THRESHOLDS.MONKS_LEAZE.SILL_MAOD);
+    const huishEval = evaluateHuishEpiscopi(huishStage);
+    const midelneyEval = evaluateMidelney(midelneyStage, monksUpStage);
+
+    const hookbridgeDischarge = calculateVillemonteDischarge(hookbridgeStage, curryMoorStage, HYDRO_THRESHOLDS.HOOKBRIDGE.CREST_MAOD);
+    const baltmoorDischarge = calculateVillemonteDischarge(baltmoorStage, northMoorStage, HYDRO_THRESHOLDS.BALTMOOR.CREST_MAOD);
+
+    const hookbridgeEvent = db.prepare("SELECT * FROM spill_events WHERE spillway_id = 'hookbridge_spillway' AND status = 'ACTIVE'").get();
+    const baltmoorEvent = db.prepare("SELECT * FROM spill_events WHERE spillway_id = 'baltmoor_wall' AND status = 'ACTIVE'").get();
+
+    const nowMs = Date.now();
+    const hookbridgeDuration = hookbridgeEvent ? Math.max(0, Math.floor((nowMs - new Date(hookbridgeEvent.start_time).getTime()) / 1000)) : 0;
+    const baltmoorDuration = baltmoorEvent ? Math.max(0, Math.floor((nowMs - new Date(baltmoorEvent.start_time).getTime()) / 1000)) : 0;
+
+    const mapStatusCode = (evalResult) => {
+      if (evalResult.code === 'OVERTOPPING' || evalResult.code === 'SUBMERGED') return 'OVERSPILLING';
+      if (evalResult.code === 'NEAR_CREST') return 'ALERT';
+      if (evalResult.code === 'SECURE') return 'SECURE';
+      if (evalResult.code === 'GRAVITY_OPEN' || evalResult.code === 'OPEN') return 'DIVERTING';
+      if (evalResult.code === 'CLOSED') return 'CLOSED';
+      if (evalResult.code === 'THROTTLED' || evalResult.code === 'SLACK_WATER') return 'SLACK_RESTRICTED';
+      return 'SECURE';
+    };
+
     res.writeHead(200, { 
       'Content-Type': 'application/json',
-      'Cache-Control': 'public, max-age=60, s-maxage=60, stale-while-revalidate=120',
-      'Access-Control-Allow-Origin': '*'
+      'Cache-Control': 'public, max-age=60, s-maxage=60, stale-while-revalidate=120'
     });
     res.end(JSON.stringify({
       status: "ok",
@@ -391,6 +1094,85 @@ const server = http.createServer(async (req, res) => {
         client_poll_at: new Date().toISOString(),
         db_synced_at: stored.db_synced_at || new Date().toISOString(),
         latest_ea_reading_at: stored.latest_ea_reading_at || new Date().toISOString()
+      },
+      global_status: {
+        counter_pill: `[ 🔴 ${hookbridgeOverspill.code === 'OVERTOPPING' ? 1 : 0} Overtopping | 🟢 3 Secure ]`,
+        banner_text: hookbridgeOverspill.code === 'OVERTOPPING' 
+          ? "ACTION REQUIRED: HOOKBRIDGE OVERTOPPING | GRAVITY DISCHARGE ACTIVE" 
+          : "SYSTEM SECURE — ALL MOORS NORMAL | GRAVITY DISCHARGE ACTIVE",
+        top_severity: hookbridgeOverspill.severity || 5
+      },
+      cards: {
+        hookbridge_spillway: {
+          id: "hookbridge_spillway",
+          name: "Hookbridge Spillway",
+          river: "River Tone → Curry Moor",
+          stage_mAOD: hookbridgeStage,
+          crest_mAOD: 7.45,
+          moor_stage_mAOD: curryMoorStage,
+          status_code: mapStatusCode(hookbridgeOverspill),
+          badge_label: hookbridgeOverspill.label,
+          badge_class: hookbridgeOverspill.badgeClass,
+          clearance_text: hookbridgeOverspill.clearanceText,
+          discharge_m3s: hookbridgeDischarge.flowM3s,
+          discharge_mld: hookbridgeDischarge.flowMLD,
+          is_spilling: hookbridgeOverspill.code === 'OVERTOPPING',
+          spill_duration_seconds: hookbridgeDuration,
+          spill_duration_formatted: `${Math.floor(hookbridgeDuration / 3600)}h ${Math.floor((hookbridgeDuration % 3600) / 60)}m`,
+          narrative: hookbridgeOverspill.narrative
+        },
+        baltmoor_wall: {
+          id: "baltmoor_wall",
+          name: "Baltmoor Wall Spillway",
+          river: "River Parrett → Northmoor",
+          stage_mAOD: baltmoorStage,
+          crest_mAOD: 7.80,
+          moor_stage_mAOD: northMoorStage,
+          status_code: mapStatusCode(baltmoorOverspill),
+          badge_label: baltmoorOverspill.label,
+          badge_class: baltmoorOverspill.badgeClass,
+          clearance_text: baltmoorOverspill.clearanceText,
+          discharge_m3s: baltmoorDischarge.flowM3s,
+          discharge_mld: baltmoorDischarge.flowMLD,
+          is_spilling: baltmoorOverspill.code === 'OVERTOPPING',
+          spill_duration_seconds: baltmoorDuration,
+          spill_duration_formatted: `${Math.floor(baltmoorDuration / 3600)}h ${Math.floor((baltmoorDuration % 3600) / 60)}m`,
+          narrative: baltmoorOverspill.narrative
+        },
+        monks_leaze_clyse: {
+          id: "monks_leaze_clyse",
+          name: "Monk's Leaze Clyse",
+          river: "River Parrett → Sowy Relief Channel",
+          upstream_mAOD: monksUpStage,
+          downstream_mAOD: monksDownStage,
+          sill_mAOD: 4.20,
+          delta_h_m: Math.round((monksUpStage - monksDownStage) * 100) / 100,
+          status_code: mapStatusCode(sowyEval),
+          badge_label: sowyEval.label,
+          badge_class: sowyEval.badgeClass,
+          flow_m3s: clyseFlow.flowM3s,
+          flow_mld: clyseFlow.flowMLD,
+          tributary_inflows: {
+            yeo_mAOD: huishStage,
+            isle_mAOD: midelneyStage,
+            parrett_mAOD: gawStage
+          },
+          narrative: sowyEval.narrative
+        },
+        langport_confluence: {
+          id: "langport_confluence",
+          name: "Langport Confluence & Tributaries",
+          river: "River Yeo & River Isle → Parrett Confluence",
+          yeo_stage_mAOD: huishStage,
+          isle_stage_mAOD: midelneyStage,
+          status_code: huishEval.code === 'ALERT' || midelneyEval.code === 'ALERT' ? 'ALERT' : (huishEval.code === 'ROAD_INUNDATED' ? 'ALERT' : (huishEval.code === 'CUT_OFF' ? 'SLACK_RESTRICTED' : 'SECURE')),
+          badge_label: huishEval.label,
+          badge_class: huishEval.badgeClass,
+          clearance_text: huishEval.clearanceText,
+          huish_episcopi: huishEval,
+          midelney: midelneyEval,
+          narrative: `${huishEval.narrative} ${midelneyEval.narrative}`
+        }
       },
       measures_summary: stored.measures_summary,
       measures: stored.measures
@@ -407,14 +1189,13 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // Fallback to index.html for extensionless catchment routes if file doesn't exist
   if (!fs.existsSync(safePath) && !path.extname(safePath)) {
     safePath = path.resolve(path.join(PUBLIC_DIR, 'index.html'));
   }
 
   const ext = path.extname(safePath).toLowerCase();
   const contentType = MIME_TYPES[ext] || 'application/octet-stream';
-  const cacheControl = (ext === '.html') ? 'public, max-age=300' : 'public, max-age=86400, s-maxage=86400';
+  const cacheControl = (ext === '.html') ? 'public, max-age=300' : (ext === '.js' ? 'no-cache' : 'public, max-age=86400');
 
   fs.readFile(safePath, (err, content) => {
     if (err) {
@@ -445,4 +1226,3 @@ if (isMainModule) {
 }
 
 export { server };
-

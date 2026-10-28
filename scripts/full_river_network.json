@@ -1,0 +1,619 @@
+{
+  "River Tone": [
+    {
+      "id": "52108",
+      "name": "Greenham",
+      "rloiId": "3083",
+      "riverName": "River Tone",
+      "catchmentName": "Parrett, Brue and West Somerset Streams",
+      "town": "Greenham",
+      "lat": 50.974487,
+      "long": -3.313793,
+      "easting": 307856,
+      "northing": 120275,
+      "gridReference": null,
+      "measures": [
+        {
+          "id": "52108-level-stage-i-15_min-m",
+          "parameter": "Water Level",
+          "qualifier": "Stage",
+          "unit": "m"
+        },
+        {
+          "id": "52108-level-stage-i-15_min-mASD",
+          "parameter": "Water Level",
+          "qualifier": "Stage",
+          "unit": "mASD"
+        }
+      ]
+    },
+    {
+      "id": "52109",
+      "name": "Bishops Hull",
+      "rloiId": "3082",
+      "riverName": "River Tone",
+      "catchmentName": "Parrett, Brue and West Somerset Streams",
+      "town": "Bishops Hull",
+      "lat": 51.019081,
+      "long": -3.133644,
+      "easting": 320580,
+      "northing": 125024,
+      "gridReference": null,
+      "measures": [
+        {
+          "id": "52109-flow-water-i-15_min-m3_s",
+          "parameter": "Flow",
+          "qualifier": "Water",
+          "unit": "m3/s"
+        },
+        {
+          "id": "52109-level-stage-i-15_min-m",
+          "parameter": "Water Level",
+          "qualifier": "Stage",
+          "unit": "m"
+        },
+        {
+          "id": "52109-level-stage-i-15_min-mASD",
+          "parameter": "Water Level",
+          "qualifier": "Stage",
+          "unit": "mASD"
+        }
+      ]
+    },
+    {
+      "id": "52111",
+      "name": "Taunton Market",
+      "rloiId": "3364",
+      "riverName": "River Tone",
+      "catchmentName": "Parrett, Brue and West Somerset Streams",
+      "town": "Taunton Market",
+      "lat": 51.020017,
+      "long": -3.100618,
+      "easting": 322898,
+      "northing": 125093,
+      "gridReference": "ST2291325093",
+      "measures": [
+        {
+          "id": "52111-level-stage-i-15_min-m",
+          "parameter": "Water Level",
+          "qualifier": "Stage",
+          "unit": "m"
+        },
+        {
+          "id": "52111-level-stage-i-15_min-mASD",
+          "parameter": "Water Level",
+          "qualifier": "Stage",
+          "unit": "mASD"
+        }
+      ]
+    },
+    {
+      "id": "52162",
+      "name": "Bathpool Outfall",
+      "rloiId": "9126",
+      "riverName": "River Tone",
+      "catchmentName": "Parrett, Brue and West Somerset Streams",
+      "town": "Bathpool",
+      "lat": 51.025799,
+      "long": -3.066732,
+      "easting": 325284,
+      "northing": 125701,
+      "gridReference": "ST2528425701",
+      "measures": [
+        {
+          "id": "52162-level-downstage-i-15_min-m",
+          "parameter": "Water Level",
+          "qualifier": "Downstream Stage",
+          "unit": "m"
+        },
+        {
+          "id": "52162-level-stage-i-15_min-m",
+          "parameter": "Water Level",
+          "qualifier": "Stage",
+          "unit": "m"
+        },
+        {
+          "id": "52162-level-stage-i-15_min-mAOD",
+          "parameter": "Water Level",
+          "qualifier": "Stage",
+          "unit": "mAOD"
+        }
+      ]
+    },
+    {
+      "id": "52118",
+      "name": "Currymoor Pumping Station",
+      "rloiId": "3073",
+      "riverName": "River Tone",
+      "catchmentName": "Parrett, Brue and West Somerset Streams",
+      "town": "Athelney",
+      "lat": 51.054966,
+      "long": -2.936065,
+      "easting": 334489,
+      "northing": 128820,
+      "gridReference": null,
+      "measures": [
+        {
+          "id": "52118-level-stage-i-15_min-mAOD",
+          "parameter": "Water Level",
+          "qualifier": "Stage",
+          "unit": "mAOD"
+        },
+        {
+          "id": "52118-level-stage-i-15_min-mASD",
+          "parameter": "Water Level",
+          "qualifier": "Stage",
+          "unit": "mASD"
+        }
+      ]
+    }
+  ],
+  "River Parrett": [
+    {
+      "id": "52116",
+      "name": "Chiselborough",
+      "rloiId": "3078",
+      "riverName": "River Parrett",
+      "catchmentName": "Parrett, Brue and West Somerset Streams",
+      "town": "Chiselborough",
+      "lat": 50.92686,
+      "long": -2.768537,
+      "easting": 346082,
+      "northing": 114438,
+      "gridReference": null,
+      "measures": [
+        {
+          "id": "52116-level-stage-i-15_min-m",
+          "parameter": "Water Level",
+          "qualifier": "Stage",
+          "unit": "m"
+        },
+        {
+          "id": "52116-level-stage-i-15_min-mASD",
+          "parameter": "Water Level",
+          "qualifier": "Stage",
+          "unit": "mASD"
+        }
+      ]
+    },
+    {
+      "id": "52119",
+      "name": "Gaw Bridge",
+      "rloiId": "3072",
+      "riverName": "River Parrett",
+      "catchmentName": "Parrett, Brue and West Somerset Streams",
+      "town": "Kingsbury Episcopi",
+      "lat": 50.976043,
+      "long": -2.793549,
+      "easting": 344383,
+      "northing": 119926,
+      "gridReference": null,
+      "measures": [
+        {
+          "id": "52119-level-stage-i-15_min-mASD",
+          "parameter": "Water Level",
+          "qualifier": "Stage",
+          "unit": "mASD"
+        }
+      ]
+    },
+    {
+      "id": "52233",
+      "name": "Monk's Leaze Clyse",
+      "rloiId": "3377",
+      "riverName": "River Parrett",
+      "catchmentName": "Parrett, Brue and West Somerset Streams",
+      "town": "Langport",
+      "lat": 51.044626,
+      "long": -2.84382,
+      "easting": 340941,
+      "northing": 127592,
+      "gridReference": "ST4094127592",
+      "measures": [
+        {
+          "id": "52233-level-stage-i-15_min-mAOD",
+          "parameter": "Water Level",
+          "qualifier": "Stage",
+          "unit": "mAOD"
+        },
+        {
+          "id": "52233-level-stage-i-15_min-mASD",
+          "parameter": "Water Level",
+          "qualifier": "Stage",
+          "unit": "mASD"
+        }
+      ]
+    },
+    {
+      "id": "52158",
+      "name": "Baltmoor Wall Saltmoor Barrier",
+      "rloiId": "3378",
+      "riverName": "Saltmoor Main Drain",
+      "catchmentName": "Parrett, Brue and West Somerset Streams",
+      "town": "East Lyng",
+      "lat": 51.059531,
+      "long": -2.940994,
+      "easting": 334150,
+      "northing": 129332,
+      "gridReference": "ST3415029332",
+      "measures": [
+        {
+          "id": "52158-level-stage-i-15_min-mAOD",
+          "parameter": "Water Level",
+          "qualifier": "Stage",
+          "unit": "mAOD"
+        },
+        {
+          "id": "52158-level-stage-i-15_min-mASD",
+          "parameter": "Water Level",
+          "qualifier": "Stage",
+          "unit": "mASD"
+        }
+      ]
+    },
+    {
+      "id": "52124",
+      "name": "West Quay",
+      "rloiId": "3081",
+      "riverName": "River Parrett",
+      "catchmentName": "Parrett, Brue and West Somerset Streams",
+      "town": "Bridgwater",
+      "lat": 51.129895,
+      "long": -3.001618,
+      "easting": 330008,
+      "northing": 137213,
+      "gridReference": null,
+      "measures": [
+        {
+          "id": "52124-level-stage-i-15_min-m",
+          "parameter": "Water Level",
+          "qualifier": "Stage",
+          "unit": "m"
+        },
+        {
+          "id": "52124-level-stage-i-15_min-mASD",
+          "parameter": "Water Level",
+          "qualifier": "Stage",
+          "unit": "mASD"
+        }
+      ]
+    },
+    {
+      "id": "52163",
+      "name": "Dunball Tidal",
+      "rloiId": "9127",
+      "riverName": "River Parrett",
+      "catchmentName": "Parrett, Brue and West Somerset Streams",
+      "town": "Dunball",
+      "lat": 51.162253,
+      "long": -2.989562,
+      "easting": 330900,
+      "northing": 140800,
+      "gridReference": "ST3090040800",
+      "measures": [
+        {
+          "id": "52163-level-tidal_level-i-15_min-mAOD",
+          "parameter": "Water Level",
+          "qualifier": "Tidal Level",
+          "unit": "mAOD"
+        },
+        {
+          "id": "52163-level-tidal_level-i-15_min-mASD",
+          "parameter": "Water Level",
+          "qualifier": "Tidal Level",
+          "unit": "mASD"
+        }
+      ]
+    }
+  ],
+  "River Yeo": [
+    {
+      "id": "52121",
+      "name": "Sherborne Lake",
+      "rloiId": "3070",
+      "riverName": "River Yeo",
+      "catchmentName": "Parrett, Brue and West Somerset Streams",
+      "town": "Sherborne",
+      "lat": 50.947873,
+      "long": -2.503101,
+      "easting": 364753,
+      "northing": 116614,
+      "gridReference": null,
+      "measures": [
+        {
+          "id": "52121-level-stage-i-15_min-mASD",
+          "parameter": "Water Level",
+          "qualifier": "Stage",
+          "unit": "mASD"
+        }
+      ]
+    },
+    {
+      "id": "52117",
+      "name": "Pen Mill",
+      "rloiId": "3074",
+      "riverName": "River Yeo",
+      "catchmentName": "Parrett, Brue and West Somerset Streams",
+      "town": "Yeovil",
+      "lat": 50.943504,
+      "long": -2.608654,
+      "easting": 357334,
+      "northing": 116184,
+      "gridReference": null,
+      "measures": [
+        {
+          "id": "52117-level-stage-i-15_min-m",
+          "parameter": "Water Level",
+          "qualifier": "Stage",
+          "unit": "m"
+        },
+        {
+          "id": "52117-level-stage-i-15_min-mASD",
+          "parameter": "Water Level",
+          "qualifier": "Stage",
+          "unit": "mASD"
+        }
+      ]
+    },
+    {
+      "id": "52112",
+      "name": "Ilchester",
+      "rloiId": "3079",
+      "riverName": "River Yeo",
+      "catchmentName": "Parrett, Brue and West Somerset Streams",
+      "town": "Ilchester",
+      "lat": 51.003358,
+      "long": -2.683234,
+      "easting": 352156,
+      "northing": 122886,
+      "gridReference": null,
+      "measures": [
+        {
+          "id": "52112-level-stage-i-15_min-m",
+          "parameter": "Water Level",
+          "qualifier": "Stage",
+          "unit": "m"
+        },
+        {
+          "id": "52112-level-stage-i-15_min-mASD",
+          "parameter": "Water Level",
+          "qualifier": "Stage",
+          "unit": "mASD"
+        }
+      ]
+    },
+    {
+      "id": "52120",
+      "name": "Huish Episcopi Pumping Station",
+      "rloiId": "3071",
+      "riverName": "River Yeo",
+      "catchmentName": "Parrett, Brue and West Somerset Streams",
+      "town": "Huish Episcopi",
+      "lat": 51.031669,
+      "long": -2.798991,
+      "easting": 344068,
+      "northing": 126116,
+      "gridReference": null,
+      "measures": [
+        {
+          "id": "52120-level-stage-i-15_min-mASD",
+          "parameter": "Water Level",
+          "qualifier": "Stage",
+          "unit": "mASD"
+        }
+      ]
+    }
+  ],
+  "River Isle": [
+    {
+      "id": "52115",
+      "name": "Donyatt",
+      "rloiId": "3076",
+      "riverName": "River Isle",
+      "catchmentName": "Parrett, Brue and West Somerset Streams",
+      "town": "Donyatt",
+      "lat": 50.921842,
+      "long": -2.940546,
+      "easting": 333986,
+      "northing": 114020,
+      "gridReference": null,
+      "measures": [
+        {
+          "id": "52115-level-stage-i-15_min-m",
+          "parameter": "Water Level",
+          "qualifier": "Stage",
+          "unit": "m"
+        },
+        {
+          "id": "52115-level-stage-i-15_min-mASD",
+          "parameter": "Water Level",
+          "qualifier": "Stage",
+          "unit": "mASD"
+        }
+      ]
+    },
+    {
+      "id": "52114",
+      "name": "Ashford Mill",
+      "rloiId": "3077",
+      "riverName": "River Isle",
+      "catchmentName": "Parrett, Brue and West Somerset Streams",
+      "town": "Ilton",
+      "lat": 50.964926,
+      "long": -2.912024,
+      "easting": 336050,
+      "northing": 118786,
+      "gridReference": null,
+      "measures": [
+        {
+          "id": "52114-level-stage-i-15_min-m",
+          "parameter": "Water Level",
+          "qualifier": "Stage",
+          "unit": "m"
+        },
+        {
+          "id": "52114-level-stage-i-15_min-mASD",
+          "parameter": "Water Level",
+          "qualifier": "Stage",
+          "unit": "mASD"
+        }
+      ]
+    },
+    {
+      "id": "52153",
+      "name": "Midelney",
+      "rloiId": "3380",
+      "riverName": "River Isle",
+      "catchmentName": "Parrett, Brue and West Somerset Streams",
+      "town": "Langport",
+      "lat": 51.008129,
+      "long": -2.832096,
+      "easting": 341717,
+      "northing": 123524,
+      "gridReference": "ST4171223517",
+      "measures": [
+        {
+          "id": "52153-level-stage-i-15_min-mASD",
+          "parameter": "Water Level",
+          "qualifier": "Stage",
+          "unit": "mASD"
+        }
+      ]
+    }
+  ],
+  "River Cary": [
+    {
+      "id": "52156",
+      "name": "Long Load",
+      "rloiId": "3381",
+      "riverName": "Witcombe Bottom Main Drain",
+      "catchmentName": "Parrett, Brue and West Somerset Streams",
+      "town": "Long Load",
+      "lat": 51.010875,
+      "long": -2.758978,
+      "easting": 346850,
+      "northing": 123774,
+      "gridReference": "ST4685023774",
+      "measures": [
+        {
+          "id": "52156-level-stage-i-15_min-mASD",
+          "parameter": "Water Level",
+          "qualifier": "Stage",
+          "unit": "mASD"
+        }
+      ]
+    }
+  ],
+  "Kings Sedgemoor Drain": [
+    {
+      "id": "E9531",
+      "name": "Bradney",
+      "rloiId": "9498",
+      "riverName": "Kings Sedgemoor Drain",
+      "catchmentName": "Parrett, Brue and West Somerset Streams",
+      "town": "Bradney Bridgwater",
+      "lat": 51.148548,
+      "long": -2.945191,
+      "easting": 333983,
+      "northing": 139235,
+      "gridReference": "ST3398339235",
+      "measures": [
+        {
+          "id": "E9531-level-stage-i-15_min-mAOD",
+          "parameter": "Water Level",
+          "qualifier": "Stage",
+          "unit": "mAOD"
+        },
+        {
+          "id": "E9531-level-stage-i-15_min-mASD",
+          "parameter": "Water Level",
+          "qualifier": "Stage",
+          "unit": "mASD"
+        }
+      ]
+    },
+    {
+      "id": "E9094",
+      "name": "Dunball",
+      "rloiId": "9499",
+      "riverName": "Kings Sedgemoor Drain",
+      "catchmentName": "Parrett, Brue and West Somerset Streams",
+      "town": "Bridgwater",
+      "lat": 51.161484,
+      "long": -2.988087,
+      "easting": 331002,
+      "northing": 140713,
+      "gridReference": "ST3100240713",
+      "measures": [
+        {
+          "id": "E9094-level-stage-i-15_min-m",
+          "parameter": "Water Level",
+          "qualifier": "Stage",
+          "unit": "m"
+        },
+        {
+          "id": "E9094-level-stage-i-15_min-mAOD",
+          "parameter": "Water Level",
+          "qualifier": "Stage",
+          "unit": "mAOD"
+        }
+      ]
+    }
+  ],
+  "Sowy Relief Channel": [
+    {
+      "id": "52234",
+      "name": "Monk's Leaze Clyse Downstream",
+      "rloiId": "3377",
+      "riverName": "Sowy Relief Channel",
+      "catchmentName": "Parrett, Brue and West Somerset Streams",
+      "town": "Langport",
+      "lat": 51.044626,
+      "long": -2.84382,
+      "easting": 340941,
+      "northing": 127592,
+      "gridReference": "ST4094127592",
+      "measures": [
+        {
+          "id": "52234-level-downstage-i-15_min-mAOD",
+          "parameter": "Water Level",
+          "qualifier": "Downstream Stage",
+          "unit": "mAOD"
+        },
+        {
+          "id": "52234-level-downstage-i-15_min-mASD",
+          "parameter": "Water Level",
+          "qualifier": "Downstream Stage",
+          "unit": "mASD"
+        }
+      ]
+    },
+    {
+      "id": "52157",
+      "name": "Beerwall Upstream",
+      "rloiId": "3379",
+      "riverName": "River Sowy",
+      "catchmentName": "Parrett, Brue and West Somerset Streams",
+      "town": "Othery",
+      "lat": 51.079805,
+      "long": -2.869413,
+      "easting": 339193,
+      "northing": 131525,
+      "gridReference": "ST3919331525",
+      "measures": [
+        {
+          "id": "52157-level-stage-i-15_min-mAOD",
+          "parameter": "Water Level",
+          "qualifier": "Stage",
+          "unit": "mAOD"
+        },
+        {
+          "id": "52157-level-stage-i-15_min-mASD",
+          "parameter": "Water Level",
+          "qualifier": "Stage",
+          "unit": "mASD"
+        }
+      ]
+    }
+  ]
+}

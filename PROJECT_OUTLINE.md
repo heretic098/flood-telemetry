@@ -138,8 +138,26 @@ The top global status bar evaluates all 4 systems and calculates the **Worst-Cas
 * **Synchronized Sparkline Pins:** A vertical indicator pin tracks across all 4 card sparklines simultaneously.
 * **Historical Warning Banner:** Distinct Amber/Purple header banner (`⚠️ HISTORICAL REPLAY MODE — Viewing 14:00 GMT on 12 Jan 2024`) prevents user confusion between current weather and past flood events.
 
-### Phase 2 Roadmap: Animated Replay Playback (`▶ / ❚❚`)
+### Phase 2 Roadmap: Animated Replay Playback & Historical Spill Charting
 * **Animated Flood Event Replay:** A play/pause simulation controller (`▶ Play / ❚❚ Pause`, `1x / 2x / 5x speed`) allowing users to watch flood events propagate across the Somerset Levels (e.g. Curry Moor filling and spilling over 48 hours).
+* **Historical Spill Duration & Flow Hydrograph Charting (24h, 7d, 30d):**
+  - An interactive timeline graph allowing residents to look back at **24 hours, 7 days, or 30 days** of telemetry to see every historical overtopping event.
+  - Displays shaded active spill duration bands paired with the calculated overtopping flow rate curve ($m^3/s$ & Megalitres/day) so users can instantly see **how long the spillways ran** and **how fast water was spilling over them**.
+
+---
+
+## 8. Future Enhancement Roadmap ("Things We Might Do Later")
+
+1. **📊 Historical Spill Duration & Flow Hydrograph (24h / 7d / 30d Lookback):**
+   - Interactive timeline charting showing exact overtopping intervals and discharge rate curves ($m^3/s$) across 24-hour, 7-day, and 30-day archive windows.
+2. **🔮 Advance Overtopping & Rate of Rise Predictor (6–24 Hour Early Warning):**
+   - Predicting *when* a spillway will start overtopping 6–24 hours in advance using upstream flood wave propagation (Tone & Parrett gauges), Open-Meteo rain forecasts, and soil moisture saturation.
+3. **🌊 Tidal Surge & Future Tide-Locking Window Forecaster:**
+   - Overlaying UKHO Admiralty High Water predictions with live Dunball Tidal (`52163`) telemetry to calculate the exact future tide-lock window for the next 24 hours.
+4. **🏡 4-Pillar Plain-English "What This Means For Me" Resident Cards:**
+   - Commute/road status (A361 tarmac elevation clearance), driveway vs lawn vs floor level alerts, and livestock pasture inundation sequence.
+5. **🤖 Multi-Camera AI Vision & Debris Detection Expansion:**
+   - Expanding AI Vision across all 6 EA catchment webcams to automatically flag debris blockages at trash racks.
 
 ---
 

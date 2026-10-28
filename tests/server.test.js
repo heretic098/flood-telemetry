@@ -40,7 +40,6 @@ test('GET /api/catchments returns 200 and available catchments list', async () =
   assert.equal(json.status, 'ok');
   assert.ok(Array.isArray(json.catchments));
   assert.ok(json.catchments.some(c => c.id === 'somerset'));
-  assert.ok(json.catchments.some(c => c.id === 'fens'));
 });
 
 test('GET /api/catchments/somerset returns 200 and Somerset configuration JSON', async () => {
@@ -49,15 +48,6 @@ test('GET /api/catchments/somerset returns 200 and Somerset configuration JSON',
   assert.ok(res.headers['content-type'].includes('application/json'));
   const json = JSON.parse(res.body);
   assert.equal(json.id, 'somerset');
-  assert.ok(json.moors);
-});
-
-test('GET /api/catchments/fens returns 200 and Fens configuration JSON', async () => {
-  const res = await httpGet('/api/catchments/fens');
-  assert.equal(res.status, 200);
-  assert.ok(res.headers['content-type'].includes('application/json'));
-  const json = JSON.parse(res.body);
-  assert.equal(json.id, 'fens');
   assert.ok(json.moors);
 });
 
@@ -96,3 +86,18 @@ test('GET /somerset/js/app.js serves static JS asset correctly', async () => {
   assert.equal(res.status, 200);
   assert.ok(res.headers['content-type'].includes('text/javascript'));
 });
+
+test('GET /topology.html serves static topology HTML asset correctly', async () => {
+  const res = await httpGet('/topology.html');
+  assert.equal(res.status, 200);
+  assert.ok(res.headers['content-type'].includes('text/html'));
+  assert.ok(res.body.includes('River Network Topology Map'));
+  assert.ok(res.body.includes('aria-current="page"'));
+});
+
+test('GET /js/topology.js serves static topology JS script correctly', async () => {
+  const res = await httpGet('/js/topology.js');
+  assert.equal(res.status, 200);
+  assert.ok(res.headers['content-type'].includes('text/javascript'));
+});
+

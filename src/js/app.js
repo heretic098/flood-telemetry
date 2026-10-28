@@ -1,4 +1,75 @@
-import { evaluateSpillway, evaluateGateState, aggregateGlobalStatus, evaluatePumpStatus, evaluateSowyChannel, estimateClyseFlow, evaluateAthelneySpillway, evaluateGravityClyse, evaluateBeerWall, evaluateOathLock, evaluateDunballEmergencyPumping, getSeasonalRegime, getActiveCrestHeight, getActiveCatchmentId, loadCatchmentConfig } from './hydro_engine.js';
+import { evaluateSpillway, evaluateGateState, aggregateGlobalStatus, evaluatePumpStatus, evaluateSowyChannel, estimateClyseFlow, evaluateAthelneySpillway, evaluateGravityClyse, evaluateBeerWall, evaluateOathLock, evaluateDunballEmergencyPumping, calculateVillemonteDischarge, getSeasonalRegime, getActiveCrestHeight, getActiveCatchmentId, loadCatchmentConfig, evaluateHuishEpiscopi, evaluateMidelney } from './hydro_engine.js';
+
+export function renderHeroSpillwayBanner(opts) {
+  const isAlert = opts.isAlert || opts.isOvertopping;
+  const alertClass = isAlert ? ' hero-spillway-alert' : '';
+  
+  let pct = 0;
+  if (typeof opts.currentLevel === 'number' && typeof opts.minLevel === 'number' && typeof opts.maxLevel === 'number' && opts.maxLevel > opts.minLevel) {
+    pct = Math.max(0, Math.min(100, ((opts.currentLevel - opts.minLevel) / (opts.maxLevel - opts.minLevel)) * 100));
+  }
+  
+  const fillClass = isAlert ? ' hero-stage-fill fill-alert' : ' hero-stage-fill';
+
+  const badgeHtml = opts.statusBadge ? `
+    <div class="status-badge ${opts.statusBadge.badgeClass}" aria-live="polite">
+      <span aria-hidden="true">${opts.statusBadge.symbol}</span>
+      <span class="sr-only">Status: </span>
+      <span>${opts.statusBadge.label}</span>
+    </div>
+  ` : '';
+
+  const trackHtml = (opts.minLevel !== undefined && opts.maxLevel !== undefined) ? `
+    <div class="hero-stage-track-box">
+      <div class="hero-stage-track-labels">
+        <span>${escapeHTML(opts.minLabel || '')}</span>
+        <span>${escapeHTML(opts.maxLabel || '')}</span>
+      </div>
+      <div class="hero-stage-track" role="progressbar" aria-valuenow="${pct.toFixed(0)}" aria-valuemin="0" aria-valuemax="100" aria-label="${escapeAttr(opts.title || 'Stage')} Progress">
+        <div class="${fillClass}" style="width: ${pct.toFixed(1)}%;"></div>
+      </div>
+    </div>
+  ` : '';
+
+  const statsHtml = Array.isArray(opts.stats) ? opts.stats.map(s => `
+    <div class="hero-stat-item">
+      <span class="hero-stat-label">${escapeHTML(s.label)}</span>
+      <span class="hero-stat-val">${s.htmlValue || escapeHTML(s.value || '')}</span>
+    </div>
+  `).join('') : '';
+
+  const camBtnHtml = opts.camLink ? `
+    <a href="${escapeAttr(opts.camLink.url)}" target="_blank" rel="noopener noreferrer" class="cctv-badge-btn hero-cam-btn" title="${escapeAttr(opts.camLink.title || 'View Camera')}" aria-label="${escapeAttr(opts.camLink.ariaLabel || 'View Camera')}">📷 LIVE CAM ↗</a>
+  ` : '';
+
+  return `
+    <section class="hero-spillway-banner${alertClass}" aria-label="${escapeAttr(opts.title || 'Hero Banner')} Top Hero Banner">
+      <div class="hero-banner-header">
+        <div class="hero-banner-title-group">
+          <span class="hero-asset-icon" aria-hidden="true">${opts.icon || '🌊'}</span>
+          <h3 class="hero-asset-title">${escapeHTML(opts.title)}</h3>
+        </div>
+        ${badgeHtml}
+      </div>
+
+      <div class="hero-banner-main-metric">
+        <div>
+          <span class="hero-metric-value">${escapeHTML(opts.mainMetricValue)}</span>
+          <span class="hero-metric-unit">${escapeHTML(opts.mainMetricUnit || '')}</span>
+        </div>
+        ${opts.clearanceText ? `<span class="hero-clearance-pill">${escapeHTML(opts.clearanceText)}</span>` : ''}
+      </div>
+
+      ${trackHtml}
+
+      <div class="hero-banner-stats-row">
+        ${statsHtml}
+        ${camBtnHtml}
+      </div>
+    </section>
+  `;
+}
+
 
 let hydroConfig = null;
 let activeCatchmentId = 'somerset';
@@ -79,11 +150,15 @@ export async function setupCatchmentNav(currentCatchmentId) {
     if (res.ok) {
       const data = await res.json();
       if (data.catchments && Array.isArray(data.catchments)) {
-        navContainer.innerHTML = data.catchments.map(c => {
-          const isActive = c.id === currentCatchmentId;
-          const activeClass = isActive ? 'nav-btn active' : 'nav-btn';
-          return `<a href="${c.path || '/' + c.id}" class="${activeClass}">📊 ${escapeHTML(c.name)}</a>`;
-        }).join('') + `<a href="/methodology.html" class="nav-btn">📖 Methodology & Provenance</a>`;
+        const isDashboard = window.location.pathname.endsWith('index.html') || window.location.pathname === '/' || window.location.pathname.endsWith('/somerset') || window.location.pathname.endsWith('/somerset/');
+        const isTopology = window.location.pathname.endsWith('topology.html');
+        const isMethodology = window.location.pathname.endsWith('methodology.html');
+
+        navContainer.innerHTML = `
+          <a href="index.html" class="nav-btn ${isDashboard ? 'active' : ''}" ${isDashboard ? 'aria-current="page"' : ''}>📊 Live Dashboard</a>
+          <a href="topology.html" class="nav-btn ${isTopology ? 'active' : ''}" ${isTopology ? 'aria-current="page"' : ''}>🗺️ River Network Map</a>
+          <a href="methodology.html" class="nav-btn ${isMethodology ? 'active' : ''}" ${isMethodology ? 'aria-current="page"' : ''}>📖 Methodology &amp; Provenance</a>
+        `;
       }
     }
   } catch (err) {
@@ -186,11 +261,22 @@ export async function refreshLiveDashboard() {
 
     const eaPill = document.getElementById('ea-freshness-pill');
     if (eaPill) {
-      eaPill.innerText = `📡 Telemetry: ${ageStr}`;
+      let pillText = '';
+      if (diffMins < 1) {
+        pillText = 'Just now';
+      } else if (diffMins <= 120) {
+        pillText = diffMins < 60 ? `${diffMins}m ago` : `${(diffMins / 60).toFixed(1)}h ago`;
+      } else if (diffMins <= 360) {
+        pillText = `${(diffMins / 60).toFixed(1)}h ago (Lagging)`;
+      } else {
+        pillText = `${(diffMins / 60).toFixed(1)}h ago (Stale)`;
+      }
+
+      eaPill.innerText = `📡 Telemetry: ${pillText}`;
       eaPill.classList.remove('freshness-fresh', 'freshness-warning', 'freshness-stale');
-      if (diffMins <= 45) {
+      if (diffMins <= 120) {
         eaPill.classList.add('freshness-fresh');
-      } else if (diffMins <= 90) {
+      } else if (diffMins <= 360) {
         eaPill.classList.add('freshness-warning');
       } else {
         eaPill.classList.add('freshness-stale');
@@ -220,7 +306,9 @@ export async function refreshLiveDashboard() {
         "52233-level-stage-i-15_min-mAOD": "Monk's Leaze Upstream",
         "52234-level-downstage-i-15_min-mAOD": "Monk's Leaze Downstream",
         "E9094-level-stage-i-15_min-mAOD": "Dunball Inland KSD",
-        "52163-level-tidal_level-i-15_min-mAOD": "Dunball Tidal Parrett"
+        "52163-level-tidal_level-i-15_min-mAOD": "Dunball Tidal Parrett",
+        "52120-level-stage-i-15_min-mASD": "Huish Episcopi PS (River Yeo)",
+        "52153-level-stage-i-15_min-mASD": "Midelney (River Isle)"
       };
 
       matrixBody.innerHTML = Object.entries(measuresSummary).map(([measureId, timeStr]) => {
@@ -229,9 +317,9 @@ export async function refreshLiveDashboard() {
         const timeFormatted = time ? time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'N/A';
         const diffMins = time ? Math.max(0, Math.floor((Date.now() - time.getTime()) / 60000)) : 999;
         const ageFormatted = diffMins < 60 ? `${diffMins}m ago` : `${(diffMins/60).toFixed(1)}h ago`;
-        const statusBadge = diffMins <= 45 ? 
-          '<span class="badge badge-secure">🟢 FRESH</span>' : 
-          (diffMins <= 90 ? '<span class="badge badge-warning">🟡 LAGGING</span>' : '<span class="badge badge-danger">🔴 STALE</span>');
+        const statusBadge = diffMins <= 120 ? 
+          '<span class="badge freshness-fresh">🟢 FRESH</span>' : 
+          (diffMins <= 360 ? '<span class="badge freshness-warning">🟡 LAGGING</span>' : '<span class="badge freshness-stale">🔴 STALE</span>');
 
         return `
           <tr>
@@ -249,10 +337,10 @@ export async function refreshLiveDashboard() {
   const infraBody = document.getElementById('modal-infra-matrix');
   if (infraBody && hydroConfig && hydroConfig.moors) {
     const SPILLWAY_ROWS = [
-      { name: "Hookbridge Spillway (Curry Moor)", config: hydroConfig.moors.curry_moor?.spillway, fallback: 7.45 },
-      { name: "Athelney Spillway (Tone/Curry Moor)", config: hydroConfig.moors.curry_moor?.athelney_spillway, fallback: 7.35 },
-      { name: "Baltmoor Wall Crest (Northmoor)", config: hydroConfig.moors.northmoor?.spillway, fallback: 7.80 },
-      { name: "Beer Wall / Allens Spillway", config: hydroConfig.moors.northmoor?.beer_wall, fallback: 7.30 }
+      { name: "Hookbridge Spillway (River Tone ➔ Curry Moor)", config: hydroConfig.moors.curry_moor?.spillway, fallback: 7.45 },
+      { name: "Athelney Spillway (Curry Moor ➔ Northmoor Cascade)", config: hydroConfig.moors.curry_moor?.athelney_spillway, fallback: 7.35 },
+      { name: "Baltmoor Wall Defense (River Parrett ➔ Northmoor Overtopping)", config: hydroConfig.moors.northmoor?.spillway, fallback: 7.80 },
+      { name: "Beer Wall / Allens Spillway (Greylake ➔ Sowy Relief)", config: hydroConfig.moors.northmoor?.beer_wall, fallback: 7.30 }
     ];
     infraBody.innerHTML = SPILLWAY_ROWS.map(item => {
       const crest = getActiveCrestHeight(item.config, new Date(), item.fallback);
@@ -303,13 +391,28 @@ export async function refreshLiveDashboard() {
   const dunballInland = dunballInlandReadings && dunballInlandReadings.length ? dunballInlandReadings[0].value : 2.64;
   const dunballSea = seaReadings && seaReadings.length ? seaReadings[0].value : 1.09;
 
+  // 5. Langport Confluence Live Data (River Yeo 52120 & River Isle 52153)
+  const huishReadings = (dbMeasures && dbMeasures["52120-level-stage-i-15_min-mASD"]) || await fetchEAReadings("52120-level-stage-i-15_min-mASD");
+  const midelneyReadings = (dbMeasures && dbMeasures["52153-level-stage-i-15_min-mASD"]) || await fetchEAReadings("52153-level-stage-i-15_min-mASD");
+
+  const huishDatum = 5.000;
+  const midelneyDatum = 5.185;
+  const huishRaw = huishReadings && huishReadings.length ? huishReadings[0].value : 1.681;
+  const midelneyRaw = midelneyReadings && midelneyReadings.length ? midelneyReadings[0].value : 1.417;
+  const huishLevel = Number((huishRaw + huishDatum).toFixed(2));
+  const midelneyLevel = Number((midelneyRaw + midelneyDatum).toFixed(2));
+
   // Build trend histories according to selected lookback period (24h, 7d, 30d)
   const rangeLimitMap = { '24h': 96, '7d': 672, '30d': 2688 };
   const maxLimit = rangeLimitMap[currentActiveRange] || 96;
 
-  const extractHistory = (items) => {
-    if (!items || items.length === 0) return [];
-    let sliced = items.slice(0, maxLimit).map(i => ({ value: i.value, time: i.dateTime }));
+  const extractHistory = (items, datum = 0) => {
+    if (!items || !Array.isArray(items) || items.length === 0) return [];
+    const validDatum = Number.isFinite(datum) ? datum : 0;
+    let sliced = items
+      .filter(i => i && typeof i.value === 'number' && Number.isFinite(i.value))
+      .slice(0, maxLimit)
+      .map(i => ({ value: Number((i.value + validDatum).toFixed(3)), time: i.dateTime }));
     if ((currentActiveRange === '30d' || currentActiveRange === '7d') && sliced.length > 250) {
       const step = Math.ceil(sliced.length / 180);
       sliced = sliced.filter((_, idx) => idx % step === 0);
@@ -324,6 +427,8 @@ export async function refreshLiveDashboard() {
   const monksDownHistory = extractHistory(monksDownReadings);
   const inlandHistory = extractHistory(dunballInlandReadings);
   const seaHistory = extractHistory(seaReadings);
+  const huishHistory = extractHistory(huishReadings, huishDatum);
+  const midelneyHistory = extractHistory(midelneyReadings, midelneyDatum);
 
   container.innerHTML = '';
 
@@ -344,11 +449,36 @@ export async function refreshLiveDashboard() {
 
   const athelneyConfig = hydroConfig?.moors?.curry_moor?.athelney_spillway;
   const athelneyCrest = getActiveCrestHeight(athelneyConfig, new Date(), 7.35);
-  const athelneySpillway = evaluateAthelneySpillway(cmRiverLevel, athelneyCrest);
+  const athelneySpillway = evaluateAthelneySpillway(cmMoorLevel, athelneyCrest);
   const cmGravitySluice = evaluateGravityClyse(cmMoorLevel, cmRiverLevel, "Currymoor Sluice");
+
+  const hookbridgeFlow = cmEval.code === 'OVERTOPPING' ? calculateVillemonteDischarge(cmRiverLevel, cmMoorLevel, hookbridgeCrest) : null;
+  const cmHeroBanner = renderHeroSpillwayBanner({
+    icon: '⚡',
+    title: 'Hookbridge Spillway Status',
+    statusBadge: cmEval,
+    mainMetricValue: cmRiverLevel.toFixed(2),
+    mainMetricUnit: 'm AOD (Tone Stage)',
+    clearanceText: cmEval.clearanceText,
+    minLevel: 5.50,
+    maxLevel: hookbridgeCrest,
+    currentLevel: cmRiverLevel,
+    minLabel: 'Normal Stage: 5.50m',
+    maxLabel: `Crest: ${hookbridgeCrest.toFixed(2)}m AOD`,
+    isAlert: cmEval.code === 'OVERTOPPING' || cmEval.code === 'NEAR_CREST',
+    stats: [
+      { label: 'Spill Duration', value: cmEval.code === 'OVERTOPPING' ? '⏱️ Active Spill' : '⏱️ 00h 00m' }
+    ],
+    camLink: {
+      url: 'https://thecfh.org/parretttonewsom.php#hook',
+      title: 'View 3-min EA Snapshot Camera at thecfh.org#hook',
+      ariaLabel: 'View 3-min EA Snapshot Camera at thecfh.org for Hookbridge Spillway'
+    }
+  });
 
   container.appendChild(createMoorCard({
     title: "Curry Moor System",
+    heroBanner: cmHeroBanner,
     riverTag: `Catchment: River Tone (${regime.label})`,
     eval: cmEval,
     provenanceTag: "⚡ LEVEL SOP MODEL",
@@ -358,12 +488,12 @@ export async function refreshLiveDashboard() {
     narrative: `Curry Moor Basin level is ${cmMoorLevel.toFixed(2)}m AOD (${isSummerRegime ? 'normal summer target 4.30-4.45m' : 'winter target 3.40-3.80m'}). ${cmEval.narrative}`,
     pills: [
       {
-        html: `<strong>Curry Moor Spillway:</strong> ${cmEval.symbol} ${cmEval.label} (${cmEval.clearanceText}) <a href="https://thecfh.org/parretttonewsom.php#hook" target="_blank" rel="noopener noreferrer" class="cctv-badge-btn" title="View 3-min EA Snapshot Camera at thecfh.org#hook" aria-label="View 3-min EA Snapshot Camera at thecfh.org for Hookbridge Spillway">📷 LIVE CAM ↗</a>`,
+        html: `<strong>Hookbridge Spillway:</strong> ${cmEval.symbol} ${cmEval.label} (${cmEval.clearanceText}) <a href="https://thecfh.org/parretttonewsom.php#hook" target="_blank" rel="noopener noreferrer" class="cctv-badge-btn" title="View 3-min EA Snapshot Camera at thecfh.org#hook" aria-label="View 3-min EA Snapshot Camera at thecfh.org for Hookbridge Spillway">📷 LIVE CAM ↗</a>`,
         tooltip: `📍 Hookbridge Crest: ${hookbridgeCrest.toFixed(2)}m AOD (${hookbridgeScheme}) | View 3-min EA Snapshot Camera at thecfh.org#hook`
       },
       {
-        html: `<strong>Athelney Spillway:</strong> ${athelneySpillway.statusText} <a href="https://thecfh.org/parretttonewsom.php#athelneyspillway" target="_blank" rel="noopener noreferrer" class="cctv-badge-btn" title="View 3-min EA Snapshot Camera at thecfh.org#athelneyspillway" aria-label="View 3-min EA Snapshot Camera at thecfh.org for Athelney Spillway">📷 LIVE CAM ↗</a>`,
-        tooltip: `📍 Athelney Crest: ${athelneyCrest.toFixed(2)}m AOD (Standard Profile) | View 3-min EA Snapshot Camera at thecfh.org#athelneyspillway`
+        html: `<strong>Athelney Spillway (Outflow):</strong> ${athelneySpillway.statusText} <a href="https://thecfh.org/parretttonewsom.php#athelneyspillway" target="_blank" rel="noopener noreferrer" class="cctv-badge-btn" title="View 3-min EA Snapshot Camera at thecfh.org#athelneyspillway" aria-label="View 3-min EA Snapshot Camera at thecfh.org for Athelney Spillway">📷 LIVE CAM ↗</a>`,
+        tooltip: `📍 Athelney Crest: ${athelneyCrest.toFixed(2)}m AOD (Standard Profile) | Overspill cascade from Curry Moor into Northmoor when stage ≥ 7.35m AOD`
       },
       `<strong>Currymoor Gravity Sluice:</strong> ${cmGravitySluice.statusText}`,
       {
@@ -388,6 +518,79 @@ export async function refreshLiveDashboard() {
     ]
   }));
 
+  // Card: Athelney Spillway & Cuts Road Cascade (Inter-Moor Overflow Conduit)
+  const athelneyHist = athelneyConfig?.crest_history || [];
+  const athelneyScheme = athelneyHist.length ? athelneyHist[athelneyHist.length - 1].notes : 'Standard Hydraulic Profile';
+  const athelneyEval = evaluateSpillway(cmMoorLevel, nmMoorLevel, athelneyCrest);
+  athelneyEval.name = "Athelney Spillway & Cuts Road";
+  evals.push(athelneyEval);
+
+  const athelneyFlow = athelneyEval.code === 'OVERTOPPING' ? calculateVillemonteDischarge(cmMoorLevel, nmMoorLevel, athelneyCrest) : null;
+  const athelneyClearanceDelta = Math.abs(cmMoorLevel - athelneyCrest);
+  const athelneyRoadStatus = athelneyEval.code === 'OVERTOPPING'
+    ? '⛔ IMPASSABLE / ROAD FLOODED'
+    : (athelneyEval.code === 'NEAR_CREST' ? '⚠️ AT RISK OF FLOODING' : '🟢 PASSABLE & DRY');
+
+  const athelneyHeroBanner = renderHeroSpillwayBanner({
+    icon: '🛣️',
+    title: 'Athelney Spillway & Cuts Road Cascade',
+    statusBadge: athelneyEval,
+    mainMetricValue: cmMoorLevel.toFixed(2),
+    mainMetricUnit: 'm AOD (Curry Moor Level)',
+    clearanceText: athelneyEval.clearanceText,
+    minLevel: 3.50,
+    maxLevel: athelneyCrest,
+    currentLevel: cmMoorLevel,
+    minLabel: 'Normal Moor: 3.80m',
+    maxLabel: `Road Crest: ${athelneyCrest.toFixed(2)}m AOD`,
+    isAlert: athelneyEval.code === 'OVERTOPPING' || athelneyEval.code === 'NEAR_CREST',
+    stats: [
+      { label: 'Cascade Flow', value: athelneyFlow ? athelneyFlow.formatted : '0.00 m³/s' }
+    ],
+    camLink: {
+      url: 'https://thecfh.org/parretttonewsom.php#athelneyspillway',
+      title: 'View 3-min EA Snapshot Camera at thecfh.org#athelneyspillway',
+      ariaLabel: 'View 3-min EA Snapshot Camera at thecfh.org for Athelney Spillway'
+    }
+  });
+
+  container.appendChild(createMoorCard({
+    title: "Athelney Spillway & Cuts Road",
+    cardClass: "athelney-cascade-card",
+    heroBanner: athelneyHeroBanner,
+    riverTag: `Inter-Moor Cascade: Curry Moor ➔ Northmoor`,
+    eval: athelneyEval,
+    provenanceTag: "⚡ LEVEL SOP MODEL",
+    provenanceClass: "prov-medium",
+    metricText: `${cmMoorLevel.toFixed(2)}m AOD`,
+    clearanceText: `Athelney Crest: ${athelneyEval.clearanceText}`,
+    narrative: `Curry Moor storage is ${athelneyClearanceDelta.toFixed(2)}m below Athelney Spillway crest. Cuts Road access between East Lyng and Athelney is clear and dry.`,
+    pills: [
+      {
+        html: `<strong>Cuts Road / East Lyng:</strong> ${athelneyRoadStatus}`,
+        tooltip: `📍 Road surface overtopped when Curry Moor storage reaches ${athelneyCrest.toFixed(2)}m AOD`
+      },
+      {
+        html: `<strong>Athelney Spillway:</strong> ${athelneyEval.symbol} ${athelneyEval.label} (${athelneyEval.clearanceText}) <a href="https://thecfh.org/parretttonewsom.php#athelneyspillway" target="_blank" rel="noopener noreferrer" class="cctv-badge-btn" title="View 3-min EA Snapshot Camera at thecfh.org#athelneyspillway" aria-label="View 3-min EA Snapshot Camera at thecfh.org for Athelney Spillway">📷 LIVE CAM ↗</a>`,
+        tooltip: `📍 Athelney Spillway Crest: ${athelneyCrest.toFixed(2)}m AOD (${athelneyScheme}) | View 3-min EA Snapshot Camera at thecfh.org#athelneyspillway`
+      },
+      `<strong>Overland Conduit:</strong> Curry Moor (52127) relieves into Northmoor (52159)`,
+      `<strong>Corridor Alert:</strong> Spillway overflow impacts Cuts Road and threatens A361 corridor`
+    ],
+    spillwayMeta: { crest: athelneyCrest.toFixed(2), scheme: athelneyScheme },
+    sparkline: renderSingleSparkline(cmMoorHistory, athelneyEval.code === 'OVERTOPPING' ? '#f87171' : '#38bdf8', { streamLabel: 'Curry Moor Basin @ Athelney', stationId: '52127', unit: 'mAOD' }),
+    gauges: [
+      { name: "Curry Moor Basin", id: "52127", value: `${cmMoorLevel.toFixed(2)}m AOD`, history: cmMoorHistory, color: "#38bdf8", link: "https://check-for-flooding.service.gov.uk/station/3064" },
+      { name: "Northmoor Main Drain", id: "52159", value: `${nmMoorLevel.toFixed(2)}m AOD`, history: nmMoorHistory, color: "#4ade80", link: "https://check-for-flooding.service.gov.uk/station/3415" }
+    ],
+    extLinks: [
+      { label: "📷 Live Athelney Webcam (thecfh.org) ↗", url: "https://thecfh.org/parretttonewsom.php#athelneyspillway" },
+      { label: "📊 GOV.UK Curry Moor Stage (3064) ↗", url: "https://check-for-flooding.service.gov.uk/station/3064" },
+      { label: "📊 GOV.UK Northmoor Stage (3415) ↗", url: "https://check-for-flooding.service.gov.uk/station/3415" },
+      { label: "EA Data (52127) ↗", url: "https://environment.data.gov.uk/flood-monitoring/id/stations/52127.html" }
+    ]
+  }));
+
   // Card 2: Northmoor & Saltmoor
   const baltmoorConfig = hydroConfig?.moors?.northmoor?.spillway;
   const baltmoorCrest = getActiveCrestHeight(baltmoorConfig, new Date(), 7.80);
@@ -407,19 +610,48 @@ export async function refreshLiveDashboard() {
   const beerWallScheme = beerWallHist.length ? beerWallHist[beerWallHist.length - 1].notes : 'SRA Greylake Scheme';
   const beerWallSpillway = evaluateBeerWall(nmRiverLevel, beerWallCrest);
 
+  const baltmoorFlow = nmEval.code === 'OVERTOPPING' ? calculateVillemonteDischarge(nmRiverLevel, nmMoorLevel, baltmoorCrest) : null;
+  const nmHeroBanner = renderHeroSpillwayBanner({
+    icon: '🌊',
+    title: 'Baltmoor Wall Overtopping Status',
+    statusBadge: nmEval,
+    mainMetricValue: nmRiverLevel.toFixed(2),
+    mainMetricUnit: 'm AOD (River Stage at Wall)',
+    clearanceText: nmEval.clearanceText,
+    minLevel: 5.50,
+    maxLevel: baltmoorCrest,
+    currentLevel: nmRiverLevel,
+    minLabel: 'Normal Stage: 5.50m',
+    maxLabel: `Defense Crest: ${baltmoorCrest.toFixed(2)}m AOD`,
+    isAlert: nmEval.code === 'OVERTOPPING' || nmEval.code === 'NEAR_CREST',
+    stats: [
+      { label: 'Spill Duration', value: nmEval.code === 'OVERTOPPING' ? '⏱️ Active Spill' : '⏱️ 00h 00m' }
+    ],
+    camLink: {
+      url: 'https://thecfh.org/parretttonewsom.php#saltmoor',
+      title: 'View 3-min EA Snapshot Camera at thecfh.org#saltmoor',
+      ariaLabel: 'View 3-min EA Snapshot Camera at thecfh.org for Baltmoor Wall'
+    }
+  });
+
   container.appendChild(createMoorCard({
     title: "Northmoor & Saltmoor",
+    heroBanner: nmHeroBanner,
     riverTag: `Catchment: River Parrett (${regime.label})`,
     eval: nmEval,
     provenanceTag: "⚡ LEVEL SOP MODEL",
     provenanceClass: "prov-medium",
     metricText: `${nmRiverLevel.toFixed(2)}m AOD`,
     clearanceText: `Baltmoor Wall: ${nmEval.clearanceText}`,
-    narrative: `Baltmoor Wall Saltmoor Barrier sensor live. Levels monitored relative to 7.80m crest.`,
+    narrative: `Baltmoor Wall Saltmoor Barrier sensor live. River levels monitored relative to 7.80m defense overtopping crest.`,
     pills: [
       {
-        html: `<strong>Baltmoor Wall Spillway:</strong> ${nmEval.symbol} ${nmEval.label} (${nmEval.clearanceText}) <a href="https://thecfh.org/parretttonewsom.php#saltmoor" target="_blank" rel="noopener noreferrer" class="cctv-badge-btn" title="View 3-min EA Snapshot Camera at thecfh.org#saltmoor" aria-label="View 3-min EA Snapshot Camera at thecfh.org for Baltmoor Wall">📷 LIVE CAM ↗</a>`,
-        tooltip: `📍 Baltmoor Wall Crest: ${baltmoorCrest.toFixed(2)}m AOD (${baltmoorScheme}) | View 3-min EA Snapshot Camera at thecfh.org#saltmoor`
+        html: `<strong>Baltmoor Wall Overtopping:</strong> ${nmEval.symbol} ${nmEval.label} (${nmEval.clearanceText}) <a href="https://thecfh.org/parretttonewsom.php#saltmoor" target="_blank" rel="noopener noreferrer" class="cctv-badge-btn" title="View 3-min EA Snapshot Camera at thecfh.org#saltmoor" aria-label="View 3-min EA Snapshot Camera at thecfh.org for Baltmoor Wall">📷 LIVE CAM ↗</a>`,
+        tooltip: `📍 Baltmoor Wall Defense Crest: ${baltmoorCrest.toFixed(2)}m AOD (${baltmoorScheme}) | View 3-min EA Snapshot Camera at thecfh.org#saltmoor`
+      },
+      {
+        html: `<strong>Athelney Spillway Inflow:</strong> ${athelneySpillway.statusText} <a href="https://thecfh.org/parretttonewsom.php#athelneyspillway" target="_blank" rel="noopener noreferrer" class="cctv-badge-btn" title="View 3-min EA Snapshot Camera at thecfh.org#athelneyspillway" aria-label="View 3-min EA Snapshot Camera at thecfh.org for Athelney Spillway">📷 LIVE CAM ↗</a>`,
+        tooltip: `📍 Athelney Crest: ${athelneyCrest.toFixed(2)}m AOD | Overspill cascade from Curry Moor into Northmoor across Cuts Road`
       },
       {
         html: `<strong>Beer Wall / Allens Spillway:</strong> ${beerWallSpillway.statusText} <a href="https://thecfh.org/parretttonewsom.php#Beerwall" target="_blank" rel="noopener noreferrer" class="cctv-badge-btn" title="View 3-min EA Snapshot Camera at thecfh.org#Beerwall" aria-label="View 3-min EA Snapshot Camera at thecfh.org for Beer Wall Spillway">📷 LIVE CAM ↗</a>`,
@@ -456,8 +688,34 @@ export async function refreshLiveDashboard() {
   const headDropFormatted = formatHeadDelta(headDropMeters);
   const oathLock = evaluateOathLock(monksUpLevel, monksDownLevel);
 
+  const clyseFlow = estimateClyseFlow(monksUpLevel, monksDownLevel);
+  const sowyHeroBanner = renderHeroSpillwayBanner({
+    icon: '🚰',
+    title: "Monk's Leaze Clyse Intake Control",
+    statusBadge: sowyEval,
+    mainMetricValue: headDropFormatted,
+    mainMetricUnit: 'Head Drop (Parrett ➔ Sowy)',
+    clearanceText: `Intake Sill: 4.20m AOD`,
+    minLevel: 4.20,
+    maxLevel: 8.00,
+    currentLevel: monksUpLevel,
+    minLabel: 'Intake Sill: 4.20m',
+    maxLabel: `Parrett Stage: ${monksUpLevel.toFixed(2)}m AOD`,
+    isAlert: sowyEval.code === 'DIVERTING',
+    stats: [
+      { label: 'Gate Position', htmlValue: sowyEval.code === 'DIVERTING' ? '🔵 DIVERTING' : '🔒 CLOSED' },
+      { label: 'Diverted Flow', value: `${(clyseFlow?.flowM3s ?? 0).toFixed(1)} m³/s (${(clyseFlow?.flowMLD ?? 0).toFixed(0)} MLD)` }
+    ],
+    camLink: {
+      url: 'https://thecfh.org/parretttonewsom.php#monksleaze',
+      title: 'View 3-min EA Snapshot Camera at thecfh.org#monksleaze',
+      ariaLabel: 'View 3-min EA Snapshot Camera at thecfh.org for Monk\'s Leaze Clyse'
+    }
+  });
+
   container.appendChild(createMoorCard({
     title: "Sowy Relief Channel",
+    heroBanner: sowyHeroBanner,
     riverTag: `Diverts: Parrett ➔ Sedgemoor Drain (${regime.label})`,
     eval: sowyEval,
     provenanceTag: "📡 DEDICATED SENSORS",
@@ -475,6 +733,7 @@ export async function refreshLiveDashboard() {
         html: `<strong>Oath Lock Penning Sluice:</strong> ${oathLock.statusText} <a href="https://thecfh.org/parretttonewsom.php#oath" target="_blank" rel="noopener noreferrer" class="cctv-badge-btn" title="View 3-min EA Snapshot Camera at thecfh.org#oath" aria-label="View 3-min EA Snapshot Camera at thecfh.org for Oath Lock Penning Sluice">📷 LIVE CAM ↗</a>`,
         tooltip: `📍 Oath Lock Penning Structure | View 3-min EA Snapshot Camera at thecfh.org#oath`
       },
+      `<strong>Upstream Tributary Inflow:</strong> River Yeo: ${huishLevel.toFixed(2)}m AOD | River Isle: ${midelneyLevel.toFixed(2)}m AOD`,
       `<strong>Beer Wall Intake (Greylake):</strong> ${monksDownLevel >= 6.00 ? '🟢 CONVEYANCE TO KSD' : '⚪ PENNING LEVEL'}`
     ],
     sparkline: renderSingleSparkline(monksDownHistory, '#38bdf8', { streamLabel: 'Monk\'s Leaze Downstream Sowy', stationId: '52234', unit: 'mAOD' }),
@@ -497,8 +756,36 @@ export async function refreshLiveDashboard() {
   const dunballEmergencyPump = evaluateDunballEmergencyPumping(dunballInland, isTideLocked, dunballEmergencyThreshold);
   const dunballPumpGaugeEval = getPumpEvaluation('dunball_mobile_ps', dunballInland, 'dunball_outfall', 'Dunball Emergency Pumps', 4);
 
+  const tideDiff = dunballInland - dunballSea;
+  const dunballHeroBanner = renderHeroSpillwayBanner({
+    icon: '🚪',
+    title: 'Dunball Sea Outfall Doors',
+    statusBadge: isTideLocked ? 
+      { label: "TIDE-LOCKED", badgeClass: "badge-tide-locked", symbol: "🕒" } :
+      { label: "DISCHARGING", badgeClass: "badge-secure", symbol: "✓" },
+    mainMetricValue: dunballSea.toFixed(2),
+    mainMetricUnit: 'm AOD (Parrett Estuary)',
+    clearanceText: `Inland KSD: ${dunballInland.toFixed(2)}m AOD`,
+    minLevel: Math.min(dunballSea, dunballInland) - 0.5,
+    maxLevel: Math.max(dunballSea, dunballInland) + 0.5,
+    currentLevel: dunballSea,
+    minLabel: `Inland: ${dunballInland.toFixed(2)}m`,
+    maxLabel: `Tide: ${dunballSea.toFixed(2)}m AOD`,
+    isAlert: isTideLocked,
+    stats: [
+      { label: 'Sea Door State', htmlValue: isTideLocked ? '🟡 TIDE-LOCKED' : '🟢 GRAVITY DISCHARGE OPEN' },
+      { label: 'Head Differential', value: formatHeadDelta(tideDiff) }
+    ],
+    camLink: {
+      url: 'https://thecfh.org/parretttonewsom.php#dunball',
+      title: 'View 3-min EA Snapshot Camera at thecfh.org#dunball',
+      ariaLabel: 'View 3-min EA Snapshot Camera at thecfh.org for Dunball Outfall'
+    }
+  });
+
   container.appendChild(createMoorCard({
     title: "Dunball Sea Outfall",
+    heroBanner: dunballHeroBanner,
     riverTag: `Outfall: Sedgemoor Drain ➔ Parrett Estuary (${regime.label})`,
     eval: isTideLocked ? 
       { label: "TIDE-LOCKED", badgeClass: "badge-tide-locked", symbol: "🕒" } :
@@ -512,7 +799,7 @@ export async function refreshLiveDashboard() {
       `Seawater level below inland drain. Positive head differential opens flap doors for gravity discharge.`,
     pills: [
       {
-        html: `<strong>Dunball Flap Doors:</strong> ${isTideLocked ? '🔴 TIDE-LOCKED (SEA HEAD)' : '🟢 GRAVITY DISCHARGING'} <a href="https://thecfh.org/parretttonewsom.php#dunball" target="_blank" rel="noopener noreferrer" class="cctv-badge-btn" title="View 3-min EA Snapshot Camera at thecfh.org#dunball" aria-label="View 3-min EA Snapshot Camera at thecfh.org for Dunball Outfall">📷 LIVE CAM ↗</a>`,
+        html: `<strong>Dunball Flap Doors:</strong> ${isTideLocked ? '🕒 TIDE-LOCKED (SEA HEAD)' : '🟢 GRAVITY DISCHARGING'} <a href="https://thecfh.org/parretttonewsom.php#dunball" target="_blank" rel="noopener noreferrer" class="cctv-badge-btn" title="View 3-min EA Snapshot Camera at thecfh.org#dunball" aria-label="View 3-min EA Snapshot Camera at thecfh.org for Dunball Outfall">📷 LIVE CAM ↗</a>`,
         tooltip: `📍 Dunball Primary Clyse Outfall | View 3-min EA Snapshot Camera at thecfh.org#dunball`
       },
       `<strong>Dunball Penstock Barrier:</strong> ${isTideLocked ? '🔒 PENNING / SURGE SEALED' : '🟢 OPEN FOR DISCHARGE'}`,
@@ -521,7 +808,7 @@ export async function refreshLiveDashboard() {
     sparkline: renderDualSparkline(seaHistory, inlandHistory, isTideLocked),
     pumpGauge: renderPumpTriggerGauge(dunballPumpGaugeEval),
     gauges: [
-      { name: "Dunball Tidal Parrett", id: "52163", value: `${dunballSea.toFixed(2)}m AOD`, history: seaHistory.map(h => h.value), color: "#fb923c", link: "https://check-for-flooding.service.gov.uk/station/9129" },
+      { name: "Dunball Tidal Parrett", id: "52163", value: `${dunballSea.toFixed(2)}m AOD`, history: seaHistory.map(h => h.value), color: "#0284c7", link: "https://check-for-flooding.service.gov.uk/station/9129" },
       { name: "Dunball Inland KSD", id: "E9094", value: `${dunballInland.toFixed(2)}m AOD`, history: inlandHistory.map(h => h.value), color: "#38bdf8", link: "https://check-for-flooding.service.gov.uk/station/9499" }
     ],
     extLinks: [
@@ -532,13 +819,104 @@ export async function refreshLiveDashboard() {
     ]
   }));
 
+  // Card 5: Langport Confluence & Tributaries
+  const huishEval = evaluateHuishEpiscopi(huishLevel, isSummerRegime);
+  const midelneyEval = evaluateMidelney(midelneyLevel, monksUpLevel);
+  evals.push({ name: "Langport Confluence", severity: Math.min(huishEval.severity, midelneyEval.severity) });
+
+  const huishPump = getPumpEvaluation('huish_episcopi_ps', huishLevel, 'langport_confluence', 'Huish Episcopi PS', 4);
+
+  const confluenceHeroBanner = renderHeroSpillwayBanner({
+    icon: '🔀',
+    title: 'Langport Confluence Gateways',
+    statusBadge: huishEval.isPumpsCutoff ?
+      { label: 'PUMPS CUT-OFF', badgeClass: 'badge-critical', symbol: '🔒' } :
+      (huishEval.isRoadFlooded ?
+        { label: 'MUCHELNEY ROAD FLOODED', badgeClass: 'badge-alert', symbol: '⚠️' } :
+        { label: 'CONFLUENCE CONVEYING', badgeClass: 'badge-secure', symbol: '✓' }),
+    mainMetricValue: huishLevel.toFixed(2),
+    mainMetricUnit: 'm AOD (River Yeo @ Huish)',
+    clearanceText: huishEval.clearanceText,
+    minLevel: 5.80,
+    maxLevel: 8.20,
+    currentLevel: huishLevel,
+    minLabel: 'Baseflow: 5.80m',
+    maxLabel: 'Bankfull Cut-off: 8.20m AOD',
+    isAlert: huishEval.isPumpsCutoff || huishEval.isRoadFlooded || huishEval.code === 'ALERT',
+    stats: [
+      { label: 'Huish PS Status', htmlValue: huishEval.isPumpsCutoff ? '🔒 PUMPS LOCKED OUT' : (huishPump.stage >= 1 ? '🟢 PUMPS ACTIVE' : '⚪ GRAVITY DISCHARGE') },
+      { label: 'Muchelney Access', htmlValue: huishEval.isRoadFlooded ? '🔴 ROAD INUNDATED' : '🟢 OPEN (Passable)' }
+    ],
+    camLink: {
+      url: 'https://thecfh.org/parretttonewsom.php#huish',
+      title: 'View EA Snapshot Camera at thecfh.org for Huish Episcopi',
+      ariaLabel: 'View EA Snapshot Camera at thecfh.org for Huish Episcopi'
+    }
+  });
+
+  container.appendChild(createMoorCard({
+    title: "Langport Confluence & Tributaries",
+    heroBanner: confluenceHeroBanner,
+    riverTag: `Catchment: River Yeo & Isle Confluence (${regime.label})`,
+    eval: huishEval,
+    provenanceTag: "⚡ LEVEL SOP MODEL",
+    provenanceClass: "prov-medium",
+    metricText: `Yeo: ${huishLevel.toFixed(2)}m | Isle: ${midelneyLevel.toFixed(2)}m AOD`,
+    clearanceText: `Cut-off Margin: ${huishEval.clearanceText}`,
+    narrative: `${huishEval.narrative} Midelney (River Isle): ${midelneyEval.isHeadLocked ? 'Head-locked by high Parrett stage.' : 'Free gravity discharge to Parrett.'}`,
+    pills: [
+      {
+        html: `<strong>Huish Episcopi Pumping Station:</strong> ${huishEval.isPumpsCutoff ? '🔒 LOCKED OUT (Yeo ≥ 8.20m AOD)' : (huishPump.stage >= 1 ? '🟢 PUMPING TO PARRETT' : '⚪ GRAVITY DISCHARGE / STANDBY')}`,
+        tooltip: `📍 Huish Episcopi PS: Cut-off at 8.20m AOD to prevent Parrett levee breach`
+      },
+      {
+        html: `<strong>Muchelney Access Road:</strong> ${huishEval.isRoadFlooded ? '⚠️ FLOODED (Stage ≥ 7.30m AOD)' : '🟢 OPEN (Passable)'}`,
+        tooltip: `📍 Muchelney Road Threshold: 7.30m AOD`
+      },
+      {
+        html: `<strong>Midelney PS & Sluice (River Isle):</strong> ${midelneyEval.isHeadLocked ? '🕒 HEAD-LOCKED BY PARRETT' : '🟢 GRAVITY DISCHARGE'}`,
+        tooltip: `📍 Midelney: Gravity flap doors close when Parrett exceeds Isle stage`
+      },
+      `<strong>Monk's Leaze Relief Nexus:</strong> Diversion reduces Parrett backwater on Yeo/Isle confluence`
+    ],
+    sparkline: renderDualSparkline(huishHistory, midelneyHistory, false, {
+      primaryName: 'Yeo',
+      secondaryName: 'Isle',
+      primaryColor: '#4ade80',
+      secondaryColor: '#38bdf8',
+      streamLabel: '<span class="stream-dot" style="background:#4ade80; color:#4ade80"></span><span class="sparkline-title">River Yeo (52120)</span> <span style="color:#64748b; font-size:0.65rem;">vs</span> <span class="stream-dot" style="background:#38bdf8; color:#38bdf8"></span><span class="sparkline-title">River Isle (52153)</span>',
+      showTideLock: false,
+      statusPill: midelneyEval.isHeadLocked ? '🕒 Head-Locked by Parrett' : '✓ Confluence Conveying'
+    }),
+    pumpGauge: renderPumpTriggerGauge(huishPump),
+    gauges: [
+      { name: "Huish Episcopi PS (River Yeo)", id: "52120", value: `${huishLevel.toFixed(2)}m AOD`, history: huishHistory.map(h => h.value), color: "#4ade80", link: "https://environment.data.gov.uk/flood-monitoring/id/stations/52120.html" },
+      { name: "Midelney (River Isle)", id: "52153", value: `${midelneyLevel.toFixed(2)}m AOD`, history: midelneyHistory.map(h => h.value), color: "#38bdf8", link: "https://environment.data.gov.uk/flood-monitoring/id/stations/52153.html" }
+    ],
+    extLinks: [
+      { label: "EA Data (52120) ↗", url: "https://environment.data.gov.uk/flood-monitoring/id/stations/52120.html" },
+      { label: "EA Data (52153) ↗", url: "https://environment.data.gov.uk/flood-monitoring/id/stations/52153.html" },
+      { label: "📊 GOV.UK Huish Stage ↗", url: "https://check-for-flooding.service.gov.uk/station/52120" }
+    ]
+  }));
+
   // Global Status Banner Render
   const globalStat = aggregateGlobalStatus(evals, isTideLocked);
   const counterPillElem = document.getElementById('counter-pill');
   if (counterPillElem) counterPillElem.innerText = globalStat.counterPill;
 
   const alertBannerElem = document.getElementById('alert-banner');
-  if (alertBannerElem) alertBannerElem.innerText = globalStat.bannerText;
+  if (alertBannerElem) {
+    alertBannerElem.innerText = globalStat.bannerText;
+    const topSev = globalStat.topSeverity ?? 5;
+    if (topSev <= 2) {
+      alertBannerElem.className = 'alert-banner banner-critical';
+    } else if (topSev === 3 || topSev === 4) {
+      alertBannerElem.className = 'alert-banner banner-alert';
+    } else {
+      alertBannerElem.className = 'alert-banner banner-secure';
+    }
+  }
 
   const now = new Date();
   const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -552,20 +930,26 @@ export async function refreshLiveDashboard() {
 }
 
 function createMoorCard(opts) {
-  const card = document.createElement('div');
-  card.className = 'moor-card';
+  const card = document.createElement('article');
+  card.className = opts.cardClass ? `moor-card ${opts.cardClass}` : 'moor-card';
+  card.setAttribute('tabindex', '0');
+  card.setAttribute('aria-label', `${opts.title} Infrastructure Status`);
   card.innerHTML = `
     <div>
       <div class="card-header">
         <div>
-          <div class="card-title">${opts.title}</div>
+          <h2 class="card-title">${opts.title}</h2>
           <div class="river-tag">${opts.riverTag}</div>
         </div>
-        <div class="status-badge ${opts.eval.badgeClass}">
-          <span>${opts.eval.symbol}</span>
+        <div class="status-badge ${opts.eval.badgeClass}" aria-live="polite">
+          <span aria-hidden="true">${opts.eval.symbol}</span>
+          <span class="sr-only">Status: </span>
           <span>${opts.eval.label}</span>
         </div>
       </div>
+
+      ${opts.heroBanner || ''}
+
       <div class="hero-metric">${opts.metricText}</div>
       <div class="clearance-text">${opts.clearanceText}</div>
       <div class="sparkline-container">${opts.sparkline}</div>
@@ -644,6 +1028,9 @@ function getPumpEvaluation(stationId, moorLevel, moorConfigId, stationFallbackNa
     if (moor.pumping_stations) {
       psConfig = moor.pumping_stations.find(ps => ps.id === stationId);
     }
+    if (!psConfig && moor[stationId]) {
+      psConfig = moor[stationId];
+    }
     if (!psConfig && moor.emergency_pumps && moor.emergency_pumps.id === stationId) {
       psConfig = moor.emergency_pumps;
     }
@@ -657,9 +1044,9 @@ function getPumpEvaluation(stationId, moorLevel, moorConfigId, stationFallbackNa
       psConfig.total_pumps || defaultPumps,
       t.lead,
       t.duty,
-      t.mobile_order,
-      t.mobile_active,
-      t.critical_spill,
+      t.mobile_order || t.muchelney_road,
+      t.mobile_active || t.secondary_road || t.river_cutoff,
+      t.critical_spill || t.river_cutoff,
       isSummer
     );
   }
@@ -667,24 +1054,28 @@ function getPumpEvaluation(stationId, moorLevel, moorConfigId, stationFallbackNa
   // Fallback to hardcoded seasonal thresholds if hydroConfig not loaded yet
   const fallbacks = {
     currymoor_ps: {
-      summer: { lead: 4.60, duty: 4.80, mobile_order: 5.10, mobile_active: 5.40, critical_spill: 7.45 },
-      winter: { lead: 4.00, duty: 4.30, mobile_order: 4.40, mobile_active: 4.60, critical_spill: 4.85 }
+      summer: { lead: 4.60, duty: 4.80, mobile_order: 5.80, mobile_active: 6.10, critical_spill: 7.35 },
+      winter: { lead: 4.00, duty: 4.30, mobile_order: 5.80, mobile_active: 6.10, critical_spill: 7.35 }
     },
     stanmoor_ps: {
-      summer: { lead: 4.70, duty: 4.90, mobile_order: 5.20, mobile_active: 5.50, critical_spill: 7.45 },
-      winter: { lead: 4.10, duty: 4.40, mobile_order: 4.50, mobile_active: 4.70, critical_spill: 4.85 }
+      summer: { lead: 4.70, duty: 4.90, mobile_order: 5.80, mobile_active: 6.10, critical_spill: 7.35 },
+      winter: { lead: 4.10, duty: 4.40, mobile_order: 5.80, mobile_active: 6.10, critical_spill: 7.35 }
     },
     saltmoor_ps: {
-      summer: { lead: 4.00, duty: 4.20, mobile_order: 4.40, mobile_active: 4.60, critical_spill: 7.80 },
-      winter: { lead: 3.40, duty: 3.70, mobile_order: 3.80, mobile_active: 4.00, critical_spill: 4.25 }
+      summer: { lead: 4.00, duty: 4.20, mobile_order: 4.80, mobile_active: 5.20, critical_spill: 7.80 },
+      winter: { lead: 3.40, duty: 3.70, mobile_order: 4.80, mobile_active: 5.20, critical_spill: 7.80 }
     },
     northmoor_ps: {
-      summer: { lead: 4.10, duty: 4.30, mobile_order: 4.50, mobile_active: 4.70, critical_spill: 7.80 },
-      winter: { lead: 3.50, duty: 3.80, mobile_order: 3.90, mobile_active: 4.10, critical_spill: 4.35 }
+      summer: { lead: 4.10, duty: 4.30, mobile_order: 4.80, mobile_active: 5.20, critical_spill: 7.80 },
+      winter: { lead: 3.50, duty: 3.80, mobile_order: 4.80, mobile_active: 5.20, critical_spill: 7.80 }
     },
     dunball_mobile_ps: {
       summer: { lead: 3.10, duty: 3.30, mobile_order: 3.50, mobile_active: 3.70, critical_spill: 4.10 },
       winter: { lead: 2.80, duty: 3.10, mobile_order: 3.30, mobile_active: 3.50, critical_spill: 3.80 }
+    },
+    huish_episcopi_ps: {
+      summer: { lead: 6.70, duty: 6.90, mobile_order: 7.30, mobile_active: 7.86, critical_spill: 8.20 },
+      winter: { lead: 6.30, duty: 6.50, mobile_order: 7.30, mobile_active: 7.86, critical_spill: 8.20 }
     }
   };
 
@@ -800,6 +1191,7 @@ export function renderSingleSparkline(pointsInput, strokeColor = '#4ade80', opti
 
   const rawMin = Math.min(...values);
   const rawMax = Math.max(...values);
+  const latestVal = values[values.length - 1];
   const rawRange = rawMax - rawMin;
 
   let yMin = rawMin;
@@ -816,7 +1208,7 @@ export function renderSingleSparkline(pointsInput, strokeColor = '#4ade80', opti
   const marginTop = 16;
   const marginBottom = 16;
   const marginLeft = 8;
-  const marginRight = 65;
+  const marginRight = 68;
   const drawWidth = width - marginLeft - marginRight;
   const drawHeight = height - marginTop - marginBottom;
 
@@ -827,19 +1219,50 @@ export function renderSingleSparkline(pointsInput, strokeColor = '#4ade80', opti
     return `${x.toFixed(1)},${y.toFixed(1)}`;
   }).join(' ');
 
-  const topLabel = `${yMax.toFixed(2)}m`;
-  const botLabel = `${yMin.toFixed(2)}m`;
-  const spanText = `${currentActiveRange.toUpperCase()} Range: ${formatSpanUnit(rawRange)}`;
+  const topLabel = `Max ${rawMax.toFixed(2)}m`;
+  const botLabel = `Min ${rawMin.toFixed(2)}m`;
+  const isFlatStage = rawRange < 0.01 || topLabel === botLabel;
+  const spanText = isFlatStage ? `${currentActiveRange.toUpperCase()} Range: Steady (0cm)` : `${currentActiveRange.toUpperCase()} Range: ${formatSpanUnit(rawRange)}`;
 
   const streamHeader = options.streamLabel ? 
     `<span class="stream-dot" style="background:${strokeColor}; color:${strokeColor}"></span><span class="sparkline-title">${options.streamLabel}</span> <span class="gauge-id-badge">ID: ${options.stationId}</span>` :
     `<span class="sparkline-title">${currentActiveRange.toUpperCase()} Telemetry</span>`;
 
+  const centerY = marginTop + drawHeight / 2;
+
+  const gridLinesHTML = isFlatStage ? `
+    <line x1="${marginLeft}" y1="${centerY}" x2="${width - marginRight + 5}" y2="${centerY}" stroke="rgba(255, 255, 255, 0.25)" stroke-dasharray="3,3" stroke-width="1" />
+  ` : `
+    <line x1="${marginLeft}" y1="${marginTop}" x2="${width - marginRight + 5}" y2="${marginTop}" stroke="rgba(255, 255, 255, 0.15)" stroke-dasharray="3,3" stroke-width="1" />
+    <line x1="${marginLeft}" y1="${height - marginBottom}" x2="${width - marginRight + 5}" y2="${height - marginBottom}" stroke="rgba(255, 255, 255, 0.15)" stroke-dasharray="3,3" stroke-width="1" />
+  `;
+
+  const yLabelsHTML = isFlatStage ? `
+    <g class="y-label-group" transform="translate(${width - 4}, ${centerY + 3})">
+      <rect x="-64" y="-10" width="64" height="13" rx="2" fill="rgba(15, 23, 42, 0.85)" stroke="rgba(56, 189, 248, 0.3)" stroke-width="0.5" />
+      <text x="-2" y="0" text-anchor="end" class="sparkline-y-label sparkline-y-steady" fill="#38bdf8" font-weight="600">Steady ${rawMax.toFixed(2)}m</text>
+    </g>
+  ` : `
+    <g class="y-label-group" transform="translate(${width - 4}, ${marginTop + 3})">
+      <rect x="-60" y="-10" width="60" height="13" rx="2" fill="rgba(15, 23, 42, 0.75)" />
+      <text x="0" y="0" text-anchor="end" class="sparkline-y-label sparkline-y-max">${topLabel}</text>
+    </g>
+    <g class="y-label-group" transform="translate(${width - 4}, ${height - marginBottom + 3})">
+      <rect x="-60" y="-10" width="60" height="13" rx="2" fill="rgba(15, 23, 42, 0.75)" />
+      <text x="0" y="0" text-anchor="end" class="sparkline-y-label sparkline-y-min">${botLabel}</text>
+    </g>
+  `;
+
   return `
     <div class="sparkline-wrapper">
       <div class="sparkline-header">
         <div class="sparkline-title-group">${streamHeader}</div>
-        <span class="sparkline-span-pill" title="Actual variation range">${spanText}</span>
+        <div class="sparkline-stats-bar">
+          <span class="sparkline-stat-pill pill-current" title="Latest stage reading">Current: <strong>${typeof latestVal === 'number' ? latestVal.toFixed(2) : '--'}${options.unit || 'mAOD'}</strong></span>
+          <span class="sparkline-stat-pill" title="Minimum stage reading in active window">Min: <strong>${rawMin.toFixed(2)}m</strong></span>
+          <span class="sparkline-stat-pill" title="Maximum stage reading in active window">Max: <strong>${rawMax.toFixed(2)}m</strong></span>
+          <span class="sparkline-span-pill" title="Actual variation range">${spanText}</span>
+        </div>
       </div>
       <svg class="sparkline" 
            viewBox="0 0 ${width} ${height}" 
@@ -849,21 +1272,13 @@ export function renderSingleSparkline(pointsInput, strokeColor = '#4ade80', opti
            data-ymin="${yMin}"
            data-ymax="${yMax}"
            data-unit="${options.unit || 'mAOD'}">
-        <line x1="${marginLeft}" y1="${marginTop}" x2="${width - marginRight + 5}" y2="${marginTop}" stroke="rgba(255, 255, 255, 0.15)" stroke-dasharray="3,3" stroke-width="1" />
-        <line x1="${marginLeft}" y1="${height - marginBottom}" x2="${width - marginRight + 5}" y2="${height - marginBottom}" stroke="rgba(255, 255, 255, 0.15)" stroke-dasharray="3,3" stroke-width="1" />
+        ${gridLinesHTML}
         <polyline fill="none" stroke="${strokeColor}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" points="${pts}" />
         <line class="sparkline-crosshair" x1="${marginLeft}" y1="${marginTop}" x2="${marginLeft}" y2="${height - marginBottom}" />
         <circle class="sparkline-dot-halo" cx="0" cy="0" r="7" />
         <circle class="sparkline-dot-highlight" cx="0" cy="0" r="4.5" />
         <rect class="sparkline-touch-overlay" x="${marginLeft}" y="0" width="${drawWidth}" height="${height}" fill="transparent" />
-        <g class="y-label-group" transform="translate(${width - 4}, ${marginTop + 3})">
-          <rect x="-56" y="-10" width="56" height="13" rx="2" fill="rgba(15, 23, 42, 0.75)" />
-          <text x="0" y="0" text-anchor="end" class="sparkline-y-label sparkline-y-max">${topLabel}</text>
-        </g>
-        <g class="y-label-group" transform="translate(${width - 4}, ${height - marginBottom + 3})">
-          <rect x="-56" y="-10" width="56" height="13" rx="2" fill="rgba(15, 23, 42, 0.75)" />
-          <text x="0" y="0" text-anchor="end" class="sparkline-y-label sparkline-y-min">${botLabel}</text>
-        </g>
+        ${yLabelsHTML}
       </svg>
       <div class="sparkline-tooltip"></div>
     </div>
@@ -874,6 +1289,9 @@ export function renderDualSparkline(seaInput, inlandInput, isTideLocked, options
   const seaValues = seaInput.map(p => typeof p === 'object' ? p.value : p);
   const inlandValues = inlandInput.map(p => typeof p === 'object' ? p.value : p);
   const timestamps = inlandInput.map(p => typeof p === 'object' ? p.time : '');
+
+  const latestSea = seaValues[seaValues.length - 1];
+  const latestInland = inlandValues[inlandValues.length - 1];
 
   const width = options.width || 300;
   const height = options.height || 75;
@@ -895,7 +1313,7 @@ export function renderDualSparkline(seaInput, inlandInput, isTideLocked, options
   const marginTop = 16;
   const marginBottom = 16;
   const marginLeft = 8;
-  const marginRight = 65;
+  const marginRight = 68;
   const drawWidth = width - marginLeft - marginRight;
   const drawHeight = height - marginTop - marginBottom;
 
@@ -946,16 +1364,27 @@ export function renderDualSparkline(seaInput, inlandInput, isTideLocked, options
     }
   }).join('');
 
+  const primaryName = options.primaryName || 'Inland';
+  const secondaryName = options.secondaryName || 'Sea';
+  const primaryColor = options.primaryColor || '#38bdf8';
+  const secondaryColor = options.secondaryColor || '#0284c7';
+  const statusPillText = options.statusPill !== undefined ? options.statusPill : (isTideLocked ? '🔒 Tide-Locked Window' : '✓ Gravity Discharge');
+  const showTideLock = options.showTideLock !== undefined ? options.showTideLock : true;
+
   const streamHeader = options.streamLabel || 
-    `<span class="stream-dot" style="background:#38bdf8; color:#38bdf8"></span><span class="sparkline-title">Inland KSD (E9094)</span> <span style="color:#64748b; font-size:0.65rem;">vs</span> <span class="stream-dot" style="background:#fb923c; color:#fb923c"></span><span class="sparkline-title">Sea Tide (52163)</span>`;
+    `<span class="stream-dot" style="background:#38bdf8; color:#38bdf8"></span><span class="sparkline-title">Inland KSD (E9094)</span> <span style="color:#64748b; font-size:0.65rem;">vs</span> <span class="stream-dot" style="background:#0284c7; color:#0284c7"></span><span class="sparkline-title">Sea Tide (52163)</span>`;
 
   return `
     <div class="sparkline-wrapper">
       <div class="sparkline-header">
         <div class="sparkline-title-group">${streamHeader}</div>
-        <span class="sparkline-span-pill ${isTideLocked ? 'pill-warning' : ''}">
-          ${isTideLocked ? '🔒 Tide-Locked Window' : '✓ Gravity Discharge'}
-        </span>
+        <div class="sparkline-stats-bar">
+          <span class="sparkline-stat-pill" style="color:${primaryColor}" title="${primaryName} stage">${primaryName}: <strong>${typeof latestInland === 'number' ? latestInland.toFixed(2) : '--'}mAOD</strong></span>
+          <span class="sparkline-stat-pill" style="color:${secondaryColor}" title="${secondaryName} stage">${secondaryName}: <strong>${typeof latestSea === 'number' ? latestSea.toFixed(2) : '--'}mAOD</strong></span>
+          <span class="sparkline-span-pill ${isTideLocked ? 'pill-warning' : ''}">
+            ${statusPillText}
+          </span>
+        </div>
       </div>
       <svg class="sparkline" 
            viewBox="0 0 ${width} ${height}" 
@@ -963,25 +1392,27 @@ export function renderDualSparkline(seaInput, inlandInput, isTideLocked, options
            data-points='${JSON.stringify(inlandValues)}'
            data-secondary-points='${JSON.stringify(seaValues)}'
            data-timestamps='${JSON.stringify(timestamps)}'
+           data-primary-name="${escapeAttr(primaryName)}"
+           data-secondary-name="${escapeAttr(secondaryName)}"
            data-ymin="${yMin}"
            data-ymax="${yMax}">
-        ${tideLockHighlights}
+        ${showTideLock ? tideLockHighlights : ''}
         <line x1="${marginLeft}" y1="${marginTop}" x2="${width - marginRight + 5}" y2="${marginTop}" stroke="rgba(255, 255, 255, 0.15)" stroke-dasharray="3,3" />
         <line x1="${marginLeft}" y1="${height - marginBottom}" x2="${width - marginRight + 5}" y2="${height - marginBottom}" stroke="rgba(255, 255, 255, 0.15)" stroke-dasharray="3,3" />
-        <polyline fill="none" stroke="#38bdf8" stroke-width="2.2" points="${inlandPts}" />
-        <polyline fill="none" stroke="#fb923c" stroke-width="2.2" stroke-dasharray="4,4" points="${seaPts}" />
+        <polyline fill="none" stroke="${primaryColor}" stroke-width="2.2" points="${inlandPts}" />
+        <polyline fill="none" stroke="${secondaryColor}" stroke-width="2.2" stroke-dasharray="4,4" points="${seaPts}" />
         <line class="sparkline-crosshair" x1="${marginLeft}" y1="${marginTop}" x2="${marginLeft}" y2="${height - marginBottom}" />
         <circle class="sparkline-dot-halo" cx="0" cy="0" r="7" />
         <circle class="sparkline-dot-highlight" cx="0" cy="0" r="4.5" />
         <circle class="sparkline-dot-highlight-secondary" cx="0" cy="0" r="4.5" />
         <rect class="sparkline-touch-overlay" x="${marginLeft}" y="0" width="${drawWidth}" height="${height}" fill="transparent" />
         <g transform="translate(${width - 4}, ${marginTop + 3})">
-          <rect x="-56" y="-10" width="56" height="13" rx="2" fill="rgba(15, 23, 42, 0.75)" />
-          <text x="0" y="0" text-anchor="end" class="sparkline-y-label">${yMax.toFixed(2)}m</text>
+          <rect x="-60" y="-10" width="60" height="13" rx="2" fill="rgba(15, 23, 42, 0.75)" />
+          <text x="0" y="0" text-anchor="end" class="sparkline-y-label">Max ${rawMax.toFixed(2)}m</text>
         </g>
         <g transform="translate(${width - 4}, ${height - marginBottom + 3})">
-          <rect x="-56" y="-10" width="56" height="13" rx="2" fill="rgba(15, 23, 42, 0.75)" />
-          <text x="0" y="0" text-anchor="end" class="sparkline-y-label">${yMin.toFixed(2)}m</text>
+          <rect x="-60" y="-10" width="60" height="13" rx="2" fill="rgba(15, 23, 42, 0.75)" />
+          <text x="0" y="0" text-anchor="end" class="sparkline-y-label">Min ${rawMin.toFixed(2)}m</text>
         </g>
       </svg>
       <div class="sparkline-tooltip"></div>
@@ -1066,7 +1497,9 @@ export function bindSparklineEvents(container = document) {
       
       let valText = '';
       if (secondaryData.length > 0 && index < secondaryData.length) {
-        valText = `Inland: ${primaryVal.toFixed(2)}m | Sea: ${secondaryData[index].toFixed(2)}m`;
+        const pName = svg.dataset.primaryName || 'Inland';
+        const sName = svg.dataset.secondaryName || 'Sea';
+        valText = `${pName}: ${primaryVal.toFixed(2)}m | ${sName}: ${secondaryData[index].toFixed(2)}m`;
       } else if (svg.dataset.unit === 'm3s') {
         valText = `${primaryVal.toFixed(1)} m³/s`;
       } else {

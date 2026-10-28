@@ -8,18 +8,19 @@
 </head>
 <body>
 
-  <header>
+  <header role="banner">
     <div class="header-top">
       <div class="title-group">
         <h1>Somerset Levels Flood Status</h1>
-        <div class="live-pill" id="live-toggle" title="Click to toggle Historical Replay Mode">
+        <div class="live-pill" id="live-toggle" title="Click to toggle Historical Replay Mode" tabindex="0" role="button" aria-pressed="true">
           <span class="live-dot"></span>
           <span>LIVE STREAM</span>
         </div>
       </div>
-      <nav class="nav-links">
-        <a href="index.html" class="nav-btn active">📊 Live Dashboard</a>
-        <a href="methodology.html" class="nav-btn">📖 Methodology & Provenance</a>
+      <nav class="nav-links" aria-label="Main Navigation">
+        <a href="index.html" class="nav-btn active" aria-current="page">📊 Live Dashboard</a>
+        <a href="topology.html" class="nav-btn">🗺️ River Network Map</a>
+        <a href="methodology.html" class="nav-btn">📖 Methodology &amp; Provenance</a>
       </nav>
       <div class="time-preset-group" id="time-preset-group" title="Select historical lookback window for sparklines and status evaluation">
         <span class="preset-label">Period:</span>
@@ -28,41 +29,41 @@
         <button class="preset-btn" data-range="30d" id="btn-preset-30d">30d Archive</button>
       </div>
       <div class="header-right-group">
-        <div class="counter-pill" id="counter-pill">[ Loading... ]</div>
-        <div class="telemetry-freshness-pill prov-high" id="ea-freshness-pill" title="Timestamp of latest Environment Agency physical gauge reading">📡 Telemetry: Loading...</div>
-        <button class="sys-health-btn" id="sys-health-toggle" title="Click to view Telemetry Health & Database Sync details">🟢 DB Sync ⚙️</button>
+        <div class="counter-pill" id="counter-pill" role="status" aria-live="polite">[ Loading... ]</div>
+        <div class="telemetry-freshness-pill prov-high" id="ea-freshness-pill" title="Timestamp of latest Environment Agency physical gauge reading" role="status" aria-live="polite">📡 Telemetry: Loading...</div>
+        <button class="sys-health-btn" id="sys-health-toggle" title="Click to view Telemetry Health &amp; Database Sync details" aria-haspopup="dialog">🟢 DB Sync ⚙️</button>
       </div>
     </div>
     
-    <div class="alert-banner" id="alert-banner">
+    <div class="alert-banner" id="alert-banner" role="status" aria-live="polite">
       INITIALIZING SYSTEM TELEMETRY...
     </div>
 
-    <div class="global-timestamp-bar" id="global-timestamp-banner">
+    <div class="global-timestamp-bar" id="global-timestamp-banner" role="region" aria-label="Telemetry Freshness Status">
       <div class="gt-left-group">
         <span class="gt-badge-pill" id="gt-mode-badge">📡 REAL-TIME STREAM</span>
         <span class="gt-timestamp-display" id="gt-time-display">Showing latest live telemetry across all catchments</span>
         <span class="gt-relative-age" id="gt-age-display"></span>
       </div>
       <div class="gt-right-group">
-        <span class="gt-sync-status" id="gt-sync-status">💡 Hover over or scrub any sparkline to inspect synchronized crosshair</span>
+        <span class="gt-sync-status" id="gt-sync-status" aria-live="polite">💡 Hover over or scrub any sparkline to inspect synchronized crosshair</span>
       </div>
     </div>
   </header>
 
-  <main class="grid-container" id="cards-container">
-    <!-- Rendered dynamically by app.js -->
+  <main class="grid-container" id="cards-container" role="main" aria-label="Flood Infrastructure Cards Grid" aria-live="polite">
+    <!-- Rendered dynamically by app.js using <section> and <article> semantic containers -->
   </main>
 
   <!-- System Health & Telemetry Freshness Modal Drawer -->
-  <div class="sys-health-backdrop" id="sys-health-backdrop">
+  <dialog class="sys-health-backdrop" id="sys-health-backdrop" aria-labelledby="health-modal-title" aria-modal="true">
     <div class="sys-health-drawer">
       <div class="drawer-header">
         <div>
-          <h3>⚙️ System Health & Telemetry Provenance</h3>
-          <p class="drawer-subtitle">3-Tier Telemetry Pipeline & Sensor Cadence Status</p>
+          <h3 id="health-modal-title">⚙️ System Health &amp; Telemetry Provenance</h3>
+          <p class="drawer-subtitle">3-Tier Telemetry Pipeline &amp; Sensor Cadence Status</p>
         </div>
-        <button class="close-drawer-btn" id="sys-health-close">✕</button>
+        <button class="close-drawer-btn" id="sys-health-close" aria-label="Close system health drawer">✕</button>
       </div>
 
       <div class="health-summary-grid">
@@ -88,10 +89,10 @@
         <table class="data-table">
           <thead>
             <tr>
-              <th>Station / Measure</th>
-              <th>Latest EA Reading</th>
-              <th>Age</th>
-              <th>Status</th>
+              <th scope="col">Station / Measure</th>
+              <th scope="col">Latest EA Reading</th>
+              <th scope="col">Age</th>
+              <th scope="col">Status</th>
             </tr>
           </thead>
           <tbody id="modal-station-matrix">
@@ -101,14 +102,14 @@
       </div>
 
       <div class="matrix-section" style="margin-top: 1.25rem;">
-        <h4>🏗️ Infrastructure Baseline & Crest Survey Matrix</h4>
+        <h4>🏗️ Infrastructure Baseline &amp; Crest Survey Matrix</h4>
         <table class="data-table">
           <thead>
             <tr>
-              <th>Spillway Structure</th>
-              <th>Active Crest</th>
-              <th>Survey & Scheme Origin</th>
-              <th>Effective Period</th>
+              <th scope="col">Spillway Structure</th>
+              <th scope="col">Active Crest</th>
+              <th scope="col">Survey &amp; Scheme Origin</th>
+              <th scope="col">Effective Period</th>
             </tr>
           </thead>
           <tbody id="modal-infra-matrix">
@@ -121,15 +122,15 @@
         <p>Telemetry updated every 15 minutes by the UK Environment Agency. Database sync runs every 5 minutes.</p>
       </div>
     </div>
-  </div>
+  </dialog>
 
-  <footer class="app-disclaimer-footer">
+  <footer class="app-disclaimer-footer" role="contentinfo">
     <div class="disclaimer-content">
       <div class="kofi-support-banner">
-        <span>☕ <strong>Independent & Open Source:</strong> Flood Telemetry is built for the community. View the open-source code on <a href="https://github.com/heretic098/flood-telemetry" target="_blank" rel="noopener noreferrer" class="disclaimer-link">GitHub ↗</a> or <a href="https://ko-fi.com/heretic098" target="_blank" rel="noopener noreferrer" class="kofi-link">support the developer on Ko-fi ↗</a></span>
+        <span>☕ <strong>Independent &amp; Open Source:</strong> Flood Telemetry is built for the community. View the open-source code on <a href="https://github.com/heretic098/flood-telemetry" target="_blank" rel="noopener noreferrer" class="disclaimer-link">GitHub ↗</a> or <a href="https://ko-fi.com/heretic098" target="_blank" rel="noopener noreferrer" class="kofi-link">support the developer on Ko-fi ↗</a></span>
       </div>
       <p>
-        <strong>⚠️ Data Disclaimer & Public Notice:</strong> Information displayed on this dashboard is synthesized from publicly available Environment Agency (EA) open telemetry APIs and hydrological physics models. 
+        <strong>⚠️ Data Disclaimer &amp; Public Notice:</strong> Information displayed on this dashboard is synthesized from publicly available Environment Agency (EA) open telemetry APIs and hydrological physics models. 
         This is an independent open-source visualization tool and <strong>does not constitute official flood warning advice, forecasting, or emergency instructions</strong>.
       </p>
       <p>
@@ -146,4 +147,3 @@
   <script type="module" src="js/app.js"></script>
 </body>
 </html>
-

@@ -13,6 +13,7 @@
       "spillway": {
         "name": "Hookbridge Spillway",
         "baseline_crest_mAOD": 7.45,
+        "pre_overtopping_alert_mAOD": 7.15,
         "sill_elevation_mAOD": 4.50,
         "crest_history": [
           { "valid_from": "1970-01-01T00:00:00Z", "valid_to": "2021-09-30T23:59:59Z", "crest_mAOD": 7.45, "notes": "Pre-SRA Upgrade Baseline" },
@@ -32,8 +33,8 @@
           "name": "Currymoor PS",
           "total_pumps": 2,
           "thresholds": {
-            "summer": { "lead": 4.60, "duty": 4.80, "mobile_order": 5.10, "mobile_active": 5.40, "critical_spill": 7.45 },
-            "winter": { "lead": 4.00, "duty": 4.30, "mobile_order": 4.40, "mobile_active": 4.60, "critical_spill": 4.85 }
+            "summer": { "lead": 4.60, "duty": 4.80, "mobile_order": 5.80, "mobile_active": 6.10, "critical_spill": 7.35 },
+            "winter": { "lead": 4.00, "duty": 4.30, "mobile_order": 5.80, "mobile_active": 6.10, "critical_spill": 7.35 }
           }
         },
         {
@@ -41,8 +42,8 @@
           "name": "Stanmoor PS",
           "total_pumps": 2,
           "thresholds": {
-            "summer": { "lead": 4.70, "duty": 4.90, "mobile_order": 5.20, "mobile_active": 5.50, "critical_spill": 7.45 },
-            "winter": { "lead": 4.10, "duty": 4.40, "mobile_order": 4.50, "mobile_active": 4.70, "critical_spill": 4.85 }
+            "summer": { "lead": 4.70, "duty": 4.90, "mobile_order": 5.80, "mobile_active": 6.10, "critical_spill": 7.35 },
+            "winter": { "lead": 4.10, "duty": 4.40, "mobile_order": 5.80, "mobile_active": 6.10, "critical_spill": 7.35 }
           }
         }
       ]
@@ -52,14 +53,15 @@
       "name": "Northmoor & Saltmoor System",
       "catchment": "River Parrett (+ Tone Overflow)",
       "river_tag": "Catchment: River Parrett",
-      "subtitle": "Fed by River Parrett & Curry Moor overflow (Baltmoor Wall)",
+      "subtitle": "Protected by Baltmoor Wall against river overtopping (7.80m); receives flood overflow from Curry Moor via Athelney Spillway (7.35m)",
       "measures": {
         "river": "52158-level-stage-i-15_min-mAOD",
         "moor": "52159-level-stage-i-15_min-mAOD"
       },
       "spillway": {
-        "name": "Baltmoor Wall Crest",
+        "name": "Baltmoor Wall Overtopping Defense",
         "baseline_crest_mAOD": 7.80,
+        "pre_overtopping_alert_mAOD": 7.50,
         "sill_elevation_mAOD": 4.00,
         "crest_history": [
           { "valid_from": "1970-01-01T00:00:00Z", "valid_to": "2014-04-30T23:59:59Z", "crest_mAOD": 7.70, "notes": "Pre-2014 Flood Wall Profile" },
@@ -80,8 +82,8 @@
           "name": "Saltmoor PS",
           "total_pumps": 2,
           "thresholds": {
-            "summer": { "lead": 4.00, "duty": 4.20, "mobile_order": 4.40, "mobile_active": 4.60, "critical_spill": 7.80 },
-            "winter": { "lead": 3.40, "duty": 3.70, "mobile_order": 3.80, "mobile_active": 4.00, "critical_spill": 4.25 }
+            "summer": { "lead": 4.00, "duty": 4.20, "mobile_order": 4.80, "mobile_active": 5.20, "critical_spill": 7.80 },
+            "winter": { "lead": 3.40, "duty": 3.70, "mobile_order": 4.80, "mobile_active": 5.20, "critical_spill": 7.80 }
           }
         },
         {
@@ -89,8 +91,8 @@
           "name": "Northmoor PS",
           "total_pumps": 2,
           "thresholds": {
-            "summer": { "lead": 4.10, "duty": 4.30, "mobile_order": 4.50, "mobile_active": 4.70, "critical_spill": 7.80 },
-            "winter": { "lead": 3.50, "duty": 3.80, "mobile_order": 3.90, "mobile_active": 4.10, "critical_spill": 4.35 }
+            "summer": { "lead": 4.10, "duty": 4.30, "mobile_order": 4.80, "mobile_active": 5.20, "critical_spill": 7.80 },
+            "winter": { "lead": 3.50, "duty": 3.80, "mobile_order": 4.80, "mobile_active": 5.20, "critical_spill": 7.80 }
           }
         }
       ]
@@ -139,6 +141,43 @@
         "thresholds": {
           "summer": { "lead": 3.10, "duty": 3.30, "mobile_order": 3.50, "mobile_active": 3.70, "critical_spill": 4.10 },
           "winter": { "lead": 2.80, "duty": 3.10, "mobile_order": 3.30, "mobile_active": 3.50, "critical_spill": 3.80 }
+        }
+      }
+    },
+    "langport_confluence": {
+      "id": "langport_confluence",
+      "name": "Langport Confluence & Tributaries",
+      "catchment": "River Yeo & River Isle ➔ Parrett Confluence",
+      "river_tag": "Tributaries: Yeo & Isle ➔ Parrett",
+      "subtitle": "River Yeo (Huish Episcopi PS) & River Isle (Midelney Sluice)",
+      "measures": {
+        "yeo": "52120-level-stage-i-15_min-mASD",
+        "isle": "52153-level-stage-i-15_min-mASD"
+      },
+      "huish_episcopi_ps": {
+        "name": "Huish Episcopi Pumping Station",
+        "station_id": "52120",
+        "datum_mAOD": 5.000,
+        "ground_invert_mAOD": 5.80,
+        "penning": {
+          "summer": { "target_low": 6.40, "target_high": 6.60 },
+          "winter": { "target_low": 5.90, "target_high": 6.20 }
+        },
+        "thresholds": {
+          "summer": { "lead": 6.70, "duty": 6.90, "muchelney_road": 7.30, "secondary_road": 7.86, "river_cutoff": 8.20, "alert_level": 8.48, "embankment_crest": 8.80 },
+          "winter": { "lead": 6.30, "duty": 6.50, "muchelney_road": 7.30, "secondary_road": 7.86, "river_cutoff": 8.20, "alert_level": 8.48, "embankment_crest": 8.80 }
+        }
+      },
+      "midelney_ps": {
+        "name": "Midelney (West Moor PS & Sluice)",
+        "station_id": "52153",
+        "datum_mAOD": 5.185,
+        "ground_invert_mAOD": 5.50,
+        "thresholds": {
+          "lead": 6.40,
+          "duty": 6.70,
+          "headlock_overflow": 8.20,
+          "alert_level": 8.20
         }
       }
     }

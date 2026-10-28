@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { evaluateSpillway, evaluateGateState, aggregateGlobalStatus, evaluatePumpStatus, evaluateSowyChannel, estimateClyseFlow, evaluateAthelneySpillway, evaluateGravityClyse, evaluateBeerWall, evaluateOathLock, evaluateDunballEmergencyPumping, getSeasonalRegime, getActiveCrestHeight } from '../src/js/hydro_engine.js';
+import { evaluateSpillway, evaluateGateState, aggregateGlobalStatus, evaluatePumpStatus, evaluateSowyChannel, estimateClyseFlow, evaluateAthelneySpillway, evaluateGravityClyse, evaluateBeerWall, evaluateOathLock, evaluateDunballEmergencyPumping, getSeasonalRegime, getActiveCrestHeight, evaluateHuishEpiscopi, evaluateMidelney } from '../src/js/hydro_engine.js';
 
 test('getActiveCrestHeight resolves time-bound crest elevations and fallbacks correctly', () => {
   const config = {
@@ -171,3 +171,43 @@ test('new infrastructure pill evaluation functions return expected status string
   assert.ok(evaluateDunballEmergencyPumping(2.90, true, 2.80).statusText.includes('HIGH-VOLUME PUMPING ACTIVE'));
   assert.ok(evaluateDunballEmergencyPumping(2.40, false, 2.80).statusText.includes('GRAVITY OK'));
 });
+
+test('evaluateHuishEpiscopi enforces operating cut-off, road inundation, and pump stages', () => {
+  // Baseflow / normal stage
+  const baseflow = evaluateHuishEpiscopi(6.68, true);
+  assert.equal(baseflow.code, 'SECURE');
+  assert.equal(baseflow.isRoadFlooded, false);
+  assert.equal(baseflow.isPumpsCutoff, false);
+  assert.ok(baseflow.clearanceText.includes('to Cut-off'));
+
+  // Muchelney road inundated at 7.30m
+  const roadFlooded = evaluateHuishEpiscopi(7.35, true);
+  assert.equal(roadFlooded.code, 'ROAD_INUNDATED');
+  assert.equal(roadFlooded.isRoadFlooded, true);
+  assert.equal(roadFlooded.isPumpsCutoff, false);
+  assert.ok(roadFlooded.label.includes('MUCHELNEY ROAD FLOODED'));
+
+  // River cut-off at 8.20m AOD
+  const cutoff = evaluateHuishEpiscopi(8.25, true);
+  assert.equal(cutoff.code, 'CUT_OFF');
+  assert.equal(cutoff.isPumpsCutoff, true);
+  assert.ok(cutoff.label.includes('PUMPS LOCKED'));
+});
+
+test('evaluateMidelney evaluates gravity discharge vs head-locked pumping and FSA alert', () => {
+  // Free gravity discharge: Isle stage exceeds Parrett stage
+  const gravity = evaluateMidelney(6.80, 6.70);
+  assert.equal(gravity.code, 'SECURE');
+  assert.equal(gravity.isHeadLocked, false);
+
+  // Head-locked: Parrett stage >= Isle stage
+  const headlocked = evaluateMidelney(6.60, 6.74);
+  assert.equal(headlocked.code, 'HEAD_LOCKED');
+  assert.equal(headlocked.isHeadLocked, true);
+
+  // Alert level: Isle stage >= 8.20m AOD
+  const alert = evaluateMidelney(8.25, 6.74);
+  assert.equal(alert.code, 'ALERT');
+  assert.equal(alert.isAlert, true);
+});
+
