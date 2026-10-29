@@ -1,4 +1,4 @@
-import { evaluateSpillway, evaluateGateState, aggregateGlobalStatus, evaluatePumpStatus, evaluateSowyChannel, estimateClyseFlow, evaluateAthelneySpillway, evaluateGravityClyse, evaluateBeerWall, evaluateOathLock, evaluateDunballEmergencyPumping, calculateVillemonteDischarge, getSeasonalRegime, getActiveCrestHeight, getActiveCatchmentId, loadCatchmentConfig, evaluateHuishEpiscopi, evaluateMidelney, STATION_REGISTRY, GAUGE_DATUMS } from './hydro_engine.js';
+import { evaluateSpillway, evaluateGateState, aggregateGlobalStatus, evaluatePumpStatus, evaluateSowyChannel, evaluateAthelneySpillway, evaluateGravityClyse, evaluateBeerWall, evaluateOathLock, evaluateDunballEmergencyPumping, getSeasonalRegime, getActiveCrestHeight, getActiveCatchmentId, loadCatchmentConfig, evaluateHuishEpiscopi, evaluateMidelney, STATION_REGISTRY, GAUGE_DATUMS } from './hydro_engine.js';
 import {
   computeSparklineBounds,
   checkFlatStage,
@@ -465,7 +465,6 @@ export async function refreshLiveDashboard() {
   const athelneySpillway = evaluateAthelneySpillway(cmMoorLevel, athelneyCrest);
   const cmGravitySluice = evaluateGravityClyse(cmMoorLevel, cmRiverLevel, "Currymoor Sluice");
 
-  const hookbridgeFlow = cmEval.code === 'OVERTOPPING' ? calculateVillemonteDischarge(cmRiverLevel, cmMoorLevel, hookbridgeCrest) : null;
   const cmHeroBanner = renderHeroSpillwayBanner({
     icon: '⚡',
     title: 'Hookbridge Spillway Status',
@@ -480,7 +479,8 @@ export async function refreshLiveDashboard() {
     maxLabel: `Crest: ${hookbridgeCrest.toFixed(2)}m AOD`,
     isAlert: cmEval.code === 'OVERTOPPING' || cmEval.code === 'NEAR_CREST',
     stats: [
-      { label: 'Spill Duration', value: cmEval.code === 'OVERTOPPING' ? '⏱️ Active Spill' : '⏱️ 00h 00m' }
+      { label: 'Surveyed Crest', value: `${hookbridgeCrest.toFixed(2)}m AOD` },
+      { label: 'Clearance to Crest', value: cmEval.clearanceText }
     ],
     camLink: {
       url: 'https://thecfh.org/parretttonewsom.php#hook',
@@ -531,22 +531,21 @@ export async function refreshLiveDashboard() {
     ]
   }));
 
-  // Card: Athelney Spillway & Cuts Road Cascade (Inter-Moor Overflow Conduit)
+  // Card: Athelney Spillway (Inter-Moor Relief)
   const athelneyHist = athelneyConfig?.crest_history || [];
   const athelneyScheme = athelneyHist.length ? athelneyHist[athelneyHist.length - 1].notes : 'Standard Hydraulic Profile';
   const athelneyEval = evaluateSpillway(cmMoorLevel, nmMoorLevel, athelneyCrest);
-  athelneyEval.name = "Athelney Spillway & Cuts Road";
+  athelneyEval.name = "Athelney Spillway";
   evals.push(athelneyEval);
 
-  const athelneyFlow = athelneyEval.code === 'OVERTOPPING' ? calculateVillemonteDischarge(cmMoorLevel, nmMoorLevel, athelneyCrest) : null;
-  const athelneyClearanceDelta = Math.abs(cmMoorLevel - athelneyCrest);
-  const athelneyRoadStatus = athelneyEval.code === 'OVERTOPPING'
-    ? '⛔ IMPASSABLE / ROAD FLOODED'
-    : (athelneyEval.code === 'NEAR_CREST' ? '⚠️ AT RISK OF FLOODING' : '🟢 PASSABLE & DRY');
+  const athelneyClearanceDelta = Number(Math.abs(cmMoorLevel - athelneyCrest).toFixed(2));
+  const athelneyClearanceFormatted = cmMoorLevel <= athelneyCrest
+    ? `+${athelneyClearanceDelta.toFixed(2)}m`
+    : `-${athelneyClearanceDelta.toFixed(2)}m`;
 
   const athelneyHeroBanner = renderHeroSpillwayBanner({
-    icon: '🛣️',
-    title: 'Athelney Spillway & Cuts Road Cascade',
+    icon: '🌊',
+    title: 'Athelney Spillway (Inter-Moor Relief)',
     statusBadge: athelneyEval,
     mainMetricValue: cmMoorLevel.toFixed(2),
     mainMetricUnit: 'm AOD (Curry Moor Level)',
@@ -555,10 +554,11 @@ export async function refreshLiveDashboard() {
     maxLevel: athelneyCrest,
     currentLevel: cmMoorLevel,
     minLabel: 'Normal Moor: 3.80m',
-    maxLabel: `Road Crest: ${athelneyCrest.toFixed(2)}m AOD`,
+    maxLabel: `Spillway Crest: ${athelneyCrest.toFixed(2)}m AOD`,
     isAlert: athelneyEval.code === 'OVERTOPPING' || athelneyEval.code === 'NEAR_CREST',
     stats: [
-      { label: 'Cascade Flow', value: athelneyFlow ? athelneyFlow.formatted : '0.00 m³/s' }
+      { label: 'Clearance to Spillway', value: athelneyClearanceFormatted },
+      { label: 'Spillway Status', value: athelneyEval.label }
     ],
     camLink: {
       url: 'https://thecfh.org/parretttonewsom.php#athelneyspillway',
@@ -568,7 +568,7 @@ export async function refreshLiveDashboard() {
   });
 
   container.appendChild(createMoorCard({
-    title: "Athelney Spillway & Cuts Road",
+    title: "Athelney Spillway (Inter-Moor Relief)",
     cardClass: "athelney-cascade-card",
     heroBanner: athelneyHeroBanner,
     riverTag: `Inter-Moor Cascade: Curry Moor ➔ Northmoor`,
@@ -577,18 +577,14 @@ export async function refreshLiveDashboard() {
     provenanceClass: "prov-medium",
     metricText: `${cmMoorLevel.toFixed(2)}m AOD`,
     clearanceText: `Athelney Crest: ${athelneyEval.clearanceText}`,
-    narrative: `Curry Moor storage is ${athelneyClearanceDelta.toFixed(2)}m below Athelney Spillway crest. Cuts Road access between East Lyng and Athelney is clear and dry.`,
+    narrative: `Curry Moor storage is ${athelneyClearanceDelta.toFixed(2)}m below Athelney Spillway crest (7.35m AOD). Provides overspill relief from Curry Moor into Northmoor retention storage when Curry Moor reaches capacity.`,
     pills: [
       {
-        html: `<strong>Cuts Road / East Lyng:</strong> ${athelneyRoadStatus}`,
-        tooltip: `📍 Road surface overtopped when Curry Moor storage reaches ${athelneyCrest.toFixed(2)}m AOD`
-      },
-      {
         html: `<strong>Athelney Spillway:</strong> ${athelneyEval.symbol} ${athelneyEval.label} (${athelneyEval.clearanceText}) <a href="https://thecfh.org/parretttonewsom.php#athelneyspillway" target="_blank" rel="noopener noreferrer" class="cctv-badge-btn" title="View 3-min EA Snapshot Camera at thecfh.org#athelneyspillway" aria-label="View 3-min EA Snapshot Camera at thecfh.org for Athelney Spillway">📷 LIVE CAM ↗</a>`,
-        tooltip: `📍 Athelney Spillway Crest: ${athelneyCrest.toFixed(2)}m AOD (${athelneyScheme}) | View 3-min EA Snapshot Camera at thecfh.org#athelneyspillway`
+        tooltip: `📍 Athelney Spillway Crest: ${athelneyCrest.toFixed(2)}m AOD (${athelneyScheme}) | Overspill relief cascade from Curry Moor into Northmoor retention storage`
       },
-      `<strong>Overland Conduit:</strong> Curry Moor (52127) relieves into Northmoor (52159)`,
-      `<strong>Corridor Alert:</strong> Spillway overflow impacts Cuts Road and threatens A361 corridor`
+      `<strong>Overland Conduit:</strong> Curry Moor (52127) relieves into Northmoor (52159) retention storage`,
+      `<strong>Hydraulic Threshold:</strong> Engineered broad-crested concrete spillway crest at 7.35m AOD`
     ],
     spillwayMeta: { crest: athelneyCrest.toFixed(2), scheme: athelneyScheme },
     sparkline: renderSingleSparkline(cmMoorHistory, athelneyEval.code === 'OVERTOPPING' ? '#f87171' : '#38bdf8', { streamLabel: 'Curry Moor Basin @ Athelney', stationId: '52127', unit: 'mAOD' }),
@@ -623,7 +619,6 @@ export async function refreshLiveDashboard() {
   const beerWallScheme = beerWallHist.length ? beerWallHist[beerWallHist.length - 1].notes : 'SRA Greylake Scheme';
   const beerWallSpillway = evaluateBeerWall(nmRiverLevel, beerWallCrest);
 
-  const baltmoorFlow = nmEval.code === 'OVERTOPPING' ? calculateVillemonteDischarge(nmRiverLevel, nmMoorLevel, baltmoorCrest) : null;
   const nmHeroBanner = renderHeroSpillwayBanner({
     icon: '🌊',
     title: 'Baltmoor Wall Overtopping Status',
@@ -638,7 +633,8 @@ export async function refreshLiveDashboard() {
     maxLabel: `Defense Crest: ${baltmoorCrest.toFixed(2)}m AOD`,
     isAlert: nmEval.code === 'OVERTOPPING' || nmEval.code === 'NEAR_CREST',
     stats: [
-      { label: 'Spill Duration', value: nmEval.code === 'OVERTOPPING' ? '⏱️ Active Spill' : '⏱️ 00h 00m' }
+      { label: 'Defense Crest', value: `${baltmoorCrest.toFixed(2)}m AOD` },
+      { label: 'Defense Clearance', value: nmEval.clearanceText }
     ],
     camLink: {
       url: 'https://thecfh.org/parretttonewsom.php#saltmoor',
@@ -664,7 +660,7 @@ export async function refreshLiveDashboard() {
       },
       {
         html: `<strong>Athelney Spillway Inflow:</strong> ${athelneySpillway.statusText} <a href="https://thecfh.org/parretttonewsom.php#athelneyspillway" target="_blank" rel="noopener noreferrer" class="cctv-badge-btn" title="View 3-min EA Snapshot Camera at thecfh.org#athelneyspillway" aria-label="View 3-min EA Snapshot Camera at thecfh.org for Athelney Spillway">📷 LIVE CAM ↗</a>`,
-        tooltip: `📍 Athelney Crest: ${athelneyCrest.toFixed(2)}m AOD | Overspill cascade from Curry Moor into Northmoor across Cuts Road`
+        tooltip: `📍 Athelney Crest: ${athelneyCrest.toFixed(2)}m AOD | Overspill cascade from Curry Moor into Northmoor retention storage`
       },
       {
         html: `<strong>Beer Wall / Allens Spillway:</strong> ${beerWallSpillway.statusText} <a href="https://thecfh.org/parretttonewsom.php#Beerwall" target="_blank" rel="noopener noreferrer" class="cctv-badge-btn" title="View 3-min EA Snapshot Camera at thecfh.org#Beerwall" aria-label="View 3-min EA Snapshot Camera at thecfh.org for Beer Wall Spillway">📷 LIVE CAM ↗</a>`,
@@ -697,11 +693,10 @@ export async function refreshLiveDashboard() {
 
   // Card 3: Sowy Relief Channel
   const sowyEval = evaluateSowyChannel(monksUpLevel, monksDownLevel, 4.20);
-  const headDropMeters = monksUpLevel - monksDownLevel;
+  const headDropMeters = Number((monksUpLevel - monksDownLevel).toFixed(2));
   const headDropFormatted = formatHeadDelta(headDropMeters);
   const oathLock = evaluateOathLock(monksUpLevel, monksDownLevel);
 
-  const clyseFlow = estimateClyseFlow(monksUpLevel, monksDownLevel);
   const sowyHeroBanner = renderHeroSpillwayBanner({
     icon: '🚰',
     title: "Monk's Leaze Clyse Intake Control",
@@ -717,7 +712,7 @@ export async function refreshLiveDashboard() {
     isAlert: false,
     stats: [
       { label: 'Gate Position', htmlValue: sowyEval.code === 'GRAVITY_OPEN' ? '🔵 DIVERTING' : '🔒 PENNING / CLOSED' },
-      { label: 'Diverted Flow', value: sowyEval.code === 'GRAVITY_OPEN' ? `${(clyseFlow?.flowM3s ?? 0).toFixed(1)} m³/s (${(clyseFlow?.flowMLD ?? 0).toFixed(0)} MLD)` : '0.0 m³/s (0 MLD)' }
+      { label: 'Intake Head Drop', value: `${headDropMeters >= 0 ? '+' : ''}${headDropMeters.toFixed(2)}m` }
     ],
     camLink: {
       url: 'https://thecfh.org/parretttonewsom.php#monksleaze',
@@ -844,8 +839,8 @@ export async function refreshLiveDashboard() {
     title: 'Langport Confluence Gateways',
     statusBadge: huishEval.isPumpsCutoff ?
       { label: 'PUMPS CUT-OFF', badgeClass: 'badge-critical', symbol: '🔒' } :
-      (huishEval.isRoadFlooded ?
-        { label: 'MUCHELNEY ROAD FLOODED', badgeClass: 'badge-alert', symbol: '⚠️' } :
+      (huishEval.code === 'ALERT' ?
+        { label: 'FLOOD ALERT', badgeClass: 'badge-alert', symbol: '▲' } :
         { label: 'CONFLUENCE CONVEYING', badgeClass: 'badge-secure', symbol: '✓' }),
     mainMetricValue: huishLevel.toFixed(2),
     mainMetricUnit: 'm AOD (River Yeo @ Huish)',
@@ -855,10 +850,10 @@ export async function refreshLiveDashboard() {
     currentLevel: huishLevel,
     minLabel: 'Baseflow: 5.80m',
     maxLabel: 'Bankfull Cut-off: 8.20m AOD',
-    isAlert: huishEval.isPumpsCutoff || huishEval.isRoadFlooded || huishEval.code === 'ALERT',
+    isAlert: huishEval.isPumpsCutoff || huishEval.code === 'ALERT',
     stats: [
       { label: 'Huish PS Status', htmlValue: huishEval.isPumpsCutoff ? '🔒 PUMPS LOCKED OUT' : (huishPump.stage >= 1 ? '🟢 PUMPS ACTIVE' : '⚪ GRAVITY DISCHARGE') },
-      { label: 'Muchelney Access', htmlValue: huishEval.isRoadFlooded ? '🔴 ROAD INUNDATED' : '🟢 OPEN (Passable)' }
+      { label: 'River Isle (Midelney)', htmlValue: `${midelneyLevel.toFixed(2)}m AOD (${midelneyEval.isHeadLocked ? '🕒 HEAD-LOCKED' : '🟢 GRAVITY'})` }
     ],
     camLink: {
       url: 'https://thecfh.org/parretttonewsom.php#huish',
@@ -876,15 +871,15 @@ export async function refreshLiveDashboard() {
     provenanceClass: "prov-medium",
     metricText: `Yeo: ${huishLevel.toFixed(2)}m | Isle: ${midelneyLevel.toFixed(2)}m AOD`,
     clearanceText: `Cut-off Margin: ${huishEval.clearanceText}`,
-    narrative: `${huishEval.narrative} Midelney (River Isle): ${midelneyEval.isHeadLocked ? 'Head-locked by high Parrett stage.' : 'Free gravity discharge to Parrett.'}`,
+    narrative: `${huishEval.narrative} Midelney (River Isle at ${midelneyLevel.toFixed(2)}m AOD): ${midelneyEval.isHeadLocked ? 'Head-locked by high Parrett stage.' : 'Free gravity discharge to Parrett.'}`,
     pills: [
       {
         html: `<strong>Huish Episcopi Pumping Station:</strong> ${huishEval.isPumpsCutoff ? '🔒 LOCKED OUT (Yeo ≥ 8.20m AOD)' : (huishPump.stage >= 1 ? '🟢 PUMPING TO PARRETT' : '⚪ GRAVITY DISCHARGE / STANDBY')}`,
         tooltip: `📍 Huish Episcopi PS: Cut-off at 8.20m AOD to prevent Parrett levee breach`
       },
       {
-        html: `<strong>Muchelney Access Road:</strong> ${huishEval.isRoadFlooded ? '⚠️ FLOODED (Stage ≥ 7.30m AOD)' : '🟢 OPEN (Passable)'}`,
-        tooltip: `📍 Muchelney Road Threshold: 7.30m AOD`
+        html: `<strong>Yeo Bankfull Cut-off:</strong> ${huishEval.clearanceText} (Limit: 8.20m AOD)`,
+        tooltip: `📍 8.20m AOD bankfull interlock: Huish permanent pumps lock out to protect Parrett defenses`
       },
       {
         html: `<strong>Midelney PS & Sluice (River Isle):</strong> ${midelneyEval.isHeadLocked ? '🕒 HEAD-LOCKED BY PARRETT' : '🟢 GRAVITY DISCHARGE'}`,
@@ -1437,10 +1432,8 @@ export function bindSparklineEvents(container = document) {
         const pName = svg.dataset.primaryName || 'Inland';
         const sName = svg.dataset.secondaryName || 'Sea';
         valText = `${pName}: ${primaryVal.toFixed(2)}m | ${sName}: ${secondaryData[index].toFixed(2)}m`;
-      } else if (svg.dataset.unit === 'm3s') {
-        valText = `${primaryVal.toFixed(1)} m³/s`;
       } else {
-        valText = `${primaryVal.toFixed(2)} mAOD`;
+        valText = `${primaryVal.toFixed(2)} ${svg.dataset.unit || 'mAOD'}`;
       }
 
       tooltip.innerHTML = `<span class="tooltip-time">${dateStr} ${timeStr}</span><span class="tooltip-val">${valText}</span>`;

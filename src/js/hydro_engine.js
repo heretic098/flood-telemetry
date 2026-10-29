@@ -261,6 +261,9 @@ export function evaluatePumpStatus(
   };
 }
 
+/**
+ * @deprecated [RULE-CALC-01] Volumetric discharge speculation is strictly banned. Telemetry only provides stage (m) and datum (mAOD). Open-channel discharge cannot be substantiated without surveyed rating curves.
+ */
 export function estimateClyseFlow(h_up, h_down, z_sill = 4.20, B = 4.20, Cd = 0.60) {
   const g = 9.81;
   const H_head = Math.max(0, h_up - z_sill);
@@ -287,8 +290,7 @@ export function estimateClyseFlow(h_up, h_down, z_sill = 4.20, B = 4.20, Cd = 0.
 }
 
 export function evaluateSowyChannel(h_up, h_down, thresholdSill = 4.20) {
-  const deltaH = h_up - h_down;
-  const flowEst = estimateClyseFlow(h_up, h_down, thresholdSill);
+  const deltaH = Number((h_up - h_down).toFixed(2));
 
   if (h_up >= thresholdSill && deltaH > 0.10) {
     return {
@@ -299,9 +301,9 @@ export function evaluateSowyChannel(h_up, h_down, thresholdSill = 4.20) {
       pillText: "🟢 ACTIVE DIVERSION (DUAL GAUGE)",
       confidence: "HIGH_DUAL_SENSOR",
       confidenceTag: "📡 DEDICATED SENSORS",
-      metricText: `Flow: ~${flowEst.flowM3s.toFixed(1)} m³/s`,
-      clearanceText: `Diversion Rate: ~${flowEst.flowMLD} Megalitres/day`,
-      narrative: `Monk's Leaze Clyse open. Upstream level (${h_up.toFixed(2)}m) and downstream Sowy channel level (${h_down.toFixed(2)}m) indicate active diversion at ~${flowEst.flowM3s.toFixed(1)} m³/s.`
+      metricText: `Head Drop: +${deltaH.toFixed(2)}m`,
+      clearanceText: `Intake Sill Margin: +${(h_up - thresholdSill).toFixed(2)}m`,
+      narrative: `Monk's Leaze Clyse gravity diversion active. Upstream Parrett stage (${h_up.toFixed(2)}m AOD) exceeds 4.20m sill with a +${deltaH.toFixed(2)}m head drop into the Sowy Relief Channel.`
     };
   } else if (h_up >= thresholdSill && deltaH <= 0.10) {
     return {
@@ -312,9 +314,9 @@ export function evaluateSowyChannel(h_up, h_down, thresholdSill = 4.20) {
       pillText: "🟡 DIVERSION RESTRICTED (DUAL GAUGE)",
       confidence: "HIGH_DUAL_SENSOR",
       confidenceTag: "📡 DEDICATED SENSORS",
-      metricText: `Flow: Restricted`,
-      clearanceText: `Downstream Head Equalized`,
-      narrative: `Monk's Leaze Clyse throttled. Downstream Sedgemoor Drain level (${h_down.toFixed(2)}m) limits diversion capacity.`
+      metricText: "Head Differential Neutral",
+      clearanceText: "Downstream Head Equalized",
+      narrative: `Monk's Leaze Clyse throttled. Downstream Sedgemoor Drain level (${h_down.toFixed(2)}m AOD) limits diversion capacity.`
     };
   } else {
     return {
@@ -325,9 +327,9 @@ export function evaluateSowyChannel(h_up, h_down, thresholdSill = 4.20) {
       pillText: "⚪ PENNING / CLOSED (DUAL GAUGE)",
       confidence: "HIGH_DUAL_SENSOR",
       confidenceTag: "📡 DEDICATED SENSORS",
-      metricText: `Flow: 0.0 m³/s`,
-      clearanceText: `Below Diversion Sill`,
-      narrative: `Monk's Leaze Clyse in penning mode. River level (${h_up.toFixed(2)}m) is below diversion threshold (${thresholdSill.toFixed(2)}m).`
+      metricText: "Penning / No Diversion",
+      clearanceText: `${(thresholdSill - h_up).toFixed(2)}m Below Sill`,
+      narrative: `Monk's Leaze Clyse in penning mode. River level (${h_up.toFixed(2)}m AOD) is below diversion threshold (${thresholdSill.toFixed(2)}m AOD).`
     };
   }
 }
@@ -1101,6 +1103,7 @@ export function sanitizeStageValue(val) {
 }
 
 /**
+ * @deprecated [RULE-CALC-01] Volumetric discharge speculation is strictly banned. Telemetry only provides stage (m) and datum (mAOD). Open-channel discharge cannot be substantiated without surveyed rating curves.
  * Calculates estimated overtopping discharge flow (m³/s & Megalitres/day)
  * using the Villemonte broad-crested submerged weir formulation.
  */
@@ -1180,7 +1183,7 @@ export function formatHeadDelta(deltaInMeters) {
 
 /**
  * Evaluates Huish Episcopi Pumping Station on the River Yeo, including
- * automatic receiving river cut-off interlock (8.20m AOD) and Muchelney road inundation (7.30m AOD).
+ * automatic receiving river cut-off interlock (8.20m AOD) and alert threshold (8.48m AOD).
  */
 export function evaluateHuishEpiscopi(stage_mAOD, isSummer = false) {
   const cleanStage = sanitizeStageValue(stage_mAOD);
@@ -1232,13 +1235,6 @@ export function evaluateHuishEpiscopi(stage_mAOD, isSummer = false) {
     symbol = "🔒";
     severity = 3;
     narrative = `River Yeo stage has reached ${cleanStage.toFixed(2)}m AOD (≥ 8.20m bankfull limit). Huish Episcopi permanent pumps are automatically locked out to prevent levee breach.`;
-  } else if (cleanStage >= muchelneyRoad) {
-    code = "ROAD_INUNDATED";
-    label = "MUCHELNEY ROAD FLOODED";
-    badgeClass = "badge-warning";
-    symbol = "⚠️";
-    severity = 4;
-    narrative = `Warning: River Yeo stage (${cleanStage.toFixed(2)}m AOD) exceeds 7.30m road threshold. Muchelney-Langport road is inundated.`;
   }
 
   return {

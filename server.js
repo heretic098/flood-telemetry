@@ -1165,7 +1165,7 @@ const server = http.createServer(async (req, res) => {
           river: "River Yeo & River Isle → Parrett Confluence",
           yeo_stage_mAOD: huishStage,
           isle_stage_mAOD: midelneyStage,
-          status_code: huishEval.code === 'ALERT' || midelneyEval.code === 'ALERT' ? 'ALERT' : (huishEval.code === 'ROAD_INUNDATED' ? 'ALERT' : (huishEval.code === 'CUT_OFF' ? 'SLACK_RESTRICTED' : 'SECURE')),
+          status_code: huishEval.code === 'ALERT' || midelneyEval.code === 'ALERT' ? 'ALERT' : (huishEval.code === 'CUT_OFF' ? 'SLACK_RESTRICTED' : 'SECURE'),
           badge_label: huishEval.label,
           badge_class: huishEval.badgeClass,
           clearance_text: huishEval.clearanceText,

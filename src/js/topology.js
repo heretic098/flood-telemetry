@@ -7,8 +7,6 @@
 import {
   evaluateSpillway,
   evaluateSowyChannel,
-  calculateVillemonteDischarge,
-  estimateClyseFlow,
   formatHeadDelta,
   escapeHTML,
   escapeAttr,
@@ -639,7 +637,7 @@ function renderSVGNetwork() {
     } else if (edge.from === '52158' && edge.to === '52159') {
       edgeTitle = `Baltmoor Wall Levee Defense: Overtopping from River Parrett/Tone Confluence into Northmoor when stage ≥ 7.80m AOD (Status: ${isFlowActive ? 'ACTIVE OVERTOPPING' : 'SECURE'})`;
     } else if (edge.type === 'polder_overflow' || (edge.from === '52127' && edge.to === '52159')) {
-      edgeTitle = `Athelney Spillway & Cuts Road Cascade: Overtopping from Curry Moor into Northmoor when stage ≥ 7.35m AOD (Status: ${isFlowActive ? 'ACTIVE OVERFLOW (Cuts Rd Flooded)' : 'STANDBY (Cuts Rd Passable)'})`;
+      edgeTitle = `Athelney Spillway (Curry Moor ➔ Northmoor Cascade): Overtopping from Curry Moor into Northmoor when stage ≥ 7.35m AOD (Status: ${isFlowActive ? 'ACTIVE OVERFLOW' : 'STANDBY / DRY'})`;
     } else if (edge.from === '52233' && edge.to === '52234') {
       edgeTitle = `Monk's Leaze Clyse: Controlled gravity diversion from River Parrett into Sowy Relief Channel (Sill: 4.20m AOD, Status: ${isFlowActive ? 'DIVERTING' : 'CLOSED'})`;
     }
@@ -678,11 +676,11 @@ function renderSVGNetwork() {
       const bStroke = isFlowActive ? '#ef4444' : '#475569';
       const bTextFill = isFlowActive ? '#fca5a5' : '#cbd5e1';
       edgeBadgesHTML += `
-        <g class="topology-edge-badge ${dimmed ? 'dimmed' : ''}" data-target-node="52127" tabindex="0" role="button" aria-label="Athelney Spillway & Cuts Road Cascade at 7.35m AOD">
+        <g class="topology-edge-badge ${dimmed ? 'dimmed' : ''}" data-target-node="52127" tabindex="0" role="button" aria-label="Athelney Spillway (Curry Moor ➔ Northmoor Cascade) at 7.35m AOD">
           <rect x="${bX - bW/2}" y="${bY - 9}" width="${bW}" height="18" rx="4" fill="${bBg}" stroke="${bStroke}" stroke-width="1.2" />
           <text x="${bX}" y="${bY}" fill="${bTextFill}" font-size="8.2" font-weight="600" text-anchor="middle" dominant-baseline="central" letter-spacing="0.02em">${bLabel}</text>
           <rect x="${bX - bW/2 - 8}" y="${bY - 18}" width="${bW + 16}" height="36" fill="transparent" pointer-events="all" />
-          <title>${escapeHTML(edgeTitle)} (Click to inspect Curry Moor Basin &amp; Cuts Road)</title>
+          <title>${escapeHTML(edgeTitle)} (Click to inspect Curry Moor Basin)</title>
         </g>
       `;
     } else if (edge.from === '52158' && edge.to === '52159') {
@@ -1171,16 +1169,16 @@ function inspectNode(nodeId, restoreFocus = false) {
       const regime = getSeasonalRegime();
       const huishEval = evaluateHuishEpiscopi(stage, regime.isSummer);
       const isCutoff = huishEval.isPumpsCutoff;
-      const isRoadFlooded = huishEval.isRoadFlooded;
+      const isAlert = huishEval.code === 'ALERT';
       const pumpText = isCutoff ? '🔒 PUMPS LOCKED (RIVER FULL)' : (huishEval.pumpStatus === 'DUTY_PUMPING' ? '⚡ DUTY PUMPS ACTIVE' : (huishEval.pumpStatus === 'LEAD_PUMPING' ? '⚡ LEAD PUMP ACTIVE' : '🟢 STANDBY (GRAVITY DRAIN)'));
       statsGrid.innerHTML = `
         <div class="stat-card">
-          <span class="stat-title">8.20m River Cut-off Clearance</span>
-          <strong class="stat-val" style="color: ${isCutoff ? '#f59e0b' : '#38bdf8'}">${stage !== null ? (8.20 - stage >= 0 ? `+${(8.20 - stage).toFixed(2)}m clearance` : `${Math.abs(8.20 - stage).toFixed(2)}m above cutoff`) : '--'}</strong>
+          <span class="stat-title">8.20m River Cut-off Margin</span>
+          <strong class="stat-val" style="color: ${isCutoff ? '#ef4444' : '#38bdf8'}">${stage !== null ? (8.20 - stage >= 0 ? `+${(8.20 - stage).toFixed(2)}m clearance` : `${Math.abs(8.20 - stage).toFixed(2)}m above cutoff`) : '--'}</strong>
         </div>
         <div class="stat-card">
-          <span class="stat-title">7.30m Muchelney Road Margin</span>
-          <strong class="stat-val" style="color: ${isRoadFlooded ? '#ef4444' : '#10b981'}">${stage !== null ? (7.30 - stage >= 0 ? `+${(7.30 - stage).toFixed(2)}m margin` : `⚠️ ROAD INUNDATED`) : '--'}</strong>
+          <span class="stat-title">8.48m Flood Alert Margin</span>
+          <strong class="stat-val" style="color: ${isAlert ? '#ef4444' : '#10b981'}">${stage !== null ? (8.48 - stage >= 0 ? `+${(8.48 - stage).toFixed(2)}m margin` : `▲ FLOOD ALERT`) : '--'}</strong>
         </div>
         <div class="stat-card" style="grid-column: span 2;">
           <span class="stat-title">Huish Episcopi Pumping Station</span>
@@ -1246,11 +1244,11 @@ function inspectNode(nodeId, restoreFocus = false) {
         }
 
         const athelneyDelta = stage !== null ? (7.35 - stage) : null;
-        let athelneyText = '🟢 PASSABLE & DRY (7.35m crest)';
+        let athelneyText = '🟢 DRY: >0.30m below crest';
         if (stage !== null) {
-          if (stage >= 7.35) athelneyText = '🔴 ACTIVE CASCADE TO NORTHMOOR (Cuts Rd Flooded)';
-          else if (stage >= 7.05) athelneyText = `⚠️ NEAR CREST: ${athelneyDelta.toFixed(2)}m margin (Cuts Rd at risk)`;
-          else athelneyText = `🟢 DRY: ${athelneyDelta.toFixed(2)}m below crest (Cuts Rd Passable)`;
+          if (stage >= 7.35) athelneyText = '🔴 OVERTOPPING CASCADE (7.35m crest)';
+          else if (stage >= 7.05) athelneyText = `⚠️ NEAR CREST: ${athelneyDelta.toFixed(2)}m margin`;
+          else athelneyText = `🟢 DRY: ${athelneyDelta.toFixed(2)}m below crest`;
         }
 
         statsGrid.innerHTML = `
@@ -1265,7 +1263,7 @@ function inspectNode(nodeId, restoreFocus = false) {
           <div class="stat-card" style="grid-column: span 2;">
             <span class="stat-title">Hydraulic Flow Pathways</span>
             <strong class="stat-val" style="font-size:0.8rem; font-weight:normal; color:#cbd5e1;">
-              Inflow from River Tone via Hookbridge Spillway (7.45m). Overspill cascade to Northmoor Basin via Athelney Spillway (7.35m across Cuts Rd).
+              Inflow from River Tone via Hookbridge Spillway (7.45m). Overspill cascade to Northmoor Basin via Athelney Spillway (7.35m AOD crest).
             </strong>
           </div>
         `;
@@ -1297,7 +1295,7 @@ function inspectNode(nodeId, restoreFocus = false) {
           <div class="stat-card" style="grid-column: span 2;">
             <span class="stat-title">Dual Inflow Pathways</span>
             <strong class="stat-val" style="font-size:0.8rem; font-weight:normal; color:#cbd5e1;">
-              1. Inter-moor cascade from Curry Moor via Athelney Spillway (7.35m across Cuts Rd).<br/>
+              1. Inter-moor cascade from Curry Moor via Athelney Spillway (7.35m AOD crest).<br/>
               2. Extreme Parrett river overtopping via Baltmoor Wall (7.80m levee crest at Burrowbridge).
             </strong>
           </div>

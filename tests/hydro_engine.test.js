@@ -64,7 +64,7 @@ test('evaluateSowyChannel evaluates OPEN, THROTTLED, and CLOSED states correctly
   const openState = evaluateSowyChannel(4.50, 2.65, 4.20);
   assert.equal(openState.code, 'GRAVITY_OPEN');
   assert.equal(openState.pillText, '🟢 ACTIVE DIVERSION (DUAL GAUGE)');
-  assert.equal(openState.metricText.includes('m³/s'), true);
+  assert.equal(openState.metricText.includes('Head Drop'), true);
 
   const throttledState = evaluateSowyChannel(4.30, 4.28, 4.20);
   assert.equal(throttledState.code, 'THROTTLED');
@@ -172,26 +172,32 @@ test('new infrastructure pill evaluation functions return expected status string
   assert.ok(evaluateDunballEmergencyPumping(2.40, false, 2.80).statusText.includes('GRAVITY OK'));
 });
 
-test('evaluateHuishEpiscopi enforces operating cut-off, road inundation, and pump stages', () => {
-  // Baseflow / normal stage
+test('evaluateHuishEpiscopi enforces hydraulic operating cut-off and alert stages', () => {
+  // Baseflow / normal stage (< 8.20m AOD) -> SECURE
   const baseflow = evaluateHuishEpiscopi(6.68, true);
   assert.equal(baseflow.code, 'SECURE');
   assert.equal(baseflow.isRoadFlooded, false);
   assert.equal(baseflow.isPumpsCutoff, false);
   assert.ok(baseflow.clearanceText.includes('to Cut-off'));
 
-  // Muchelney road inundated at 7.30m
-  const roadFlooded = evaluateHuishEpiscopi(7.35, true);
-  assert.equal(roadFlooded.code, 'ROAD_INUNDATED');
-  assert.equal(roadFlooded.isRoadFlooded, true);
-  assert.equal(roadFlooded.isPumpsCutoff, false);
-  assert.ok(roadFlooded.label.includes('MUCHELNEY ROAD FLOODED'));
+  // Stage between 7.30m and 8.20m is SECURE hydraulically (muchelneyRoadMargin tracks road elevation helper)
+  const stage735 = evaluateHuishEpiscopi(7.35, true);
+  assert.equal(stage735.code, 'SECURE');
+  assert.equal(stage735.isRoadFlooded, true);
+  assert.equal(stage735.isPumpsCutoff, false);
+  assert.ok(stage735.clearanceText.includes('to Cut-off'));
 
-  // River cut-off at 8.20m AOD
+  // River cut-off at >= 8.20m AOD (< 8.48m AOD) -> CUT_OFF
   const cutoff = evaluateHuishEpiscopi(8.25, true);
   assert.equal(cutoff.code, 'CUT_OFF');
   assert.equal(cutoff.isPumpsCutoff, true);
   assert.ok(cutoff.label.includes('PUMPS LOCKED'));
+
+  // Flood alert at >= 8.48m AOD -> ALERT
+  const alert = evaluateHuishEpiscopi(8.50, true);
+  assert.equal(alert.code, 'ALERT');
+  assert.equal(alert.isPumpsCutoff, true);
+  assert.ok(alert.label.includes('FLOOD ALERT'));
 });
 
 test('evaluateMidelney evaluates gravity discharge vs head-locked pumping and FSA alert', () => {
