@@ -354,8 +354,39 @@ test('HYDRO-12: Polder storage basins receive overtopping flows exclusively from
   assert.equal(cmEdge.type, 'spillway_overtopping');
 
   // Northmoor overtopping edge: Baltmoor Wall (52158) -> Northmoor (52159)
-  const nmEdge = topology.edges.find(e => e.to === '52159');
-  assert.ok(nmEdge, 'Northmoor (52159) must have an incoming flow edge');
-  assert.equal(nmEdge.from, '52158', 'Northmoor must receive water from Baltmoor Wall Spillway (52158)');
-  assert.equal(nmEdge.type, 'spillway_overtopping');
+  const nmEdge = topology.edges.find(e => e.to === '52159' && e.type === 'spillway_overtopping');
+  assert.ok(nmEdge, 'Northmoor (52159) must have an incoming spillway_overtopping flow edge');
+  assert.equal(nmEdge.from, '52158', 'Northmoor must receive river overtopping water from Baltmoor Wall Spillway (52158)');
+
+  // Inter-moor cascade edge: Curry Moor (52127) -> Northmoor (52159) via Athelney Spillway (7.35m)
+  const cascadeEdge = topology.edges.find(e => e.from === '52127' && e.to === '52159');
+  assert.ok(cascadeEdge, 'Curry Moor (52127) must connect to Northmoor (52159) via Athelney Spillway cascade edge');
+  assert.equal(cascadeEdge.type, 'polder_overflow');
+});
+
+test('HYDRO-13: Penning regimes and calm baseflow never trigger false mobile pump orders or global flood warnings', async () => {
+  const { evaluateMidelney } = await import('../src/js/hydro_engine.js');
+  const resCatchment = await httpGet('/api/catchments/somerset');
+  const somerset = JSON.parse(resCatchment.body);
+
+  // 1. Curry Moor mobile pump order trigger must sit well above summer penning (~4.48m AOD)
+  for (const ps of somerset.moors.curry_moor.pumping_stations) {
+    assert.ok(
+      ps.thresholds.winter.mobile_order >= 5.50 && ps.thresholds.summer.mobile_order >= 5.50,
+      `[RULE-PUMP-01] ${ps.id} mobile_order (${ps.thresholds.winter.mobile_order}m) must be >= 5.50m AOD so normal ~4.48m penning never triggers mobile pump orders`
+    );
+  }
+
+  // 2. Routine baseflow penning head-lock at Midelney (<7.30m AOD) must stay severity 5 (Nominal), not severity 4 (Warning)
+  const midelneyBaseflowHeadlock = evaluateMidelney(6.63, 6.73);
+  assert.equal(midelneyBaseflowHeadlock.code, 'HEAD_LOCKED');
+  assert.equal(
+    midelneyBaseflowHeadlock.severity,
+    5,
+    'Routine baseflow head-lock at Midelney (<7.30m AOD) must have severity 5 so it does not trigger a false global WARNING banner'
+  );
+
+  // High water head-lock (>=7.30m AOD) must escalate to severity 4 (Warning)
+  const midelneyHighWaterHeadlock = evaluateMidelney(7.45, 7.60);
+  assert.equal(midelneyHighWaterHeadlock.severity, 4);
 });

@@ -1,4 +1,8 @@
 {
+  "id": "somerset",
+  "name": "Somerset Levels & Moors",
+  "region": "South West",
+  "description": "Real-time telemetry dashboard for Somerset Levels & Moors flood status",
   "moors": {
     "curry_moor": {
       "id": "curry_moor",

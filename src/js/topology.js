@@ -11,7 +11,14 @@ import {
   estimateClyseFlow,
   formatHeadDelta,
   escapeHTML,
-  escapeAttr
+  escapeAttr,
+  evaluateHuishEpiscopi,
+  evaluateMidelney,
+  evaluatePumpStatus,
+  getSeasonalRegime,
+  DEFAULT_TOPOLOGY_NODES,
+  GAUGE_DATUMS,
+  STATION_BASELINES
 } from './hydro_engine.js?v=1.2.0';
 
 let topologyData = null;
@@ -369,27 +376,7 @@ function setupFilterListeners() {
   });
 }
 
-const DEFAULT_TOPOLOGY_NODES = [
-  { id: "52108", name: "Greenham (Upper Tone)", river: "River Tone", catchment: "tone", node_type: "gauge", stage_mAOD: 76.14, alert_level_mAOD: 76.99, status: "SECURE", downstream_node_id: "52109", has_sparkline: true },
-  { id: "52109", name: "Bishops Hull (Mid Tone)", river: "River Tone", catchment: "tone", node_type: "gauge", stage_mAOD: 16.93, alert_level_mAOD: 17.48, status: "SECURE", downstream_node_id: "52111", has_sparkline: true },
-  { id: "52111", name: "Taunton Market", river: "River Tone", catchment: "tone", node_type: "gauge", stage_mAOD: 13.12, alert_level_mAOD: 14.24, status: "SECURE", downstream_node_id: "52162", has_sparkline: true },
-  { id: "52162", name: "Bathpool Outfall", river: "River Tone", catchment: "tone", node_type: "gauge", stage_mAOD: 7.54, ground_elevation_mAOD: 7.50, alert_level_mAOD: 9.50, status: "SECURE", downstream_node_id: "52118", has_sparkline: true },
-  { id: "52118", name: "Hookbridge Spillway / Currymoor PS", river: "River Tone", catchment: "tone", node_type: "spillway", stage_mAOD: 4.50, crest_elevation_mAOD: 7.45, alert_level_mAOD: 7.15, status: "SECURE", downstream_node_id: "athelney_junction", diverts_to_node_id: "52127", has_sparkline: true, govuk_link: "https://check-for-flooding.service.gov.uk/station/3073" },
-  { id: "52127", name: "Curry Moor Basin", river: "Curry Moor Basin", catchment: "tone", node_type: "polder_basin", stage_mAOD: 4.47, ground_elevation_mAOD: 2.10, alert_level_mAOD: 6.50, crest_elevation_mAOD: 7.45, status: "SECURE", downstream_node_id: "currymoor_ps", has_sparkline: true, govuk_link: "https://check-for-flooding.service.gov.uk/station/3064" },
-  { id: "52116", name: "Chiselborough (Upper Parrett)", river: "River Parrett", catchment: "parrett", node_type: "gauge", stage_mAOD: 20.75, alert_level_mAOD: 22.50, status: "SECURE", downstream_node_id: "52119", has_sparkline: true },
-  { id: "52119", name: "Gaw Bridge (Mid Parrett)", river: "River Parrett", catchment: "parrett", node_type: "gauge", stage_mAOD: 10.42, alert_level_mAOD: 12.80, status: "SECURE", downstream_node_id: "52233", has_sparkline: true },
-  { id: "52120", name: "Huish Episcopi PS (River Yeo)", river: "River Yeo", catchment: "tributaries", node_type: "gauge", stage_mAOD: 6.68, alert_level_mAOD: 8.48, status: "SECURE", downstream_node_id: "52233", upstream_tributaries: ["52121", "52117", "52112"], has_sparkline: true, govuk_link: "https://check-for-flooding.service.gov.uk/station/3071" },
-  { id: "52153", name: "Midelney (River Isle)", river: "River Isle", catchment: "tributaries", node_type: "gauge", stage_mAOD: 6.63, alert_level_mAOD: 8.20, status: "SECURE", downstream_node_id: "52233", upstream_tributaries: ["52115", "52114"], has_sparkline: true, govuk_link: "https://check-for-flooding.service.gov.uk/station/3380" },
-  { id: "52233", name: "Monk's Leaze Clyse (Upstream)", river: "River Parrett", catchment: "parrett", node_type: "clyse_gate", stage_mAOD: 6.73, sill_elevation_mAOD: 4.20, alert_level_mAOD: 7.90, status: "CLOSED", downstream_node_id: "52158", diverts_to_node_id: "52234", has_sparkline: true },
-  { id: "52158", name: "Baltmoor Wall (Burrowbridge Confluence)", river: "River Parrett", catchment: "parrett", node_type: "spillway", stage_mAOD: 3.78, crest_elevation_mAOD: 7.80, alert_level_mAOD: 7.50, status: "SECURE", downstream_node_id: "52124", diverts_to_node_id: "52159", has_sparkline: true, govuk_link: "https://check-for-flooding.service.gov.uk/station/3065" },
-  { id: "52159", name: "Northmoor Basin", river: "Northmoor Basin", catchment: "parrett", node_type: "polder_basin", stage_mAOD: 3.17, ground_elevation_mAOD: 1.80, alert_level_mAOD: 3.80, crest_elevation_mAOD: 7.80, status: "SECURE", downstream_node_id: "saltmoor_ps", has_sparkline: true, govuk_link: "https://check-for-flooding.service.gov.uk/station/3068" },
-  { id: "52124", name: "West Quay Bridgwater", river: "River Parrett", catchment: "parrett", node_type: "gauge", stage_mAOD: 3.10, alert_level_mAOD: 6.10, status: "SECURE", downstream_node_id: "52163", has_sparkline: true },
-  { id: "52163", name: "Dunball Tidal Outfall", river: "Parrett Estuary", catchment: "parrett", node_type: "tidal_outfall", stage_mAOD: 2.95, alert_level_mAOD: 6.50, status: "SECURE", has_sparkline: true, govuk_link: "https://check-for-flooding.service.gov.uk/station/3070" },
-  { id: "52234", name: "Monk's Leaze Clyse (Downstream Sowy)", river: "Sowy Relief Channel", catchment: "sowy_ksd", node_type: "gauge", stage_mAOD: 6.72, alert_level_mAOD: 7.60, status: "SECURE", downstream_node_id: "52157", has_sparkline: true },
-  { id: "52157", name: "Beerwall Upstream (Greylake)", river: "Sowy Relief Channel", catchment: "sowy_ksd", node_type: "spillway", stage_mAOD: 3.92, crest_elevation_mAOD: 7.30, alert_level_mAOD: 4.20, status: "SECURE", downstream_node_id: "E9531", has_sparkline: true },
-  { id: "E9531", name: "Bradney (King's Sedgemoor Drain)", river: "King's Sedgemoor Drain", catchment: "sowy_ksd", node_type: "gauge", stage_mAOD: 3.50, alert_level_mAOD: 3.50, status: "SECURE", downstream_node_id: "E9094", has_sparkline: true, ea_link: "https://environment.data.gov.uk/flood-monitoring/id/stations/E9531.html" },
-  { id: "E9094", name: "Dunball Inland KSD Outfall", river: "King's Sedgemoor Drain", catchment: "sowy_ksd", node_type: "gauge", stage_mAOD: 3.15, alert_level_mAOD: 3.50, status: "SECURE", downstream_node_id: "52163", has_sparkline: true, govuk_link: "https://check-for-flooding.service.gov.uk/station/9499" }
-];
+
 
 const DEFAULT_TOPOLOGY_EDGES = [
   { from: "52108", to: "52109", type: "main_river", flow_active: true },
@@ -672,7 +659,7 @@ function renderSVGNetwork() {
         </g>
       `;
     } else if (edge.type === 'polder_overflow' || (edge.from === '52127' && edge.to === '52159')) {
-      const bX = 525, bY = 295, bW = 158;
+      const bX = 538, bY = 308, bW = 148;
       const bLabel = isFlowActive ? '▲ Athelney Cascade Active 7.35m' : 'Athelney Spillway 7.35m (Cuts Rd)';
       const bBg = isFlowActive ? 'rgba(127, 29, 29, 0.95)' : 'rgba(15, 23, 42, 0.92)';
       const bStroke = isFlowActive ? '#ef4444' : '#475569';
@@ -680,13 +667,13 @@ function renderSVGNetwork() {
       edgeBadgesHTML += `
         <g class="topology-edge-badge ${dimmed ? 'dimmed' : ''}" data-target-node="52127" tabindex="0" role="button" aria-label="Athelney Spillway & Cuts Road Cascade at 7.35m AOD">
           <rect x="${bX - bW/2}" y="${bY - 9}" width="${bW}" height="18" rx="4" fill="${bBg}" stroke="${bStroke}" stroke-width="1.2" />
-          <text x="${bX}" y="${bY}" fill="${bTextFill}" font-size="8.5" font-weight="600" text-anchor="middle" dominant-baseline="central" letter-spacing="0.02em">${bLabel}</text>
+          <text x="${bX}" y="${bY}" fill="${bTextFill}" font-size="8.2" font-weight="600" text-anchor="middle" dominant-baseline="central" letter-spacing="0.02em">${bLabel}</text>
           <rect x="${bX - bW/2 - 8}" y="${bY - 18}" width="${bW + 16}" height="36" fill="transparent" pointer-events="all" />
           <title>${escapeHTML(edgeTitle)} (Click to inspect Curry Moor Basin &amp; Cuts Road)</title>
         </g>
       `;
     } else if (edge.from === '52158' && edge.to === '52159') {
-      const bX = 540, bY = 222, bW = 112;
+      const bX = 562, bY = 240, bW = 104;
       const bLabel = isFlowActive ? '▲ Baltmoor Overtopping 7.80m' : 'Baltmoor Wall 7.80m';
       const bBg = isFlowActive ? 'rgba(127, 29, 29, 0.95)' : 'rgba(15, 23, 42, 0.92)';
       const bStroke = isFlowActive ? '#ef4444' : '#475569';
@@ -694,13 +681,13 @@ function renderSVGNetwork() {
       edgeBadgesHTML += `
         <g class="topology-edge-badge ${dimmed ? 'dimmed' : ''}" data-target-node="52158" tabindex="0" role="button" aria-label="Baltmoor Wall Levee Defense at 7.80m AOD">
           <rect x="${bX - bW/2}" y="${bY - 9}" width="${bW}" height="18" rx="4" fill="${bBg}" stroke="${bStroke}" stroke-width="1.2" />
-          <text x="${bX}" y="${bY}" fill="${bTextFill}" font-size="8.5" font-weight="600" text-anchor="middle" dominant-baseline="central" letter-spacing="0.02em">${bLabel}</text>
+          <text x="${bX}" y="${bY}" fill="${bTextFill}" font-size="8.2" font-weight="600" text-anchor="middle" dominant-baseline="central" letter-spacing="0.02em">${bLabel}</text>
           <rect x="${bX - bW/2 - 8}" y="${bY - 18}" width="${bW + 16}" height="36" fill="transparent" pointer-events="all" />
           <title>${escapeHTML(edgeTitle)} (Click to inspect Baltmoor Wall)</title>
         </g>
       `;
     } else if (edge.from === '52233' && edge.to === '52234') {
-      const bX = 730, bY = 338, bW = 126;
+      const bX = 760, bY = 356, bW = 124;
       const bLabel = isFlowActive ? '🔵 Monk\'s Leaze Diverting 4.20m' : 'Monk\'s Leaze Clyse 4.20m';
       const bBg = isFlowActive ? 'rgba(12, 74, 110, 0.95)' : 'rgba(15, 23, 42, 0.92)';
       const bStroke = isFlowActive ? '#0284c7' : '#475569';
@@ -708,7 +695,7 @@ function renderSVGNetwork() {
       edgeBadgesHTML += `
         <g class="topology-edge-badge ${dimmed ? 'dimmed' : ''}" data-target-node="52233" tabindex="0" role="button" aria-label="Monk's Leaze Clyse Sluice Gate at 4.20m AOD">
           <rect x="${bX - bW/2}" y="${bY - 9}" width="${bW}" height="18" rx="4" fill="${bBg}" stroke="${bStroke}" stroke-width="1.2" />
-          <text x="${bX}" y="${bY}" fill="${bTextFill}" font-size="8.5" font-weight="600" text-anchor="middle" dominant-baseline="central" letter-spacing="0.02em">${bLabel}</text>
+          <text x="${bX}" y="${bY}" fill="${bTextFill}" font-size="8.2" font-weight="600" text-anchor="middle" dominant-baseline="central" letter-spacing="0.02em">${bLabel}</text>
           <rect x="${bX - bW/2 - 8}" y="${bY - 18}" width="${bW + 16}" height="36" fill="transparent" pointer-events="all" />
           <title>${escapeHTML(edgeTitle)} (Click to inspect Monk's Leaze Clyse)</title>
         </g>
@@ -963,6 +950,15 @@ function getNodeCoordinates(nodeId, nodes, edges, visited = new Set()) {
 }
 
 function getNodeStatusVisual(node) {
+  if (node.node_type === 'tidal_outfall') {
+    if (node.status === 'ALERT') {
+      return { stroke: '#f59e0b', fill: '#78350f', symbol: '⚠️', label: 'STORM SURGE ALERT', badgeClass: 'badge-near-crest', sparklineColor: '#f59e0b' };
+    }
+    if (node.status === 'SLACK_RESTRICTED' || node.is_tide_locked) {
+      return { stroke: '#64748b', fill: '#1e293b', symbol: '🕒', label: 'TIDE-LOCKED', badgeClass: 'badge-tide-locked', sparklineColor: '#0284c7' };
+    }
+    return { stroke: '#0284c7', fill: '#0c4a6e', symbol: '🟢', label: 'DISCHARGING', badgeClass: 'badge-secure', sparklineColor: '#0284c7' };
+  }
   switch (node.status) {
     case 'OVERSPILLING':
       return { stroke: '#ef4444', fill: '#7f1d1d', symbol: '🔴', label: 'OVERSPILLING', badgeClass: 'badge-overtopping' };
@@ -970,12 +966,13 @@ function getNodeStatusVisual(node) {
       return { stroke: '#f59e0b', fill: '#78350f', symbol: '⚠️', label: 'ALERT', badgeClass: 'badge-near-crest' };
     case 'DIVERTING':
       return { stroke: '#0284c7', fill: '#0c4a6e', symbol: '🔵', label: 'DIVERTING', badgeClass: 'badge-open' };
-    case 'CLOSED':
     case 'SLACK_RESTRICTED':
-      return { stroke: '#64748b', fill: '#1e293b', symbol: '⛔', label: node.status === 'SLACK_RESTRICTED' ? 'TIDE-LOCKED' : 'CLOSED', badgeClass: 'badge-tide-locked' };
+      return { stroke: '#64748b', fill: '#1e293b', symbol: '🕒', label: 'TIDE-LOCKED', badgeClass: 'badge-tide-locked', sparklineColor: node.id === 'E9094' ? '#38bdf8' : '#0284c7' };
+    case 'CLOSED':
+      return { stroke: '#64748b', fill: '#1e293b', symbol: '⛔', label: 'CLOSED', badgeClass: 'badge-tide-locked' };
     case 'SECURE':
     default:
-      return { stroke: '#10b981', fill: '#064e3b', symbol: '🟢', label: 'SECURE', badgeClass: 'badge-secure' };
+      return { stroke: '#10b981', fill: '#064e3b', symbol: '🟢', label: 'SECURE', badgeClass: 'badge-secure', sparklineColor: node.id === 'E9094' ? '#38bdf8' : '#10b981' };
   }
 }
 
@@ -1069,16 +1066,6 @@ function inspectNode(nodeId, restoreFocus = false) {
   const stageUnit = document.querySelector('.inspector-hero-metric .stage-unit');
   const crest = node.crest_elevation_mAOD || node.alert_level_mAOD || null;
 
-  const GAUGE_DATUMS = {
-    '52108': 75.69,
-    '52109': 16.58,
-    '52111': 12.47,
-    '52116': 20.70,
-    '52119': 10.00,
-    '52120': 5.00,
-    '52153': 5.185
-  };
-
   const isRelativeGauge = GAUGE_DATUMS[node.id] !== undefined;
   const datum = GAUGE_DATUMS[node.id];
   const isPolder = node.node_type === 'polder_basin';
@@ -1110,26 +1097,11 @@ function inspectNode(nodeId, restoreFocus = false) {
     // Compute Crest / Alert Clearance
     const hasCrest = !!node.crest_elevation_mAOD && !isPolder;
     const effectiveCrest = node.crest_elevation_mAOD || node.alert_level_mAOD || 7.45;
-    const STATION_BASELINES = {
-      '52162': 7.50,
-      '52118': 3.30,
-      '52127': 2.10,
-      '52158': 3.50,
-      '52159': 1.80,
-      '52233': 4.20,
-      '52234': 4.20,
-      '52157': 2.30,
-      'E9531': 1.00,
-      'E9094': 0.50,
-      '52124': 0.50,
-      '52163': -1.50,
-      '52120': 5.80,
-      '52153': 5.50
-    };
     let minLevel = node.ground_elevation_mAOD || STATION_BASELINES[node.id] || (effectiveCrest > 3.0 ? effectiveCrest - 3.0 : 0.0);
 
     if (crestLabel) {
       if (isPolder) crestLabel.innerText = 'Spillway Capacity Crest:';
+      else if (node.node_type === 'tidal_outfall') crestLabel.innerText = 'Storm Surge Alert:';
       else crestLabel.innerText = hasCrest ? 'Engineered Crest:' : 'Alert Level:';
     }
     if (crestVal) crestVal.innerText = `${effectiveCrest.toFixed(2)}mAOD`;
@@ -1137,7 +1109,18 @@ function inspectNode(nodeId, restoreFocus = false) {
     let clearanceText = '';
     if (stage !== null) {
       const delta = stage - effectiveCrest;
-      if (delta >= 0) {
+      if (node.node_type === 'tidal_outfall' && delta < 0) {
+        const inlandNode = topologyData?.nodes?.find(n => n.id === 'E9094');
+        const inlandStage = typeof node.inland_stage_mAOD === 'number' ? node.inland_stage_mAOD : (typeof inlandNode?.stage_mAOD === 'number' ? inlandNode.stage_mAOD : 2.38);
+        const isTideLocked = stage >= inlandStage;
+        if (isTideLocked) {
+          clearanceText = `🕒 Tide-Locked (Inland KSD: ${inlandStage.toFixed(2)}mAOD)`;
+          if (clearancePill) clearancePill.className = 'clearance-pill pill-tide-locked';
+        } else {
+          clearanceText = `✓ Discharging (Inland KSD: ${inlandStage.toFixed(2)}mAOD)`;
+          if (clearancePill) clearancePill.className = 'clearance-pill pill-secure';
+        }
+      } else if (delta >= 0) {
         clearanceText = hasCrest ? `▲ Overtopping by +${delta.toFixed(2)}m over crest` : (isPolder ? `▲ Overtopping Inflow Active` : `▲ Above Alert by +${delta.toFixed(2)}m`);
         if (clearancePill) clearancePill.className = 'clearance-pill pill-overspill';
       } else {
@@ -1172,9 +1155,11 @@ function inspectNode(nodeId, restoreFocus = false) {
   if (statsGrid) {
     statsGrid.style.display = 'grid';
     if (node.id === '52120') {
-      const isCutoff = stage !== null && stage >= 8.20;
-      const isRoadFlooded = stage !== null && stage >= 7.30;
-      const pumpText = isCutoff ? '🔒 PUMPS LOCKED (RIVER FULL)' : ((stage !== null && stage >= 6.50) ? '⚡ DUTY PUMPS ACTIVE' : ((stage !== null && stage >= 6.30) ? '⚡ LEAD PUMP ACTIVE' : '🟢 STANDBY (GRAVITY DRAIN)'));
+      const regime = getSeasonalRegime();
+      const huishEval = evaluateHuishEpiscopi(stage, regime.isSummer);
+      const isCutoff = huishEval.isPumpsCutoff;
+      const isRoadFlooded = huishEval.isRoadFlooded;
+      const pumpText = isCutoff ? '🔒 PUMPS LOCKED (RIVER FULL)' : (huishEval.pumpStatus === 'DUTY_PUMPING' ? '⚡ DUTY PUMPS ACTIVE' : (huishEval.pumpStatus === 'LEAD_PUMPING' ? '⚡ LEAD PUMP ACTIVE' : '🟢 STANDBY (GRAVITY DRAIN)'));
       statsGrid.innerHTML = `
         <div class="stat-card">
           <span class="stat-title">8.20m River Cut-off Clearance</span>
@@ -1190,24 +1175,61 @@ function inspectNode(nodeId, restoreFocus = false) {
         </div>
       `;
     } else if (node.id === '52153') {
+      const parrettNode = topologyData?.nodes?.find(n => n.id === '52233' || n.id === '52158');
+      const parrettStage = typeof parrettNode?.stage_mAOD === 'number' ? parrettNode.stage_mAOD : null;
+      const midelneyEval = evaluateMidelney(stage, parrettStage);
       statsGrid.innerHTML = `
         <div class="stat-card">
           <span class="stat-title">Midelney Sluice State</span>
-          <strong class="stat-val" style="color:#10b981">🟢 Gravity Flap Sluice</strong>
+          <strong class="stat-val" style="color:${midelneyEval.isAlert ? '#ef4444' : (midelneyEval.isHeadLocked ? '#f59e0b' : '#10b981')}">${midelneyEval.isAlert ? '🚨 FSA Overflow / Alert' : (midelneyEval.isHeadLocked ? '🔒 Head-Locked (Pumping)' : '🟢 Gravity Flap Sluice')}</strong>
         </div>
         <div class="stat-card">
           <span class="stat-title">West Moor FSA Pumping</span>
-          <strong class="stat-val" style="font-size:0.8rem; font-family:monospace;">Lead: 6.40m | Duty: 6.70m</strong>
+          <strong class="stat-val" style="font-size:0.8rem; font-family:monospace;">${midelneyEval.isPumping ? '⚡ PUMPS ACTIVE (≥6.40m)' : 'Lead: 6.40m | Duty: 6.70m'}</strong>
+        </div>
+      `;
+    } else if (node.id === '52163' || node.id === 'E9094') {
+      const seaNode = topologyData?.nodes?.find(n => n.id === '52163');
+      const inlandNode = topologyData?.nodes?.find(n => n.id === 'E9094');
+      const seaVal = node.id === '52163' ? stage : (typeof node.sea_stage_mAOD === 'number' ? node.sea_stage_mAOD : (seaNode?.stage_mAOD ?? 2.95));
+      const inlandVal = node.id === 'E9094' ? stage : (typeof node.inland_stage_mAOD === 'number' ? node.inland_stage_mAOD : (inlandNode?.stage_mAOD ?? 2.38));
+      const isTideLocked = (typeof seaVal === 'number' && typeof inlandVal === 'number') ? (seaVal >= inlandVal) : (node.status === 'SLACK_RESTRICTED');
+      const headDiff = (typeof inlandVal === 'number' && typeof seaVal === 'number') ? (inlandVal - seaVal) : 0;
+      const doorStateText = isTideLocked ? '🕒 TIDE-LOCKED (SEA HEAD)' : '🟢 GRAVITY DISCHARGE OPEN';
+      const doorStateColor = isTideLocked ? '#fb923c' : '#38bdf8';
+      statsGrid.innerHTML = `
+        <div class="stat-card">
+          <span class="stat-title">Dunball Sea Door State</span>
+          <strong class="stat-val" style="color: ${doorStateColor}; font-size:0.82rem;">${doorStateText}</strong>
+        </div>
+        <div class="stat-card">
+          <span class="stat-title">Head Differential (KSD ➔ Sea)</span>
+          <strong class="stat-val" style="font-size:0.82rem; font-family:monospace; color:${isTideLocked ? '#fbbf24' : '#38bdf8'};">${formatHeadDelta(headDiff)} (${inlandVal?.toFixed(2) ?? '--'}m ➔ ${seaVal?.toFixed(2) ?? '--'}m)</strong>
+        </div>
+        <div class="stat-card" style="grid-column: span 2;">
+          <span class="stat-title">Tidal Outfall Hydrostatics</span>
+          <strong class="stat-val" style="font-size:0.8rem; font-weight:normal; color:#cbd5e1;">
+            ${isTideLocked
+              ? `High tide in Parrett Estuary (${seaVal?.toFixed(2)}mAOD) exceeds inland King's Sedgemoor Drain (${inlandVal?.toFixed(2)}mAOD). Passive flap doors shut under reverse hydrostatic head.`
+              : `Estuary tide (${seaVal?.toFixed(2)}mAOD) is below inland KSD (${inlandVal?.toFixed(2)}mAOD). Positive head opens Dunball flap clyse for gravity evacuation.`}
+          </strong>
         </div>
       `;
     } else if (isPolder) {
       if (node.id === '52127') {
+        const regime = getSeasonalRegime();
+        const pumpEval = evaluatePumpStatus(stage ?? 0, 'Currymoor PS', 2, 4.00, 4.30, 5.80, 6.10, 6.50, regime.isSummer);
         let pumpText = '🟢 Standby (Lead 4.00m, Duty 4.30m)';
         if (stage !== null) {
-          if (stage >= 6.10) pumpText = '⚡ EA MOBILE PUMPS ACTIVE (≥6.10m)';
-          else if (stage >= 5.80) pumpText = '⚠️ EA MOBILE PUMPS ORDERED (≥5.80m)';
-          else if (stage >= 4.30) pumpText = '⚡ FIXED DUTY PUMPS ACTIVE (≥4.30m)';
-          else if (stage >= 4.00) pumpText = '⚡ FIXED LEAD PUMP ACTIVE (≥4.00m)';
+          if (pumpEval.mode === 'CRITICAL_OVERSPILL' || pumpEval.mode === 'EMERGENCY_MOBILE_ACTIVE') {
+            pumpText = '⚡ EA MOBILE PUMPS ACTIVE (≥6.10m)';
+          } else if (pumpEval.mode === 'MOBILE_ORDERED') {
+            pumpText = '⚠️ EA MOBILE PUMPS ORDERED (≥5.80m)';
+          } else if (pumpEval.mode === 'FULL_CAPACITY') {
+            pumpText = '⚡ FIXED DUTY PUMPS ACTIVE (≥4.30m)';
+          } else if (pumpEval.mode === 'PARTIAL_DUTY') {
+            pumpText = '⚡ FIXED LEAD PUMP ACTIVE (≥4.00m)';
+          }
         }
 
         const athelneyDelta = stage !== null ? (7.35 - stage) : null;
@@ -1235,12 +1257,19 @@ function inspectNode(nodeId, restoreFocus = false) {
           </div>
         `;
       } else {
+        const regime = getSeasonalRegime();
+        const pumpEval = evaluatePumpStatus(stage ?? 0, 'Saltmoor & Northmoor PS', 4, 3.40, 3.70, 4.80, 5.20, 5.60, regime.isSummer);
         let pumpText = '🟢 Standby (Lead 3.40m, Duty 3.70m)';
         if (stage !== null) {
-          if (stage >= 5.20) pumpText = '⚡ EA MOBILE PUMPS ACTIVE (≥5.20m)';
-          else if (stage >= 4.80) pumpText = '⚠️ EA MOBILE PUMPS ORDERED (≥4.80m)';
-          else if (stage >= 3.70) pumpText = '⚡ DUTY PUMPS ACTIVE (≥3.70m)';
-          else if (stage >= 3.40) pumpText = '⚡ LEAD PUMP ACTIVE (≥3.40m)';
+          if (pumpEval.mode === 'CRITICAL_OVERSPILL' || pumpEval.mode === 'EMERGENCY_MOBILE_ACTIVE') {
+            pumpText = '⚡ EA MOBILE PUMPS ACTIVE (≥5.20m)';
+          } else if (pumpEval.mode === 'MOBILE_ORDERED') {
+            pumpText = '⚠️ EA MOBILE PUMPS ORDERED (≥4.80m)';
+          } else if (pumpEval.mode === 'FULL_CAPACITY') {
+            pumpText = '⚡ DUTY PUMPS ACTIVE (≥3.70m)';
+          } else if (pumpEval.mode === 'PARTIAL_DUTY') {
+            pumpText = '⚡ LEAD PUMP ACTIVE (≥3.40m)';
+          }
         }
 
         statsGrid.innerHTML = `
@@ -1374,8 +1403,9 @@ function inspectNode(nodeId, restoreFocus = false) {
                        `${node.id}-level-stage-i-15_min-mAOD`;
     const readings = historyMeasures[measureKey] || statusMeasures[measureKey] || [];
 
+    const sparklineColor = vis.sparklineColor || vis.stroke;
     if (readings.length > 0) {
-      sparklineBox.innerHTML = renderInspectorSparkline(readings, vis.stroke, crestForSparkline, isRelativeGauge);
+      sparklineBox.innerHTML = renderInspectorSparkline(readings, sparklineColor, crestForSparkline, isRelativeGauge);
       bindInspectorSparklineEvents(sparklineBox);
     } else {
       sparklineBox.innerHTML = `<div style="padding:1rem; text-align:center; color:#38bdf8; font-size:0.8rem;">📡 Fetching live 24h EA telemetry hydrograph...</div>`;
@@ -1404,7 +1434,7 @@ function inspectNode(nodeId, restoreFocus = false) {
           } catch (_) {}
         }
         if (selectedNodeId === node.id) {
-          sparklineBox.innerHTML = renderInspectorSparkline(fetchedReadings || [], vis.stroke, crestForSparkline, isRelativeGauge);
+          sparklineBox.innerHTML = renderInspectorSparkline(fetchedReadings || [], sparklineColor, crestForSparkline, isRelativeGauge);
           bindInspectorSparklineEvents(sparklineBox);
         }
       })();

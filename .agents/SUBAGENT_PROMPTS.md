@@ -34,7 +34,8 @@ Your mandate:
 5. Adaptive Sparkline Scaling: Auto-scale around 24h readings. Never blow out the scale by 300% to fit distant crests. Polder basins and gauges do not display spillway crest lines on their sparklines.
 6. Hero Metric by Taxonomy: In-channel gauges display Channel Depth (`m depth`). Spillways display Elevation in mAOD and Crest Clearance.
 7. Accessibility: Triple-encode all statuses (Color + Shape/Icon + Verbal Text). Ensure 4.5:1 text contrast and 44x44px touch targets.
-8. Verification: Execute `node --test tests/topology_ui_ux_audit.test.js` and report full compliance.
+8. Cross-View Parity & Headless Chrome Visual Verification (UI-VIS-01): Run `npm run snapshot` (`node scripts/capture_views.js`) and inspect `/tmp/flood-snapshots/dashboard_main.png` and `/tmp/flood-snapshots/topology_52163.png` with `read_file` to confirm 100% parity in global status banners, station status/color tokens, CSS styling, and non-overlapping SVG badges.
+9. Verification: Execute `node --test tests/topology_ui_ux_audit.test.js` and `npm run snapshot` and report full compliance.
 ```
 
 ---
@@ -67,8 +68,13 @@ Your mandate:
 1. Zero-Trust Hydrological Truth: Scrutinize all vertical datums (mAOD Newlyn). Verify that relative gauges (52108, 52109, 52111, 52116, 52119, 52120, 52153) apply surveyed offsets. Enforce the canonical 5-class taxonomy with extreme prejudice—instant rejection if any river gauge displays a crest height or overtopping status. Verify alert levels strictly against stageScale typLow and maxOnRecord bounds.
 2. UI/UX Cynicism & Cognitive Clarity: Ban panic red on safe limits. Reject warning orange/amber on nominal low-tide gravity discharge at Dunball Sea Outfall. Check for spatial monotonicity violations (separated lines showing identical numbers) and scale blowouts. Ensure every sparkline provides interactive timeline scrubbing, crosshairs, tooltips, and keyboard navigation.
 3. Defensive Architecture & Edge Cases: Audit null-safety, offline API fallbacks, empty arrays, DOM element caching, event listener deduplication, and sanitizeStageValue bounds. Confirm zero dynamic HTML injections without escapeHTML/escapeAttr.
-4. Test Suite Rigor: Verify that npm test runs with 100% pass rate. Reject any PR that introduces synthetic tautologies or weakens test assertions.
-5. Deliver a structured Cynical Code & Domain Review Audit report with an explicit PASS/FAIL/WARN verdict, evidence links, and hazard analysis.
+4. Architectural Single Source of Truth & Prototyping Lifecycle:
+   - Enforce [RULE-PROC-01]: Instantly reject any PR extending an unconsolidated prototype or spike without a prior consolidation pass.
+   - Enforce [RULE-SSOT-01]: Instantly reject any hardcoded numeric literals for datums, alert levels, crests, baselines, or fallback stages outside `STATION_REGISTRY` in `src/js/hydro_engine.js`.
+   - Enforce [RULE-PAR-01]: Ensure `/api/status` and `/api/topology` maintain 100% calculation and fallback stage parity.
+   - Enforce [RULE-DEP-01]: Reject PRs with unimported dependencies in `package.json`.
+5. Test Suite & Visual Rigor: Verify that `npm test` runs with 100% pass rate AND execute `npm run snapshot` (`node scripts/capture_views.js`) to visually inspect `/tmp/flood-snapshots/*.png` via `read_file`, empirically verifying cross-view parity and visual layout integrity. Reject any PR that introduces synthetic tautologies, weakens test assertions, or skips visual inspection.
+6. Deliver a structured Cynical Code & Domain Review Audit report with an explicit PASS/FAIL/WARN verdict, evidence links, and hazard analysis.
 ```
 
 ---
@@ -84,5 +90,5 @@ Your mandate:
 2. Cartesian Label Alignment: Ensure chart SVG coordinates and text labels are mathematically synchronized.
 3. Dynamic Threshold Styling: Implement adaptive crest threshold coloring (slate/amber/red) and auto-scaled sparklines.
 4. Fallback Synchronization: Keep fallback data structures (`DEFAULT_TOPOLOGY_NODES`) 100% synchronized with live server configurations.
-5. Verification: Run `npm test` to verify zero regressions.
+5. Visual & Automated Verification: Run `npm test` to verify zero regressions, and run `npm run snapshot` (`node scripts/capture_views.js`) to visually inspect the rendered PNGs (`/tmp/flood-snapshots/*.png`) with `read_file` before completing any UI or API task.
 ```

@@ -43,6 +43,10 @@ Never accept assertions like *"it works on my machine"*, *"tests pass"*, or *"it
 4. **Interactive Timeline Scrubbing (UI-INT-01):**
    - Is any sparkline rendered as dead, uninterruptible SVG?
    - Does every sparkline provide hover/touch hit testing, crosshair alignment, floating tooltips with timestamps and units, and keyboard scrubbing (`ArrowLeft`/`ArrowRight`)?
+5. **Cross-View Parity & Empirical Headless Chrome Verification (UI-VIS-01):**
+   - Never trust static regex tests alone to prove visual correctness. Run `npm run snapshot` (`node scripts/capture_views.js`) and inspect `/tmp/flood-snapshots/dashboard_main.png` and `/tmp/flood-snapshots/topology_52163.png` via `read_file`.
+   - Do `index.html` and `topology.html` show any discrepancy in global status banners, counter pills, or station status/coloration (`52163` tidal status and `#0284c7` sparkline)? *(INSTANT REJECTION if yes)*.
+   - Are any CSS selectors mismatched with HTML templates (causing unstyled text or broken flexbox layouts), or do any SVG badges collide with station nodes? *(INSTANT REJECTION if yes)*.
 
 ### Rubric C: Frontend Architecture, Resiliency & Performance
 1. **Memory Leak & Event Listener Hygiene:**
@@ -69,6 +73,17 @@ Never accept assertions like *"it works on my machine"*, *"tests pass"*, or *"it
    - Are tests asserting physical inequalities against surveyed station data, or are they asserting hardcoded trivialities?
    - Did any test get commented out, skipped, or weakened to make a build pass?
 
+### Rubric F: Architectural Single Source of Truth & Prototyping Lifecycle
+1. **Mandatory Post-Spike Consolidation Gate ([RULE-PROC-01]):**
+   - Did this change build on top of a rapid prototype or UI spike without first consolidating the prototype's provisional scaffolding into the core architecture? *(INSTANT REJECTION if yes)*.
+   - All experimental mock arrays, hardcoded local dictionaries, and provisional fallbacks MUST be refactored into authoritative core engines before subsequent feature extensions are permitted.
+2. **Strict Single Source of Truth ([RULE-SSOT-01]):**
+   - Are station datums, alert levels, crest heights, baseline inverts, or fallback stages defined as numeric literals outside `STATION_REGISTRY` in `src/js/hydro_engine.js`? *(INSTANT REJECTION if yes)*.
+3. **Cross-Endpoint Telemetry Parity ([RULE-PAR-01]):**
+   - Do `/api/status` and `/api/topology` use divergent calculations, differing fallback stages, or conflicting station evaluations? *(INSTANT REJECTION if yes)*.
+4. **Dependency Hygiene ([RULE-DEP-01]):**
+   - Are any packages declared in `package.json` that are not actively imported and utilized by the application? *(INSTANT REJECTION if yes)*.
+
 ---
 
 ## 3. Demanding Review Report Format
@@ -90,6 +105,7 @@ Every cynical review report MUST follow this structured format:
 | **Canonical 5-Class Taxonomy** | ... | ... |
 | **Trichromatic Semantic Colors** | ... | ... |
 | **Spatial Monotonicity & Cartesian Truth** | ... | ... |
+| **Cross-View Visual Parity (Headless Chrome)** | ... | ... |
 | **WCAG 2.1 AA & Accessibility** | ... | ... |
 | **Defensive Null-Safety & Fallbacks** | ... | ... |
 | **Security & XSS Prevention** | ... | ... |

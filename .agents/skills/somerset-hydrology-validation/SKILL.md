@@ -96,7 +96,34 @@ $$\forall \text{ river station } s \notin \{\text{polder\_basins}\}, \quad \exis
 
 ---
 
-## 6. Verification Command
+## 6. Polder Pumping Calibration & Penning Separation (`[RULE-PUMP-01]`)
+
+1. **EA Trigger Point Plan Calibrations:**
+   - **Curry Moor (`52127` — Currymoor PS & Stanmoor PS):**
+     - Ground invert: $2.10\text{m AOD}$
+     - Winter Fixed Pumps: Lead $4.00\text{m}$, Duty $4.30\text{m}$ | Summer Penning Fixed Pumps: Lead $4.30\text{m}$, Duty $4.60\text{m}$
+     - EA Temporary Mobile Pumps: **Ordered at $5.80\text{m AOD}$**, **Active at $6.10\text{m AOD}$**, **Critical Storage at $6.50\text{m AOD}$**
+   - **Northmoor (`52159` — Saltmoor PS & Northmoor PS):**
+     - Ground invert: $1.80\text{m AOD}$
+     - Winter Fixed Pumps: Lead $3.40\text{m}$, Duty $3.70\text{m}$ | Summer Penning Fixed Pumps: Lead $3.65\text{m}$, Duty $3.90\text{m}$
+     - EA Temporary Mobile Pumps: **Ordered at $4.80\text{m AOD}$**, **Active at $5.20\text{m AOD}$**, **Critical Storage at $5.60\text{m AOD}$**
+2. **Penning vs. Emergency Alert Separation:**
+   - Normal summer/autumn IDB penning levels (e.g., Curry Moor held at $\sim 4.30\text{m}–4.48\text{m AOD}$ or Monk's Leaze Clyse penning the Parrett at $\sim 6.73\text{m AOD}$ above Midelney baseflow at $\sim 6.63\text{m AOD}$) are routine agricultural water management states.
+   - Mobile pump triggers and global `WARNING` banners (`severity <= 4`) must NEVER fire during normal baseflow or summer penning (`Midelney < 7.30m AOD`).
+
+---
+
+## 7. Inter-Moor Cascade vs. River Levee Overtopping
+
+Northmoor (`52159`) has two distinct floodwater entry pathways that must never be conflated or disconnected:
+1. **Athelney Spillway (`7.35m AOD` across Cuts Road — `polder_overflow` edge `52127 -> 52159`):**
+   - When Curry Moor (`52127`) fills to $\ge 7.35\text{m AOD}$, stored water cascades north-east across Cuts Road (East Lyng to Athelney) into Northmoor (`52159`).
+2. **Baltmoor Wall (`7.80m AOD` Levee Defense — `spillway_overtopping` edge `52158 -> 52159`):**
+   - Protects East Lyng and Northmoor directly against River Tone / River Parrett confluence water at Burrowbridge up to $7.80\text{m AOD}$.
+
+---
+
+## 8. Verification Command
 
 Always verify all hydrological domain rules before finishing:
 ```bash

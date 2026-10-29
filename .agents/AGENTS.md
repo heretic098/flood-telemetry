@@ -31,12 +31,15 @@ Every subagent invoked on this project MUST adopt its respective role definition
   4. **[RULE-SLP-01 to 04] Downhill Hydraulic Slope Invariant:**
      $$h_{\text{upstream}}(\text{mAOD}) - h_{\text{downstream}}(\text{mAOD}) \ge -0.05\text{m}$$
      * Non-tidal inland river reaches must maintain a downhill gradient. Steep upland reaches (Greenham $\to$ Bishops Hull $\to$ Taunton, Chiselborough $\to$ Gaw Bridge) must drop by $> 0.50\text{m}$.
-  5. **[RULE-PUMP-01] Polder Pumping Sequencing:**
-     $$Z_{\text{ground}} < Z_{\text{lead\_pump}} < Z_{\text{duty\_pump}} \le \text{alert\_level} \le Z_{\text{crest}}$$
-  6. **[RULE-NET-01] Estuarine Baseflow Reachability & Fluvial Continuity Invariant:**
+  5. **[RULE-PUMP-01] Polder Pumping Sequencing & Penning Separation:**
+     $$Z_{\text{ground}} < Z_{\text{summer\_penning}} \le Z_{\text{duty\_pump}} < Z_{\text{mobile\_order}} < Z_{\text{mobile\_active}} \le \text{alert\_level} \le Z_{\text{crest}}$$
+     * Mobile pump deployment triggers (`mobile_order` / `mobile_active`) and global `WARNING` banners (`severity <= 4`) must NEVER overlap normal summer/autumn penning levels (e.g., Curry Moor $4.30\text{m}–4.45\text{m AOD}$ or routine Midelney penning head-lock $< 7.30\text{m AOD}$).
+     * Calibrate all polder pump triggers strictly against the Environment Agency Somerset Levels Trigger Point Plan (Currymoor PS: Mobile Order $5.80\text{m}$, Active $6.10\text{m}$; Northmoor/Saltmoor PS: Mobile Order $4.80\text{m}$, Active $5.20\text{m}$).
+  6. **[RULE-NET-01] Estuarine Baseflow Reachability, Inter-Moor Cascade & Fluvial Continuity Invariant:**
      $$\forall \text{ river station } s \notin \{\text{polder\_basins}\}, \quad \exists \text{ path } \mathcal{P}(s \rightsquigarrow \text{sea\_outfall}) \subseteq \mathcal{E}_{\text{main\_river} \cup \text{sea\_outfall}}$$
      * Every non-polder inland river channel must maintain an unbroken, directed path in `edges` to the estuary sea outfall (`52163`) that remains traversable during normal, calm baseflow when spillways are dry.
      * Engineered relief spillways (Hookbridge `52118`, Baltmoor Wall `52158`) are lateral overflow weirs, NOT dead ends or river terminators; the fluvial channel continues past the spillway to downstream confluences (`52118` $\to$ `52158` at Burrowbridge).
+     * Lowland polders must preserve both inflow pathways into Northmoor (`52159`): inter-moor cascade from Curry Moor (`52127` $\to$ `52159` via Athelney Spillway at $7.35\text{m AOD}$ across Cuts Road) AND direct river levee overtopping (`52158` $\to$ `52159` via Baltmoor Wall at $7.80\text{m AOD}$).
      * Never validate network topology by asserting metadata strings (`chains`); validation MUST perform graph reachability traversal over the live directed graph `edges`.
 - **Sign-Off Protocol:** Any pull request or schema change touching station telemetry, datums, or thresholds must execute and pass `tests/hydrological_network_audit.test.js`.
 
@@ -81,7 +84,10 @@ Every subagent invoked on this project MUST adopt its respective role definition
      * Sparklines must NEVER be rendered as dead static SVG paths without inspection.
      * Every sparkline in both Main Dashboard and Topology Drawer MUST provide an interactive DOM scaffold: `.sparkline-wrapper` (`tabindex="0"`, `role="region"`), `.sparkline-crosshair`, `.sparkline-dot-highlight`, transparent hit overlay `.sparkline-touch-overlay`, and floating `.sparkline-tooltip` displaying exact timestamp (`DD Mon HH:MM GMT`) and value.
      * Event listeners (`pointermove`, `touchmove`, `pointerleave`) and keyboard accessibility (`ArrowLeft`, `ArrowRight`, `Home`, `End`, `Escape`) MUST be bound immediately upon chart rendering.
-- **Sign-Off Protocol:** Any UI, SVG, or CSS edit must pass `tests/topology_ui_ux_audit.test.js`.
+  9. **[UI-VIS-01] Cross-View Parity & Mandatory Headless Chrome Visual Inspection:**
+     * The Main Dashboard (`index.html`) and Topology View (`topology.html`) MUST share a Single Source of Truth (`aggregateGlobalStatus` via `/api/status` and `src/js/hydro_engine.js`) for global status banners, counter pills, and station status/color tokens (e.g., `52163` Dunball Tidal Outfall `TIDE-LOCKED` vs `DISCHARGING` in `#0284c7`).
+     * Static source/regex unit tests alone are NEVER sufficient for UI sign-off. Whenever modifying HTML, CSS, SVG coordinates, or status evaluators, agents MUST run `npm run snapshot` (`node scripts/capture_views.js [--station=52163]`, which captures both views in parallel with pre-calibrated `1440x1850` and `1440x1250` viewports and auto-starts an ephemeral server if port 3000 is not running) and visually inspect the resulting `/tmp/flood-snapshots/*.png` files with `read_file` to verify zero overlapping badges, matching CSS selectors, and 100% cross-view visual parity.
+- **Sign-Off Protocol:** Any UI, SVG, or CSS edit must pass `tests/topology_ui_ux_audit.test.js` AND pass visual inspection of `npm run snapshot` screenshots via `read_file`.
 
 ---
 
@@ -106,8 +112,10 @@ Every subagent invoked on this project MUST adopt its respective role definition
 - **Mandatory Implementation Rules:**
   1. Adhere strictly to the canonical 5-class taxonomy in `/api/topology` (`server.js`) and client scripts (`src/js/topology.js`).
   2. Implement spatial monotonicity, dynamic semantic colors, and interactive scrubbing across all chart renderers.
-  3. Keep fallback data structures (`DEFAULT_TOPOLOGY_NODES`) 100% synchronized with live server calibrations.
+  3. **[RULE-SSOT-01]** Maintain `STATION_REGISTRY` in `src/js/hydro_engine.js` as the strict Single Source of Truth for datums, alert levels, crests, and fallbacks. Never hardcode numeric stage/datum constants elsewhere.
   4. Ensure zero false alerts during baseflow and zero lag in telemetry updates.
+  5. After any frontend, CSS, SVG, or status evaluation change, run `npm run snapshot` (`scripts/capture_views.js`) and visually inspect the generated `/tmp/flood-snapshots/*.png` screenshots via `read_file` to catch CSS selector mismatches, layout collisions, or cross-view discrepancies before committing.
+  6. **[RULE-PROC-01]** Adhere strictly to the Spike $\to$ Consolidation $\to$ Extension development pattern: any rapid prototype or spike MUST undergo an architectural consolidation pass before receiving new features.
 
 ---
 
@@ -119,6 +127,10 @@ Every subagent invoked on this project MUST adopt its respective role definition
   Before approving any change:
   - [ ] Did any in-channel river gauge node acquire a crest height or overtopping badge? (REJECT if yes)
   - [ ] Did any alert level move outside `[typicalRangeLow, maxOnRecord]` or below invert? (REJECT if yes)
+  - [ ] **[RULE-SSOT-01]** Did any file introduce station datums, crests, alert levels, baselines, or fallback stages as numeric literals outside `STATION_REGISTRY` in `src/js/hydro_engine.js`? (REJECT if yes)
+  - [ ] **[RULE-PAR-01]** Do `/api/status` and `/api/topology` diverge on telemetry extraction, station calculations, or fallback values? (REJECT if yes)
+  - [ ] **[RULE-PROC-01]** Is this PR adding features on top of an unconsolidated rapid prototype / spike without a formal consolidation pass? (REJECT if yes)
+  - [ ] **[RULE-DEP-01]** Does `package.json` contain any dependencies not directly imported by application code? (REJECT if yes)
   - [ ] Does any chart show separated gridlines with identical labels? (REJECT if yes)
   - [ ] Is any dormant limit or low-tide gravity discharge styled in panic red or warning orange? (REJECT if yes)
   - [ ] Does any SVG label fail to align mathematically with its coordinate geometry? (REJECT if yes)
@@ -127,6 +139,8 @@ Every subagent invoked on this project MUST adopt its respective role definition
   - [ ] Are touch hit targets strictly $\ge 44 \times 44\text{px}$ across all interactive elements? (REJECT if no)
   - [ ] Are dynamic HTML insertions unescaped or vulnerable to XSS? (REJECT if yes)
   - [ ] Does any telemetry evaluation produce `NaN` or unhandled exceptions when arrays are empty? (REJECT if yes)
+  - [ ] Do the Main Dashboard (`index.html`) and Topology View (`topology.html`) diverge on the global status banner, counter pill, or station status/coloration? (REJECT if yes)
+  - [ ] Were Headless Chrome screenshots captured and visually inspected via `read_file` for both `index.html` and `topology.html` to verify CSS selector parity and zero overlapping SVG badges/labels? (REJECT if no)
   - [ ] Did `npm test` execute with 100% pass rate? (REJECT if no)
 
 

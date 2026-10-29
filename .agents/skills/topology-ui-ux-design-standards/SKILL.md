@@ -123,9 +123,30 @@ Sparklines must NEVER be rendered as inert, dead SVG paths:
 
 ---
 
-## 8. Verification Command
+## 8. Cross-View Parity & Mandatory Headless Chrome Visual Inspection (`[UI-VIS-01]`)
 
-Always verify all UI/UX rules before finishing:
+Static source assertions cannot detect mismatched CSS selectors, unstyled pills, or overlapping SVG coordinates. Every UI/UX change MUST undergo live visual verification using Headless Chrome before sign-off:
+
+1. **Single Source of Truth Across Views:**
+   - The Main Dashboard (`index.html`) and Topology View (`topology.html`) must display 100% identical global header banners (`#alert-banner`) and counter pills (`#counter-pill`), driven by `aggregateGlobalStatus()` in `/api/status` and `src/js/hydro_engine.js`.
+   - Station status badges and hydrograph colors in the Topology Inspector (`src/js/topology.js`) must match the Main Dashboard (`src/js/app.js`), including Estuarine Deep Blue (`#0284c7`) and `🕒 TIDE-LOCKED` (`badge-tide-locked` / `status-tide-locked`) for Dunball Tidal Outfall (`52163`).
+2. **Headless Chrome Screenshot Capture & Visual Inspection Protocol (`npm run snapshot`):**
+   Execute the pre-calibrated parallel snapshot script (`scripts/capture_views.js`), which automatically reuses `localhost:3000` (or spins up an ephemeral server if none is running) and renders both views concurrently at full unclipped heights (`1440x1850` for Dashboard, `1440x1250` for Topology):
+   ```bash
+   npm run snapshot
+   # Or inspect a specific station in the Topology drawer:
+   node scripts/capture_views.js --station=52163
+   ```
+   Then call `read_file` on `/tmp/flood-snapshots/dashboard_main.png` and `/tmp/flood-snapshots/topology_52163.png` and visually verify:
+   - Global status banner and counter pill text/color match 100% across `index.html` and `topology.html`.
+   - Hero stage metrics (`.stage-num`), status pills (`.status-pill`), and clearance pills render with proper typography and semantic borders.
+   - On-canvas SVG infrastructure badges (`Hookbridge Spillway 7.45m`, `Athelney Spillway 7.35m (Cuts Rd)`, `Baltmoor Wall 7.80m`, `Monk's Leaze Clyse 4.20m`) do not collide with or obscure station node rings or labels.
+
+---
+
+## 9. Verification Command
+
+Always verify all UI/UX rules via the automated test suite AND Headless Chrome screenshot inspection before finishing:
 ```bash
 node --test tests/topology_ui_ux_audit.test.js
 ```

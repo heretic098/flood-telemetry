@@ -8,10 +8,10 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
-    "test": "node --test"
+    "test": "node --test",
+    "snapshot": "node scripts/capture_views.js"
   },
   "dependencies": {
-    "better-sqlite3": "^11.8.1",
-    "express": "^4.21.2"
+    "better-sqlite3": "^11.8.1"
   }
 }

@@ -172,9 +172,9 @@ export function evaluatePumpStatus(
   totalPumps = 2,
   startTrigger = 4.00,
   fullTrigger = 4.30,
-  mobileOrderTrigger = 4.40,
-  mobileActiveTrigger = 4.60,
-  criticalSpillTrigger = 4.85,
+  mobileOrderTrigger = 5.80,
+  mobileActiveTrigger = 6.10,
+  criticalSpillTrigger = 6.50,
   isSummer = false
 ) {
   let stage = 0;
@@ -504,9 +504,511 @@ export async function loadCatchmentConfig(catchmentId = 'somerset', fetchFn = gl
 }
 
 /**
+ * Canonical 19-Station Hydrological Network Registry
+ * Authoritative single source of truth for all network assets, geodetic datums,
+ * structural taxonomy classes, alert thresholds, and calm baseflow fallbacks.
+ */
+export const STATION_REGISTRY = {
+  '52108': {
+    id: '52108',
+    name: 'Greenham (Upper Tone)',
+    river: 'River Tone',
+    catchment: 'tone',
+    node_type: 'gauge',
+    measure_id: '52108-level-stage-i-15_min-mASD',
+    alt_measure_ids: ['52108-level-stage-i-15_min-m'],
+    datum_offset_mAOD: 75.69,
+    baseline_invert_mAOD: 75.72,
+    alert_level_mAOD: 76.99,
+    crest_elevation_mAOD: undefined,
+    sill_elevation_mAOD: undefined,
+    fallback_stage_mAOD: 76.14,
+    downstream_node_id: '52109',
+    has_sparkline: true
+  },
+  '52109': {
+    id: '52109',
+    name: 'Bishops Hull (Mid Tone)',
+    river: 'River Tone',
+    catchment: 'tone',
+    node_type: 'gauge',
+    measure_id: '52109-level-stage-i-15_min-mASD',
+    alt_measure_ids: ['52109-level-stage-i-15_min-m'],
+    datum_offset_mAOD: 16.58,
+    baseline_invert_mAOD: 16.60,
+    alert_level_mAOD: 17.48,
+    crest_elevation_mAOD: undefined,
+    sill_elevation_mAOD: undefined,
+    fallback_stage_mAOD: 16.93,
+    downstream_node_id: '52111',
+    has_sparkline: true
+  },
+  '52111': {
+    id: '52111',
+    name: 'Taunton Market',
+    river: 'River Tone',
+    catchment: 'tone',
+    node_type: 'gauge',
+    measure_id: '52111-level-stage-i-15_min-mASD',
+    alt_measure_ids: ['52111-level-stage-i-15_min-m'],
+    datum_offset_mAOD: 12.47,
+    baseline_invert_mAOD: 12.67,
+    alert_level_mAOD: 14.24,
+    crest_elevation_mAOD: undefined,
+    sill_elevation_mAOD: undefined,
+    fallback_stage_mAOD: 13.12,
+    downstream_node_id: '52162',
+    has_sparkline: true
+  },
+  '52162': {
+    id: '52162',
+    name: 'Bathpool Outfall',
+    river: 'River Tone',
+    catchment: 'tone',
+    node_type: 'gauge',
+    measure_id: '52162-level-stage-i-15_min-mAOD',
+    datum_offset_mAOD: 0.00,
+    baseline_invert_mAOD: 7.50,
+    ground_elevation_mAOD: 7.50,
+    alert_level_mAOD: 9.50,
+    crest_elevation_mAOD: undefined,
+    sill_elevation_mAOD: undefined,
+    fallback_stage_mAOD: 7.54,
+    downstream_node_id: '52118',
+    has_sparkline: true
+  },
+  '52118': {
+    id: '52118',
+    name: 'Hookbridge Spillway / Currymoor PS',
+    river: 'River Tone',
+    catchment: 'tone',
+    node_type: 'spillway',
+    measure_id: '52118-level-stage-i-15_min-mAOD',
+    datum_offset_mAOD: 0.00,
+    baseline_invert_mAOD: 3.30,
+    alert_level_mAOD: 7.15,
+    crest_elevation_mAOD: 7.45,
+    sill_elevation_mAOD: undefined,
+    fallback_stage_mAOD: 4.50,
+    downstream_node_id: '52158',
+    diverts_to_node_id: '52127',
+    has_sparkline: true,
+    govuk_link: 'https://check-for-flooding.service.gov.uk/station/3073'
+  },
+  '52127': {
+    id: '52127',
+    name: 'Curry Moor Basin',
+    river: 'Curry Moor Basin',
+    catchment: 'tone',
+    node_type: 'polder_basin',
+    measure_id: '52127-level-stage-i-15_min-mAOD',
+    datum_offset_mAOD: 0.00,
+    baseline_invert_mAOD: 2.10,
+    ground_elevation_mAOD: 2.10,
+    alert_level_mAOD: 6.50,
+    crest_elevation_mAOD: 7.45,
+    sill_elevation_mAOD: undefined,
+    fallback_stage_mAOD: 4.47,
+    downstream_node_id: 'currymoor_ps',
+    has_sparkline: true,
+    govuk_link: 'https://check-for-flooding.service.gov.uk/station/3064'
+  },
+  '52116': {
+    id: '52116',
+    name: 'Chiselborough (Upper Parrett)',
+    river: 'River Parrett',
+    catchment: 'parrett',
+    node_type: 'gauge',
+    measure_id: '52116-level-stage-i-15_min-m',
+    alt_measure_ids: ['52116-level-stage-i-15_min-mASD'],
+    datum_offset_mAOD: 20.70,
+    baseline_invert_mAOD: 20.70,
+    alert_level_mAOD: 22.50,
+    crest_elevation_mAOD: undefined,
+    sill_elevation_mAOD: undefined,
+    fallback_stage_mAOD: 20.75,
+    downstream_node_id: '52119',
+    has_sparkline: true
+  },
+  '52119': {
+    id: '52119',
+    name: 'Gaw Bridge (Mid Parrett)',
+    river: 'River Parrett',
+    catchment: 'parrett',
+    node_type: 'gauge',
+    measure_id: '52119-level-stage-i-15_min-mASD',
+    alt_measure_ids: ['52119-level-stage-i-15_min-m'],
+    datum_offset_mAOD: 10.00,
+    baseline_invert_mAOD: 10.16,
+    alert_level_mAOD: 12.80,
+    crest_elevation_mAOD: undefined,
+    sill_elevation_mAOD: undefined,
+    fallback_stage_mAOD: 10.42,
+    downstream_node_id: '52233',
+    has_sparkline: true
+  },
+  '52120': {
+    id: '52120',
+    name: 'Huish Episcopi PS (River Yeo)',
+    river: 'River Yeo',
+    catchment: 'tributaries',
+    node_type: 'gauge',
+    measure_id: '52120-level-stage-i-15_min-mASD',
+    alt_measure_ids: ['52120-level-stage-i-15_min-m'],
+    datum_offset_mAOD: 5.000,
+    baseline_invert_mAOD: 5.80,
+    alert_level_mAOD: 8.48,
+    crest_elevation_mAOD: undefined,
+    sill_elevation_mAOD: undefined,
+    fallback_stage_mAOD: 6.68,
+    downstream_node_id: '52233',
+    upstream_tributaries: ['52121', '52117', '52112'],
+    has_sparkline: true,
+    govuk_link: 'https://check-for-flooding.service.gov.uk/station/3071'
+  },
+  '52153': {
+    id: '52153',
+    name: 'Midelney (River Isle)',
+    river: 'River Isle',
+    catchment: 'tributaries',
+    node_type: 'gauge',
+    measure_id: '52153-level-stage-i-15_min-mASD',
+    alt_measure_ids: ['52153-level-stage-i-15_min-m'],
+    datum_offset_mAOD: 5.185,
+    baseline_invert_mAOD: 5.50,
+    alert_level_mAOD: 8.20,
+    crest_elevation_mAOD: undefined,
+    sill_elevation_mAOD: undefined,
+    fallback_stage_mAOD: 6.63,
+    downstream_node_id: '52233',
+    upstream_tributaries: ['52115', '52114'],
+    has_sparkline: true,
+    govuk_link: 'https://check-for-flooding.service.gov.uk/station/3380'
+  },
+  '52233': {
+    id: '52233',
+    name: "Monk's Leaze Clyse (Upstream)",
+    river: 'River Parrett',
+    catchment: 'parrett',
+    node_type: 'clyse_gate',
+    measure_id: '52233-level-stage-i-15_min-mAOD',
+    datum_offset_mAOD: 0.00,
+    baseline_invert_mAOD: 4.20,
+    sill_elevation_mAOD: 4.20,
+    alert_level_mAOD: 7.90,
+    crest_elevation_mAOD: undefined,
+    fallback_stage_mAOD: 6.73,
+    downstream_node_id: '52158',
+    diverts_to_node_id: '52234',
+    has_sparkline: true,
+    ea_link: 'https://environment.data.gov.uk/flood-monitoring/id/stations/52233.html'
+  },
+  '52158': {
+    id: '52158',
+    name: 'Baltmoor Wall (Burrowbridge Confluence)',
+    river: 'River Parrett',
+    catchment: 'parrett',
+    node_type: 'spillway',
+    measure_id: '52158-level-stage-i-15_min-mAOD',
+    datum_offset_mAOD: 0.00,
+    baseline_invert_mAOD: 3.50,
+    alert_level_mAOD: 7.50,
+    crest_elevation_mAOD: 7.80,
+    sill_elevation_mAOD: undefined,
+    fallback_stage_mAOD: 3.78,
+    downstream_node_id: '52124',
+    diverts_to_node_id: '52159',
+    has_sparkline: true,
+    govuk_link: 'https://check-for-flooding.service.gov.uk/station/3065'
+  },
+  '52159': {
+    id: '52159',
+    name: 'Northmoor Basin',
+    river: 'Northmoor Basin',
+    catchment: 'parrett',
+    node_type: 'polder_basin',
+    measure_id: '52159-level-stage-i-15_min-mAOD',
+    datum_offset_mAOD: 0.00,
+    baseline_invert_mAOD: 1.80,
+    ground_elevation_mAOD: 1.80,
+    alert_level_mAOD: 3.80,
+    crest_elevation_mAOD: 7.80,
+    sill_elevation_mAOD: undefined,
+    fallback_stage_mAOD: 3.17,
+    downstream_node_id: 'saltmoor_ps',
+    has_sparkline: true,
+    govuk_link: 'https://check-for-flooding.service.gov.uk/station/3068'
+  },
+  '52124': {
+    id: '52124',
+    name: 'West Quay Bridgwater',
+    river: 'River Parrett',
+    catchment: 'parrett',
+    node_type: 'gauge',
+    measure_id: '52124-level-tidal_level-i-15_min-mAOD',
+    datum_offset_mAOD: 0.00,
+    baseline_invert_mAOD: 0.50,
+    alert_level_mAOD: 6.10,
+    crest_elevation_mAOD: undefined,
+    sill_elevation_mAOD: undefined,
+    fallback_stage_mAOD: 3.10,
+    downstream_node_id: '52163',
+    has_sparkline: true
+  },
+  '52163': {
+    id: '52163',
+    name: 'Dunball Tidal Outfall',
+    river: 'Parrett Estuary',
+    catchment: 'parrett',
+    node_type: 'tidal_outfall',
+    measure_id: '52163-level-tidal_level-i-15_min-mAOD',
+    datum_offset_mAOD: 0.00,
+    baseline_invert_mAOD: -1.50,
+    alert_level_mAOD: 6.50,
+    crest_elevation_mAOD: undefined,
+    sill_elevation_mAOD: undefined,
+    fallback_stage_mAOD: 0.84,
+    downstream_node_id: 'sea_outfall',
+    has_sparkline: true,
+    govuk_link: 'https://check-for-flooding.service.gov.uk/station/9129'
+  },
+  '52234': {
+    id: '52234',
+    name: "Monk's Leaze Clyse (Downstream Sowy)",
+    river: 'Sowy Relief Channel',
+    catchment: 'sowy_ksd',
+    node_type: 'gauge',
+    measure_id: '52234-level-downstage-i-15_min-mAOD',
+    datum_offset_mAOD: 0.00,
+    baseline_invert_mAOD: 4.20,
+    alert_level_mAOD: 7.60,
+    crest_elevation_mAOD: undefined,
+    sill_elevation_mAOD: undefined,
+    fallback_stage_mAOD: 6.72,
+    downstream_node_id: '52157',
+    has_sparkline: true,
+    ea_link: 'https://environment.data.gov.uk/flood-monitoring/id/stations/52234.html'
+  },
+  '52157': {
+    id: '52157',
+    name: 'Beerwall Upstream (Greylake)',
+    river: 'Sowy Relief Channel',
+    catchment: 'sowy_ksd',
+    node_type: 'spillway',
+    measure_id: '52157-level-stage-i-15_min-mAOD',
+    datum_offset_mAOD: 0.00,
+    baseline_invert_mAOD: 2.30,
+    alert_level_mAOD: 4.20,
+    crest_elevation_mAOD: 7.30,
+    sill_elevation_mAOD: undefined,
+    fallback_stage_mAOD: 3.92,
+    downstream_node_id: 'E9531',
+    has_sparkline: true
+  },
+  'E9531': {
+    id: 'E9531',
+    name: "Bradney (King's Sedgemoor Drain)",
+    river: "King's Sedgemoor Drain",
+    catchment: 'sowy_ksd',
+    node_type: 'gauge',
+    measure_id: 'E9531-level-stage-i-15_min-mAOD',
+    datum_offset_mAOD: 0.00,
+    baseline_invert_mAOD: 1.00,
+    alert_level_mAOD: 3.50,
+    crest_elevation_mAOD: undefined,
+    sill_elevation_mAOD: undefined,
+    fallback_stage_mAOD: 3.20,
+    downstream_node_id: 'E9094',
+    has_sparkline: true,
+    ea_link: 'https://environment.data.gov.uk/flood-monitoring/id/stations/E9531.html'
+  },
+  'E9094': {
+    id: 'E9094',
+    name: 'Dunball Inland KSD Outfall',
+    river: "King's Sedgemoor Drain",
+    catchment: 'sowy_ksd',
+    node_type: 'gauge',
+    measure_id: 'E9094-level-stage-i-15_min-mAOD',
+    datum_offset_mAOD: 0.00,
+    baseline_invert_mAOD: 0.50,
+    alert_level_mAOD: 3.50,
+    crest_elevation_mAOD: undefined,
+    sill_elevation_mAOD: undefined,
+    fallback_stage_mAOD: 2.62,
+    downstream_node_id: '52163',
+    has_sparkline: true,
+    govuk_link: 'https://check-for-flooding.service.gov.uk/station/9499'
+  }
+};
+
+/**
+ * Extracts and calculates water elevation in mAOD for a given station.
+ * Applies surveyed datum offsets, plausibility sanitization, and fallback values.
+ */
+export function extractStationStage(measures, stationId) {
+  const station = STATION_REGISTRY[stationId];
+  if (!station) {
+    return null;
+  }
+
+  if (measures && typeof measures === 'object') {
+    let measureEntry = measures[station.measure_id];
+    
+    if (!measureEntry && Array.isArray(station.alt_measure_ids)) {
+      for (const altId of station.alt_measure_ids) {
+        if (measures[altId]) {
+          measureEntry = measures[altId];
+          break;
+        }
+      }
+    }
+
+    if (measureEntry !== undefined && measureEntry !== null) {
+      let rawVal = null;
+      if (typeof measureEntry === 'number' && Number.isFinite(measureEntry)) {
+        rawVal = measureEntry;
+      } else if (Array.isArray(measureEntry) && measureEntry.length > 0) {
+        const item = measureEntry[0];
+        if (typeof item === 'number' && Number.isFinite(item)) {
+          rawVal = item;
+        } else if (item && typeof item.value === 'number' && Number.isFinite(item.value)) {
+          rawVal = item.value;
+        }
+      } else if (typeof measureEntry.value === 'number' && Number.isFinite(measureEntry.value)) {
+        rawVal = measureEntry.value;
+      }
+
+      if (rawVal !== null) {
+        const stageAOD = Number((rawVal + (station.datum_offset_mAOD || 0)).toFixed(2));
+        const sanitized = sanitizeStageValue(stageAOD);
+        if (sanitized !== null) {
+          return sanitized;
+        }
+      }
+    }
+  }
+
+  return station.fallback_stage_mAOD;
+}
+
+/**
+ * Surveyed relative gauge vertical datum transformations (+mAOD)
+ */
+export const GAUGE_DATUMS = {
+  '52108': 75.69,
+  '52109': 16.58,
+  '52111': 12.47,
+  '52116': 20.70,
+  '52119': 10.00,
+  '52120': 5.000,
+  '52153': 5.185
+};
+
+/**
+ * Channel bed invert and moor basin ground elevations (+mAOD)
+ */
+export const STATION_BASELINES = {
+  '52162': 7.50,
+  '52118': 3.30,
+  '52127': 2.10,
+  '52158': 3.50,
+  '52159': 1.80,
+  '52233': 4.20,
+  '52234': 4.20,
+  '52157': 2.30,
+  'E9531': 1.00,
+  'E9094': 0.50,
+  '52124': 0.50,
+  '52163': -1.50,
+  '52120': 5.80,
+  '52153': 5.50
+};
+
+/**
+ * Default topology node fallbacks
+ */
+export const DEFAULT_TOPOLOGY_NODES = [
+  { id: "52108", name: "Greenham (Upper Tone)", river: "River Tone", catchment: "tone", node_type: "gauge", stage_mAOD: 76.14, alert_level_mAOD: 76.99, status: "SECURE", downstream_node_id: "52109", has_sparkline: true },
+  { id: "52109", name: "Bishops Hull (Mid Tone)", river: "River Tone", catchment: "tone", node_type: "gauge", stage_mAOD: 16.93, alert_level_mAOD: 17.48, status: "SECURE", downstream_node_id: "52111", has_sparkline: true },
+  { id: "52111", name: "Taunton Market", river: "River Tone", catchment: "tone", node_type: "gauge", stage_mAOD: 13.12, alert_level_mAOD: 14.24, status: "SECURE", downstream_node_id: "52162", has_sparkline: true },
+  { id: "52162", name: "Bathpool Outfall", river: "River Tone", catchment: "tone", node_type: "gauge", stage_mAOD: 7.54, ground_elevation_mAOD: 7.50, alert_level_mAOD: 9.50, status: "SECURE", downstream_node_id: "52118", has_sparkline: true },
+  { id: "52118", name: "Hookbridge Spillway / Currymoor PS", river: "River Tone", catchment: "tone", node_type: "spillway", stage_mAOD: 4.50, crest_elevation_mAOD: 7.45, alert_level_mAOD: 7.15, status: "SECURE", downstream_node_id: "52158", diverts_to_node_id: "52127", has_sparkline: true, govuk_link: "https://check-for-flooding.service.gov.uk/station/3073" },
+  { id: "52127", name: "Curry Moor Basin", river: "Curry Moor Basin", catchment: "tone", node_type: "polder_basin", stage_mAOD: 4.47, ground_elevation_mAOD: 2.10, alert_level_mAOD: 6.50, crest_elevation_mAOD: 7.45, status: "SECURE", downstream_node_id: "currymoor_ps", has_sparkline: true, govuk_link: "https://check-for-flooding.service.gov.uk/station/3064" },
+  { id: "52116", name: "Chiselborough (Upper Parrett)", river: "River Parrett", catchment: "parrett", node_type: "gauge", stage_mAOD: 20.75, alert_level_mAOD: 22.50, status: "SECURE", downstream_node_id: "52119", has_sparkline: true },
+  { id: "52119", name: "Gaw Bridge (Mid Parrett)", river: "River Parrett", catchment: "parrett", node_type: "gauge", stage_mAOD: 10.42, alert_level_mAOD: 12.80, status: "SECURE", downstream_node_id: "52233", has_sparkline: true },
+  { id: "52120", name: "Huish Episcopi PS (River Yeo)", river: "River Yeo", catchment: "tributaries", node_type: "gauge", stage_mAOD: 6.68, alert_level_mAOD: 8.48, status: "SECURE", downstream_node_id: "52233", upstream_tributaries: ["52121", "52117", "52112"], has_sparkline: true, govuk_link: "https://check-for-flooding.service.gov.uk/station/3071" },
+  { id: "52153", name: "Midelney (River Isle)", river: "River Isle", catchment: "tributaries", node_type: "gauge", stage_mAOD: 6.63, alert_level_mAOD: 8.20, status: "SECURE", downstream_node_id: "52233", upstream_tributaries: ["52115", "52114"], has_sparkline: true, govuk_link: "https://check-for-flooding.service.gov.uk/station/3380" },
+  { id: "52233", name: "Monk's Leaze Clyse (Upstream)", river: "River Parrett", catchment: "parrett", node_type: "clyse_gate", stage_mAOD: 6.73, sill_elevation_mAOD: 4.20, alert_level_mAOD: 7.90, status: "CLOSED", downstream_node_id: "52158", diverts_to_node_id: "52234", has_sparkline: true },
+  { id: "52158", name: "Baltmoor Wall (Burrowbridge Confluence)", river: "River Parrett", catchment: "parrett", node_type: "spillway", stage_mAOD: 3.78, crest_elevation_mAOD: 7.80, alert_level_mAOD: 7.50, status: "SECURE", downstream_node_id: "52124", diverts_to_node_id: "52159", has_sparkline: true, govuk_link: "https://check-for-flooding.service.gov.uk/station/3065" },
+  { id: "52159", name: "Northmoor Basin", river: "Northmoor Basin", catchment: "parrett", node_type: "polder_basin", stage_mAOD: 3.17, ground_elevation_mAOD: 1.80, alert_level_mAOD: 3.80, crest_elevation_mAOD: 7.80, status: "SECURE", downstream_node_id: "saltmoor_ps", has_sparkline: true, govuk_link: "https://check-for-flooding.service.gov.uk/station/3068" },
+  { id: "52124", name: "West Quay Bridgwater", river: "River Parrett", catchment: "parrett", node_type: "gauge", stage_mAOD: 3.10, alert_level_mAOD: 6.10, status: "SECURE", downstream_node_id: "52163", has_sparkline: true },
+  { id: "52163", name: "Dunball Tidal Outfall", river: "Parrett Estuary", catchment: "parrett", node_type: "tidal_outfall", stage_mAOD: 0.84, inland_stage_mAOD: 2.62, is_tide_locked: false, alert_level_mAOD: 6.50, status: "SECURE", has_sparkline: true, govuk_link: "https://check-for-flooding.service.gov.uk/station/9129" },
+  { id: "52234", name: "Monk's Leaze Clyse (Downstream Sowy)", river: "Sowy Relief Channel", catchment: "sowy_ksd", node_type: "gauge", stage_mAOD: 6.72, alert_level_mAOD: 7.60, status: "SECURE", downstream_node_id: "52157", has_sparkline: true },
+  { id: "52157", name: "Beerwall Upstream (Greylake)", river: "Sowy Relief Channel", catchment: "sowy_ksd", node_type: "spillway", stage_mAOD: 3.92, crest_elevation_mAOD: 7.30, alert_level_mAOD: 4.20, status: "SECURE", downstream_node_id: "E9531", has_sparkline: true },
+  { id: "E9531", name: "Bradney (King's Sedgemoor Drain)", river: "King's Sedgemoor Drain", catchment: "sowy_ksd", node_type: "gauge", stage_mAOD: 3.20, alert_level_mAOD: 3.50, status: "SECURE", downstream_node_id: "E9094", has_sparkline: true, ea_link: "https://environment.data.gov.uk/flood-monitoring/id/stations/E9531.html" },
+  { id: "E9094", name: "Dunball Inland KSD Outfall", river: "King's Sedgemoor Drain", catchment: "sowy_ksd", node_type: "gauge", stage_mAOD: 2.62, sea_stage_mAOD: 0.84, is_tide_locked: false, alert_level_mAOD: 3.50, status: "SECURE", downstream_node_id: "52163", has_sparkline: true, govuk_link: "https://check-for-flooding.service.gov.uk/station/9499" }
+];
+
+/**
  * Single Authoritative Hydrological Threshold Registry (mAOD)
  */
 export const HYDRO_THRESHOLDS = {
+  // Canonical 19-station threshold records
+  '52108': { ALERT_MAOD: 76.99, DATUM_MAOD: 75.69, BASELINE_MAOD: 75.72, TYPICAL_LOW_MAOD: 75.84, MAX_ON_RECORD_MAOD: 77.89 },
+  '52109': { ALERT_MAOD: 17.48, DATUM_MAOD: 16.58, BASELINE_MAOD: 16.60, TYPICAL_LOW_MAOD: 16.67, MAX_ON_RECORD_MAOD: 19.17 },
+  '52111': { ALERT_MAOD: 14.24, DATUM_MAOD: 12.47, BASELINE_MAOD: 12.67, TYPICAL_LOW_MAOD: 13.29, MAX_ON_RECORD_MAOD: 14.31 },
+  '52162': { ALERT_MAOD: 9.50, DATUM_MAOD: 0.00, BASELINE_MAOD: 7.50, TYPICAL_LOW_MAOD: 8.50, MAX_ON_RECORD_MAOD: 11.03 },
+  '52118': { CREST_MAOD: 7.45, ALERT_MAOD: 7.15, DATUM_MAOD: 0.00, BASELINE_MAOD: 3.30, TYPICAL_LOW_MAOD: 4.71, MAX_ON_RECORD_MAOD: 8.10 },
+  '52127': { CREST_MAOD: 7.45, ALERT_MAOD: 6.50, GROUND_MAOD: 2.10, DATUM_MAOD: 0.00, BASELINE_MAOD: 2.10, TYPICAL_LOW_MAOD: 3.92, MAX_ON_RECORD_MAOD: 8.05 },
+  '52116': { ALERT_MAOD: 22.50, DATUM_MAOD: 20.70, BASELINE_MAOD: 20.70, TYPICAL_LOW_MAOD: 20.75, MAX_ON_RECORD_MAOD: 23.63 },
+  '52119': { ALERT_MAOD: 12.80, DATUM_MAOD: 10.00, BASELINE_MAOD: 10.16, TYPICAL_LOW_MAOD: 10.23, MAX_ON_RECORD_MAOD: 13.84 },
+  '52120': {
+    DATUM_MAOD: 5.000,
+    GROUND_INVERT_MAOD: 5.80,
+    BASELINE_MAOD: 5.80,
+    LEAD_PUMP_WINTER: 6.30,
+    DUTY_PUMP_WINTER: 6.50,
+    LEAD_PUMP_SUMMER: 6.70,
+    DUTY_PUMP_SUMMER: 6.90,
+    MUCHELNEY_ROAD_MAOD: 7.30,
+    RIVER_CUTOFF_MAOD: 8.20,
+    ALERT_MAOD: 8.48,
+    EMBANKMENT_CREST_MAOD: 8.80,
+    TYPICAL_LOW_MAOD: 6.44,
+    MAX_ON_RECORD_MAOD: 9.92
+  },
+  '52153': {
+    DATUM_MAOD: 5.185,
+    GROUND_INVERT_MAOD: 5.50,
+    BASELINE_MAOD: 5.50,
+    LEAD_PUMP: 6.40,
+    DUTY_PUMP: 6.70,
+    HEADLOCK_OVERFLOW_MAOD: 8.20,
+    ALERT_MAOD: 8.20,
+    TYPICAL_LOW_MAOD: 6.10,
+    MAX_ON_RECORD_MAOD: 9.12
+  },
+  '52233': {
+    SILL_MAOD: 4.20,
+    MIN_DELTA_H: 0.05,
+    UPSTREAM_ALERT_MAOD: 7.90,
+    DOWNSTREAM_ALERT_MAOD: 7.60,
+    ALERT_MAOD: 7.90,
+    DATUM_MAOD: 0.00,
+    BASELINE_MAOD: 4.20,
+    TYPICAL_LOW_MAOD: 6.01,
+    MAX_ON_RECORD_MAOD: 8.50
+  },
+  '52158': { CREST_MAOD: 7.80, ALERT_MAOD: 7.50, DATUM_MAOD: 0.00, BASELINE_MAOD: 3.50, TYPICAL_LOW_MAOD: 3.55, MAX_ON_RECORD_MAOD: 7.80 },
+  '52159': { CREST_MAOD: 7.80, ALERT_MAOD: 3.80, GROUND_MAOD: 1.80, DATUM_MAOD: 0.00, BASELINE_MAOD: 1.80, TYPICAL_LOW_MAOD: 2.50, MAX_ON_RECORD_MAOD: 5.89 },
+  '52124': { ALERT_MAOD: 6.10, DATUM_MAOD: 0.00, BASELINE_MAOD: 0.50, TYPICAL_LOW_MAOD: 1.20, MAX_ON_RECORD_MAOD: 8.09 },
+  '52163': { ESTUARY_ALERT_MAOD: 6.50, ALERT_MAOD: 6.50, DATUM_MAOD: 0.00, BASELINE_MAOD: -1.50, TYPICAL_LOW_MAOD: -1.50, MAX_ON_RECORD_MAOD: 7.09 },
+  '52234': { ALERT_MAOD: 7.60, DATUM_MAOD: 0.00, BASELINE_MAOD: 4.20, TYPICAL_LOW_MAOD: 6.01, MAX_ON_RECORD_MAOD: 7.90 },
+  '52157': { CREST_MAOD: 7.30, ALERT_MAOD: 4.20, DATUM_MAOD: 0.00, BASELINE_MAOD: 2.30, TYPICAL_LOW_MAOD: 2.33, MAX_ON_RECORD_MAOD: 5.07 },
+  'E9531': { ALERT_MAOD: 3.50, DATUM_MAOD: 0.00, BASELINE_MAOD: 1.00, TYPICAL_LOW_MAOD: 1.00, MAX_ON_RECORD_MAOD: 4.44 },
+  'E9094': { INLAND_ALERT_MAOD: 3.50, ALERT_MAOD: 3.50, DATUM_MAOD: 0.00, BASELINE_MAOD: 0.50, TYPICAL_LOW_MAOD: 1.00, MAX_ON_RECORD_MAOD: 4.07 },
+
+  // Named aliases for backward compatibility
   HOOKBRIDGE: {
     CREST_MAOD: 7.45,
     ALERT_MAOD: 7.15
@@ -774,7 +1276,9 @@ export function evaluateMidelney(stage_mAOD, parrettStage_mAOD = null) {
     label = isPumping ? "HEAD-LOCKED (PUMPING)" : "HEAD-LOCKED";
     badgeClass = "badge-restricted";
     symbol = "🕒";
-    severity = 4;
+    // Routine penning head-lock during low baseflow (<7.30m AOD) is a normal operational state (severity 5);
+    // only escalate to global flood warning (severity 4) when high water backs up (>= 7.30m AOD).
+    severity = cleanStage >= 7.30 ? 4 : 5;
   }
 
   return {

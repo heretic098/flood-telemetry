@@ -415,6 +415,45 @@ test('UI/UX Audit 4.8: Topology view clearly differentiates and visually labels 
   );
 });
 
+test('UI/UX Audit 4.9: Cross-view parity between Main Dashboard and Topology View (Global Status & Tidal Station 52163)', () => {
+  const serverJsPath = path.resolve('server.js');
+  const serverJs = fs.readFileSync(serverJsPath, 'utf8');
+
+  // 1. Single Source of Truth for Global Status Banner
+  assert.ok(
+    serverJs.includes('const globalStat = aggregateGlobalStatus('),
+    'server.js /api/status must compute global_status using aggregateGlobalStatus from hydro_engine.js'
+  );
+  assert.ok(
+    !serverJs.includes('"SYSTEM SECURE — ALL MOORS NORMAL | GRAVITY DISCHARGE ACTIVE"'),
+    'server.js must NOT hardcode GRAVITY DISCHARGE ACTIVE in /api/status'
+  );
+
+  // 2. Station 52163 (Dunball Tidal Outfall) tidal status & coloration parity
+  assert.ok(
+    serverJs.includes('seaStage >= dunballInlandStage ? "SLACK_RESTRICTED" : "SECURE"'),
+    'server.js must set 52163 status to SLACK_RESTRICTED (TIDE-LOCKED) when seaStage >= dunballInlandStage'
+  );
+  assert.ok(
+    topologyJs.includes("if (node.node_type === 'tidal_outfall')"),
+    'topology.js getNodeStatusVisual must provide dedicated tidal_outfall visual mapping'
+  );
+  assert.ok(
+    topologyJs.includes("sparklineColor: '#0284c7'"),
+    'topology.js must render 52163 tidal hydrograph in Estuarine Deep Blue (#0284c7) matching Main Dashboard'
+  );
+  assert.ok(
+    topologyJs.includes('Dunball Sea Door State'),
+    'topology.js inspector drawer must display Dunball Sea Door State for station 52163'
+  );
+
+  // 3. Inspector status pill CSS parity
+  assert.ok(
+    stylesCss.includes('.status-pill.status-tide-locked'),
+    'styles.css must style .status-pill.status-tide-locked to match Main Dashboard badge-tide-locked'
+  );
+});
+
 
 
 

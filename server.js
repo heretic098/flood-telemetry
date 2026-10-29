@@ -12,9 +12,13 @@ import {
   calculateVillemonteDischarge,
   evaluateHuishEpiscopi,
   evaluateMidelney,
+  aggregateGlobalStatus,
+  getSeasonalRegime,
   sanitizeStageValue,
   PRE_OVERTOPPING_THRESHOLDS,
-  HYDRO_THRESHOLDS
+  HYDRO_THRESHOLDS,
+  STATION_REGISTRY,
+  extractStationStage
 } from './src/js/hydro_engine.js';
 
 import {
@@ -475,40 +479,25 @@ const server = http.createServer(async (req, res) => {
     const stored = getStoredTelemetry();
     const measures = stored.measures;
 
-    const greenhamRaw = (measures['52108-level-stage-i-15_min-mASD'] || measures['52108-level-stage-i-15_min-m'])?.[0]?.value ?? 0.45;
-    const greenhamStage = Number((greenhamRaw + 75.69).toFixed(2));
-
-    const bishopsHullRaw = (measures['52109-level-stage-i-15_min-mASD'] || measures['52109-level-stage-i-15_min-m'])?.[0]?.value ?? 0.35;
-    const bishopsHullStage = Number((bishopsHullRaw + 16.58).toFixed(2));
-
-    const tauntonRaw = (measures['52111-level-stage-i-15_min-mASD'] || measures['52111-level-stage-i-15_min-m'])?.[0]?.value ?? 0.65;
-    const tauntonStage = Number((tauntonRaw + 12.47).toFixed(2));
-
-    const bathpoolStage = measures['52162-level-stage-i-15_min-mAOD']?.[0]?.value ?? 5.92;
-    const toneStage = measures['52118-level-stage-i-15_min-mAOD']?.[0]?.value ?? 4.466;
-    const curryMoorStage = measures['52127-level-stage-i-15_min-mAOD']?.[0]?.value ?? 4.466;
-
-    const chiselboroughRaw = measures['52116-level-stage-i-15_min-m']?.[0]?.value ?? 0.05;
-    const chiselboroughStage = Number((chiselboroughRaw + 20.70).toFixed(2));
-
-    const gawBridgeRaw = measures['52119-level-stage-i-15_min-mASD']?.[0]?.value ?? 0.42;
-    const gawBridgeStage = Number((gawBridgeRaw + 10.00).toFixed(2));
-
-    const huishRaw = measures['52120-level-stage-i-15_min-mASD']?.[0]?.value ?? 1.681;
-    const huishStage = Number((huishRaw + 5.00).toFixed(2));
-
-    const midelneyRaw = measures['52153-level-stage-i-15_min-mASD']?.[0]?.value ?? 1.417;
-    const midelneyStage = Number((midelneyRaw + 5.185).toFixed(2));
-
-    const monksUpStage = measures['52233-level-stage-i-15_min-mAOD']?.[0]?.value ?? 6.732;
-    const monksDownStage = measures['52234-level-downstage-i-15_min-mAOD']?.[0]?.value ?? 6.729;
-    const parrettStage = measures['52158-level-stage-i-15_min-mAOD']?.[0]?.value ?? 3.779;
-    const northmoorStage = measures['52159-level-stage-i-15_min-mAOD']?.[0]?.value ?? 3.181;
-    const westQuayStage = measures['52124-level-tidal_level-i-15_min-mAOD']?.[0]?.value ?? 4.80;
-    const seaStage = measures['52163-level-tidal_level-i-15_min-mAOD']?.[0]?.value ?? 0.84;
-    const beerwallStage = measures['52157-level-stage-i-15_min-mAOD']?.[0]?.value ?? 3.92;
-    const dunballInlandStage = measures['E9094-level-stage-i-15_min-mAOD']?.[0]?.value ?? 2.62;
-    const bradneyStage = measures['E9531-level-stage-i-15_min-mAOD']?.[0]?.value ?? Math.max(3.20, dunballInlandStage + 0.3);
+    const greenhamStage = extractStationStage(measures, '52108');
+    const bishopsHullStage = extractStationStage(measures, '52109');
+    const tauntonStage = extractStationStage(measures, '52111');
+    const bathpoolStage = extractStationStage(measures, '52162');
+    const toneStage = extractStationStage(measures, '52118');
+    const curryMoorStage = extractStationStage(measures, '52127');
+    const chiselboroughStage = extractStationStage(measures, '52116');
+    const gawBridgeStage = extractStationStage(measures, '52119');
+    const huishStage = extractStationStage(measures, '52120');
+    const midelneyStage = extractStationStage(measures, '52153');
+    const monksUpStage = extractStationStage(measures, '52233');
+    const monksDownStage = extractStationStage(measures, '52234');
+    const parrettStage = extractStationStage(measures, '52158');
+    const northmoorStage = extractStationStage(measures, '52159');
+    const westQuayStage = extractStationStage(measures, '52124');
+    const seaStage = extractStationStage(measures, '52163');
+    const beerwallStage = extractStationStage(measures, '52157');
+    const dunballInlandStage = extractStationStage(measures, 'E9094');
+    const bradneyStage = extractStationStage(measures, 'E9531');
 
     const isMonksDiverting = monksUpStage >= HYDRO_THRESHOLDS.MONKS_LEAZE.SILL_MAOD &&
       (monksUpStage - monksDownStage) > HYDRO_THRESHOLDS.MONKS_LEAZE.MIN_DELTA_H;
@@ -774,8 +763,10 @@ const server = http.createServer(async (req, res) => {
           gauge_id: "52163",
           node_type: "tidal_outfall",
           stage_mAOD: seaStage,
+          inland_stage_mAOD: dunballInlandStage,
+          is_tide_locked: seaStage >= dunballInlandStage,
           alert_level_mAOD: HYDRO_THRESHOLDS.DUNBALL.ESTUARY_ALERT_MAOD,
-          status: seaStage >= HYDRO_THRESHOLDS.DUNBALL.ESTUARY_ALERT_MAOD ? "ALERT" : "SECURE",
+          status: seaStage >= HYDRO_THRESHOLDS.DUNBALL.ESTUARY_ALERT_MAOD ? "ALERT" : (seaStage >= dunballInlandStage ? "SLACK_RESTRICTED" : "SECURE"),
           downstream_node_id: "sea_outfall",
           has_sparkline: true,
           govuk_link: "https://check-for-flooding.service.gov.uk/station/9129"
@@ -830,6 +821,8 @@ const server = http.createServer(async (req, res) => {
           gauge_id: "E9094",
           node_type: "gauge",
           stage_mAOD: dunballInlandStage,
+          sea_stage_mAOD: seaStage,
+          is_tide_locked: seaStage >= dunballInlandStage,
           alert_level_mAOD: HYDRO_THRESHOLDS.DUNBALL.INLAND_ALERT_MAOD,
           status: (seaStage >= dunballInlandStage) ? "SLACK_RESTRICTED" : (dunballInlandStage >= HYDRO_THRESHOLDS.DUNBALL.INLAND_ALERT_MAOD ? "ALERT" : "SECURE"),
           downstream_node_id: "52163",
@@ -1043,25 +1036,33 @@ const server = http.createServer(async (req, res) => {
     }
 
     const measures = stored.measures;
-    const hookbridgeStage = measures['52118-level-stage-i-15_min-mAOD']?.[0]?.value ?? 7.52;
-    const curryMoorStage = measures['52127-level-stage-i-15_min-mAOD']?.[0]?.value ?? 4.80;
-    const baltmoorStage = measures['52158-level-stage-i-15_min-mAOD']?.[0]?.value ?? 7.35;
-    const northMoorStage = measures['52159-level-stage-i-15_min-mAOD']?.[0]?.value ?? 2.10;
-    const monksUpStage = measures['52233-level-stage-i-15_min-mAOD']?.[0]?.value ?? 6.85;
-    const monksDownStage = measures['52234-level-downstage-i-15_min-mAOD']?.[0]?.value ?? 6.30;
-    const huishRaw = measures['52120-level-stage-i-15_min-mASD']?.[0]?.value ?? 1.681;
-    const huishStage = Number((huishRaw + 5.000).toFixed(2));
-    const midelneyRaw = measures['52153-level-stage-i-15_min-mASD']?.[0]?.value ?? 1.417;
-    const midelneyStage = Number((midelneyRaw + 5.185).toFixed(2));
-    const gawRaw = measures['52119-level-stage-i-15_min-mASD']?.[0]?.value ?? 0.42;
-    const gawStage = Number((gawRaw + 10.00).toFixed(2));
+    const hookbridgeStage = extractStationStage(measures, '52118');
+    const curryMoorStage = extractStationStage(measures, '52127');
+    const baltmoorStage = extractStationStage(measures, '52158');
+    const northMoorStage = extractStationStage(measures, '52159');
+    const monksUpStage = extractStationStage(measures, '52233');
+    const monksDownStage = extractStationStage(measures, '52234');
+    const huishStage = extractStationStage(measures, '52120');
+    const midelneyStage = extractStationStage(measures, '52153');
+    const gawStage = extractStationStage(measures, '52119');
+    const dunballInlandStage = extractStationStage(measures, 'E9094');
+    const seaStage = extractStationStage(measures, '52163');
+    const isTideLocked = seaStage >= dunballInlandStage;
+    const regime = getSeasonalRegime(new Date());
 
-    const hookbridgeOverspill = evaluateSpillway(hookbridgeStage, curryMoorStage, HYDRO_THRESHOLDS.HOOKBRIDGE.CREST_MAOD);
-    const baltmoorOverspill = evaluateSpillway(baltmoorStage, northMoorStage, HYDRO_THRESHOLDS.BALTMOOR.CREST_MAOD);
+    const hookbridgeOverspill = { ...evaluateSpillway(hookbridgeStage, curryMoorStage, HYDRO_THRESHOLDS.HOOKBRIDGE.CREST_MAOD), name: "Curry Moor System" };
+    const athelneyOverspill = { ...evaluateSpillway(curryMoorStage, northMoorStage, 7.35), name: "Athelney Spillway & Cuts Road" };
+    const baltmoorOverspill = { ...evaluateSpillway(baltmoorStage, northMoorStage, HYDRO_THRESHOLDS.BALTMOOR.CREST_MAOD), name: "Northmoor & Saltmoor" };
     const sowyEval = evaluateSowyChannel(monksUpStage, monksDownStage, HYDRO_THRESHOLDS.MONKS_LEAZE.SILL_MAOD);
     const clyseFlow = estimateClyseFlow(monksUpStage, monksDownStage, HYDRO_THRESHOLDS.MONKS_LEAZE.SILL_MAOD);
-    const huishEval = evaluateHuishEpiscopi(huishStage);
+    const huishEval = evaluateHuishEpiscopi(huishStage, regime.isSummer);
     const midelneyEval = evaluateMidelney(midelneyStage, monksUpStage);
+    const confluenceEval = { name: "Langport Confluence", severity: Math.min(huishEval.severity, midelneyEval.severity) };
+
+    const globalStat = aggregateGlobalStatus(
+      [hookbridgeOverspill, athelneyOverspill, baltmoorOverspill, confluenceEval],
+      isTideLocked
+    );
 
     const hookbridgeDischarge = calculateVillemonteDischarge(hookbridgeStage, curryMoorStage, HYDRO_THRESHOLDS.HOOKBRIDGE.CREST_MAOD);
     const baltmoorDischarge = calculateVillemonteDischarge(baltmoorStage, northMoorStage, HYDRO_THRESHOLDS.BALTMOOR.CREST_MAOD);
@@ -1096,11 +1097,10 @@ const server = http.createServer(async (req, res) => {
         latest_ea_reading_at: stored.latest_ea_reading_at || new Date().toISOString()
       },
       global_status: {
-        counter_pill: `[ 🔴 ${hookbridgeOverspill.code === 'OVERTOPPING' ? 1 : 0} Overtopping | 🟢 3 Secure ]`,
-        banner_text: hookbridgeOverspill.code === 'OVERTOPPING' 
-          ? "ACTION REQUIRED: HOOKBRIDGE OVERTOPPING | GRAVITY DISCHARGE ACTIVE" 
-          : "SYSTEM SECURE — ALL MOORS NORMAL | GRAVITY DISCHARGE ACTIVE",
-        top_severity: hookbridgeOverspill.severity || 5
+        counter_pill: globalStat.counterPill,
+        banner_text: globalStat.bannerText,
+        top_severity: globalStat.topSeverity,
+        is_tide_locked: isTideLocked
       },
       cards: {
         hookbridge_spillway: {
@@ -1181,7 +1181,9 @@ const server = http.createServer(async (req, res) => {
   }
 
   let reqFile = pathname === '/' ? 'index.html' : pathname;
-  let safePath = path.resolve(path.join(PUBLIC_DIR, reqFile));
+  let safePath = (pathname === '/js/config/hydro_config.json')
+    ? path.resolve(path.join(CATCHMENTS_DIR, 'somerset.json'))
+    : path.resolve(path.join(PUBLIC_DIR, reqFile));
 
   if (!safePath.startsWith(PUBLIC_DIR)) {
     res.writeHead(403, { 'Content-Type': 'text/plain' });

@@ -1,4 +1,4 @@
-import { evaluateSpillway, evaluateGateState, aggregateGlobalStatus, evaluatePumpStatus, evaluateSowyChannel, estimateClyseFlow, evaluateAthelneySpillway, evaluateGravityClyse, evaluateBeerWall, evaluateOathLock, evaluateDunballEmergencyPumping, calculateVillemonteDischarge, getSeasonalRegime, getActiveCrestHeight, getActiveCatchmentId, loadCatchmentConfig, evaluateHuishEpiscopi, evaluateMidelney } from './hydro_engine.js';
+import { evaluateSpillway, evaluateGateState, aggregateGlobalStatus, evaluatePumpStatus, evaluateSowyChannel, estimateClyseFlow, evaluateAthelneySpillway, evaluateGravityClyse, evaluateBeerWall, evaluateOathLock, evaluateDunballEmergencyPumping, calculateVillemonteDischarge, getSeasonalRegime, getActiveCrestHeight, getActiveCatchmentId, loadCatchmentConfig, evaluateHuishEpiscopi, evaluateMidelney, STATION_REGISTRY, GAUGE_DATUMS } from './hydro_engine.js';
 
 export function renderHeroSpillwayBanner(opts) {
   const isAlert = opts.isAlert || opts.isOvertopping;
@@ -367,36 +367,36 @@ export async function refreshLiveDashboard() {
   const cmRiverReadings = (dbMeasures && dbMeasures["52118-level-stage-i-15_min-mAOD"]) || await fetchEAReadings("52118-level-stage-i-15_min-mAOD");
   const cmMoorReadings = (dbMeasures && dbMeasures["52127-level-stage-i-15_min-mAOD"]) || await fetchEAReadings("52127-level-stage-i-15_min-mAOD");
 
-  const cmRiverLevel = cmRiverReadings && cmRiverReadings.length ? cmRiverReadings[0].value : 4.50;
-  const cmMoorLevel = cmMoorReadings && cmMoorReadings.length ? cmMoorReadings[0].value : 4.46;
+  const cmRiverLevel = cmRiverReadings && cmRiverReadings.length ? cmRiverReadings[0].value : STATION_REGISTRY['52118'].fallback_stage_mAOD;
+  const cmMoorLevel = cmMoorReadings && cmMoorReadings.length ? cmMoorReadings[0].value : STATION_REGISTRY['52127'].fallback_stage_mAOD;
 
   // 2. Northmoor & Saltmoor Live Data (Baltmoor Wall Saltmoor 52158 & Northmoor Drain 52159)
   const nmRiverReadings = (dbMeasures && dbMeasures["52158-level-stage-i-15_min-mAOD"]) || await fetchEAReadings("52158-level-stage-i-15_min-mAOD");
   const nmMoorReadings = (dbMeasures && dbMeasures["52159-level-stage-i-15_min-mAOD"]) || await fetchEAReadings("52159-level-stage-i-15_min-mAOD");
 
-  const nmRiverLevel = nmRiverReadings && nmRiverReadings.length ? nmRiverReadings[0].value : 3.78;
-  const nmMoorLevel = nmMoorReadings && nmMoorReadings.length ? nmMoorReadings[0].value : 3.10;
+  const nmRiverLevel = nmRiverReadings && nmRiverReadings.length ? nmRiverReadings[0].value : STATION_REGISTRY['52158'].fallback_stage_mAOD;
+  const nmMoorLevel = nmMoorReadings && nmMoorReadings.length ? nmMoorReadings[0].value : STATION_REGISTRY['52159'].fallback_stage_mAOD;
 
   // 3. Monk's Leaze / Sowy Relief Channel Live Data (52233 Upstream & 52234 Downstream Sowy)
   const monksUpReadings = (dbMeasures && dbMeasures["52233-level-stage-i-15_min-mAOD"]) || await fetchEAReadings("52233-level-stage-i-15_min-mAOD");
   const monksDownReadings = (dbMeasures && dbMeasures["52234-level-downstage-i-15_min-mAOD"]) || await fetchEAReadings("52234-level-downstage-i-15_min-mAOD");
 
-  const monksUpLevel = monksUpReadings && monksUpReadings.length ? monksUpReadings[0].value : 6.757;
-  const monksDownLevel = monksDownReadings && monksDownReadings.length ? monksDownReadings[0].value : 6.729;
+  const monksUpLevel = monksUpReadings && monksUpReadings.length ? monksUpReadings[0].value : STATION_REGISTRY['52233'].fallback_stage_mAOD;
+  const monksDownLevel = monksDownReadings && monksDownReadings.length ? monksDownReadings[0].value : STATION_REGISTRY['52234'].fallback_stage_mAOD;
 
   // 4. Dunball Outfall Live Data (E9094 Inland & 52163 Sea Tidal)
   const dunballInlandReadings = (dbMeasures && dbMeasures["E9094-level-stage-i-15_min-mAOD"]) || await fetchEAReadings("E9094-level-stage-i-15_min-mAOD");
   const seaReadings = (dbMeasures && dbMeasures["52163-level-tidal_level-i-15_min-mAOD"]) || await fetchEAReadings("52163-level-tidal_level-i-15_min-mAOD");
 
-  const dunballInland = dunballInlandReadings && dunballInlandReadings.length ? dunballInlandReadings[0].value : 2.64;
-  const dunballSea = seaReadings && seaReadings.length ? seaReadings[0].value : 1.09;
+  const dunballInland = dunballInlandReadings && dunballInlandReadings.length ? dunballInlandReadings[0].value : STATION_REGISTRY['E9094'].fallback_stage_mAOD;
+  const dunballSea = seaReadings && seaReadings.length ? seaReadings[0].value : STATION_REGISTRY['52163'].fallback_stage_mAOD;
 
   // 5. Langport Confluence Live Data (River Yeo 52120 & River Isle 52153)
   const huishReadings = (dbMeasures && dbMeasures["52120-level-stage-i-15_min-mASD"]) || await fetchEAReadings("52120-level-stage-i-15_min-mASD");
   const midelneyReadings = (dbMeasures && dbMeasures["52153-level-stage-i-15_min-mASD"]) || await fetchEAReadings("52153-level-stage-i-15_min-mASD");
 
-  const huishDatum = 5.000;
-  const midelneyDatum = 5.185;
+  const huishDatum = GAUGE_DATUMS['52120'] || 5.000;
+  const midelneyDatum = GAUGE_DATUMS['52153'] || 5.185;
   const huishRaw = huishReadings && huishReadings.length ? huishReadings[0].value : 1.681;
   const midelneyRaw = midelneyReadings && midelneyReadings.length ? midelneyReadings[0].value : 1.417;
   const huishLevel = Number((huishRaw + huishDatum).toFixed(2));
@@ -683,7 +683,7 @@ export async function refreshLiveDashboard() {
   }));
 
   // Card 3: Sowy Relief Channel
-  const sowyEval = evaluateSowyChannel(monksUpLevel, dunballInland, 4.20);
+  const sowyEval = evaluateSowyChannel(monksUpLevel, monksDownLevel, 4.20);
   const headDropMeters = monksUpLevel - monksDownLevel;
   const headDropFormatted = formatHeadDelta(headDropMeters);
   const oathLock = evaluateOathLock(monksUpLevel, monksDownLevel);
@@ -701,10 +701,10 @@ export async function refreshLiveDashboard() {
     currentLevel: monksUpLevel,
     minLabel: 'Intake Sill: 4.20m',
     maxLabel: `Parrett Stage: ${monksUpLevel.toFixed(2)}m AOD`,
-    isAlert: sowyEval.code === 'DIVERTING',
+    isAlert: false,
     stats: [
-      { label: 'Gate Position', htmlValue: sowyEval.code === 'DIVERTING' ? '🔵 DIVERTING' : '🔒 CLOSED' },
-      { label: 'Diverted Flow', value: `${(clyseFlow?.flowM3s ?? 0).toFixed(1)} m³/s (${(clyseFlow?.flowMLD ?? 0).toFixed(0)} MLD)` }
+      { label: 'Gate Position', htmlValue: sowyEval.code === 'GRAVITY_OPEN' ? '🔵 DIVERTING' : '🔒 PENNING / CLOSED' },
+      { label: 'Diverted Flow', value: sowyEval.code === 'GRAVITY_OPEN' ? `${(clyseFlow?.flowM3s ?? 0).toFixed(1)} m³/s (${(clyseFlow?.flowMLD ?? 0).toFixed(0)} MLD)` : '0.0 m³/s (0 MLD)' }
     ],
     camLink: {
       url: 'https://thecfh.org/parretttonewsom.php#monksleaze',
@@ -722,7 +722,7 @@ export async function refreshLiveDashboard() {
     provenanceClass: "prov-high",
     metricText: `Sowy Level: ${monksDownLevel.toFixed(2)}m AOD`,
     clearanceText: `Head Drop Across Clyse: ${headDropFormatted} (${monksUpLevel.toFixed(3)}m ➔ ${monksDownLevel.toFixed(3)}m)`,
-    narrative: `Monk's Leaze Clyse open. Upstream level (${monksUpLevel.toFixed(2)}m) and downstream Sowy level (${monksDownLevel.toFixed(2)}m) indicate active diversion at ~${estimateClyseFlow(monksUpLevel, monksDownLevel).flowM3s.toFixed(1)} m³/s.`,
+    narrative: sowyEval.narrative,
     pills: [
       {
         html: `<strong>Monk's Leaze Clyse:</strong> ${sowyEval.pillText} <a href="https://thecfh.org/parretttonewsom.php#monksleaze" target="_blank" rel="noopener noreferrer" class="cctv-badge-btn" title="View 3-min EA Snapshot Camera at thecfh.org#monksleaze" aria-label="View 3-min EA Snapshot Camera at thecfh.org for Monk's Leaze Clyse">📷 LIVE CAM ↗</a>`,
@@ -771,7 +771,7 @@ export async function refreshLiveDashboard() {
     currentLevel: dunballSea,
     minLabel: `Inland: ${dunballInland.toFixed(2)}m`,
     maxLabel: `Tide: ${dunballSea.toFixed(2)}m AOD`,
-    isAlert: isTideLocked,
+    isAlert: dunballSea >= 6.50,
     stats: [
       { label: 'Sea Door State', htmlValue: isTideLocked ? '🟡 TIDE-LOCKED' : '🟢 GRAVITY DISCHARGE OPEN' },
       { label: 'Head Differential', value: formatHeadDelta(tideDiff) }
