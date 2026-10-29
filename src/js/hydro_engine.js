@@ -1072,6 +1072,22 @@ export const PRE_OVERTOPPING_THRESHOLDS = {
 };
 
 /**
+ * Canonical Physical Hysteresis Deadbands (m) [RULE-SSOT-01]
+ * Directional deadbands (delta) preventing high-frequency sensor noise flapping.
+ */
+export const HYDRO_DEADBANDS = {
+  weir_crest: 0.03,    // 3cm weir crest overtopping exit
+  pre_spill: 0.05,     // 5cm approaching buffer exit
+  polder_pump: 0.05,   // 5cm pumping station deactivation
+  road_crown: 0.03,    // 3cm road inundation clearance exit
+  road_caution: 0.05,  // 5cm road caution margin exit
+  inter_moor: 0.03,    // 3cm Cuts Road cascade cessation
+  clyse_head: 0.05,    // 5cm dual-gauge differential head (exceeds 2-sigma combined sensor noise)
+  tidal_flap: 0.05,    // 5cm sea flap cracking head differential
+  river_gauge: 0.05    // 5cm in-channel flood alert clearance
+};
+
+/**
  * Sanitizes and validates stage values against plausibility bounds (-2.0m to 15.0m AOD) (SEC-06).
  */
 export function sanitizeStageValue(val) {

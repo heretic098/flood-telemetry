@@ -29,6 +29,14 @@ Never accept assertions like *"it works on my machine"*, *"tests pass"*, or *"it
 4. **Hydraulic Gradients & Penning Decoupling:**
    - Do main river channels maintain downhill slope ($h_u - h_d \ge -0.05\text{m}$)?
    - Are tributary confluence channels (Yeo, Isle) properly classified and decoupled when backwater or head-locking occurs?
+5. **Strict Ban on Volumetric & Discharge Speculation ([RULE-CALC-01]):**
+   - Did any calculation, event schema, or UI component introduce volumetric discharge rates ($m^3/s$), cumulative flow integration ($\int Q \, dt$), or cumecs as authoritative triggers or database fields? *(INSTANT REJECTION if yes: "No, that is not a THING on this platform — EA telemetry only supports water stage and structural clearance; discharge speculation is strictly forbidden")*.
+6. **Canonical Tripartite Entity-State Invariant ([RULE-ENT-01]):**
+   - Did any schema, PR, or code create bespoke concatenated event strings (e.g. `CUTS_ROAD_START`, `MUCHELNEY_INUNDATION`, `PUMP_ACTIVE`) or fail to adhere to the tripartite contract `(asset_type -> asset_name -> status)`? *(INSTANT REJECTION if yes)*.
+7. **Epistemic Humility & The "Smell Test" ([RULE-HUM-01], [RULE-PROV-01], [RULE-SUB-01]):**
+   - Did the code, PR, or specification posture as an authoritative civil engineering consultant or invent complex academic formulas to simulate unearned expertise? *(INSTANT REJECTION if yes)*.
+   - Did any calculation over-interpret third-party EA data beyond raw water stage? *(INSTANT REJECTION if yes)*.
+   - Does any asserted metric fail the common-sense scientific "smell test" by asserting quantities (e.g. flow, gate aperture, pump electrical run state, cumulative volume) that cannot be directly substantiated by ingested telemetry? *(INSTANT REJECTION if yes: "No, that is not a THING — we do not collect that data and cannot substantiate it")*.
 
 ### Rubric B: UI/UX & Information Architecture Cynicism
 1. **Trichromatic Strict Separation (UI-COL-01):**

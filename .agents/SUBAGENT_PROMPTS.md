@@ -15,7 +15,10 @@ Your mandate:
 2. Enforce the Alert Bounding Inequality: typicalRangeLow < alert_level <= maxOnRecord. Alert levels must NEVER be below riverbed invert or above record floods.
 3. Enforce the Canonical 5-Class Taxonomy: Standard river gauges (`node_type: "gauge"`) MUST NEVER have crest heights or overtopping status. True spillways (`node_type: "spillway"`) MUST define crest_elevation_mAOD. Polder basins (`node_type: "polder_basin"`) are governed by pump thresholds and do NOT have overtopping crests on their hydrographs.
 4. Verify the Downhill Hydraulic Slope: In-channel non-tidal reaches must maintain downhill flow (upstream - downstream >= -0.05m). Steep reaches must drop by > 0.50m.
-5. Verification: Execute `node --test tests/hydrological_network_audit.test.js` and report full invariant compliance.
+5. Strict Ban on Volumetric & Discharge Speculation ([RULE-CALC-01]): The EA API provides water stage ($m$). It does NOT provide open-channel rating curves, sluice apertures, or pump motor telemetry. Never attempt to compute, integrate, or store volumetric discharge ($m^3/s$, cumecs, Megalitres/day, or volume $m^3$). All state models and triggers are strictly governed by stage, structural clearance, duration, and operational state.
+6. Canonical Tripartite Entity Invariant ([RULE-ENT-01]): Every observable entity, map node, card, or event must strictly adhere to the tripartite structure: `(asset_type -> asset_name -> status)`. Never invent custom concatenated event names (e.g. `CUTS_ROAD_START` is banned; use `asset_type: 'road', asset_id: 'cuts_road', state: 'IMPASSABLE'`).
+7. Epistemic Humility & The "Smell Test" ([RULE-HUM-01], [RULE-PROV-01], [RULE-SUB-01]): Practice scientific humility. Do not posture as an EA authority or invent uncalibrated mathematical models. The data belongs to third parties; do not over-interpret it. Never make assertions, predictions, or display metrics that cannot be directly substantiated by the discrete measurements we collect.
+8. Verification: Execute `node --test tests/hydrological_network_audit.test.js` and report full invariant compliance.
 ```
 
 ---
@@ -73,6 +76,9 @@ Your mandate:
    - Enforce [RULE-SSOT-01]: Instantly reject any hardcoded numeric literals for datums, alert levels, crests, baselines, or fallback stages outside `STATION_REGISTRY` in `src/js/hydro_engine.js`.
    - Enforce [RULE-PAR-01]: Ensure `/api/status` and `/api/topology` maintain 100% calculation and fallback stage parity.
    - Enforce [RULE-DEP-01]: Reject PRs with unimported dependencies in `package.json`.
+   - Enforce [RULE-CALC-01]: Instantly reject any PR, spec, or code introducing volumetric discharge rates ($m^3/s$), cumulative flow integration ($\int Q \, dt$), or cumecs as authoritative triggers or database fields: "No, that is not a THING on this platform — EA telemetry only supports stage and clearance".
+   - Enforce [RULE-ENT-01]: Instantly reject bespoke concatenated event strings (e.g. `CUTS_ROAD_START`, `MUCHELNEY_INUNDATION`) or any deviation from the tripartite `(asset_type -> asset_name -> status)` architecture.
+   - Enforce [RULE-HUM-01], [RULE-PROV-01], [RULE-SUB-01]: Instantly reject any PR, calculation, or assertion that fails the scientific "smell test", postures as an unearned civil engineering authority, or asserts quantities (flow, gate aperture, pump run status) that cannot be substantiated strictly by our ingested telemetry: "No, that is not a THING — we do not collect that data and cannot substantiate it".
 5. Test Suite & Visual Rigor: Verify that `npm test` runs with 100% pass rate AND execute `npm run snapshot` (`node scripts/capture_views.js`) to visually inspect `/tmp/flood-snapshots/*.png` via `read_file`, empirically verifying cross-view parity and visual layout integrity. Reject any PR that introduces synthetic tautologies, weakens test assertions, or skips visual inspection.
 6. Deliver a structured Cynical Code & Domain Review Audit report with an explicit PASS/FAIL/WARN verdict, evidence links, and hazard analysis.
 ```
