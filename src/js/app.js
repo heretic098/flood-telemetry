@@ -1,4 +1,17 @@
 import { evaluateSpillway, evaluateGateState, aggregateGlobalStatus, evaluatePumpStatus, evaluateSowyChannel, estimateClyseFlow, evaluateAthelneySpillway, evaluateGravityClyse, evaluateBeerWall, evaluateOathLock, evaluateDunballEmergencyPumping, calculateVillemonteDischarge, getSeasonalRegime, getActiveCrestHeight, getActiveCatchmentId, loadCatchmentConfig, evaluateHuishEpiscopi, evaluateMidelney, STATION_REGISTRY, GAUGE_DATUMS } from './hydro_engine.js';
+import {
+  computeSparklineBounds,
+  checkFlatStage,
+  projectCoordinates,
+  buildSvgPoints,
+  computeTideLockIntervals,
+  formatTimestampTooltip,
+  calculateSparklineScrubIndex,
+  calculateRatioFromEvent,
+  formatRelativeAge,
+  renderGridLines,
+  renderYAxisLabels
+} from './sparkline.js';
 
 export function renderHeroSpillwayBanner(opts) {
   const isAlert = opts.isAlert || opts.isOvertopping;
@@ -1189,21 +1202,8 @@ export function renderSingleSparkline(pointsInput, strokeColor = '#4ade80', opti
   const height = options.height || 75;
   const minSpan = options.minSpan !== undefined ? options.minSpan : 0.50; // Enforce minimum 50cm scale window
 
-  const rawMin = Math.min(...values);
-  const rawMax = Math.max(...values);
-  const latestVal = values[values.length - 1];
-  const rawRange = rawMax - rawMin;
-
-  let yMin = rawMin;
-  let yMax = rawMax;
-
-  if (rawRange < minSpan) {
-    const midpoint = (rawMin + rawMax) / 2;
-    yMin = midpoint - (minSpan / 2);
-    yMax = midpoint + (minSpan / 2);
-  }
-
-  const effectiveRange = yMax - yMin || 1;
+  const bounds = computeSparklineBounds(values, { minSpan });
+  const { rawMin, rawMax, rawRange, latestVal, yMin, yMax, effectiveRange } = bounds;
 
   const marginTop = 16;
   const marginBottom = 16;
@@ -1211,13 +1211,10 @@ export function renderSingleSparkline(pointsInput, strokeColor = '#4ade80', opti
   const marginRight = 68;
   const drawWidth = width - marginLeft - marginRight;
   const drawHeight = height - marginTop - marginBottom;
+  const dims = { width, height, marginTop, marginBottom, marginLeft, marginRight, drawWidth, drawHeight };
 
-  const pts = values.map((p, i) => {
-    const x = marginLeft + (i / (values.length - 1)) * drawWidth;
-    const normalizedY = (p - yMin) / effectiveRange;
-    const y = height - marginBottom - (normalizedY * drawHeight);
-    return `${x.toFixed(1)},${y.toFixed(1)}`;
-  }).join(' ');
+  const projected = projectCoordinates(values, bounds, dims);
+  const pts = buildSvgPoints(projected);
 
   const topLabel = `Max ${rawMax.toFixed(2)}m`;
   const botLabel = `Min ${rawMin.toFixed(2)}m`;
@@ -1229,29 +1226,8 @@ export function renderSingleSparkline(pointsInput, strokeColor = '#4ade80', opti
     `<span class="sparkline-title">${currentActiveRange.toUpperCase()} Telemetry</span>`;
 
   const centerY = marginTop + drawHeight / 2;
-
-  const gridLinesHTML = isFlatStage ? `
-    <line x1="${marginLeft}" y1="${centerY}" x2="${width - marginRight + 5}" y2="${centerY}" stroke="rgba(255, 255, 255, 0.25)" stroke-dasharray="3,3" stroke-width="1" />
-  ` : `
-    <line x1="${marginLeft}" y1="${marginTop}" x2="${width - marginRight + 5}" y2="${marginTop}" stroke="rgba(255, 255, 255, 0.15)" stroke-dasharray="3,3" stroke-width="1" />
-    <line x1="${marginLeft}" y1="${height - marginBottom}" x2="${width - marginRight + 5}" y2="${height - marginBottom}" stroke="rgba(255, 255, 255, 0.15)" stroke-dasharray="3,3" stroke-width="1" />
-  `;
-
-  const yLabelsHTML = isFlatStage ? `
-    <g class="y-label-group" transform="translate(${width - 4}, ${centerY + 3})">
-      <rect x="-64" y="-10" width="64" height="13" rx="2" fill="rgba(15, 23, 42, 0.85)" stroke="rgba(56, 189, 248, 0.3)" stroke-width="0.5" />
-      <text x="-2" y="0" text-anchor="end" class="sparkline-y-label sparkline-y-steady" fill="#38bdf8" font-weight="600">Steady ${rawMax.toFixed(2)}m</text>
-    </g>
-  ` : `
-    <g class="y-label-group" transform="translate(${width - 4}, ${marginTop + 3})">
-      <rect x="-60" y="-10" width="60" height="13" rx="2" fill="rgba(15, 23, 42, 0.75)" />
-      <text x="0" y="0" text-anchor="end" class="sparkline-y-label sparkline-y-max">${topLabel}</text>
-    </g>
-    <g class="y-label-group" transform="translate(${width - 4}, ${height - marginBottom + 3})">
-      <rect x="-60" y="-10" width="60" height="13" rx="2" fill="rgba(15, 23, 42, 0.75)" />
-      <text x="0" y="0" text-anchor="end" class="sparkline-y-label sparkline-y-min">${botLabel}</text>
-    </g>
-  `;
+  const gridLinesHTML = renderGridLines(dims, isFlatStage);
+  const yLabelsHTML = renderYAxisLabels(dims, bounds, isFlatStage);
 
   return `
     <div class="sparkline-wrapper">
@@ -1297,18 +1273,9 @@ export function renderDualSparkline(seaInput, inlandInput, isTideLocked, options
   const height = options.height || 75;
 
   const allPoints = [...seaValues, ...inlandValues];
-  const rawMin = Math.min(...allPoints);
-  const rawMax = Math.max(...allPoints);
   const minSpan = options.minSpan !== undefined ? options.minSpan : 1.0;
-
-  let yMin = rawMin;
-  let yMax = rawMax;
-  if ((rawMax - rawMin) < minSpan) {
-    const mid = (rawMin + rawMax) / 2;
-    yMin = mid - (minSpan / 2);
-    yMax = mid + (minSpan / 2);
-  }
-  const effectiveRange = yMax - yMin || 1;
+  const bounds = computeSparklineBounds(allPoints, { minSpan });
+  const { rawMin, rawMax, yMin, yMax, effectiveRange } = bounds;
 
   const marginTop = 16;
   const marginBottom = 16;
@@ -1316,40 +1283,15 @@ export function renderDualSparkline(seaInput, inlandInput, isTideLocked, options
   const marginRight = 68;
   const drawWidth = width - marginLeft - marginRight;
   const drawHeight = height - marginTop - marginBottom;
+  const dims = { width, height, marginTop, marginBottom, marginLeft, marginRight, drawWidth, drawHeight };
 
-  const mapPoints = (pts) => pts.map((p, i) => {
-    const x = marginLeft + (i / (pts.length - 1)) * drawWidth;
-    const normalizedY = (p - yMin) / effectiveRange;
-    const y = height - marginBottom - (normalizedY * drawHeight);
-    return `${x.toFixed(1)},${y.toFixed(1)}`;
-  }).join(' ');
-
-  const seaPts = mapPoints(seaValues);
-  const inlandPts = mapPoints(inlandValues);
+  const seaProjected = projectCoordinates(seaValues, bounds, dims);
+  const inlandProjected = projectCoordinates(inlandValues, bounds, dims);
+  const seaPts = buildSvgPoints(seaProjected);
+  const inlandPts = buildSvgPoints(inlandProjected);
 
   // Calculate exact historical tide-lock intervals (sea level >= inland level)
-  const getTideLockIntervals = (sPts, iPts) => {
-    const intervals = [];
-    let inLock = false;
-    let startIdx = 0;
-    const len = Math.min(sPts.length, iPts.length);
-    for (let i = 0; i < len; i++) {
-      const isLocked = sPts[i] >= iPts[i];
-      if (isLocked && !inLock) {
-        inLock = true;
-        startIdx = i;
-      } else if (!isLocked && inLock) {
-        inLock = false;
-        intervals.push({ start: startIdx, end: i - 1 });
-      }
-    }
-    if (inLock) {
-      intervals.push({ start: startIdx, end: len - 1 });
-    }
-    return intervals;
-  };
-
-  const intervals = getTideLockIntervals(seaValues, inlandValues);
+  const intervals = computeTideLockIntervals(seaValues, inlandValues);
   const n = Math.min(seaValues.length, inlandValues.length);
 
   const tideLockHighlights = intervals.map(inv => {
@@ -1445,10 +1387,7 @@ export function bindSparklineEvents(container = document) {
     const drawHeight = height - marginTop - marginBottom;
 
     const targetX = marginLeft + ratio * drawWidth;
-    const index = Math.min(
-      pointsData.length - 1,
-      Math.max(0, Math.round(ratio * (pointsData.length - 1)))
-    );
+    const index = calculateSparklineScrubIndex(ratio, pointsData.length);
 
     const primaryVal = pointsData[index];
     const yMin = parseFloat(svg.dataset.ymin);
@@ -1489,11 +1428,9 @@ export function bindSparklineEvents(container = document) {
     const tooltip = wrapper.querySelector('.sparkline-tooltip');
     if (tooltip) {
       tooltip.style.left = `${(targetX / width) * 100}%`;
-      const rawTime = timestamps[index];
-      const timeObj = rawTime ? new Date(rawTime) : null;
-      const isValid = timeObj && !isNaN(timeObj.getTime());
-      const timeStr = isValid ? timeObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
-      const dateStr = isValid ? `${timeObj.getDate()} ${timeObj.toLocaleString('en-US', { month: 'short' })}` : '';
+      const formatted = formatTimestampTooltip(timestamps[index]);
+      const timeStr = formatted.timeStr;
+      const dateStr = formatted.dateStr;
       
       let valText = '';
       if (secondaryData.length > 0 && index < secondaryData.length) {
@@ -1529,35 +1466,16 @@ export function bindSparklineEvents(container = document) {
 
     const firstSvg = container.querySelector('svg.sparkline');
     const timestamps = firstSvg ? JSON.parse(firstSvg.dataset.timestamps || '[]') : [];
-    const index = Math.min(timestamps.length - 1, Math.max(0, Math.round(ratio * (timestamps.length - 1))));
-    const rawTime = timestamps[index];
-    const timeObj = rawTime ? new Date(rawTime) : null;
-    const isValid = timeObj && !isNaN(timeObj.getTime());
+    const index = calculateSparklineScrubIndex(ratio, timestamps.length);
+    const formatted = formatTimestampTooltip(timestamps[index]);
 
     banner.classList.add('active-inspection');
     if (badge) badge.innerText = '🎯 SYNCHRONIZED INSPECTION';
-    if (timeDisplay && isValid) {
-      const dateFormatted = timeObj.toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' });
-      const timeFormatted = timeObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      timeDisplay.innerText = `📅 ${dateFormatted}, ${timeFormatted} GMT`;
+    if (timeDisplay && formatted.isValid) {
+      timeDisplay.innerText = `📅 ${formatted.dateFormatted}, ${formatted.timeStr} GMT`;
     }
-    if (ageDisplay && isValid) {
-      const diffMs = Date.now() - timeObj.getTime();
-      const diffMins = Math.floor(diffMs / 60000);
-      let ageStr = '';
-      if (diffMins < 1) ageStr = '(Just now)';
-      else if (diffMins < 60) ageStr = `(${diffMins}m ago)`;
-      else {
-        const h = Math.floor(diffMins / 60);
-        const m = diffMins % 60;
-        if (h < 24) ageStr = `(${h}h ${m}m ago)`;
-        else {
-          const d = Math.floor(h / 24);
-          const remH = h % 24;
-          ageStr = `(${d}d ${remH}h ago)`;
-        }
-      }
-      ageDisplay.innerText = ageStr;
+    if (ageDisplay && formatted.isValid) {
+      ageDisplay.innerText = formatRelativeAge(formatted.timeObj);
     }
     if (syncStatus) syncStatus.innerText = '[ 4/4 MOORS SYNCED ]';
   };
@@ -1586,17 +1504,7 @@ export function bindSparklineEvents(container = document) {
     wrapper.setAttribute('aria-label', `${titleText} interactive sparkline. Use Left and Right Arrow keys to scrub timeline.`);
 
     const getRatioFromEvent = (e) => {
-      const rect = svg.getBoundingClientRect();
-      const clientX = e.touches && e.touches.length > 0 ? e.touches[0].clientX : e.clientX;
-      const xPx = clientX - rect.left;
-      const widthPx = rect.width;
-
-      const marginLeftPx = (8 / 300) * widthPx;
-      const marginRightPx = (65 / 300) * widthPx;
-      const drawWidthPx = widthPx - marginLeftPx - marginRightPx;
-
-      const relX = xPx - marginLeftPx;
-      return Math.max(0, Math.min(1, relX / drawWidthPx));
+      return calculateRatioFromEvent(e, svg, { width: 300, marginLeft: 8, marginRight: 65 });
     };
 
     const handleMove = (e) => {

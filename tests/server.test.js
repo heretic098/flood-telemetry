@@ -101,3 +101,18 @@ test('GET /js/topology.js serves static topology JS script correctly', async () 
   assert.ok(res.headers['content-type'].includes('text/javascript'));
 });
 
+test('GET /js/sparkline.js serves static sparkline JS module correctly', async () => {
+  const res = await httpGet('/js/sparkline.js');
+  assert.equal(res.status, 200);
+  assert.ok(res.headers['content-type'].includes('text/javascript'));
+  assert.ok(res.body.includes('computeSparklineBounds'));
+});
+
+test('GET /somerset/js/sparkline.js serves static sparkline JS module under catchment route correctly', async () => {
+  const res = await httpGet('/somerset/js/sparkline.js');
+  assert.equal(res.status, 200);
+  assert.ok(res.headers['content-type'].includes('text/javascript'));
+  assert.ok(res.body.includes('computeSparklineBounds'));
+});
+
+

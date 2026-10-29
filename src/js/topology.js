@@ -21,6 +21,19 @@ import {
   STATION_BASELINES
 } from './hydro_engine.js?v=1.2.0';
 
+import {
+  computeSparklineBounds,
+  checkFlatStage,
+  projectCoordinates,
+  calculatePointY,
+  renderGridLines,
+  renderYAxisLabels,
+  evaluateCrestVisuals,
+  formatTimestampTooltip,
+  calculateSparklineScrubIndex,
+  calculateRatioFromEvent
+} from './sparkline.js';
+
 let topologyData = null;
 let statusData = null;
 let historyData = null;
@@ -1523,27 +1536,12 @@ function renderInspectorSparkline(readings, strokeColor = '#38bdf8', crestHeight
   const latestV = values[values.length - 1];
   const rawRange = rawMax - rawMin;
 
-  let minV = rawMin;
-  let maxV = rawMax;
+  const bounds = computeSparklineBounds(values, { crestHeight, spanPadding: 0.20 });
+  const minV = bounds.yMin;
+  const maxV = bounds.yMax;
+  const isCrestRelevant = bounds.isCrestRelevant;
+  const range = bounds.effectiveRange;
 
-  // Determine if crest height is close enough to the active water stage to warrant display in the sparkline frame.
-  // If the crest is > 0.80m above current stage, auto-scale around telemetry readings so 24h fluctuations are visible.
-  // When stage is within 0.80m of crest or active overtopping, expand the scale to include the crest.
-  const isCrestRelevant = crestHeight !== null && (latestV >= crestHeight - 0.80 || rawMax >= crestHeight - 0.80);
-
-  if (isCrestRelevant) {
-    maxV = Math.max(maxV, crestHeight + 0.05);
-    minV = Math.min(minV, crestHeight - 0.80);
-  } else {
-    // Add breathing room if span is small
-    if ((maxV - minV) < 0.20) {
-      const mid = (minV + maxV) / 2;
-      minV = mid - 0.10;
-      maxV = mid + 0.10;
-    }
-  }
-
-  const range = (maxV - minV) || 1;
   const w = 340;
   const h = 100;
   const marginTop = 18;
@@ -1552,25 +1550,20 @@ function renderInspectorSparkline(readings, strokeColor = '#38bdf8', crestHeight
   const marginRight = 68;
   const drawWidth = w - marginLeft - marginRight;
   const drawHeight = h - marginTop - marginBottom;
+  const dims = { width: w, height: h, marginTop, marginBottom, marginLeft, marginRight, drawWidth, drawHeight };
 
-  const pointsArr = items.map((item, idx) => {
-    const x = marginLeft + (idx / (items.length - 1)) * drawWidth;
-    const y = h - marginBottom - ((item.value - minV) / range) * drawHeight;
-    return { x, y, value: item.value };
-  });
-
+  const pointsArr = projectCoordinates(values, bounds, dims);
   const points = pointsArr.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
   const latestPt = pointsArr[pointsArr.length - 1];
 
   let crestLine = '';
   if (isCrestRelevant && crestHeight >= minV && crestHeight <= maxV) {
-    const crestY = h - marginBottom - ((crestHeight - minV) / range) * drawHeight;
-    
-    // Dynamic Semantic Coloring: Dormant = Muted Slate, Pre-alert = Amber, Overtopping = Red
-    let crestStroke = '#64748b'; // Muted Slate (Zone 2 - Dormant / Nominal)
-    let crestFill = 'rgba(30, 41, 59, 0.9)';
-    let crestText = '#94a3b8';
-    let crestLabelText = `Crest ${crestHeight.toFixed(2)}m`;
+    const crestY = calculatePointY(crestHeight, bounds, dims);
+    const visuals = evaluateCrestVisuals(latestV, crestHeight);
+    let crestStroke = visuals.crestStroke;
+    let crestFill = visuals.crestFill;
+    let crestText = visuals.crestText;
+    let crestLabelText = visuals.crestLabelText;
 
     if (latestV >= crestHeight) {
       crestStroke = '#ef4444'; // Zone 3 - Emergency Overtopping
@@ -1582,6 +1575,8 @@ function renderInspectorSparkline(readings, strokeColor = '#38bdf8', crestHeight
       crestFill = 'rgba(120, 53, 15, 0.9)';
       crestText = '#fde68a';
       crestLabelText = `⚠️ Crest ${crestHeight.toFixed(2)}m`;
+    } else {
+      crestStroke = '#64748b'; // Muted Slate (Zone 2 - Dormant / Nominal)
     }
 
     crestLine = `
@@ -1601,31 +1596,15 @@ function renderInspectorSparkline(readings, strokeColor = '#38bdf8', crestHeight
   const deltaText = isFlatStage ? '0cm (Steady)' : `${(rawRange * 100).toFixed(0)}cm`;
 
   const centerY = marginTop + drawHeight / 2;
-
-  const gridLinesHTML = isFlatStage ? `
-    <line x1="${marginLeft}" y1="${centerY}" x2="${w - marginRight + 5}" y2="${centerY}" stroke="rgba(255, 255, 255, 0.25)" stroke-dasharray="3,3" stroke-width="1" />
-  ` : `
-    <line x1="${marginLeft}" y1="${marginTop}" x2="${w - marginRight + 5}" y2="${marginTop}" stroke="rgba(255, 255, 255, 0.15)" stroke-dasharray="3,3" stroke-width="1" />
-    <line x1="${marginLeft}" y1="${h - marginBottom}" x2="${w - marginRight + 5}" y2="${h - marginBottom}" stroke="rgba(255, 255, 255, 0.15)" stroke-dasharray="3,3" stroke-width="1" />
-  `;
+  const gridLinesHTML = renderGridLines(dims, isFlatStage);
 
   const topDisplayLabel = isCrestRelevant && (maxV - rawMax > 0.05) ? `Top ${maxV.toFixed(2)}m` : topLabel;
-
   const yLabelsHTML = isFlatStage ? `
     <g transform="translate(${w - 4}, ${centerY + 3})">
       <rect x="-64" y="-9" width="64" height="13" rx="2" fill="rgba(15, 23, 42, 0.85)" stroke="rgba(56, 189, 248, 0.3)" stroke-width="0.5" />
       <text x="-4" y="1" text-anchor="end" class="sparkline-y-label sparkline-y-steady" fill="#38bdf8" font-weight="600">Steady ${rawMax.toFixed(2)}m</text>
     </g>
-  ` : `
-    <g transform="translate(${w - 4}, ${marginTop + 3})">
-      <rect x="-60" y="-9" width="60" height="13" rx="2" fill="rgba(15, 23, 42, 0.85)" />
-      <text x="-4" y="1" text-anchor="end" class="sparkline-y-label sparkline-y-max">${topDisplayLabel}</text>
-    </g>
-    <g transform="translate(${w - 4}, ${h - marginBottom + 3})">
-      <rect x="-60" y="-9" width="60" height="13" rx="2" fill="rgba(15, 23, 42, 0.85)" />
-      <text x="-4" y="1" text-anchor="end" class="sparkline-y-label sparkline-y-min">${botLabel}</text>
-    </g>
-  `;
+  ` : renderYAxisLabels(dims, bounds, isFlatStage, { topDisplayLabel });
 
   return `
     <div class="sparkline-stats-bar">
@@ -1698,6 +1677,8 @@ function bindInspectorSparklineEvents(container) {
   const drawWidth = w - marginLeft - marginRight;
   const drawHeight = h - marginTop - marginBottom;
 
+  const dims = { width: w, height: h, marginTop, marginBottom, marginLeft, marginRight, drawWidth, drawHeight };
+
   const yMin = parseFloat(svg.dataset.ymin) || 0;
   const yMax = parseFloat(svg.dataset.ymax) || 1;
   const effectiveRange = yMax - yMin || 1;
@@ -1717,10 +1698,7 @@ function bindInspectorSparklineEvents(container) {
     }
     wrapper.classList.add('crosshair-active');
 
-    const index = Math.min(
-      pointsData.length - 1,
-      Math.max(0, Math.round(ratio * (pointsData.length - 1)))
-    );
+    const index = calculateSparklineScrubIndex(ratio, pointsData.length);
 
     const primaryVal = pointsData[index];
     const targetX = marginLeft + ratio * drawWidth;
@@ -1744,28 +1722,16 @@ function bindInspectorSparklineEvents(container) {
       const leftPct = Math.max(16, Math.min(84, (targetX / w) * 100));
       tooltip.style.left = `${leftPct.toFixed(1)}%`;
       
-      const rawTime = timestamps[index];
-      const timeObj = rawTime ? new Date(rawTime) : null;
-      const isValid = timeObj && !isNaN(timeObj.getTime());
-      const timeStr = isValid ? timeObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
-      const dateStr = isValid ? `${timeObj.getDate()} ${timeObj.toLocaleString('en-US', { month: 'short' })}` : '';
+      const formatted = formatTimestampTooltip(timestamps[index]);
+      const timeStr = formatted.timeStr;
+      const dateStr = formatted.dateStr;
       
       tooltip.innerHTML = `<span class="tooltip-time">${dateStr} ${timeStr} GMT</span><span class="tooltip-val">${primaryVal.toFixed(2)} ${unit}</span>`;
     }
   };
 
   const getRatioFromEvent = (e) => {
-    const rect = svg.getBoundingClientRect();
-    const clientX = e.touches && e.touches.length > 0 ? e.touches[0].clientX : e.clientX;
-    const xPx = clientX - rect.left;
-    const widthPx = rect.width;
-
-    const marginLeftPx = (marginLeft / w) * widthPx;
-    const marginRightPx = (marginRight / w) * widthPx;
-    const drawWidthPx = widthPx - marginLeftPx - marginRightPx;
-
-    const relX = xPx - marginLeftPx;
-    return Math.max(0, Math.min(1, relX / drawWidthPx));
+    return calculateRatioFromEvent(e, svg, dims);
   };
 
   const handleMove = (e) => {
