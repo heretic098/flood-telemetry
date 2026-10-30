@@ -2405,6 +2405,132 @@ svg.inspector-sparkline-svg {
   color: #e0f2fe;
 }
 
+/* --------------------------------------------------------------------------
+   Hydraulic Thresholds & Provenance Breakdown (Inspector Drawer)
+   -------------------------------------------------------------------------- */
+.inspector-provenance-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  background: rgba(15, 23, 42, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 0.5rem;
+  padding: 0.75rem 0.85rem;
+}
+
+.provenance-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0;
+}
+
+.provenance-link {
+  font-size: 0.7rem;
+  color: #38bdf8;
+  text-decoration: none;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+}
+
+.provenance-link:hover {
+  text-decoration: underline;
+  color: #7dd3fc;
+}
+
+.provenance-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.provenance-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(30, 41, 59, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: 0.35rem;
+  padding: 0.35rem 0.6rem;
+  font-size: 0.8rem;
+  min-height: 32px;
+}
+
+.provenance-item-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.provenance-item-label {
+  color: #cbd5e1;
+  font-size: 0.75rem;
+}
+
+.provenance-item-val {
+  font-family: monospace;
+  font-weight: 700;
+  color: #f8fafc;
+  font-size: 0.8rem;
+  background: rgba(15, 23, 42, 0.4);
+  padding: 0.1rem 0.3rem;
+  border-radius: 3px;
+}
+
+/* Provenance Badges: Accessible, Muted, Zero Semantic Collision with Risk Colors */
+.prov-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.15rem 0.45rem;
+  font-size: 0.6875rem; /* 11px */
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  border-radius: 4px;
+  background: rgba(30, 41, 59, 0.85);
+  line-height: 1.2;
+  cursor: help;
+  user-select: none;
+}
+
+.prov-pill:focus-visible {
+  outline: 2px solid #38bdf8;
+  outline-offset: 2px;
+}
+
+/* Tier 1: Surveyed Civil Geometry (Sky Blue Accent, Slate Background) */
+.prov-tier-1 {
+  color: #7dd3fc;
+  border: 1px solid rgba(56, 189, 248, 0.4);
+}
+
+/* Tier 2: Statutory Trigger (Soft Lavender Accent) */
+.prov-tier-2 {
+  color: #c4b5fd;
+  border: 1px solid rgba(167, 139, 250, 0.4);
+}
+
+/* Tier 3: Statistical Envelope (Neutral Slate Accent) */
+.prov-tier-3 {
+  color: #cbd5e1;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+}
+
+/* Tier 4: Platform Heuristic (Dashed Slate Accent) */
+.prov-tier-4 {
+  color: #94a3b8;
+  border: 1px dashed rgba(100, 116, 139, 0.6);
+}
+
+
 
 
 

@@ -390,3 +390,48 @@ test('HYDRO-13: Penning regimes and calm baseflow never trigger false mobile pum
   const midelneyHighWaterHeadlock = evaluateMidelney(7.45, 7.60);
   assert.equal(midelneyHighWaterHeadlock.severity, 4);
 });
+
+test('HYDRO-14: All 19 network stations define structured 4-tier threshold provenance in STATION_REGISTRY and /api/topology', async () => {
+  const { STATION_REGISTRY, PROVENANCE_TIERS } = await import('../src/js/hydro_engine.js');
+  const res = await httpGet('/api/topology');
+  assert.equal(res.status, 200);
+  const topology = JSON.parse(res.body);
+
+  const registeredStationIds = Object.keys(STATION_REGISTRY);
+  assert.equal(registeredStationIds.length, 19, 'Must register exactly 19 canonical stations');
+
+  for (const stId of registeredStationIds) {
+    const station = STATION_REGISTRY[stId];
+    assert.ok(station.provenance, `Station ${stId} must define a structured provenance record`);
+    assert.ok(
+      station.provenance.alert,
+      `Station ${stId} must define alert threshold provenance`
+    );
+    assert.ok(
+      [1, 2, 3, 4].includes(station.provenance.alert.tier),
+      `Station ${stId} alert tier must be 1, 2, 3, or 4`
+    );
+    assert.ok(
+      typeof station.provenance.alert.authority === 'string' && station.provenance.alert.authority.length > 0,
+      `Station ${stId} must cite a non-empty authoritative source`
+    );
+
+    // If spillway, must have crest provenance
+    if (station.node_type === 'spillway') {
+      assert.ok(station.provenance.crest, `Spillway ${stId} must define crest provenance`);
+      assert.equal(station.provenance.crest.tier, 1, `Spillway ${stId} crest must be Tier 1 (Surveyed Civil Geometry)`);
+    }
+
+    // If polder basin, must have operational pump trigger provenance
+    if (station.node_type === 'polder_basin') {
+      assert.ok(station.provenance.operational, `Polder basin ${stId} must define operational pump trigger provenance`);
+      assert.equal(station.provenance.operational.tier, 2, `Polder basin ${stId} pump triggers must be Tier 2 (Statutory / Agency Trigger Plan)`);
+    }
+  }
+
+  // Check /api/topology nodes reflect provenance
+  for (const node of topology.nodes) {
+    assert.ok(node.provenance, `Topology node ${node.id} must deliver provenance metadata`);
+    assert.ok(node.provenance.alert, `Topology node ${node.id} must deliver alert provenance metadata`);
+  }
+});

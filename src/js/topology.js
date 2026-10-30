@@ -15,6 +15,7 @@ import {
   evaluatePumpStatus,
   getSeasonalRegime,
   DEFAULT_TOPOLOGY_NODES,
+  STATION_REGISTRY,
   GAUGE_DATUMS,
   STATION_BASELINES
 } from './hydro_engine.js?v=1.2.0';
@@ -1460,6 +1461,99 @@ function inspectNode(nodeId, restoreFocus = false) {
   if (narrative) {
     narrative.innerText = getInspectorNarrative(node, stage, crest);
     narrative.className = `inspector-narrative status-border-${node.status.toLowerCase().replace('_', '-')}`;
+  }
+
+  // Populate Hydraulic Thresholds & Provenance Breakdown
+  const provList = document.getElementById('node-provenance-list');
+  if (provList) {
+    const provItems = [];
+    const prov = node.provenance || STATION_REGISTRY[node.id]?.provenance || {};
+
+    if (node.crest_elevation_mAOD !== undefined && node.crest_elevation_mAOD !== null) {
+      const crestProv = prov.crest || { tier: 1, label: 'Surveyed Crest', authority: 'EA Asset Survey (ODN)' };
+      provItems.push({
+        label: isPolder ? 'Spillway Capacity Crest' : 'Engineered Crest',
+        value: `${Number(node.crest_elevation_mAOD).toFixed(2)}m AOD`,
+        tier: crestProv.tier,
+        tierLabel: crestProv.label,
+        authority: crestProv.authority,
+        icon: '📐'
+      });
+    }
+
+    if (node.sill_elevation_mAOD !== undefined && node.sill_elevation_mAOD !== null) {
+      const sillProv = prov.sill || { tier: 1, label: 'Surveyed Sill', authority: 'EA Intake Sill Survey' };
+      provItems.push({
+        label: 'Concrete Intake Sill',
+        value: `${Number(node.sill_elevation_mAOD).toFixed(2)}m AOD`,
+        tier: sillProv.tier,
+        tierLabel: sillProv.label,
+        authority: sillProv.authority,
+        icon: '📐'
+      });
+    }
+
+    if (node.alert_level_mAOD !== undefined && node.alert_level_mAOD !== null) {
+      const alertProv = prov.alert || { tier: 3, label: 'EA Typical High', authority: 'EA stageScale.typicalRangeHigh' };
+      provItems.push({
+        label: 'Flood Alert Threshold',
+        value: `${Number(node.alert_level_mAOD).toFixed(2)}m AOD`,
+        tier: alertProv.tier,
+        tierLabel: alertProv.label,
+        authority: alertProv.authority,
+        icon: alertProv.tier === 2 ? '📋' : (alertProv.tier === 1 ? '📐' : '📊')
+      });
+    }
+
+    if (datum !== undefined && datum !== null) {
+      const datumProv = prov.datum || { tier: 1, label: 'Surveyed Datum', authority: 'EA Geodetic Benchmark (ODN)' };
+      provItems.push({
+        label: 'Surveyed Datum (ODN)',
+        value: `+${Number(datum).toFixed(2)}m AOD`,
+        tier: datumProv.tier,
+        tierLabel: datumProv.label,
+        authority: datumProv.authority,
+        icon: '📐'
+      });
+    }
+
+    if (prov.operational) {
+      provItems.push({
+        label: 'Operational Trigger Plan',
+        value: isPolder ? 'Mobile Pumps Trigger' : 'Operating Rules',
+        tier: prov.operational.tier,
+        tierLabel: prov.operational.label,
+        authority: prov.operational.authority,
+        icon: '📋'
+      });
+    }
+
+    if (prov.near_crest) {
+      provItems.push({
+        label: 'Near-Crest Pre-Warning',
+        value: '15cm Buffer',
+        tier: prov.near_crest.tier,
+        tierLabel: prov.near_crest.label,
+        authority: prov.near_crest.authority,
+        icon: '⚙️'
+      });
+    }
+
+    provList.innerHTML = provItems.map(item => `
+      <div class="provenance-item">
+        <div class="provenance-item-meta">
+          <span class="provenance-item-label">${escapeHTML(item.label)}:</span>
+          <code class="provenance-item-val">${escapeHTML(item.value)}</code>
+        </div>
+        <span class="prov-pill prov-tier-${item.tier}" 
+              title="Tier ${item.tier} (${escapeAttr(item.tierLabel)}): ${escapeAttr(item.authority)}"
+              tabindex="0"
+              role="note"
+              aria-label="Provenance: Tier ${item.tier} ${escapeAttr(item.tierLabel)} - ${escapeAttr(item.authority)}">
+          ${item.icon} ${escapeHTML(item.tierLabel)}
+        </span>
+      </div>
+    `).join('');
   }
 
   const footerLinks = document.getElementById('node-footer-links');

@@ -831,7 +831,8 @@ const server = http.createServer(async (req, res) => {
         }
       ].map(node => ({
         ...node,
-        telemetry_source: hasLiveTelemetry(node.id) ? "live" : "cached_fallback"
+        telemetry_source: hasLiveTelemetry(node.id) ? "live" : "cached_fallback",
+        provenance: STATION_REGISTRY[node.id]?.provenance || null
       })),
       edges: [
         { from: "52108", to: "52109", type: "main_river", flow_active: true },

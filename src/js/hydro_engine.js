@@ -506,6 +506,18 @@ export async function loadCatchmentConfig(catchmentId = 'somerset', fetchFn = gl
 }
 
 /**
+ * 4-Tier Provenance Classification Taxonomy
+ * Strictly separates surveyed physical geometry, official agency plans,
+ * EA statistical envelopes, and platform-derived heuristics.
+ */
+export const PROVENANCE_TIERS = {
+  TIER_1_SURVEYED: { tier: 1, code: 'SURVEYED', label: 'Surveyed', icon: '📐', description: 'Fixed physical civil geometry from official EA/SRA asset surveys' },
+  TIER_2_AGENCY_PLAN: { tier: 2, code: 'AGENCY_PLAN', label: 'Agency Plan', icon: '📋', description: 'Statutory EA / Somerset Council Trigger Point Plan threshold' },
+  TIER_3_EA_TYPICAL: { tier: 3, code: 'EA_TYPICAL', label: 'EA Typical', icon: '📊', description: 'Calibrated from official EA stageScale.typicalRangeHigh historical envelope' },
+  TIER_4_DERIVED: { tier: 4, code: 'DERIVED', label: 'Derived', icon: '⚙️', description: 'Platform-derived operational heuristic or safety buffer' }
+};
+
+/**
  * Canonical 19-Station Hydrological Network Registry
  * Authoritative single source of truth for all network assets, geodetic datums,
  * structural taxonomy classes, alert thresholds, and calm baseflow fallbacks.
@@ -526,7 +538,12 @@ export const STATION_REGISTRY = {
     sill_elevation_mAOD: undefined,
     fallback_stage_mAOD: 76.14,
     downstream_node_id: '52109',
-    has_sparkline: true
+    has_sparkline: true,
+    provenance: {
+      datum: { tier: 1, label: 'Surveyed Datum', authority: 'EA Geodetic Benchmark (+75.69m ODN)' },
+      invert: { tier: 1, label: 'Surveyed Bed Invert', authority: 'EA Tone Channel Bed Survey' },
+      alert: { tier: 3, label: 'EA Statistical Envelope', authority: 'EA stageScale.typicalRangeHigh (1.30m stage)' }
+    }
   },
   '52109': {
     id: '52109',
@@ -543,7 +560,12 @@ export const STATION_REGISTRY = {
     sill_elevation_mAOD: undefined,
     fallback_stage_mAOD: 16.93,
     downstream_node_id: '52111',
-    has_sparkline: true
+    has_sparkline: true,
+    provenance: {
+      datum: { tier: 1, label: 'Surveyed Datum', authority: 'EA Geodetic Benchmark (+16.58m ODN)' },
+      invert: { tier: 1, label: 'Surveyed Bed Invert', authority: 'EA Tone Channel Bed Survey' },
+      alert: { tier: 3, label: 'EA Statistical Envelope', authority: 'EA stageScale.typicalRangeHigh (0.90m stage)' }
+    }
   },
   '52111': {
     id: '52111',
@@ -560,7 +582,12 @@ export const STATION_REGISTRY = {
     sill_elevation_mAOD: undefined,
     fallback_stage_mAOD: 13.12,
     downstream_node_id: '52162',
-    has_sparkline: true
+    has_sparkline: true,
+    provenance: {
+      datum: { tier: 1, label: 'Surveyed Datum', authority: 'EA Geodetic Benchmark (+12.47m ODN)' },
+      invert: { tier: 1, label: 'Surveyed Bed Invert', authority: 'EA Tone Channel Bed Survey' },
+      alert: { tier: 3, label: 'EA Statistical Envelope', authority: 'EA stageScale.typicalRangeHigh (1.77m stage)' }
+    }
   },
   '52162': {
     id: '52162',
@@ -577,7 +604,12 @@ export const STATION_REGISTRY = {
     sill_elevation_mAOD: undefined,
     fallback_stage_mAOD: 7.54,
     downstream_node_id: '52118',
-    has_sparkline: true
+    has_sparkline: true,
+    provenance: {
+      datum: { tier: 1, label: 'Direct mAOD Sensor', authority: 'EA Telemetry Stream (0.00m offset)' },
+      invert: { tier: 1, label: 'Surveyed Bed Invert', authority: 'EA Channel Bed Survey' },
+      alert: { tier: 3, label: 'EA Statistical Envelope', authority: 'EA Typical High Flood Stage' }
+    }
   },
   '52118': {
     id: '52118',
@@ -595,7 +627,13 @@ export const STATION_REGISTRY = {
     downstream_node_id: '52158',
     diverts_to_node_id: '52127',
     has_sparkline: true,
-    govuk_link: 'https://check-for-flooding.service.gov.uk/station/3073'
+    govuk_link: 'https://check-for-flooding.service.gov.uk/station/3073',
+    provenance: {
+      crest: { tier: 1, label: 'Surveyed Concrete Crest', authority: 'EA Asset Survey / SRA 2014 Benchmark (7.45m ODN)' },
+      alert: { tier: 3, label: 'EA Statistical Envelope', authority: 'EA stageScale.typicalRangeHigh' },
+      invert: { tier: 1, label: 'Surveyed Bed Invert', authority: 'EA Tone Channel Bed Invert' },
+      near_crest: { tier: 4, label: 'Platform 15cm Buffer', authority: 'Platform Heuristic (15cm Pre-Warning)' }
+    }
   },
   '52127': {
     id: '52127',
@@ -613,7 +651,13 @@ export const STATION_REGISTRY = {
     fallback_stage_mAOD: 4.47,
     downstream_node_id: 'currymoor_ps',
     has_sparkline: true,
-    govuk_link: 'https://check-for-flooding.service.gov.uk/station/3064'
+    govuk_link: 'https://check-for-flooding.service.gov.uk/station/3064',
+    provenance: {
+      crest: { tier: 1, label: 'Hookbridge Inflow Crest', authority: 'EA Surveyed Broad-Crested Weir (7.45m ODN)' },
+      alert: { tier: 3, label: 'EA Flood Alert Stage', authority: 'EA stageScale High Envelope' },
+      ground: { tier: 1, label: 'Surveyed Basin Floor', authority: 'EA Moor Topography Survey (2.10m ODN)' },
+      operational: { tier: 2, label: 'EA Trigger Point Plan', authority: 'EA Somerset Levels Trigger Point Plan (Currymoor PS 5.80m/6.10m)' }
+    }
   },
   '52116': {
     id: '52116',
@@ -630,7 +674,12 @@ export const STATION_REGISTRY = {
     sill_elevation_mAOD: undefined,
     fallback_stage_mAOD: 20.75,
     downstream_node_id: '52119',
-    has_sparkline: true
+    has_sparkline: true,
+    provenance: {
+      datum: { tier: 1, label: 'Surveyed Datum', authority: 'EA Geodetic Benchmark (+20.70m ODN)' },
+      invert: { tier: 1, label: 'Surveyed Bed Invert', authority: 'EA Parrett Channel Bed Survey' },
+      alert: { tier: 3, label: 'EA Statistical Envelope', authority: 'EA stageScale.typicalRangeHigh (1.80m stage)' }
+    }
   },
   '52119': {
     id: '52119',
@@ -647,7 +696,12 @@ export const STATION_REGISTRY = {
     sill_elevation_mAOD: undefined,
     fallback_stage_mAOD: 10.42,
     downstream_node_id: '52233',
-    has_sparkline: true
+    has_sparkline: true,
+    provenance: {
+      datum: { tier: 1, label: 'Surveyed Datum', authority: 'EA Geodetic Benchmark (+10.00m ODN)' },
+      invert: { tier: 1, label: 'Surveyed Bed Invert', authority: 'EA Parrett Channel Bed Survey' },
+      alert: { tier: 3, label: 'EA Statistical Envelope', authority: 'EA stageScale.typicalRangeHigh (2.80m stage)' }
+    }
   },
   '52120': {
     id: '52120',
@@ -666,7 +720,13 @@ export const STATION_REGISTRY = {
     downstream_node_id: '52233',
     upstream_tributaries: ['52121', '52117', '52112'],
     has_sparkline: true,
-    govuk_link: 'https://check-for-flooding.service.gov.uk/station/3071'
+    govuk_link: 'https://check-for-flooding.service.gov.uk/station/3071',
+    provenance: {
+      datum: { tier: 1, label: 'Surveyed Datum', authority: 'EA Geodetic Benchmark (+5.00m ODN)' },
+      invert: { tier: 1, label: 'Surveyed Bed Invert', authority: 'EA River Yeo Bed Survey' },
+      alert: { tier: 3, label: 'EA Statistical Envelope', authority: 'EA stageScale.typicalRangeHigh (3.48m stage)' },
+      operational: { tier: 2, label: 'EA Operating Rules', authority: 'EA River Cut-off at 8.20m, Winter Duty 6.50m' }
+    }
   },
   '52153': {
     id: '52153',
@@ -685,7 +745,13 @@ export const STATION_REGISTRY = {
     downstream_node_id: '52233',
     upstream_tributaries: ['52115', '52114'],
     has_sparkline: true,
-    govuk_link: 'https://check-for-flooding.service.gov.uk/station/3380'
+    govuk_link: 'https://check-for-flooding.service.gov.uk/station/3380',
+    provenance: {
+      datum: { tier: 1, label: 'Surveyed Datum', authority: 'EA Geodetic Benchmark (+5.185m ODN)' },
+      invert: { tier: 1, label: 'Surveyed Bed Invert', authority: 'EA River Isle Bed Survey' },
+      alert: { tier: 3, label: 'EA Statistical Envelope', authority: 'EA stageScale.typicalRangeHigh (3.01m stage)' },
+      operational: { tier: 2, label: 'FSA Operating Strategy', authority: 'West Moor FSA Duty Pumping (6.70m) & Reverse Headlock (8.20m)' }
+    }
   },
   '52233': {
     id: '52233',
@@ -703,7 +769,12 @@ export const STATION_REGISTRY = {
     downstream_node_id: '52158',
     diverts_to_node_id: '52234',
     has_sparkline: true,
-    ea_link: 'https://environment.data.gov.uk/flood-monitoring/id/stations/52233.html'
+    ea_link: 'https://environment.data.gov.uk/flood-monitoring/id/stations/52233.html',
+    provenance: {
+      sill: { tier: 1, label: 'Surveyed Clyse Sill', authority: 'EA Surveyed Intake Sill of Sowy Relief Channel (4.20m ODN)' },
+      alert: { tier: 3, label: 'EA Statistical Envelope', authority: 'EA stageScale.typicalRangeHigh' },
+      operational: { tier: 2, label: 'EA Operating Protocol', authority: 'Penstocks opened to relieve Parrett into Sowy' }
+    }
   },
   '52158': {
     id: '52158',
@@ -721,7 +792,13 @@ export const STATION_REGISTRY = {
     downstream_node_id: '52124',
     diverts_to_node_id: '52159',
     has_sparkline: true,
-    govuk_link: 'https://check-for-flooding.service.gov.uk/station/3065'
+    govuk_link: 'https://check-for-flooding.service.gov.uk/station/3065',
+    provenance: {
+      crest: { tier: 1, label: 'Surveyed Levee Defense', authority: 'EA Surveyed Armored Clay Embankment (7.80m ODN)' },
+      alert: { tier: 3, label: 'EA Statistical Envelope', authority: 'EA stageScale typical envelope' },
+      invert: { tier: 1, label: 'Surveyed Bed Invert', authority: 'EA Parrett Channel Invert at Burrowbridge' },
+      near_crest: { tier: 4, label: 'Platform 15cm Buffer', authority: 'Platform Heuristic (15cm Pre-Warning)' }
+    }
   },
   '52159': {
     id: '52159',
@@ -739,7 +816,13 @@ export const STATION_REGISTRY = {
     fallback_stage_mAOD: 3.17,
     downstream_node_id: 'saltmoor_ps',
     has_sparkline: true,
-    govuk_link: 'https://check-for-flooding.service.gov.uk/station/3068'
+    govuk_link: 'https://check-for-flooding.service.gov.uk/station/3068',
+    provenance: {
+      crest: { tier: 1, label: 'Baltmoor Levee Defense', authority: 'EA Surveyed Armored Clay Embankment (7.80m ODN)' },
+      alert: { tier: 3, label: 'EA Flood Alert Stage', authority: 'EA High Storage Warning' },
+      ground: { tier: 1, label: 'Surveyed Basin Floor', authority: 'EA Moor Topography Survey (1.80m ODN)' },
+      operational: { tier: 2, label: 'EA Trigger Point Plan', authority: 'EA Somerset Levels Trigger Point Plan (Northmoor/Saltmoor PS 4.80m/5.20m)' }
+    }
   },
   '52124': {
     id: '52124',
@@ -755,7 +838,12 @@ export const STATION_REGISTRY = {
     sill_elevation_mAOD: undefined,
     fallback_stage_mAOD: 3.10,
     downstream_node_id: '52163',
-    has_sparkline: true
+    has_sparkline: true,
+    provenance: {
+      datum: { tier: 1, label: 'Direct mAOD Sensor', authority: 'EA Telemetry Stream (0.00m offset)' },
+      invert: { tier: 1, label: 'Estuarine Bed Invert', authority: 'EA Tidal Parrett Bed Survey' },
+      alert: { tier: 3, label: 'EA Statistical Envelope', authority: 'EA stageScale.typicalRangeHigh (High Tide Alert)' }
+    }
   },
   '52163': {
     id: '52163',
@@ -772,7 +860,13 @@ export const STATION_REGISTRY = {
     fallback_stage_mAOD: 0.84,
     downstream_node_id: 'sea_outfall',
     has_sparkline: true,
-    govuk_link: 'https://check-for-flooding.service.gov.uk/station/9129'
+    govuk_link: 'https://check-for-flooding.service.gov.uk/station/9129',
+    provenance: {
+      datum: { tier: 1, label: 'Direct mAOD Sensor', authority: 'EA Telemetry Stream (0.00m offset)' },
+      invert: { tier: 1, label: 'Outfall Apron Invert', authority: 'EA Surveyed Sea Outfall Invert (-1.50m ODN)' },
+      alert: { tier: 3, label: 'EA Statistical Envelope', authority: 'EA Storm Surge Alert Level' },
+      operational: { tier: 4, label: 'Hydrostatic Balance', authority: 'Platform Differential Head Check (Sea vs Inland KSD)' }
+    }
   },
   '52234': {
     id: '52234',
@@ -789,7 +883,12 @@ export const STATION_REGISTRY = {
     fallback_stage_mAOD: 6.72,
     downstream_node_id: '52157',
     has_sparkline: true,
-    ea_link: 'https://environment.data.gov.uk/flood-monitoring/id/stations/52234.html'
+    ea_link: 'https://environment.data.gov.uk/flood-monitoring/id/stations/52234.html',
+    provenance: {
+      datum: { tier: 1, label: 'Direct mAOD Sensor', authority: 'EA Telemetry Stream (0.00m offset)' },
+      invert: { tier: 1, label: 'Channel Bed Invert', authority: 'EA Sowy Tailwater Survey' },
+      alert: { tier: 3, label: 'EA Statistical Envelope', authority: 'EA stageScale.typicalRangeHigh' }
+    }
   },
   '52157': {
     id: '52157',
@@ -805,7 +904,12 @@ export const STATION_REGISTRY = {
     sill_elevation_mAOD: undefined,
     fallback_stage_mAOD: 3.92,
     downstream_node_id: 'E9531',
-    has_sparkline: true
+    has_sparkline: true,
+    provenance: {
+      crest: { tier: 1, label: 'Surveyed Culvert Crest', authority: 'EA/SRA Surveyed Concrete Relief Weir (7.30m ODN)' },
+      alert: { tier: 3, label: 'EA Statistical Envelope', authority: 'EA stageScale typical envelope' },
+      invert: { tier: 1, label: 'Channel Bed Invert', authority: 'EA Sowy Channel Bed Survey' }
+    }
   },
   'E9531': {
     id: 'E9531',
@@ -822,7 +926,12 @@ export const STATION_REGISTRY = {
     fallback_stage_mAOD: 3.20,
     downstream_node_id: 'E9094',
     has_sparkline: true,
-    ea_link: 'https://environment.data.gov.uk/flood-monitoring/id/stations/E9531.html'
+    ea_link: 'https://environment.data.gov.uk/flood-monitoring/id/stations/E9531.html',
+    provenance: {
+      datum: { tier: 1, label: 'Direct mAOD Sensor', authority: 'EA Telemetry Stream (0.00m offset)' },
+      invert: { tier: 1, label: 'Drain Bed Invert', authority: 'EA KSD Bed Survey' },
+      alert: { tier: 3, label: 'EA Statistical Envelope', authority: 'EA stageScale.typicalRangeHigh' }
+    }
   },
   'E9094': {
     id: 'E9094',
@@ -839,9 +948,26 @@ export const STATION_REGISTRY = {
     fallback_stage_mAOD: 2.62,
     downstream_node_id: '52163',
     has_sparkline: true,
-    govuk_link: 'https://check-for-flooding.service.gov.uk/station/9499'
+    govuk_link: 'https://check-for-flooding.service.gov.uk/station/9499',
+    provenance: {
+      datum: { tier: 1, label: 'Direct mAOD Sensor', authority: 'EA Telemetry Stream (0.00m offset)' },
+      invert: { tier: 1, label: 'Inland Apron Invert', authority: 'EA KSD Outfall Apron Survey' },
+      alert: { tier: 3, label: 'EA Statistical Envelope', authority: 'EA stageScale.typicalRangeHigh' }
+    }
   }
 };
+
+/**
+ * Resolves the structured threshold provenance record for a given station and threshold type.
+ * @param {string} stationId - EA station ID
+ * @param {string} thresholdKey - 'crest' | 'alert' | 'datum' | 'invert' | 'ground' | 'operational' | 'near_crest'
+ * @returns {object|null} Structured provenance descriptor or null
+ */
+export function getThresholdProvenance(stationId, thresholdKey = 'alert') {
+  const station = STATION_REGISTRY[stationId];
+  if (!station || !station.provenance) return null;
+  return station.provenance[thresholdKey] || null;
+}
 
 /**
  * Extracts and calculates water elevation in mAOD for a given station.
@@ -949,7 +1075,10 @@ export const DEFAULT_TOPOLOGY_NODES = [
   { id: "52157", name: "Beerwall Upstream (Greylake)", river: "Sowy Relief Channel", catchment: "sowy_ksd", node_type: "spillway", stage_mAOD: 3.92, crest_elevation_mAOD: 7.30, alert_level_mAOD: 4.20, status: "SECURE", downstream_node_id: "E9531", has_sparkline: true },
   { id: "E9531", name: "Bradney (King's Sedgemoor Drain)", river: "King's Sedgemoor Drain", catchment: "sowy_ksd", node_type: "gauge", stage_mAOD: 3.20, alert_level_mAOD: 3.50, status: "SECURE", downstream_node_id: "E9094", has_sparkline: true, ea_link: "https://environment.data.gov.uk/flood-monitoring/id/stations/E9531.html" },
   { id: "E9094", name: "Dunball Inland KSD Outfall", river: "King's Sedgemoor Drain", catchment: "sowy_ksd", node_type: "gauge", stage_mAOD: 2.62, sea_stage_mAOD: 0.84, is_tide_locked: false, alert_level_mAOD: 3.50, status: "SECURE", downstream_node_id: "52163", has_sparkline: true, govuk_link: "https://check-for-flooding.service.gov.uk/station/9499" }
-];
+].map(node => ({
+  ...node,
+  provenance: STATION_REGISTRY[node.id]?.provenance || null
+}));
 
 /**
  * Single Authoritative Hydrological Threshold Registry (mAOD)

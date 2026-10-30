@@ -454,6 +454,54 @@ test('UI/UX Audit 4.9: Cross-view parity between Main Dashboard and Topology Vie
   );
 });
 
+test('UI/UX Audit 4.10: 4-Tier Threshold Provenance UX & Zero Semantic Collision', () => {
+  const methodologyHtml = fs.readFileSync(path.resolve('src/methodology.html'), 'utf8');
+
+  // 1. Container presence in topology.html
+  assert.ok(
+    topologyHtml.includes('id="node-provenance-section"'),
+    'topology.html must include #node-provenance-section in the inspector drawer'
+  );
+  assert.ok(
+    topologyHtml.includes('id="node-provenance-list"'),
+    'topology.html must include #node-provenance-list'
+  );
+
+  // 2. Methodology page anchors
+  assert.ok(
+    methodologyHtml.includes('id="threshold-provenance"'),
+    'methodology.html must define #threshold-provenance section anchor'
+  );
+  assert.ok(
+    topologyHtml.includes('href="methodology.html#threshold-provenance"'),
+    'topology.html must provide deep link to methodology.html#threshold-provenance'
+  );
+
+  // 3. Provenance badge CSS tokens in styles.css
+  assert.ok(stylesCss.includes('.prov-pill'), 'styles.css must define .prov-pill');
+  assert.ok(stylesCss.includes('.prov-tier-1'), 'styles.css must define .prov-tier-1');
+  assert.ok(stylesCss.includes('.prov-tier-2'), 'styles.css must define .prov-tier-2');
+  assert.ok(stylesCss.includes('.prov-tier-3'), 'styles.css must define .prov-tier-3');
+  assert.ok(stylesCss.includes('.prov-tier-4'), 'styles.css must define .prov-tier-4');
+
+  // 4. [UI-COL-01] Zero Semantic Collision: Provenance pills must NOT use high-risk Red/Amber fills
+  const provPillCss = stylesCss.substring(stylesCss.indexOf('.prov-pill'), stylesCss.indexOf('.prov-tier-4') + 200);
+  assert.ok(
+    !provPillCss.includes('background: #ef4444') && !provPillCss.includes('background: #f59e0b') && !provPillCss.includes('background: #10b981'),
+    'Provenance pills must NEVER use solid red, amber, or green background fills (must use neutral slate to avoid false flood alarms)'
+  );
+
+  // 5. topology.js populates provenance list with XSS sanitization
+  assert.ok(
+    topologyJs.includes("document.getElementById('node-provenance-list')"),
+    'topology.js must populate #node-provenance-list'
+  );
+  assert.ok(
+    topologyJs.includes('escapeHTML(item.label)') && topologyJs.includes('escapeAttr(item.authority)'),
+    'topology.js must sanitize dynamic provenance text and attributes with escapeHTML and escapeAttr'
+  );
+});
+
 
 
 

@@ -97,6 +97,62 @@
       </div>
     </section>
 
+    <!-- Section 2B: 4-Tier Threshold Provenance Register -->
+    <section class="doc-section" id="threshold-provenance">
+      <h3 class="section-heading"><span class="heading-icon">📐</span> 2B. 4-Tier Threshold Provenance Taxonomy</h3>
+      <p>
+        In accordance with our core principles of Epistemic Humility (<code>[RULE-HUM-01]</code>) and Empirical Substantiation (<code>[RULE-SUB-01]</code>), every hydraulic elevation, weir crest, alert stage, and pumping trigger on this platform is strictly categorized into one of four auditable provenance tiers:
+      </p>
+
+      <div class="provenance-legend-grid">
+        <div class="prov-card prov-high-box">
+          <div class="prov-header">
+            <span class="prov-pill prov-tier-1">📐 TIER 1: SURVEYED</span>
+            <span class="prov-confidence">GROUND TRUTH</span>
+          </div>
+          <p>
+            Fixed physical civil geometry in mAOD surveyed relative to Ordnance Datum Newlyn (ODN). Includes concrete weir crests (Hookbridge 7.45m), clyse sills (Monk's Leaze 4.20m), levee defense crests (Baltmoor Wall 7.80m), and road crowns (Cuts Road 7.35m).
+          </p>
+        </div>
+
+        <div class="prov-card prov-high-box">
+          <div class="prov-header">
+            <span class="prov-pill prov-tier-2">📋 TIER 2: AGENCY PLAN</span>
+            <span class="prov-confidence">STATUTORY TRIGGER</span>
+          </div>
+          <p>
+            Official operational action levels published in statutory civil contingency documents, specifically the EA <em>Somerset Levels &amp; Moors Trigger Point Plan</em> (e.g. Currymoor PS mobile pumps ordered at 5.80m, active at 6.10m; Northmoor PS mobile ordered at 4.80m, active at 5.20m).
+          </p>
+        </div>
+
+        <div class="prov-card prov-medium-box">
+          <div class="prov-header">
+            <span class="prov-pill prov-tier-3">📊 TIER 3: EA TYPICAL</span>
+            <span class="prov-confidence">STATISTICAL ENVELOPE</span>
+          </div>
+          <p>
+            In-channel river station alert levels calibrated directly against the Environment Agency open telemetry API <code>stageScale.typicalRangeHigh</code> historical envelope (e.g., Greenham 76.99m, Bishops Hull 17.48m, Taunton 14.24m).
+          </p>
+        </div>
+
+        <div class="prov-card prov-medium-box">
+          <div class="prov-header">
+            <span class="prov-pill prov-tier-4">⚙️ TIER 4: DERIVED</span>
+            <span class="prov-confidence">PLATFORM HEURISTIC</span>
+          </div>
+          <p>
+            Empirical software interpretation rules and safety buffers applied to raw stage measurements (e.g. 15cm Near Crest pre-warning buffer or hydrostatic gate differential checks &Delta;h). Never asserts simulated SCADA or unmeasured cumecs.
+          </p>
+        </div>
+      </div>
+
+      <div style="margin-top: 1rem;">
+        <p style="font-size: 0.85rem; color: var(--text-secondary);">
+          📖 Full evidence register and station-by-station citations are documented in the repository under <a href="https://github.com/heretic098/flood-telemetry/blob/master/docs/threshold_provenance.md" target="_blank" rel="noopener noreferrer" style="color: #38bdf8; font-weight: 600;"><code>docs/threshold_provenance.md</code> ↗</a>.
+        </p>
+      </div>
+    </section>
+
     <!-- Section 3: Hydrological & Hydraulic Core Logic -->
     <section class="doc-section">
       <h3 class="section-heading"><span class="heading-icon">📐</span> 3. Hydrological & Hydraulic Core Equations</h3>

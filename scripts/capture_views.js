@@ -92,7 +92,7 @@ async function run() {
       ]),
       execFileAsync(chromeBin, [
         ...commonFlags,
-        '--window-size=1440,1250',
+        '--window-size=1440,1700',
         `--screenshot=${topologyPath}`,
         `${baseUrl}/topology.html?station=${encodeURIComponent(stationArg)}`
       ])
@@ -101,7 +101,7 @@ async function run() {
     const elapsedMs = Date.now() - t0;
     console.log(`[Snapshot Complete in ${elapsedMs}ms]`);
     console.log(`  1. Main Dashboard (1440x1850): ${dashboardPath}`);
-    console.log(`  2. Topology View  (1440x1250): ${topologyPath}`);
+    console.log(`  2. Topology View  (1440x1700): ${topologyPath}`);
   } finally {
     if (ephemeralServer) {
       await new Promise(resolve => ephemeralServer.close(resolve));
