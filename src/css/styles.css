@@ -679,6 +679,64 @@ h1 {
   outline-offset: 2px;
 }
 
+/* Consolidated Camera Tray / Bar in Moor Cards (UX Issue #4) */
+.card-cam-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.75rem;
+  background: rgba(15, 23, 42, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0.45rem;
+  margin-top: 0.6rem;
+  margin-bottom: 0.6rem;
+}
+
+.cam-bar-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-right: 0.25rem;
+}
+
+.cam-bar-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.cam-bar-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0.3rem 0.65rem;
+  background: rgba(14, 165, 233, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  border-radius: 0.35rem;
+  color: #38bdf8;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: all 0.2s ease;
+}
+
+.cam-bar-btn:hover,
+.cam-bar-btn:focus-visible {
+  background: rgba(14, 165, 233, 0.25);
+  border-color: #38bdf8;
+  color: #ffffff;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.3);
+  outline: 2px solid #38bdf8;
+  outline-offset: 2px;
+}
+
 .sparkline-title {
   color: var(--text-muted);
   font-weight: 500;

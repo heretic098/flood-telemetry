@@ -820,7 +820,7 @@ const server = http.createServer(async (req, res) => {
   // API Route: Camera Analysis
   if (pathname.startsWith('/api/camera-analysis')) {
     const cameraId = urlObj.searchParams.get('camera_id') || 'monks_leaze_clyse';
-    const imageUrl = 'https://environment.data.gov.uk/flood-monitoring/data/images/52233.jpg';
+    const imageUrl = 'https://thecfh.org/parretttonewsom.php#monksleaze';
 
     let cached = db.prepare('SELECT * FROM camera_analysis WHERE camera_id = ? ORDER BY id DESC LIMIT 1').get(cameraId);
 

@@ -1558,7 +1558,7 @@ function inspectNode(nodeId, restoreFocus = false) {
 
   const footerLinks = document.getElementById('node-footer-links');
   if (footerLinks) {
-    const mainGovUkUrl = node.govuk_link || node.ea_link || `https://check-for-flooding.service.gov.uk/station/${node.id}`;
+    const mainGovUkUrl = node.govuk_link || node.ea_link || `https://environment.data.gov.uk/flood-monitoring/id/stations/${node.id}.html`;
     const mainGovUkText = node.govuk_link ? '📊 View GOV.UK Gauge Page ↗' : '📡 View EA Open Telemetry API ↗';
     const cameraHtml = node.id === '52233' ? `
       <a href="index.html#camera-section" class="ext-link-btn" style="border-color: rgba(56, 189, 248, 0.4); color: #38bdf8;" title="View Monk's Leaze Clyse Sluice Gate Webcam & AI Analysis">📷 Sluice Gate Camera &amp; AI Analysis ↗</a>

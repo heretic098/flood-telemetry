@@ -816,7 +816,7 @@ export const STATION_REGISTRY = {
     fallback_stage_mAOD: 3.17,
     downstream_node_id: 'saltmoor_ps',
     has_sparkline: true,
-    govuk_link: 'https://check-for-flooding.service.gov.uk/station/3068',
+    govuk_link: 'https://check-for-flooding.service.gov.uk/station/3415',
     provenance: {
       crest: { tier: 1, label: 'Baltmoor Levee Defense', authority: 'EA Surveyed Armored Clay Embankment (7.80m ODN)' },
       alert: { tier: 3, label: 'EA Flood Alert Stage', authority: 'EA High Storage Warning' },
@@ -1068,7 +1068,7 @@ export const DEFAULT_TOPOLOGY_NODES = [
   { id: "52153", name: "Midelney (River Isle)", river: "River Isle", catchment: "tributaries", node_type: "gauge", stage_mAOD: 6.63, alert_level_mAOD: 8.20, status: "SECURE", downstream_node_id: "52233", upstream_tributaries: ["52115", "52114"], has_sparkline: true, govuk_link: "https://check-for-flooding.service.gov.uk/station/3380" },
   { id: "52233", name: "Monk's Leaze Clyse (Upstream)", river: "River Parrett", catchment: "parrett", node_type: "clyse_gate", stage_mAOD: 6.73, sill_elevation_mAOD: 4.20, alert_level_mAOD: 7.90, status: "CLOSED", downstream_node_id: "52158", diverts_to_node_id: "52234", has_sparkline: true },
   { id: "52158", name: "Baltmoor Wall (Burrowbridge Confluence)", river: "River Parrett", catchment: "parrett", node_type: "spillway", stage_mAOD: 3.78, crest_elevation_mAOD: 7.80, alert_level_mAOD: 7.50, status: "SECURE", downstream_node_id: "52124", diverts_to_node_id: "52159", has_sparkline: true, govuk_link: "https://check-for-flooding.service.gov.uk/station/3065" },
-  { id: "52159", name: "Northmoor Basin", river: "Northmoor Basin", catchment: "parrett", node_type: "polder_basin", stage_mAOD: 3.17, ground_elevation_mAOD: 1.80, alert_level_mAOD: 3.80, crest_elevation_mAOD: 7.80, status: "SECURE", downstream_node_id: "saltmoor_ps", has_sparkline: true, govuk_link: "https://check-for-flooding.service.gov.uk/station/3068" },
+  { id: "52159", name: "Northmoor Basin", river: "Northmoor Basin", catchment: "parrett", node_type: "polder_basin", stage_mAOD: 3.17, ground_elevation_mAOD: 1.80, alert_level_mAOD: 3.80, crest_elevation_mAOD: 7.80, status: "SECURE", downstream_node_id: "saltmoor_ps", has_sparkline: true, govuk_link: "https://check-for-flooding.service.gov.uk/station/3415" },
   { id: "52124", name: "West Quay Bridgwater", river: "River Parrett", catchment: "parrett", node_type: "gauge", stage_mAOD: 3.10, alert_level_mAOD: 6.10, status: "SECURE", downstream_node_id: "52163", has_sparkline: true },
   { id: "52163", name: "Dunball Tidal Outfall", river: "Parrett Estuary", catchment: "parrett", node_type: "tidal_outfall", stage_mAOD: 0.84, inland_stage_mAOD: 2.62, is_tide_locked: false, alert_level_mAOD: 6.50, status: "SECURE", has_sparkline: true, govuk_link: "https://check-for-flooding.service.gov.uk/station/9129" },
   { id: "52234", name: "Monk's Leaze Clyse (Downstream Sowy)", river: "Sowy Relief Channel", catchment: "sowy_ksd", node_type: "gauge", stage_mAOD: 6.72, alert_level_mAOD: 7.60, status: "SECURE", downstream_node_id: "52157", has_sparkline: true },
@@ -1434,6 +1434,743 @@ export function evaluateMidelney(stage_mAOD, parrettStage_mAOD = null) {
     isAlert,
     clearanceText: (t.ALERT_MAOD - cleanStage).toFixed(2) + 'm to Alert',
     narrative: `River Isle stage is ${cleanStage.toFixed(2)}m AOD. ${isHeadLocked ? 'Parrett head backpressure forces Midelney gravity flaps shut; West Moor pumping required.' : 'Free gravity discharge into River Parrett active.'}`
+  };
+}
+
+/**
+ * Canonical Network Asset Definitions [RULE-ENT-01] [RULE-TAX-06]
+ * Structured canonical definitions covering all 6 physical asset classes.
+ */
+export const ASSET_DEFINITIONS = Object.freeze({
+  // --- 1. ROADS ---
+  cuts_road: Object.freeze({
+    asset_type: 'road',
+    asset_id: 'cuts_road',
+    name: 'Cuts Road (East Lyng ↔ Athelney)',
+    primary_station: '52127',
+    crown_elevation_mAOD: 7.35,
+    caution_elevation_mAOD: 7.00,
+    deadband_crown: HYDRO_DEADBANDS.road_crown,
+    deadband_caution: HYDRO_DEADBANDS.road_caution
+  }),
+  muchelney_access: Object.freeze({
+    asset_type: 'road',
+    asset_id: 'muchelney_access',
+    name: 'Muchelney Spine Road (Huish Episcopi ↔ Muchelney)',
+    primary_station: '52120',
+    crown_elevation_mAOD: 7.86,
+    caution_elevation_mAOD: 7.30,
+    deadband_crown: HYDRO_DEADBANDS.road_crown,
+    deadband_caution: HYDRO_DEADBANDS.road_caution
+  }),
+
+  // --- 2. SPILLWAYS ---
+  hookbridge: Object.freeze({
+    asset_type: 'spillway',
+    asset_id: 'hookbridge',
+    name: 'Hookbridge Spillway',
+    primary_station: '52118',
+    crest_elevation_mAOD: 7.45,
+    pre_spill_elevation_mAOD: 7.30,
+    deadband_crest: HYDRO_DEADBANDS.weir_crest,
+    deadband_pre_spill: HYDRO_DEADBANDS.pre_spill
+  }),
+  baltmoor_wall: Object.freeze({
+    asset_type: 'spillway',
+    asset_id: 'baltmoor_wall',
+    name: 'Baltmoor Wall Spillway',
+    primary_station: '52158',
+    crest_elevation_mAOD: 7.80,
+    pre_spill_elevation_mAOD: 7.65,
+    deadband_crest: HYDRO_DEADBANDS.weir_crest,
+    deadband_pre_spill: HYDRO_DEADBANDS.pre_spill
+  }),
+  beer_wall: Object.freeze({
+    asset_type: 'spillway',
+    asset_id: 'beer_wall',
+    name: 'Beer Wall Spillway',
+    primary_station: '52157',
+    crest_elevation_mAOD: 7.30,
+    pre_spill_elevation_mAOD: 7.15,
+    deadband_crest: HYDRO_DEADBANDS.weir_crest,
+    deadband_pre_spill: HYDRO_DEADBANDS.pre_spill
+  }),
+
+  // --- 3. POLDERS ---
+  curry_moor: Object.freeze({
+    asset_type: 'polder',
+    asset_id: 'curry_moor',
+    name: 'Curry Moor Polder Basin',
+    primary_station: '52127',
+    floor_elevation_mAOD: 2.10,
+    duty_pump_winter_mAOD: 4.30,
+    duty_pump_summer_mAOD: 4.45,
+    mobile_ordered_mAOD: 5.80,
+    mobile_active_mAOD: 6.10,
+    critical_mAOD: 6.50,
+    deadband_pump: HYDRO_DEADBANDS.polder_pump
+  }),
+  northmoor: Object.freeze({
+    asset_type: 'polder',
+    asset_id: 'northmoor',
+    name: 'Northmoor Polder Basin',
+    primary_station: '52159',
+    floor_elevation_mAOD: 1.80,
+    duty_pump_winter_mAOD: 4.00,
+    duty_pump_summer_mAOD: 4.00,
+    mobile_ordered_mAOD: 4.80,
+    mobile_active_mAOD: 5.20,
+    critical_mAOD: 5.60,
+    deadband_pump: HYDRO_DEADBANDS.polder_pump
+  }),
+
+  // --- 4. TIDAL GATES ---
+  dunball_outfall: Object.freeze({
+    asset_type: 'tidal_gate',
+    asset_id: 'dunball_outfall',
+    name: 'Dunball Sea Outfall Clyse',
+    sea_station: '52163',
+    inland_station: 'E9094',
+    deadband_flap: HYDRO_DEADBANDS.tidal_flap
+  }),
+
+  // --- 5. SLUICES ---
+  monks_leaze_clyse: Object.freeze({
+    asset_type: 'sluice',
+    asset_id: 'monks_leaze_clyse',
+    name: "Monk's Leaze Clyse Intake",
+    upstream_station: '52233',
+    downstream_station: '52234',
+    sill_elevation_mAOD: 4.20,
+    trigger_elevation_mAOD: 7.20,
+    sowy_capacity_mAOD: 7.60,
+    min_delta_h: 0.05,
+    deadband_clyse: HYDRO_DEADBANDS.clyse_head
+  }),
+
+  // --- 6. GAUGES ---
+  ...Object.fromEntries(
+    ['52108', '52109', '52111', '52116', '52119', '52120', '52153', '52162', '52124', 'E9531'].map(id => {
+      const reg = STATION_REGISTRY[id];
+      return [
+        id,
+        Object.freeze({
+          asset_type: 'gauge',
+          asset_id: id,
+          name: reg?.name || id,
+          station_id: id,
+          alert_elevation_mAOD: reg?.thresholds?.alert?.value ?? null,
+          deadband_alert: HYDRO_DEADBANDS.river_gauge
+        })
+      ];
+    })
+  )
+});
+
+/**
+ * Computes 3-hour trend momentum vector [▲ Rising, ▼ Receding, — Steady]
+ * @param {Array<{ dateTime?: string, value?: number }|number>} readings
+ * @returns {'▲ Rising' | '▼ Receding' | '— Steady'}
+ */
+export function computeTrendVector(readings) {
+  if (!Array.isArray(readings) || readings.length < 2) {
+    return '— Steady';
+  }
+
+  const latestItem = readings[0];
+  const latestVal = (typeof latestItem === 'object' && latestItem !== null) ? latestItem.value : latestItem;
+  if (latestVal === null || latestVal === undefined || isNaN(latestVal)) {
+    return '— Steady';
+  }
+
+  const nowMs = (typeof latestItem === 'object' && latestItem?.dateTime)
+    ? new Date(latestItem.dateTime).getTime()
+    : Date.now();
+  const threeHoursMs = 3 * 60 * 60 * 1000;
+
+  let refReading = null;
+  let minDiff = Infinity;
+
+  for (let i = 1; i < readings.length; i++) {
+    const r = readings[i];
+    const val = (typeof r === 'object' && r !== null) ? r.value : r;
+    if (val !== null && val !== undefined && !isNaN(val)) {
+      if (typeof r === 'object' && r?.dateTime) {
+        const age = Math.abs(nowMs - new Date(r.dateTime).getTime());
+        const diff = Math.abs(age - threeHoursMs);
+        if (diff < minDiff) {
+          minDiff = diff;
+          refReading = val;
+        }
+      }
+    }
+  }
+
+  // Fallback to reading around index 12 if timestamps not provided
+  if (refReading === null && readings.length >= 2) {
+    const idx = Math.min(12, readings.length - 1);
+    const item = readings[idx];
+    refReading = (typeof item === 'object' && item !== null) ? item.value : item;
+  }
+
+  if (refReading === null || refReading === undefined || isNaN(refReading)) {
+    return '— Steady';
+  }
+
+  const delta = Number((latestVal - refReading).toFixed(3));
+  if (delta >= 0.02) {
+    return '▲ Rising';
+  } else if (delta <= -0.02) {
+    return '▼ Receding';
+  }
+  return '— Steady';
+}
+
+/**
+ * Formats physical clearance strictly adhering to the Centimetre Rule for sub-metre values [Section 3.1]
+ * E.g. 18cm below crest, +1.45m clearance to road crown, ▲ Overtopping by +14cm
+ * @param {number} clearanceMeters
+ * @param {string} descriptor
+ * @returns {string}
+ */
+export function formatClearanceText(clearanceMeters, descriptor = 'crest') {
+  if (clearanceMeters === null || clearanceMeters === undefined || isNaN(clearanceMeters)) {
+    return 'Clearance N/A';
+  }
+
+  if (clearanceMeters < 0) {
+    const overspill = Math.abs(clearanceMeters);
+    if (overspill < 1.0) {
+      const cm = Math.round(overspill * 100);
+      return `▲ Overtopping by +${cm}cm`;
+    }
+    return `▲ Overtopping by +${overspill.toFixed(2)}m`;
+  }
+
+  if (clearanceMeters < 1.0) {
+    const cm = Math.round(clearanceMeters * 100);
+    return `${cm}cm below ${descriptor}`;
+  }
+
+  return `+${clearanceMeters.toFixed(2)}m clearance to ${descriptor}`;
+}
+
+/**
+ * Pure Deterministic State Transition Evaluator [RULE-ENT-01, RULE-PUMP-01, RULE-ALT-01, RULE-SUB-01, RULE-CALC-01]
+ * Zero I/O, zero network, zero SQLite dependencies.
+ * 
+ * Enforces:
+ * 1. Directional deadband hysteresis on falling stages
+ * 2. 30-minute debounce window (2 consecutive nominal readings required for CLOSE)
+ * 3. Chronological accuracy: end_time stamped with timestamp of FIRST nominal exit reading
+ * 4. Zero-Trust Telemetry Rule: sensor dropout freezes session in TELEMETRY_INTERRUPTED without closing
+ * 5. Centimetre Rule (<1m formatted as cm) & 3-hour trend momentum vectors
+ * 
+ * @param {object} assetDef
+ * @param {object|null} activeSession
+ * @param {Array|object} readingsWindow
+ * @param {object|null} seasonalRegime
+ * @param {object} options
+ * @returns {object} TransitionDecision
+ */
+export function evaluateAssetTransition(assetDef, activeSession = null, readingsWindow = [], seasonalRegime = null, options = {}) {
+  const regime = seasonalRegime || getSeasonalRegime();
+  const isSummer = regime.isSummer;
+
+  // Extract readings for the primary/target station(s)
+  let readings = [];
+  let secReadings = [];
+
+  if (Array.isArray(readingsWindow)) {
+    readings = readingsWindow;
+  } else if (readingsWindow && typeof readingsWindow === 'object') {
+    if (assetDef.asset_type === 'tidal_gate') {
+      readings = readingsWindow.sea || readingsWindow[assetDef.sea_station] || [];
+      secReadings = readingsWindow.inland || readingsWindow[assetDef.inland_station] || [];
+    } else if (assetDef.asset_type === 'sluice') {
+      readings = readingsWindow.upstream || readingsWindow[assetDef.upstream_station] || [];
+      secReadings = readingsWindow.downstream || readingsWindow[assetDef.downstream_station] || [];
+    } else {
+      const stationKey = assetDef.primary_station || assetDef.station_id;
+      readings = readingsWindow[stationKey] || readingsWindow.primary || [];
+    }
+  }
+
+  // Get latest reading
+  const latestItem = readings[0];
+  const rawStage = (typeof latestItem === 'object' && latestItem !== null) ? latestItem.value : latestItem;
+  const stage = sanitizeStageValue(rawStage);
+  const readingTime = (typeof latestItem === 'object' && latestItem?.dateTime)
+    ? latestItem.dateTime
+    : (options.timestamp || new Date().toISOString());
+
+  // Zero-Trust Telemetry Rule check:
+  if (stage === null) {
+    if (activeSession && activeSession.status === 'ACTIVE') {
+      return {
+        action: 'UPDATE',
+        asset_type: assetDef.asset_type,
+        asset_id: assetDef.asset_id,
+        from_state: activeSession.to_state,
+        to_state: 'TELEMETRY_INTERRUPTED',
+        severity_tier: activeSession.severity_tier,
+        trigger_stage_mAOD: activeSession.trigger_stage_mAOD,
+        peak_stage_mAOD: activeSession.peak_stage_mAOD,
+        clearance_m: activeSession.clearance_m ?? null,
+        clearance_text: 'Telemetry interrupted',
+        trend_vector: '— Steady',
+        narrative: 'Upstream telemetry station offline or corrupted. Active session frozen in TELEMETRY_INTERRUPTED state to preserve incident continuity.',
+        start_time: activeSession.start_time,
+        end_time: null,
+        duration_seconds: null,
+        session_updates: {
+          consecutiveNominalCount: activeSession.consecutiveNominalCount || 0,
+          firstNominalReading: activeSession.firstNominalReading || null,
+          peak_stage_mAOD: activeSession.peak_stage_mAOD,
+          is_interrupted: true
+        }
+      };
+    }
+    return {
+      action: 'NONE',
+      asset_type: assetDef.asset_type,
+      asset_id: assetDef.asset_id,
+      from_state: null,
+      to_state: 'NORMAL',
+      severity_tier: 1,
+      trigger_stage_mAOD: 0,
+      peak_stage_mAOD: 0,
+      clearance_m: null,
+      clearance_text: 'Sensor offline',
+      trend_vector: '— Steady',
+      narrative: 'No valid telemetry received from station.',
+      start_time: null,
+      end_time: null,
+      duration_seconds: null,
+      session_updates: {
+        consecutiveNominalCount: 0,
+        firstNominalReading: null,
+        peak_stage_mAOD: 0
+      }
+    };
+  }
+
+  let evaluatedState = 'NORMAL';
+  let evaluatedSeverity = 1;
+  let clearanceM = null;
+  let clearanceDescriptor = 'threshold';
+  let narrative = '';
+
+  const currentSt = activeSession?.to_state || null;
+
+  switch (assetDef.asset_type) {
+    case 'spillway': {
+      const Z_crest = assetDef.crest_elevation_mAOD;
+      const Z_pre = assetDef.pre_spill_elevation_mAOD ?? (Z_crest - 0.15);
+      const dbCrest = assetDef.deadband_crest ?? HYDRO_DEADBANDS.weir_crest;
+      const dbPre = assetDef.deadband_pre_spill ?? HYDRO_DEADBANDS.pre_spill;
+
+      if (currentSt === 'OVERTOPPING') {
+        if (stage >= Z_crest - dbCrest) {
+          evaluatedState = 'OVERTOPPING';
+          evaluatedSeverity = 4;
+        } else if (stage >= Z_pre - dbPre) {
+          evaluatedState = 'NEAR_CREST';
+          evaluatedSeverity = 3;
+        } else {
+          evaluatedState = 'SECURE';
+          evaluatedSeverity = 1;
+        }
+      } else if (currentSt === 'NEAR_CREST') {
+        if (stage >= Z_crest) {
+          evaluatedState = 'OVERTOPPING';
+          evaluatedSeverity = 4;
+        } else if (stage >= Z_pre - dbPre) {
+          evaluatedState = 'NEAR_CREST';
+          evaluatedSeverity = 3;
+        } else {
+          evaluatedState = 'SECURE';
+          evaluatedSeverity = 1;
+        }
+      } else {
+        if (stage >= Z_crest) {
+          evaluatedState = 'OVERTOPPING';
+          evaluatedSeverity = 4;
+        } else if (stage >= Z_pre) {
+          evaluatedState = 'NEAR_CREST';
+          evaluatedSeverity = 3;
+        } else {
+          evaluatedState = 'SECURE';
+          evaluatedSeverity = 1;
+        }
+      }
+
+      clearanceM = Number((Z_crest - stage).toFixed(3));
+      clearanceDescriptor = 'spillway crest';
+      if (evaluatedState === 'OVERTOPPING') {
+        narrative = `${assetDef.name} is actively overtopping into adjacent retention moor. River stage exceeds ${Z_crest.toFixed(2)}m AOD crest.`;
+      } else if (evaluatedState === 'NEAR_CREST') {
+        narrative = `${assetDef.name} is near crest. River level is within 15cm pre-spill warning threshold.`;
+      } else {
+        narrative = `${assetDef.name} is secure. River levels passing safely within channel banks.`;
+      }
+      break;
+    }
+
+    case 'road': {
+      const Z_crown = assetDef.crown_elevation_mAOD;
+      const Z_caut = assetDef.caution_elevation_mAOD;
+      const dbCrown = assetDef.deadband_crown ?? HYDRO_DEADBANDS.road_crown;
+      const dbCaut = assetDef.deadband_caution ?? HYDRO_DEADBANDS.road_caution;
+
+      if (currentSt === 'IMPASSABLE') {
+        if (stage >= Z_crown - dbCrown) {
+          evaluatedState = 'IMPASSABLE';
+          evaluatedSeverity = 4;
+        } else if (stage >= Z_caut - dbCaut) {
+          evaluatedState = 'ENCROACHING';
+          evaluatedSeverity = 3;
+        } else {
+          evaluatedState = 'PASSABLE';
+          evaluatedSeverity = 1;
+        }
+      } else if (currentSt === 'ENCROACHING') {
+        if (stage >= Z_crown) {
+          evaluatedState = 'IMPASSABLE';
+          evaluatedSeverity = 4;
+        } else if (stage >= Z_caut - dbCaut) {
+          evaluatedState = 'ENCROACHING';
+          evaluatedSeverity = 3;
+        } else {
+          evaluatedState = 'PASSABLE';
+          evaluatedSeverity = 1;
+        }
+      } else {
+        if (stage >= Z_crown) {
+          evaluatedState = 'IMPASSABLE';
+          evaluatedSeverity = 4;
+        } else if (stage >= Z_caut) {
+          evaluatedState = 'ENCROACHING';
+          evaluatedSeverity = 3;
+        } else {
+          evaluatedState = 'PASSABLE';
+          evaluatedSeverity = 1;
+        }
+      }
+
+      clearanceM = Number((Z_crown - stage).toFixed(3));
+      clearanceDescriptor = 'road crown';
+      if (evaluatedState === 'IMPASSABLE') {
+        narrative = `${assetDef.name} is flooded and impassable. Water stage has submerged the road crown (${Z_crown.toFixed(2)}m AOD).`;
+      } else if (evaluatedState === 'ENCROACHING') {
+        narrative = `${assetDef.name} has margin water encroachment. Low spots damp/flooded; caution advised for low vehicles.`;
+      } else {
+        narrative = `${assetDef.name} is passable. Road crown is dry.`;
+      }
+      break;
+    }
+
+    case 'polder': {
+      const Z_duty = isSummer ? assetDef.duty_pump_summer_mAOD : assetDef.duty_pump_winter_mAOD;
+      const Z_ordered = assetDef.mobile_ordered_mAOD;
+      const Z_active = assetDef.mobile_active_mAOD;
+      const Z_critical = assetDef.critical_mAOD;
+      const dbPump = assetDef.deadband_pump ?? HYDRO_DEADBANDS.polder_pump;
+
+      if (currentSt === 'CRITICAL') {
+        if (stage >= Z_critical - dbPump) {
+          evaluatedState = 'CRITICAL';
+          evaluatedSeverity = 4;
+        } else if (stage >= Z_active - dbPump) {
+          evaluatedState = 'MOBILE_ACTIVE';
+          evaluatedSeverity = 3;
+        } else if (stage >= Z_ordered - dbPump) {
+          evaluatedState = 'MOBILE_ORDERED';
+          evaluatedSeverity = 3;
+        } else if (stage >= Z_duty - dbPump) {
+          evaluatedState = 'DUTY_PUMPING';
+          evaluatedSeverity = 2;
+        } else {
+          evaluatedState = 'STANDBY';
+          evaluatedSeverity = 1;
+        }
+      } else if (currentSt === 'MOBILE_ACTIVE') {
+        if (stage >= Z_critical) {
+          evaluatedState = 'CRITICAL';
+          evaluatedSeverity = 4;
+        } else if (stage >= Z_active - dbPump) {
+          evaluatedState = 'MOBILE_ACTIVE';
+          evaluatedSeverity = 3;
+        } else if (stage >= Z_ordered - dbPump) {
+          evaluatedState = 'MOBILE_ORDERED';
+          evaluatedSeverity = 3;
+        } else if (stage >= Z_duty - dbPump) {
+          evaluatedState = 'DUTY_PUMPING';
+          evaluatedSeverity = 2;
+        } else {
+          evaluatedState = 'STANDBY';
+          evaluatedSeverity = 1;
+        }
+      } else if (currentSt === 'MOBILE_ORDERED') {
+        if (stage >= Z_critical) {
+          evaluatedState = 'CRITICAL';
+          evaluatedSeverity = 4;
+        } else if (stage >= Z_active) {
+          evaluatedState = 'MOBILE_ACTIVE';
+          evaluatedSeverity = 3;
+        } else if (stage >= Z_ordered - dbPump) {
+          evaluatedState = 'MOBILE_ORDERED';
+          evaluatedSeverity = 3;
+        } else if (stage >= Z_duty - dbPump) {
+          evaluatedState = 'DUTY_PUMPING';
+          evaluatedSeverity = 2;
+        } else {
+          evaluatedState = 'STANDBY';
+          evaluatedSeverity = 1;
+        }
+      } else if (currentSt === 'DUTY_PUMPING') {
+        if (stage >= Z_critical) {
+          evaluatedState = 'CRITICAL';
+          evaluatedSeverity = 4;
+        } else if (stage >= Z_active) {
+          evaluatedState = 'MOBILE_ACTIVE';
+          evaluatedSeverity = 3;
+        } else if (stage >= Z_ordered) {
+          evaluatedState = 'MOBILE_ORDERED';
+          evaluatedSeverity = 3;
+        } else if (stage >= Z_duty - dbPump) {
+          evaluatedState = 'DUTY_PUMPING';
+          evaluatedSeverity = 2;
+        } else {
+          evaluatedState = 'STANDBY';
+          evaluatedSeverity = 1;
+        }
+      } else {
+        if (stage >= Z_critical) {
+          evaluatedState = 'CRITICAL';
+          evaluatedSeverity = 4;
+        } else if (stage >= Z_active) {
+          evaluatedState = 'MOBILE_ACTIVE';
+          evaluatedSeverity = 3;
+        } else if (stage >= Z_ordered) {
+          evaluatedState = 'MOBILE_ORDERED';
+          evaluatedSeverity = 3;
+        } else if (stage >= Z_duty) {
+          evaluatedState = 'DUTY_PUMPING';
+          evaluatedSeverity = 2;
+        } else {
+          evaluatedState = 'STANDBY';
+          evaluatedSeverity = 1;
+        }
+      }
+
+      clearanceM = Number((Z_duty - stage).toFixed(3));
+      clearanceDescriptor = 'pump start trigger';
+      if (evaluatedState === 'CRITICAL') {
+        narrative = `${assetDef.name} retention capacity is near full (${stage.toFixed(2)}m AOD). Critical storage alarm.`;
+      } else if (evaluatedState === 'MOBILE_ACTIVE') {
+        narrative = `Inferred from moor stage relative to EA Trigger Plan: emergency contractor mobile pumps active at ${assetDef.name}.`;
+      } else if (evaluatedState === 'MOBILE_ORDERED') {
+        narrative = `Inferred from moor stage relative to EA Trigger Plan: contractor mobile pumps ordered for ${assetDef.name}.`;
+      } else if (evaluatedState === 'DUTY_PUMPING') {
+        narrative = `Permanent duty pumps active at ${assetDef.name} (${stage.toFixed(2)}m AOD). Evacuating water.`;
+      } else {
+        narrative = `${assetDef.name} in standby/penning mode. Water levels normal.`;
+      }
+      break;
+    }
+
+    case 'tidal_gate': {
+      const secLatest = secReadings[0];
+      const secStageRaw = (typeof secLatest === 'object' && secLatest !== null) ? secLatest.value : secLatest;
+      const inlandStage = sanitizeStageValue(secStageRaw);
+      const dbFlap = assetDef.deadband_flap ?? HYDRO_DEADBANDS.tidal_flap;
+
+      if (inlandStage === null) {
+        evaluatedState = 'DISCHARGING';
+        evaluatedSeverity = 1;
+      } else if (currentSt === 'TIDE_LOCKED') {
+        if (stage >= inlandStage - dbFlap) {
+          evaluatedState = 'TIDE_LOCKED';
+          evaluatedSeverity = 2;
+        } else {
+          evaluatedState = 'DISCHARGING';
+          evaluatedSeverity = 1;
+        }
+      } else {
+        if (stage >= inlandStage) {
+          evaluatedState = 'TIDE_LOCKED';
+          evaluatedSeverity = 2;
+        } else {
+          evaluatedState = 'DISCHARGING';
+          evaluatedSeverity = 1;
+        }
+      }
+
+      const headDelta = inlandStage !== null ? Number((inlandStage - stage).toFixed(3)) : 0;
+      clearanceM = headDelta;
+      clearanceDescriptor = 'tide-lock boundary';
+      narrative = evaluatedState === 'TIDE_LOCKED'
+        ? `Parrett Estuary tide (${stage.toFixed(2)}m) exceeds inland drain (${inlandStage?.toFixed(2)}m). Gravity flap doors closed.`
+        : `Low tide in Parrett Estuary: safe gravity discharge to sea (${headDelta >= 0 ? '+' : ''}${headDelta.toFixed(2)}m head).`;
+      break;
+    }
+
+    case 'sluice': {
+      const secLatest = secReadings[0];
+      const secStageRaw = (typeof secLatest === 'object' && secLatest !== null) ? secLatest.value : secLatest;
+      const downstreamStage = sanitizeStageValue(secStageRaw);
+      const Z_trig = assetDef.trigger_elevation_mAOD ?? 7.20;
+      const Z_cap = assetDef.sowy_capacity_mAOD ?? 7.60;
+      const minDelta = assetDef.min_delta_h ?? 0.05;
+      const dbClyse = assetDef.deadband_clyse ?? HYDRO_DEADBANDS.clyse_head;
+
+      const deltaH = downstreamStage !== null ? (stage - downstreamStage) : 0;
+
+      if (downstreamStage !== null && downstreamStage > stage) {
+        evaluatedState = 'REVERSE_LOCK';
+        evaluatedSeverity = 3;
+      } else if (stage >= Z_trig && (downstreamStage !== null && downstreamStage >= Z_cap || deltaH < minDelta)) {
+        evaluatedState = 'THROTTLED';
+        evaluatedSeverity = 3;
+      } else if (stage >= Z_trig || (currentSt === 'DIVERTING' && stage >= Z_trig - dbClyse)) {
+        evaluatedState = 'DIVERTING';
+        evaluatedSeverity = 2;
+      } else {
+        evaluatedState = 'CLOSED';
+        evaluatedSeverity = 1;
+      }
+
+      clearanceM = Number((Z_trig - stage).toFixed(3));
+      clearanceDescriptor = 'diversion trigger';
+      if (evaluatedState === 'REVERSE_LOCK') {
+        narrative = `Downstream tailwater higher than river. Monk's Leaze Clyse sealed to prevent reverse flooding.`;
+      } else if (evaluatedState === 'THROTTLED') {
+        narrative = `Sowy Relief Channel downstream full (${downstreamStage?.toFixed(2)}m AOD). Diversion throttled.`;
+      } else if (evaluatedState === 'DIVERTING') {
+        narrative = `Penstock gates open: actively diverting excess floodwaters into Sowy Relief Channel.`;
+      } else {
+        narrative = `Monk's Leaze Clyse gates closed in routine agricultural penning/river conveyance mode.`;
+      }
+      break;
+    }
+
+    case 'gauge':
+    default: {
+      const reg = STATION_REGISTRY[assetDef.station_id || assetDef.asset_id];
+      const Z_alert = assetDef.alert_elevation_mAOD ?? reg?.thresholds?.alert?.value ?? null;
+      const dbAlert = assetDef.deadband_alert ?? HYDRO_DEADBANDS.river_gauge;
+
+      if (Z_alert !== null && Z_alert !== undefined) {
+        if (currentSt === 'ALERT') {
+          if (stage >= Z_alert - dbAlert) {
+            evaluatedState = 'ALERT';
+            evaluatedSeverity = 3;
+          } else {
+            evaluatedState = 'NORMAL';
+            evaluatedSeverity = 1;
+          }
+        } else {
+          if (stage >= Z_alert) {
+            evaluatedState = 'ALERT';
+            evaluatedSeverity = 3;
+          } else {
+            evaluatedState = 'NORMAL';
+            evaluatedSeverity = 1;
+          }
+        }
+      } else {
+        evaluatedState = 'NORMAL';
+        evaluatedSeverity = 1;
+      }
+
+      clearanceM = (Z_alert !== null && Z_alert !== undefined) ? Number((Z_alert - stage).toFixed(3)) : null;
+      clearanceDescriptor = 'flood alert threshold';
+      narrative = evaluatedState === 'ALERT'
+        ? `${assetDef.name} exceeds Environment Agency typical flood boundary (${stage.toFixed(2)}m AOD).`
+        : `${assetDef.name} within typical seasonal envelope (${stage.toFixed(2)}m AOD).`;
+      break;
+    }
+  }
+
+  const trend_vector = computeTrendVector(readings);
+  const clearance_text = clearanceM !== null ? formatClearanceText(clearanceM, clearanceDescriptor) : 'Clearance N/A';
+
+  // State Transition & Debounce Window logic
+  let action = 'NONE';
+  let from_state = activeSession?.to_state || null;
+  let to_state = evaluatedState;
+  let severity_tier = evaluatedSeverity;
+  let start_time = activeSession?.start_time || null;
+  let end_time = null;
+  let duration_seconds = null;
+  let trigger_stage_mAOD = activeSession?.trigger_stage_mAOD ?? stage;
+  let peak_stage_mAOD = activeSession?.peak_stage_mAOD ? Math.max(activeSession.peak_stage_mAOD, stage) : stage;
+  let consecutiveNominalCount = activeSession?.consecutiveNominalCount || 0;
+  let firstNominalReading = activeSession?.firstNominalReading || null;
+
+  if (evaluatedSeverity >= 2) {
+    // Elevated incident condition
+    if (!activeSession || activeSession.status === 'CLOSED') {
+      action = 'OPEN';
+      start_time = readingTime;
+      trigger_stage_mAOD = stage;
+      peak_stage_mAOD = stage;
+      consecutiveNominalCount = 0;
+      firstNominalReading = null;
+    } else {
+      action = 'UPDATE';
+      peak_stage_mAOD = Math.max(activeSession.peak_stage_mAOD, stage);
+      consecutiveNominalCount = 0;
+      firstNominalReading = null;
+    }
+  } else {
+    // Nominal state (severity_tier === 1)
+    if (!activeSession || activeSession.status === 'CLOSED') {
+      action = 'NONE';
+      to_state = evaluatedState;
+      severity_tier = 1;
+    } else {
+      // Transitioning towards closure: enforce 30-minute debounce window (2 consecutive nominal readings)
+      if (consecutiveNominalCount === 0) {
+        action = 'UPDATE';
+        consecutiveNominalCount = 1;
+        firstNominalReading = { dateTime: readingTime, value: stage };
+        to_state = activeSession.to_state; // Keep elevated badge during debounce window
+        narrative = `${assetDef.name} level receding below threshold; confirming 30-min debounce recovery (1/2 confirmed)...`;
+      } else {
+        // Second consecutive nominal reading! Close event.
+        action = 'CLOSE';
+        to_state = evaluatedState;
+        severity_tier = 1;
+        end_time = firstNominalReading?.dateTime || readingTime;
+        duration_seconds = Math.max(0, Math.floor((new Date(end_time).getTime() - new Date(start_time).getTime()) / 1000));
+        narrative = `${assetDef.name} incident concluded after confirmed nominal recovery window.`;
+      }
+    }
+  }
+
+  return {
+    action,
+    asset_type: assetDef.asset_type,
+    asset_id: assetDef.asset_id,
+    from_state,
+    to_state,
+    severity_tier,
+    trigger_stage_mAOD,
+    peak_stage_mAOD,
+    clearance_m: clearanceM,
+    clearance_text,
+    trend_vector,
+    narrative,
+    start_time,
+    end_time,
+    duration_seconds,
+    session_updates: {
+      consecutiveNominalCount,
+      firstNominalReading,
+      peak_stage_mAOD
+    }
   };
 }
 

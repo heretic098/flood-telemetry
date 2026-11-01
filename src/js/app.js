@@ -501,19 +501,24 @@ export async function refreshLiveDashboard() {
     narrative: `Curry Moor Basin level is ${cmMoorLevel.toFixed(2)}m AOD (${isSummerRegime ? 'normal summer target 4.30-4.45m' : 'winter target 3.40-3.80m'}). ${cmEval.narrative}`,
     pills: [
       {
-        html: `<strong>Hookbridge Spillway:</strong> ${cmEval.symbol} ${cmEval.label} (${cmEval.clearanceText}) <a href="https://thecfh.org/parretttonewsom.php#hook" target="_blank" rel="noopener noreferrer" class="cctv-badge-btn" title="View 3-min EA Snapshot Camera at thecfh.org#hook" aria-label="View 3-min EA Snapshot Camera at thecfh.org for Hookbridge Spillway">📷 LIVE CAM ↗</a>`,
-        tooltip: `📍 Hookbridge Crest: ${hookbridgeCrest.toFixed(2)}m AOD (${hookbridgeScheme}) | View 3-min EA Snapshot Camera at thecfh.org#hook`
+        html: `<strong>Hookbridge Spillway:</strong> ${cmEval.symbol} ${cmEval.label} (${cmEval.clearanceText})`,
+        tooltip: `📍 Hookbridge Crest: ${hookbridgeCrest.toFixed(2)}m AOD (${hookbridgeScheme})`
       },
       {
-        html: `<strong>Athelney Spillway (Outflow):</strong> ${athelneySpillway.statusText} <a href="https://thecfh.org/parretttonewsom.php#athelneyspillway" target="_blank" rel="noopener noreferrer" class="cctv-badge-btn" title="View 3-min EA Snapshot Camera at thecfh.org#athelneyspillway" aria-label="View 3-min EA Snapshot Camera at thecfh.org for Athelney Spillway">📷 LIVE CAM ↗</a>`,
+        html: `<strong>Athelney Spillway (Outflow):</strong> ${athelneySpillway.statusText}`,
         tooltip: `📍 Athelney Crest: ${athelneyCrest.toFixed(2)}m AOD (Standard Profile) | Overspill cascade from Curry Moor into Northmoor when stage ≥ 7.35m AOD`
       },
       `<strong>Currymoor Gravity Sluice:</strong> ${cmGravitySluice.statusText}`,
       {
-        html: `<strong>Currymoor PS:</strong> ${currymoorPump.statusText} <a href="https://thecfh.org/parretttonewsom.php#currymoor" target="_blank" rel="noopener noreferrer" class="cctv-badge-btn" title="View 3-min EA Snapshot Camera at thecfh.org#currymoor" aria-label="View 3-min EA Snapshot Camera at thecfh.org for Currymoor PS">📷 LIVE CAM ↗</a>`,
-        tooltip: `📍 Currymoor Pumping Station | View 3-min EA Snapshot Camera at thecfh.org#currymoor`
+        html: `<strong>Currymoor PS:</strong> ${currymoorPump.statusText}`,
+        tooltip: `📍 Currymoor Pumping Station`
       },
       `<strong>Stanmoor PS:</strong> ${stanmoorPump.statusText}`
+    ],
+    camLinks: [
+      { label: "Hookbridge Spillway", url: "https://thecfh.org/parretttonewsom.php#hook", title: "View 3-min EA Snapshot Camera at Hookbridge" },
+      { label: "Athelney Spillway", url: "https://thecfh.org/parretttonewsom.php#athelneyspillway", title: "View 3-min EA Snapshot Camera at Athelney" },
+      { label: "Currymoor PS", url: "https://thecfh.org/parretttonewsom.php#currymoor", title: "View 3-min EA Snapshot Camera at Currymoor PS" }
     ],
     spillwayMeta: { crest: hookbridgeCrest.toFixed(2), scheme: hookbridgeScheme },
     sparkline: renderSingleSparkline(cmRiverHistory, cmEval.code === 'OVERTOPPING' ? '#f87171' : '#4ade80', { streamLabel: 'River Tone @ Currymoor PS', stationId: '52118', unit: 'mAOD' }),
@@ -527,7 +532,7 @@ export async function refreshLiveDashboard() {
       { label: "📊 GOV.UK Tone Stage (3073) ↗", url: "https://check-for-flooding.service.gov.uk/station/3073" },
       { label: "📊 GOV.UK Moor Stage (3064) ↗", url: "https://check-for-flooding.service.gov.uk/station/3064" },
       { label: "EA Data (52118) ↗", url: "https://environment.data.gov.uk/flood-monitoring/id/stations/52118.html" },
-      { label: "📄 EA Trigger Plan ↗", url: "https://www.gov.uk/guidance/somerset-levels-and-moors-reducing-the-risk-of-flooding#trigger-point-plan" }
+      { label: "📄 EA Trigger Plan ↗", url: "https://www.gov.uk/government/publications/somerset-levels-and-moors-reducing-the-risk-of-flooding" }
     ]
   }));
 
@@ -580,11 +585,14 @@ export async function refreshLiveDashboard() {
     narrative: `Curry Moor storage is ${athelneyClearanceDelta.toFixed(2)}m below Athelney Spillway crest (7.35m AOD). Provides overspill relief from Curry Moor into Northmoor retention storage when Curry Moor reaches capacity.`,
     pills: [
       {
-        html: `<strong>Athelney Spillway:</strong> ${athelneyEval.symbol} ${athelneyEval.label} (${athelneyEval.clearanceText}) <a href="https://thecfh.org/parretttonewsom.php#athelneyspillway" target="_blank" rel="noopener noreferrer" class="cctv-badge-btn" title="View 3-min EA Snapshot Camera at thecfh.org#athelneyspillway" aria-label="View 3-min EA Snapshot Camera at thecfh.org for Athelney Spillway">📷 LIVE CAM ↗</a>`,
+        html: `<strong>Athelney Spillway:</strong> ${athelneyEval.symbol} ${athelneyEval.label} (${athelneyEval.clearanceText})`,
         tooltip: `📍 Athelney Spillway Crest: ${athelneyCrest.toFixed(2)}m AOD (${athelneyScheme}) | Overspill relief cascade from Curry Moor into Northmoor retention storage`
       },
       `<strong>Overland Conduit:</strong> Curry Moor (52127) relieves into Northmoor (52159) retention storage`,
       `<strong>Hydraulic Threshold:</strong> Engineered broad-crested concrete spillway crest at 7.35m AOD`
+    ],
+    camLinks: [
+      { label: "Athelney Spillway", url: "https://thecfh.org/parretttonewsom.php#athelneyspillway", title: "View 3-min EA Snapshot Camera at Athelney" }
     ],
     spillwayMeta: { crest: athelneyCrest.toFixed(2), scheme: athelneyScheme },
     sparkline: renderSingleSparkline(cmMoorHistory, athelneyEval.code === 'OVERTOPPING' ? '#f87171' : '#38bdf8', { streamLabel: 'Curry Moor Basin @ Athelney', stationId: '52127', unit: 'mAOD' }),
@@ -655,26 +663,33 @@ export async function refreshLiveDashboard() {
     narrative: `Baltmoor Wall Saltmoor Barrier sensor live. River levels monitored relative to 7.80m defense overtopping crest.`,
     pills: [
       {
-        html: `<strong>Baltmoor Wall Overtopping:</strong> ${nmEval.symbol} ${nmEval.label} (${nmEval.clearanceText}) <a href="https://thecfh.org/parretttonewsom.php#saltmoor" target="_blank" rel="noopener noreferrer" class="cctv-badge-btn" title="View 3-min EA Snapshot Camera at thecfh.org#saltmoor" aria-label="View 3-min EA Snapshot Camera at thecfh.org for Baltmoor Wall">📷 LIVE CAM ↗</a>`,
-        tooltip: `📍 Baltmoor Wall Defense Crest: ${baltmoorCrest.toFixed(2)}m AOD (${baltmoorScheme}) | View 3-min EA Snapshot Camera at thecfh.org#saltmoor`
+        html: `<strong>Baltmoor Wall Overtopping:</strong> ${nmEval.symbol} ${nmEval.label} (${nmEval.clearanceText})`,
+        tooltip: `📍 Baltmoor Wall Defense Crest: ${baltmoorCrest.toFixed(2)}m AOD (${baltmoorScheme})`
       },
       {
-        html: `<strong>Athelney Spillway Inflow:</strong> ${athelneySpillway.statusText} <a href="https://thecfh.org/parretttonewsom.php#athelneyspillway" target="_blank" rel="noopener noreferrer" class="cctv-badge-btn" title="View 3-min EA Snapshot Camera at thecfh.org#athelneyspillway" aria-label="View 3-min EA Snapshot Camera at thecfh.org for Athelney Spillway">📷 LIVE CAM ↗</a>`,
+        html: `<strong>Athelney Spillway Inflow:</strong> ${athelneySpillway.statusText}`,
         tooltip: `📍 Athelney Crest: ${athelneyCrest.toFixed(2)}m AOD | Overspill cascade from Curry Moor into Northmoor retention storage`
       },
       {
-        html: `<strong>Beer Wall / Allens Spillway:</strong> ${beerWallSpillway.statusText} <a href="https://thecfh.org/parretttonewsom.php#Beerwall" target="_blank" rel="noopener noreferrer" class="cctv-badge-btn" title="View 3-min EA Snapshot Camera at thecfh.org#Beerwall" aria-label="View 3-min EA Snapshot Camera at thecfh.org for Beer Wall Spillway">📷 LIVE CAM ↗</a>`,
-        tooltip: `📍 Beer Wall Crest: ${beerWallCrest.toFixed(2)}m AOD (${beerWallScheme}) | View 3-min EA Snapshot Camera at thecfh.org#Beerwall`
+        html: `<strong>Beer Wall / Allens Spillway:</strong> ${beerWallSpillway.statusText}`,
+        tooltip: `📍 Beer Wall Crest: ${beerWallCrest.toFixed(2)}m AOD (${beerWallScheme})`
       },
       `<strong>Northmoor Gravity Clyse:</strong> ${nmGravitySluice.statusText}`,
       {
-        html: `<strong>Saltmoor PS:</strong> ${saltmoorPump.statusText} <a href="https://thecfh.org/parretttonewsom.php#saltmoor" target="_blank" rel="noopener noreferrer" class="cctv-badge-btn" title="View 3-min EA Snapshot Camera at thecfh.org#saltmoor" aria-label="View 3-min EA Snapshot Camera at thecfh.org for Saltmoor PS">📷 LIVE CAM ↗</a>`,
-        tooltip: `📍 Saltmoor Pumping Station | View 3-min EA Snapshot Camera at thecfh.org#saltmoor`
+        html: `<strong>Saltmoor PS:</strong> ${saltmoorPump.statusText}`,
+        tooltip: `📍 Saltmoor Pumping Station`
       },
       {
-        html: `<strong>Northmoor PS:</strong> ${northmoorPump.statusText} <a href="https://thecfh.org/parretttonewsom.php#northmoor" target="_blank" rel="noopener noreferrer" class="cctv-badge-btn" title="View 3-min EA Snapshot Camera at thecfh.org#northmoor" aria-label="View 3-min EA Snapshot Camera at thecfh.org for Northmoor PS">📷 LIVE CAM ↗</a>`,
-        tooltip: `📍 Northmoor Pumping Station | View 3-min EA Snapshot Camera at thecfh.org#northmoor`
+        html: `<strong>Northmoor PS:</strong> ${northmoorPump.statusText}`,
+        tooltip: `📍 Northmoor Pumping Station`
       }
+    ],
+    camLinks: [
+      { label: "Baltmoor Wall", url: "https://thecfh.org/parretttonewsom.php#saltmoor", title: "View 3-min EA Snapshot Camera at Baltmoor Wall" },
+      { label: "Athelney Spillway", url: "https://thecfh.org/parretttonewsom.php#athelneyspillway", title: "View 3-min EA Snapshot Camera at Athelney" },
+      { label: "Beer Wall", url: "https://thecfh.org/parretttonewsom.php#Beerwall", title: "View 3-min EA Snapshot Camera at Beer Wall" },
+      { label: "Saltmoor PS", url: "https://thecfh.org/parretttonewsom.php#saltmoor", title: "View 3-min EA Snapshot Camera at Saltmoor PS" },
+      { label: "Northmoor PS", url: "https://thecfh.org/parretttonewsom.php#northmoor", title: "View 3-min EA Snapshot Camera at Northmoor PS" }
     ],
     spillwayMeta: { crest: baltmoorCrest.toFixed(2), scheme: baltmoorScheme },
     sparkline: renderSingleSparkline(nmRiverHistory, nmEval.code === 'OVERTOPPING' ? '#f87171' : '#4ade80', { streamLabel: 'Baltmoor Wall Barrier', stationId: '52158', unit: 'mAOD' }),
@@ -733,16 +748,20 @@ export async function refreshLiveDashboard() {
     narrative: sowyEval.narrative,
     pills: [
       {
-        html: `<strong>Monk's Leaze Clyse:</strong> ${sowyEval.pillText} <a href="https://thecfh.org/parretttonewsom.php#monksleaze" target="_blank" rel="noopener noreferrer" class="cctv-badge-btn" title="View 3-min EA Snapshot Camera at thecfh.org#monksleaze" aria-label="View 3-min EA Snapshot Camera at thecfh.org for Monk's Leaze Clyse">📷 LIVE CAM ↗</a>`,
-        tooltip: `📍 Monk's Leaze Sill: 4.20m AOD | View 3-min EA Snapshot Camera at thecfh.org#monksleaze`
+        html: `<strong>Monk's Leaze Clyse:</strong> ${sowyEval.pillText}`,
+        tooltip: `📍 Monk's Leaze Sill: 4.20m AOD`
       },
       `<strong>Monk's Leaze Intake Differential:</strong> 🟢 ${headDropFormatted} Head Drop (Parrett ➔ Sowy)`,
       {
-        html: `<strong>Oath Lock Penning Sluice:</strong> ${oathLock.statusText} <a href="https://thecfh.org/parretttonewsom.php#oath" target="_blank" rel="noopener noreferrer" class="cctv-badge-btn" title="View 3-min EA Snapshot Camera at thecfh.org#oath" aria-label="View 3-min EA Snapshot Camera at thecfh.org for Oath Lock Penning Sluice">📷 LIVE CAM ↗</a>`,
-        tooltip: `📍 Oath Lock Penning Structure | View 3-min EA Snapshot Camera at thecfh.org#oath`
+        html: `<strong>Oath Lock Penning Sluice:</strong> ${oathLock.statusText}`,
+        tooltip: `📍 Oath Lock Penning Structure`
       },
       `<strong>Upstream Tributary Inflow:</strong> River Yeo: ${huishLevel.toFixed(2)}m AOD | River Isle: ${midelneyLevel.toFixed(2)}m AOD`,
       `<strong>Beer Wall Intake (Greylake):</strong> ${monksDownLevel >= 6.00 ? '🟢 CONVEYANCE TO KSD' : '⚪ PENNING LEVEL'}`
+    ],
+    camLinks: [
+      { label: "Monk's Leaze Clyse", url: "https://thecfh.org/parretttonewsom.php#monksleaze", title: "View 3-min EA Snapshot Camera at Monk's Leaze Clyse" },
+      { label: "Oath Lock Penning Sluice", url: "https://thecfh.org/parretttonewsom.php#oath", title: "View 3-min EA Snapshot Camera at Oath Lock Penning Sluice" }
     ],
     sparkline: renderSingleSparkline(monksDownHistory, '#38bdf8', { streamLabel: 'Monk\'s Leaze Downstream Sowy', stationId: '52234', unit: 'mAOD' }),
     gauges: [
@@ -807,11 +826,14 @@ export async function refreshLiveDashboard() {
       `Seawater level below inland drain. Positive head differential opens flap doors for gravity discharge.`,
     pills: [
       {
-        html: `<strong>Dunball Flap Doors:</strong> ${isTideLocked ? '🕒 TIDE-LOCKED (SEA HEAD)' : '🟢 GRAVITY DISCHARGING'} <a href="https://thecfh.org/parretttonewsom.php#dunball" target="_blank" rel="noopener noreferrer" class="cctv-badge-btn" title="View 3-min EA Snapshot Camera at thecfh.org#dunball" aria-label="View 3-min EA Snapshot Camera at thecfh.org for Dunball Outfall">📷 LIVE CAM ↗</a>`,
-        tooltip: `📍 Dunball Primary Clyse Outfall | View 3-min EA Snapshot Camera at thecfh.org#dunball`
+        html: `<strong>Dunball Flap Doors:</strong> ${isTideLocked ? '🕒 TIDE-LOCKED (SEA HEAD)' : '🟢 GRAVITY DISCHARGING'}`,
+        tooltip: `📍 Dunball Primary Clyse Outfall`
       },
       `<strong>Dunball Penstock Barrier:</strong> ${isTideLocked ? '🔒 PENNING / SURGE SEALED' : '🟢 OPEN FOR DISCHARGE'}`,
       `<strong>Emergency High-Volume Pumps:</strong> ${dunballEmergencyPump.statusText}`
+    ],
+    camLinks: [
+      { label: "Dunball Clyse Outfall", url: "https://thecfh.org/parretttonewsom.php#dunball", title: "View 3-min EA Snapshot Camera at Dunball Outfall" }
     ],
     sparkline: renderDualSparkline(seaHistory, inlandHistory, isTideLocked),
     pumpGauge: renderPumpTriggerGauge(dunballPumpGaugeEval),
@@ -887,6 +909,9 @@ export async function refreshLiveDashboard() {
       },
       `<strong>Monk's Leaze Relief Nexus:</strong> Diversion reduces Parrett backwater on Yeo/Isle confluence`
     ],
+    camLinks: [
+      { label: "Huish Episcopi PS", url: "https://thecfh.org/parretttonewsom.php#huish", title: "View EA Snapshot Camera at Huish Episcopi" }
+    ],
     sparkline: renderDualSparkline(huishHistory, midelneyHistory, false, {
       primaryName: 'Yeo',
       secondaryName: 'Isle',
@@ -904,7 +929,7 @@ export async function refreshLiveDashboard() {
     extLinks: [
       { label: "EA Data (52120) ↗", url: "https://environment.data.gov.uk/flood-monitoring/id/stations/52120.html" },
       { label: "EA Data (52153) ↗", url: "https://environment.data.gov.uk/flood-monitoring/id/stations/52153.html" },
-      { label: "📊 GOV.UK Huish Stage ↗", url: "https://check-for-flooding.service.gov.uk/station/52120" }
+      { label: "📊 GOV.UK Huish Stage (3071) ↗", url: "https://check-for-flooding.service.gov.uk/station/3071" }
     ]
   }));
 
@@ -951,6 +976,19 @@ function createMoorCard(opts) {
     ${opts.clearanceText ? `<div class="clearance-text">${escapeHTML(opts.clearanceText)}</div>` : ''}
   ` : '';
 
+  const camBarHtml = (Array.isArray(opts.camLinks) && opts.camLinks.length > 0) ? `
+    <div class="card-cam-bar" aria-label="${escapeAttr(opts.title)} Ground-Truth Cameras">
+      <span class="cam-bar-label"><span aria-hidden="true">📷</span> Live Cameras:</span>
+      <div class="cam-bar-links">
+        ${opts.camLinks.map(c => `
+          <a href="${escapeAttr(c.url)}" target="_blank" rel="noopener noreferrer" class="cam-bar-btn" title="${escapeAttr(c.title || c.label)}" aria-label="${escapeAttr(c.ariaLabel || c.label)}">
+            ${escapeHTML(c.label)} ↗
+          </a>
+        `).join('')}
+      </div>
+    </div>
+  ` : '';
+
   card.innerHTML = `
     <div>
       <div class="card-header">
@@ -981,6 +1019,7 @@ function createMoorCard(opts) {
           return `<div class="infra-pill">${p}</div>`;
         }).join('')}
       </div>
+      ${camBarHtml}
       <button class="drawer-toggle" onclick="this.nextElementSibling.classList.toggle('open')">
         ▼ Technical Telemetry & Sub-Station Gauges
       </button>

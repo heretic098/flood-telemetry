@@ -9,7 +9,8 @@
     "start": "node server.js",
     "dev": "node server.js",
     "test": "node --test",
-    "snapshot": "node scripts/capture_views.js"
+    "snapshot": "node scripts/capture_views.js",
+    "audit:links": "node scripts/audit_external_links.js"
   },
   "dependencies": {
     "better-sqlite3": "^11.8.1"
