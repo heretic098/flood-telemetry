@@ -163,34 +163,54 @@ Interactive `(?)` tooltips define terms inline without forcing users to leave th
 
 The platform runs on an embedded, zero-dependency SQLite database in WAL (Write-Ahead Logging) mode.
 
-### 6.1 Discrete Event Ledger (`hydraulic_events`)
+### 6.1 Discrete Event Ledger (`telemetry_events`)
 
 ```sql
-CREATE TABLE IF NOT EXISTS hydraulic_events (
+CREATE TABLE IF NOT EXISTS telemetry_events (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   asset_type TEXT NOT NULL CHECK(asset_type IN ('road', 'polder', 'spillway', 'tidal_gate', 'sluice', 'gauge')),
   asset_id TEXT NOT NULL,
-  from_state TEXT,
-  to_state TEXT NOT NULL,
-  start_time TEXT NOT NULL,                    -- ISO 8601 UTC timestamp
-  end_time TEXT,                              -- NULL while event is ACTIVE
-  duration_seconds INTEGER,                   -- Populated on event closure
-  trigger_stage_mAOD REAL NOT NULL,          -- Stage that tripped the threshold
-  peak_stage_mAOD REAL NOT NULL,             -- Maximum water elevation during event
-  structure_clearance_m REAL,                -- Clearance to crest or road crown
-  severity INTEGER NOT NULL CHECK(severity BETWEEN 1 AND 5),
-  camera_id TEXT,                            -- Correlated ground-truth webcam
-  image_hash TEXT,                           -- SHA-256 hash of captured verification frame
-  camera_snapshot_id INTEGER,                -- FK to camera_analysis record
-  notes TEXT,                                -- Human-readable community explanation
-  status TEXT NOT NULL CHECK(status IN ('ACTIVE', 'CLOSED', 'OCCURRED'))
+  from_state TEXT CHECK(from_state IS NULL OR from_state IN (
+    'PASSABLE', 'ENCROACHING', 'IMPASSABLE',
+    'STANDBY', 'DUTY_PUMPING', 'MOBILE_ORDERED', 'MOBILE_ACTIVE', 'CRITICAL',
+    'SECURE', 'NEAR_CREST', 'OVERTOPPING',
+    'DISCHARGING', 'TIDE_LOCKED',
+    'CLOSED', 'DIVERTING', 'THROTTLED', 'REVERSE_LOCK',
+    'NORMAL', 'ALERT'
+  )),
+  to_state TEXT NOT NULL CHECK(to_state IN (
+    'PASSABLE', 'ENCROACHING', 'IMPASSABLE',
+    'STANDBY', 'DUTY_PUMPING', 'MOBILE_ORDERED', 'MOBILE_ACTIVE', 'CRITICAL',
+    'SECURE', 'NEAR_CREST', 'OVERTOPPING',
+    'DISCHARGING', 'TIDE_LOCKED',
+    'CLOSED', 'DIVERTING', 'THROTTLED', 'REVERSE_LOCK',
+    'NORMAL', 'ALERT'
+  )),
+  severity_tier INTEGER NOT NULL CHECK(severity_tier BETWEEN 1 AND 4),
+  start_time TEXT NOT NULL,                                  -- ISO 8601 UTC timestamp
+  end_time TEXT,                                            -- NULL while session is ACTIVE
+  duration_seconds INTEGER,                                 -- Computed on event closure
+  trigger_stage_mAOD REAL NOT NULL,                        -- Stage that tripped the threshold
+  peak_stage_mAOD REAL NOT NULL,                           -- Highest water elevation during session
+  clearance_m REAL,                                        -- Clearance to crest or road crown
+  camera_id TEXT,                                          -- Correlated ground-truth webcam
+  image_hash TEXT,                                         -- SHA-256 hash of captured verification frame
+  camera_snapshot_id INTEGER,                              -- FK to camera_analysis record
+  narrative TEXT NOT NULL,                                 -- Plain-English community explanation
+  status TEXT NOT NULL CHECK(status IN ('ACTIVE', 'CLOSED'))
 );
 
-CREATE INDEX IF NOT EXISTS idx_hydraulic_events_active 
-  ON hydraulic_events(asset_id, status);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_active_asset 
+  ON telemetry_events(asset_id) WHERE status = 'ACTIVE';
 
-CREATE INDEX IF NOT EXISTS idx_hydraulic_events_start 
-  ON hydraulic_events(start_time DESC);
+CREATE INDEX IF NOT EXISTS idx_telemetry_events_active 
+  ON telemetry_events(asset_id, status);
+
+CREATE INDEX IF NOT EXISTS idx_telemetry_events_start 
+  ON telemetry_events(start_time DESC);
+
+CREATE INDEX IF NOT EXISTS idx_telemetry_events_tier 
+  ON telemetry_events(severity_tier, status);
 ```
 
 ### 6.2 Ground-Truth Camera Archive (`camera_analysis`)
@@ -223,13 +243,13 @@ flowchart TD
     A["15m Background Sync"] --> B["Evaluate State Transitions<br/>(hydro_engine.js)"]
     B --> C{"State Changed?<br/>S(t) != S(t-1)"}
     C -->|"No"| D["Update Active Duration Peaks"]
-    C -->|"Yes"| E["Insert hydraulic_events Record"]
-    E --> F{"Event Severity <= 4?<br/>(Encroaching / Overtopping / Tide-Locked)"}
+    C -->|"Yes"| E["Insert telemetry_events Record"]
+    E --> F{"Severity Tier >= 3?<br/>(Warning or Critical: Encroaching / Overtopping)"}
     F -->|"No"| G["Skip Camera Snap"]
     F -->|"Yes"| H{"Camera Cooldown > 300s?"}
     H -->|"Yes"| I["Fetch Camera Snapshot Frame"]
     I --> J["Compute SHA-256 & Store Frame"]
-    J --> K["Link camera_snapshot_id to hydraulic_events"]
+    J --> K["Link camera_snapshot_id to telemetry_events"]
 ```
 
 ---

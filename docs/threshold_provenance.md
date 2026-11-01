@@ -134,7 +134,9 @@ These thresholds are derived internally by the platform's software logic. They m
    - If $\Delta h < 0\text{m}$: Sea stage exceeds inland drain stage. Passive tidal flap doors close under reverse hydrostatic pressure (`TIDE_LOCKED`).
    - If $\Delta h \ge 0.05\text{m}$: Inland drain exceeds estuary tide by $\ge 5\text{cm}$. Flap doors open for gravity discharge (`DISCHARGING`).
 
-3. **Dunball Emergency High-Volume Pumping Trigger ($2.80\text{m AOD}$):**
-   - Trigger: Inland King's Sedgemoor Drain ($h_{\text{E9094}}$) $\ge 2.80\text{m AOD}$ while tide-locked.
-   - Evaluates: `HIGH_VOLUME_PUMPING_ACTIVE` at Dunball Clyse.
-   - Justification: Standard EA emergency response staging when gravity discharge is blocked during extended high tide cycles and KSD storage reaches operational limits.
+3. **Dunball Emergency High-Volume Mobile Pump Contingency Plan (Tier 2 / Tier 4):**
+   - Structural Reality: Dunball Outfall has zero permanent fixed pumps and discharges purely by gravity (`DISCHARGING` vs `TIDE_LOCKED`).
+   - Emergency Mobilization Plan (EA Trigger Point Plan): In severe flood events when tide-locking traps water in the King's Sedgemoor Drain, the EA mobilizes contractor high-volume trailer pumps over the clyse:
+     * **Winter Triggers:** Pre-monitoring watch at $2.80\text{m AOD}$; Mobile Pumps Ordered at $3.30\text{m AOD}$; Mobile Pumps Active at $3.50\text{m AOD}$; Critical storage at $3.80\text{m AOD}$.
+     * **Summer Triggers:** Pre-monitoring watch at $3.10\text{m AOD}$; Mobile Pumps Ordered at $3.50\text{m AOD}$; Mobile Pumps Active at $3.70\text{m AOD}$; Critical storage at $4.10\text{m AOD}$.
+   - Platform Reporting Role: The platform explicitly reports **whether mobile contractor pumps should or should not be on site** based on surveyed KSD stage relative to these trigger points, with transparent microcopy: *"Inferred from inland KSD stage relative to the EA Somerset Levels Trigger Point Plan."*
