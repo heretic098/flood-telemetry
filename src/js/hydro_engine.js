@@ -262,7 +262,7 @@ export function evaluatePumpStatus(
 }
 
 /**
- * @deprecated [RULE-CALC-01] Volumetric discharge speculation is strictly banned. Telemetry only provides stage (m) and datum (mAOD). Open-channel discharge cannot be substantiated without surveyed rating curves.
+ * @deprecated [RULE-CALC-01] Volumetric discharge speculation is strictly banned. Telemetry only provides stage (m) and datum (mAOD). Open-channel discharge cannot be substantiated without surveyed rating curves. Strictly banned from production telemetry, API responses, and event triggering. Preserved only for unit test backwards-compatibility.
  */
 export function estimateClyseFlow(h_up, h_down, z_sill = 4.20, B = 4.20, Cd = 0.60) {
   const g = 9.81;
@@ -1232,7 +1232,7 @@ export function sanitizeStageValue(val) {
 }
 
 /**
- * @deprecated [RULE-CALC-01] Volumetric discharge speculation is strictly banned. Telemetry only provides stage (m) and datum (mAOD). Open-channel discharge cannot be substantiated without surveyed rating curves.
+ * @deprecated [RULE-CALC-01] Volumetric discharge speculation is strictly banned. Telemetry only provides stage (m) and datum (mAOD). Open-channel discharge cannot be substantiated without surveyed rating curves. Strictly banned from production telemetry, API responses, and event triggering. Preserved only for unit test backwards-compatibility.
  * Calculates estimated overtopping discharge flow (m³/s & Megalitres/day)
  * using the Villemonte broad-crested submerged weir formulation.
  */

@@ -170,8 +170,17 @@ test('GET /api/status includes active_events list and preserves backward-compati
   assert.ok(Array.isArray(json.active_events));
   assert.ok(json.cards.hookbridge_spillway);
   assert.ok(json.cards.baltmoor_wall);
+  assert.ok(json.cards.monks_leaze_clyse);
   assert.ok(typeof json.cards.hookbridge_spillway.spill_duration_seconds === 'number');
   assert.ok(typeof json.cards.baltmoor_wall.spill_duration_seconds === 'number');
+
+  // [RULE-CALC-01] Purge of speculative volumetric calculations
+  assert.equal(json.cards.hookbridge_spillway.discharge_m3s, undefined);
+  assert.equal(json.cards.hookbridge_spillway.discharge_mld, undefined);
+  assert.equal(json.cards.baltmoor_wall.discharge_m3s, undefined);
+  assert.equal(json.cards.baltmoor_wall.discharge_mld, undefined);
+  assert.equal(json.cards.monks_leaze_clyse.flow_m3s, undefined);
+  assert.equal(json.cards.monks_leaze_clyse.flow_mld, undefined);
 });
 
 

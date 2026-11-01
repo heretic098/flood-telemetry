@@ -3,28 +3,30 @@ import assert from 'node:assert/strict';
 import Database from 'better-sqlite3';
 import { runMigrations, CANONICAL_ASSET_TYPES, CANONICAL_STATES, MIGRATIONS } from '../src/js/db_migrations.js';
 
-test('Database Migrations: runMigrations cleanly upgrades fresh database from 0 to 2', () => {
+test('Database Migrations: runMigrations cleanly upgrades fresh database from 0 to 3', () => {
   const db = new Database(':memory:');
   assert.equal(db.pragma('user_version', { simple: true }), 0);
 
   const finalVersion = runMigrations(db);
-  assert.equal(finalVersion, 2);
-  assert.equal(db.pragma('user_version', { simple: true }), 2);
+  assert.equal(finalVersion, 3);
+  assert.equal(db.pragma('user_version', { simple: true }), 3);
 
   // Verify all expected tables exist
   const tables = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all().map(r => r.name);
   assert.ok(tables.includes('telemetry'));
   assert.ok(tables.includes('historical_telemetry'));
-  assert.ok(tables.includes('spill_events'));
   assert.ok(tables.includes('camera_analysis'));
   assert.ok(tables.includes('telemetry_events'));
 
+  // Verify legacy spill_events has been dropped [RULE-CALC-01, RULE-ENT-01]
+  assert.ok(!tables.includes('spill_events'), 'spill_events must be dropped in migration 3');
+
   // Calling runMigrations again is idempotent
   const secondRun = runMigrations(db);
-  assert.equal(secondRun, 2);
+  assert.equal(secondRun, 3);
 });
 
-test('Database Migrations: upgrades cleanly from version 1 to version 2', () => {
+test('Database Migrations: upgrades cleanly from version 1 to version 3', () => {
   const db = new Database(':memory:');
   
   // Apply only migration 1
@@ -32,17 +34,58 @@ test('Database Migrations: upgrades cleanly from version 1 to version 2', () => 
   db.pragma('user_version = 1');
   assert.equal(db.pragma('user_version', { simple: true }), 1);
 
-  // Verify telemetry_events does NOT exist yet
+  // Verify spill_events exists and telemetry_events does NOT exist yet at v1
   const tablesV1 = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all().map(r => r.name);
+  assert.ok(tablesV1.includes('spill_events'));
   assert.ok(!tablesV1.includes('telemetry_events'));
 
-  // Now runMigrations - should upgrade to 2
+  // Now runMigrations - should upgrade to 3
   const upgradedVersion = runMigrations(db);
-  assert.equal(upgradedVersion, 2);
+  assert.equal(upgradedVersion, 3);
+  assert.equal(db.pragma('user_version', { simple: true }), 3);
+
+  const tablesV3 = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all().map(r => r.name);
+  assert.ok(tablesV3.includes('telemetry_events'));
+  assert.ok(!tablesV3.includes('spill_events'), 'spill_events must be dropped after migration 3');
+});
+
+test('Database Migrations: upgrades cleanly from version 2 to version 3', () => {
+  const db = new Database(':memory:');
+  
+  // Apply migrations 1 and 2
+  MIGRATIONS[0].up(db);
+  MIGRATIONS[1].up(db);
+  db.pragma('user_version = 2');
   assert.equal(db.pragma('user_version', { simple: true }), 2);
 
+  // Verify both spill_events and telemetry_events exist at v2
   const tablesV2 = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all().map(r => r.name);
+  assert.ok(tablesV2.includes('spill_events'));
   assert.ok(tablesV2.includes('telemetry_events'));
+
+  // Now runMigrations - should upgrade to 3 and drop spill_events
+  const upgradedVersion = runMigrations(db);
+  assert.equal(upgradedVersion, 3);
+  assert.equal(db.pragma('user_version', { simple: true }), 3);
+
+  const tablesV3 = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all().map(r => r.name);
+  assert.ok(tablesV3.includes('telemetry_events'));
+  assert.ok(!tablesV3.includes('spill_events'), 'spill_events must be dropped after migration 3');
+});
+
+test('Database Migrations: migration 3 drop table is idempotent', () => {
+  const db = new Database(':memory:');
+  runMigrations(db);
+  assert.equal(db.pragma('user_version', { simple: true }), 3);
+
+  // Directly running migration 3 up function again must not throw
+  assert.doesNotThrow(() => {
+    MIGRATIONS[2].up(db);
+  });
+
+  // Calling runMigrations again on v3 must remain 3
+  const rerun = runMigrations(db);
+  assert.equal(rerun, 3);
 });
 
 test('Database Migrations: telemetry_events enforces asset_type CHECK constraint', () => {

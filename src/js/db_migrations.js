@@ -3,6 +3,7 @@
  * 
  * Expand and Contract Architecture:
  * Phase 1: Provisions the canonical `telemetry_events` table alongside legacy tables.
+ * Phase 5: Contract & cleanup - drops legacy `spill_events` table ([RULE-CALC-01], [RULE-ENT-01]).
  * Safe migration execution controlled via SQLite `PRAGMA user_version`.
  */
 
@@ -140,6 +141,15 @@ export const MIGRATIONS = [
 
         CREATE INDEX IF NOT EXISTS idx_telemetry_events_severity 
           ON telemetry_events(severity_tier, status);
+      `);
+    }
+  },
+  {
+    version: 3,
+    name: 'contract_drop_spill_events',
+    up: (db) => {
+      db.exec(`
+        DROP TABLE IF EXISTS spill_events;
       `);
     }
   }

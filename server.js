@@ -6,16 +6,12 @@ import Database from 'better-sqlite3';
 
 import {
   evaluateSpillway,
-  evaluateGateState,
   evaluateSowyChannel,
-  estimateClyseFlow,
-  calculateVillemonteDischarge,
   evaluateHuishEpiscopi,
   evaluateMidelney,
   aggregateGlobalStatus,
   getSeasonalRegime,
   sanitizeStageValue,
-  PRE_OVERTOPPING_THRESHOLDS,
   HYDRO_THRESHOLDS,
   STATION_REGISTRY,
   extractStationStage
@@ -187,7 +183,6 @@ export async function syncAllTelemetry(overrideLimit = null, fetchFn = globalThi
     const isBackfill = shouldTriggerBackfill();
     const limit = overrideLimit || (isBackfill ? 2688 : 96);
     await Promise.all(MEASURE_IDS.map(id => syncMeasure(id, limit, fetchFn)));
-    updateSpillEvents();
 
     // Process canonical telemetry events in shadow mode
     try {
@@ -198,69 +193,6 @@ export async function syncAllTelemetry(overrideLimit = null, fetchFn = globalThi
     }
   } finally {
     isSyncRunning = false;
-  }
-}
-
-/**
- * Updates active overtopping spill event timers in spill_events table
- */
-function updateSpillEvents() {
-  const stored = getStoredTelemetry();
-  const measures = stored.measures;
-
-  const hookbridgeReadings = measures['52118-level-stage-i-15_min-mAOD'] || [];
-  const baltmoorReadings = measures['52158-level-stage-i-15_min-mAOD'] || [];
-  const curryMoorReadings = measures['52127-level-stage-i-15_min-mAOD'] || [];
-  const northMoorReadings = measures['52159-level-stage-i-15_min-mAOD'] || [];
-
-  const hookbridgeStage = hookbridgeReadings[0]?.value ?? null;
-  const curryMoorStage = curryMoorReadings[0]?.value ?? null;
-  const baltmoorStage = baltmoorReadings[0]?.value ?? null;
-  const northMoorStage = northMoorReadings[0]?.value ?? null;
-
-  const dateNow = new Date().toISOString();
-
-  // Hookbridge Spillway check (crest: 7.45m)
-  if (hookbridgeStage !== null) {
-    const isSpilling = hookbridgeStage >= 7.45;
-    const discharge = calculateVillemonteDischarge(hookbridgeStage, curryMoorStage || 2.10, 7.45);
-    updateSpillwayRecord('hookbridge_spillway', isSpilling, hookbridgeStage - 7.45, discharge.flowM3s, hookbridgeReadings[0]?.dateTime || dateNow);
-  }
-
-  // Baltmoor Wall Spillway check (crest: 7.80m)
-  if (baltmoorStage !== null) {
-    const isSpilling = baltmoorStage >= 7.80;
-    const discharge = calculateVillemonteDischarge(baltmoorStage, northMoorStage || 1.80, 7.80);
-    updateSpillwayRecord('baltmoor_wall', isSpilling, baltmoorStage - 7.80, discharge.flowM3s, baltmoorReadings[0]?.dateTime || dateNow);
-  }
-}
-
-function updateSpillwayRecord(spillwayId, isSpilling, overtopDepth, dischargeFlow, readingTime) {
-  const activeEvent = db.prepare("SELECT * FROM spill_events WHERE spillway_id = ? AND status = 'ACTIVE'").get(spillwayId);
-
-  if (isSpilling) {
-    if (!activeEvent) {
-      db.prepare(`
-        INSERT INTO spill_events (spillway_id, start_time, peak_overtop_depth_m, peak_discharge_m3s, total_volume_m3, status)
-        VALUES (?, ?, ?, ?, ?, 'ACTIVE')
-      `).run(spillwayId, readingTime, Math.max(0, overtopDepth), dischargeFlow, dischargeFlow * 900);
-    } else {
-      const newPeakDepth = Math.max(activeEvent.peak_overtop_depth_m, overtopDepth);
-      const newPeakFlow = Math.max(activeEvent.peak_discharge_m3s, dischargeFlow);
-      const newVolume = activeEvent.total_volume_m3 + (dischargeFlow * 900);
-
-      db.prepare(`
-        UPDATE spill_events 
-        SET peak_overtop_depth_m = ?, peak_discharge_m3s = ?, total_volume_m3 = ?
-        WHERE event_id = ?
-      `).run(newPeakDepth, newPeakFlow, newVolume, activeEvent.event_id);
-    }
-  } else if (activeEvent) {
-    db.prepare(`
-      UPDATE spill_events 
-      SET end_time = ?, status = 'CLOSED'
-      WHERE event_id = ?
-    `).run(readingTime, activeEvent.event_id);
   }
 }
 
@@ -1060,7 +992,6 @@ const server = http.createServer(async (req, res) => {
     const athelneyOverspill = { ...evaluateSpillway(curryMoorStage, northMoorStage, 7.35), name: "Athelney Spillway & Cuts Road" };
     const baltmoorOverspill = { ...evaluateSpillway(baltmoorStage, northMoorStage, HYDRO_THRESHOLDS.BALTMOOR.CREST_MAOD), name: "Northmoor & Saltmoor" };
     const sowyEval = evaluateSowyChannel(monksUpStage, monksDownStage, HYDRO_THRESHOLDS.MONKS_LEAZE.SILL_MAOD);
-    const clyseFlow = estimateClyseFlow(monksUpStage, monksDownStage, HYDRO_THRESHOLDS.MONKS_LEAZE.SILL_MAOD);
     const huishEval = evaluateHuishEpiscopi(huishStage, regime.isSummer);
     const midelneyEval = evaluateMidelney(midelneyStage, monksUpStage);
     const confluenceEval = { name: "Langport Confluence", severity: Math.min(huishEval.severity, midelneyEval.severity) };
@@ -1070,17 +1001,12 @@ const server = http.createServer(async (req, res) => {
       isTideLocked
     );
 
-    const hookbridgeDischarge = calculateVillemonteDischarge(hookbridgeStage, curryMoorStage, HYDRO_THRESHOLDS.HOOKBRIDGE.CREST_MAOD);
-    const baltmoorDischarge = calculateVillemonteDischarge(baltmoorStage, northMoorStage, HYDRO_THRESHOLDS.BALTMOOR.CREST_MAOD);
-
     // Source active sessions directly from canonical telemetry_events ledger [RULE-ENT-01]
     const nowMs = Date.now();
     const activeEvents = getActiveTelemetryEvents(db, nowMs);
 
-    const hookbridgeEvent = db.prepare("SELECT * FROM telemetry_events WHERE asset_id = 'hookbridge' AND status = 'ACTIVE'").get()
-      || db.prepare("SELECT * FROM spill_events WHERE spillway_id = 'hookbridge_spillway' AND status = 'ACTIVE'").get();
-    const baltmoorEvent = db.prepare("SELECT * FROM telemetry_events WHERE asset_id = 'baltmoor_wall' AND status = 'ACTIVE'").get()
-      || db.prepare("SELECT * FROM spill_events WHERE spillway_id = 'baltmoor_wall' AND status = 'ACTIVE'").get();
+    const hookbridgeEvent = db.prepare("SELECT * FROM telemetry_events WHERE asset_id = 'hookbridge' AND status = 'ACTIVE'").get();
+    const baltmoorEvent = db.prepare("SELECT * FROM telemetry_events WHERE asset_id = 'baltmoor_wall' AND status = 'ACTIVE'").get();
 
     const hookbridgeDuration = hookbridgeEvent ? Math.max(0, Math.floor((nowMs - new Date(hookbridgeEvent.start_time).getTime()) / 1000)) : 0;
     const baltmoorDuration = baltmoorEvent ? Math.max(0, Math.floor((nowMs - new Date(baltmoorEvent.start_time).getTime()) / 1000)) : 0;
@@ -1126,8 +1052,6 @@ const server = http.createServer(async (req, res) => {
           badge_label: hookbridgeOverspill.label,
           badge_class: hookbridgeOverspill.badgeClass,
           clearance_text: hookbridgeOverspill.clearanceText,
-          discharge_m3s: hookbridgeDischarge.flowM3s,
-          discharge_mld: hookbridgeDischarge.flowMLD,
           is_spilling: hookbridgeEvent?.to_state === 'OVERTOPPING' || hookbridgeOverspill.code === 'OVERTOPPING',
           spill_duration_seconds: hookbridgeDuration,
           spill_duration_formatted: `${Math.floor(hookbridgeDuration / 3600)}h ${Math.floor((hookbridgeDuration % 3600) / 60)}m`,
@@ -1144,8 +1068,6 @@ const server = http.createServer(async (req, res) => {
           badge_label: baltmoorOverspill.label,
           badge_class: baltmoorOverspill.badgeClass,
           clearance_text: baltmoorOverspill.clearanceText,
-          discharge_m3s: baltmoorDischarge.flowM3s,
-          discharge_mld: baltmoorDischarge.flowMLD,
           is_spilling: baltmoorEvent?.to_state === 'OVERTOPPING' || baltmoorOverspill.code === 'OVERTOPPING',
           spill_duration_seconds: baltmoorDuration,
           spill_duration_formatted: `${Math.floor(baltmoorDuration / 3600)}h ${Math.floor((baltmoorDuration % 3600) / 60)}m`,
@@ -1162,8 +1084,6 @@ const server = http.createServer(async (req, res) => {
           status_code: mapStatusCode(sowyEval),
           badge_label: sowyEval.label,
           badge_class: sowyEval.badgeClass,
-          flow_m3s: clyseFlow.flowM3s,
-          flow_mld: clyseFlow.flowMLD,
           tributary_inflows: {
             yeo_mAOD: huishStage,
             isle_mAOD: midelneyStage,
