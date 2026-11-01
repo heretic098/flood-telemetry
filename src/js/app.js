@@ -982,7 +982,7 @@ function createMoorCard(opts) {
       <div class="cam-bar-links">
         ${opts.camLinks.map(c => `
           <a href="${escapeAttr(c.url)}" target="_blank" rel="noopener noreferrer" class="cam-bar-btn" title="${escapeAttr(c.title || c.label)}" aria-label="${escapeAttr(c.ariaLabel || c.label)}">
-            ${escapeHTML(c.label)} ↗
+            ${escapeHTML(c.label)} <span class="cam-arrow" aria-hidden="true" style="color: #38bdf8; font-weight: bold; margin-left: 2px;">↗</span>
           </a>
         `).join('')}
       </div>
