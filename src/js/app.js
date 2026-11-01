@@ -942,6 +942,15 @@ function createMoorCard(opts) {
   card.className = opts.cardClass ? `moor-card ${opts.cardClass}` : 'moor-card';
   card.setAttribute('tabindex', '0');
   card.setAttribute('aria-label', `${opts.title} Infrastructure Status`);
+
+  // Consolidate into a single, unified hero block per card (Issue #1 UX Usability)
+  // When heroBanner is present, it already renders the complete stage & clearance hero.
+  // Rendering .hero-metric / .clearance-text when heroBanner exists causes redundant double-hero display.
+  const standaloneHero = (!opts.heroBanner && opts.metricText) ? `
+    <div class="hero-metric">${escapeHTML(opts.metricText)}</div>
+    ${opts.clearanceText ? `<div class="clearance-text">${escapeHTML(opts.clearanceText)}</div>` : ''}
+  ` : '';
+
   card.innerHTML = `
     <div>
       <div class="card-header">
@@ -956,10 +965,8 @@ function createMoorCard(opts) {
         </div>
       </div>
 
-      ${opts.heroBanner || ''}
+      ${opts.heroBanner || standaloneHero}
 
-      <div class="hero-metric">${opts.metricText}</div>
-      <div class="clearance-text">${opts.clearanceText}</div>
       <div class="sparkline-container">${opts.sparkline}</div>
       <div class="narrative-text">${opts.narrative}</div>
     </div>

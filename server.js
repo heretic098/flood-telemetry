@@ -30,6 +30,8 @@ import {
   escapeHTML
 } from './src/js/api/ai_vision_client.js';
 
+import { runMigrations } from './src/js/db_migrations.js';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -45,53 +47,8 @@ const db = new Database(DB_PATH);
 db.pragma('journal_mode = WAL');
 db.pragma('synchronous = NORMAL');
 
-// Ensure database tables exist
-db.exec(`
-  CREATE TABLE IF NOT EXISTS telemetry (
-    measure_id TEXT PRIMARY KEY,
-    readings_json TEXT NOT NULL,
-    updated_at DATETIME NOT NULL
-  );
-
-  CREATE TABLE IF NOT EXISTS historical_telemetry (
-    measure_id TEXT NOT NULL,
-    date_time TEXT NOT NULL,
-    value REAL,
-    PRIMARY KEY (measure_id, date_time)
-  );
-
-  CREATE INDEX IF NOT EXISTS idx_historical_telemetry_measure_dt 
-    ON historical_telemetry(measure_id, date_time DESC);
-
-  CREATE TABLE IF NOT EXISTS spill_events (
-    event_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    spillway_id TEXT NOT NULL,
-    start_time TEXT NOT NULL,
-    end_time TEXT,
-    peak_overtop_depth_m REAL NOT NULL,
-    peak_discharge_m3s REAL NOT NULL,
-    total_volume_m3 REAL DEFAULT 0,
-    status TEXT NOT NULL CHECK(status IN ('ACTIVE', 'CLOSED'))
-  );
-
-  CREATE INDEX IF NOT EXISTS idx_spill_events_spillway_status 
-    ON spill_events(spillway_id, status);
-
-  CREATE TABLE IF NOT EXISTS camera_analysis (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    camera_id TEXT NOT NULL,
-    image_hash TEXT NOT NULL,
-    image_url TEXT NOT NULL,
-    fetched_at TEXT NOT NULL,
-    ai_evaluated INTEGER NOT NULL CHECK(ai_evaluated IN (0, 1)),
-    analysis_json TEXT,
-    trigger_reason TEXT NOT NULL,
-    fallback_mode TEXT
-  );
-
-  CREATE INDEX IF NOT EXISTS idx_camera_analysis_cam_fetched 
-    ON camera_analysis(camera_id, fetched_at DESC);
-`);
+// Ensure database tables exist via versioned migrations
+runMigrations(db);
 
 const MEASURE_IDS = [
   '52108-level-stage-i-15_min-mASD',
