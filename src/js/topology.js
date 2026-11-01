@@ -17,7 +17,10 @@ import {
   DEFAULT_TOPOLOGY_NODES,
   STATION_REGISTRY,
   GAUGE_DATUMS,
-  STATION_BASELINES
+  STATION_BASELINES,
+  computeTrendVector,
+  formatClearanceText,
+  ASSET_DEFINITIONS
 } from './hydro_engine.js?v=1.2.0';
 
 import { initJargonPopovers, renderJargonTerm } from './jargon_popover.js';
@@ -41,6 +44,48 @@ let historyData = null;
 let activeFilter = 'all';
 let activeStatusFilter = null;
 let selectedNodeId = '52118'; // Default selection: Hookbridge Spillway
+
+// Village & Area Focus Mappings (Issue #5)
+export const AREA_MAPPINGS = {
+  taunton: {
+    name: 'Taunton',
+    primaryNodeId: '52111',
+    catchment: 'tone',
+    stations: ['52108', '52109', '52111', '52162']
+  },
+  langport: {
+    name: 'Langport',
+    primaryNodeId: '52233',
+    catchment: 'parrett',
+    stations: ['52233', '52234', '52120', '52153']
+  },
+  burrowbridge: {
+    name: 'Burrowbridge',
+    primaryNodeId: '52158',
+    catchment: 'all',
+    stations: ['52158', '52118', '52159', '52127']
+  },
+  muchelney: {
+    name: 'Muchelney',
+    primaryNodeId: '52120',
+    catchment: 'tributaries',
+    stations: ['52120', '52153', '52119']
+  },
+  curry_moor: {
+    name: 'Curry Moor',
+    primaryNodeId: '52118',
+    catchment: 'tone',
+    stations: ['52118', '52127']
+  },
+  bridgwater: {
+    name: 'Bridgwater',
+    primaryNodeId: '52124',
+    catchment: 'parrett',
+    stations: ['52124', '52163', 'E9094']
+  }
+};
+
+let activeAreaFilter = null;
 
 // Node layout mapping for 960x620 SVG viewBox (Geographically Calibrated Somerset Topology)
 const NODE_COORDINATES = {
@@ -88,9 +133,16 @@ async function initTopology() {
     const urlParams = new URLSearchParams(window.location.search);
     const stationParam = urlParams.get('station') || urlParams.get('node');
     const catchmentParam = urlParams.get('catchment');
+    const areaParam = urlParams.get('area');
 
-    if (catchmentParam && ['all', 'tone', 'parrett', 'sowy_ksd'].includes(catchmentParam)) {
+    if (catchmentParam && ['all', 'tone', 'parrett', 'sowy_ksd', 'tributaries'].includes(catchmentParam)) {
       activeFilter = catchmentParam;
+    }
+    if (areaParam && AREA_MAPPINGS[areaParam]) {
+      activeAreaFilter = areaParam;
+      if (!stationParam && AREA_MAPPINGS[areaParam].primaryNodeId) {
+        selectedNodeId = AREA_MAPPINGS[areaParam].primaryNodeId;
+      }
     }
     if (stationParam) {
       selectedNodeId = stationParam;
@@ -98,10 +150,20 @@ async function initTopology() {
   }
 
   setupFilterListeners();
+  setupAreaFocusListeners();
   setupLegendListeners();
   setupSVGDelegation();
   setupZoomPanControls();
   setupKeyboardNavigation();
+
+  // Re-sync active state on area focus buttons
+  if (activeAreaFilter) {
+    const activeBtn = document.querySelector(`.area-pill-btn[data-area="${activeAreaFilter}"]`);
+    if (activeBtn) {
+      activeBtn.classList.add('active');
+      activeBtn.setAttribute('aria-pressed', 'true');
+    }
+  }
   
   const btnClose = document.getElementById('btn-inspector-close');
   if (btnClose) {
@@ -114,6 +176,50 @@ async function initTopology() {
   setInterval(async () => {
     await loadTopologyData(true);
   }, 60000);
+}
+
+function setupAreaFocusListeners() {
+  const areaButtons = document.querySelectorAll('.area-pill-btn');
+  areaButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const areaKey = btn.getAttribute('data-area');
+      const area = AREA_MAPPINGS[areaKey];
+      if (!area) return;
+
+      if (activeAreaFilter === areaKey) {
+        // Toggle off area filter
+        activeAreaFilter = null;
+        areaButtons.forEach(b => {
+          b.classList.remove('active');
+          b.setAttribute('aria-pressed', 'false');
+        });
+        syncUrlState();
+        renderSVGNetwork();
+        return;
+      }
+
+      activeAreaFilter = areaKey;
+      areaButtons.forEach(b => {
+        const isMatch = b.getAttribute('data-area') === areaKey;
+        b.classList.toggle('active', isMatch);
+        b.setAttribute('aria-pressed', isMatch ? 'true' : 'false');
+      });
+
+      // Switch catchment button if area is associated with specific catchment
+      if (area.catchment && area.catchment !== activeFilter) {
+        activeFilter = area.catchment;
+        const filterBtns = document.querySelectorAll('.filter-buttons .filter-btn');
+        filterBtns.forEach(fb => {
+          const match = fb.getAttribute('data-catchment') === activeFilter;
+          fb.classList.toggle('active', match);
+          fb.setAttribute('aria-pressed', match ? 'true' : 'false');
+        });
+      }
+
+      inspectNode(area.primaryNodeId);
+      syncUrlState();
+    });
+  });
 }
 
 function deselectNode() {
@@ -131,6 +237,7 @@ function syncUrlState() {
   const params = new URLSearchParams();
   if (selectedNodeId) params.set('station', selectedNodeId);
   if (activeFilter && activeFilter !== 'all') params.set('catchment', activeFilter);
+  if (activeAreaFilter) params.set('area', activeAreaFilter);
   const newQuery = params.toString() ? `?${params.toString()}` : window.location.pathname;
   window.history.replaceState(null, '', newQuery);
 }
@@ -538,6 +645,16 @@ function renderSVGNetwork() {
         <stop offset="0%" stop-color="#0369a1" />
         <stop offset="100%" stop-color="#38bdf8" />
       </linearGradient>
+
+      <!-- Linear Gradients for Lowland Polder Retention Basins (Issue #5) -->
+      <linearGradient id="polder-curry-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
+        <stop offset="0%" stop-color="#0284c7" stop-opacity="0.14" />
+        <stop offset="100%" stop-color="#0369a1" stop-opacity="0.04" />
+      </linearGradient>
+      <linearGradient id="polder-northmoor-gradient" x1="0%" y1="0%" x2="0%" y2="100%">
+        <stop offset="0%" stop-color="#0284c7" stop-opacity="0.14" />
+        <stop offset="100%" stop-color="#0369a1" stop-opacity="0.04" />
+      </linearGradient>
     </defs>
 
     <!-- Background Grid Lines (Decorative - aria-hidden) -->
@@ -545,21 +662,74 @@ function renderSVGNetwork() {
       <path d="M 0 100 L 960 100 M 0 200 L 960 200 M 0 300 L 960 300 M 0 400 L 960 400 M 0 500 L 960 500" stroke="#334155" stroke-width="1" stroke-dasharray="4 4"/>
     </g>
 
-    <!-- Polder Storage Basins Shaded Containers (Decorative Canvas Guides - aria-hidden) -->
+    <!-- Polder Storage Basins Shaded Containers (Decorative Canvas Guides - aria-hidden) [Issue #5] -->
     <g class="polder-containers" aria-hidden="true">
       <!-- Curry Moor Basin Polder -->
-      <rect x="360" y="375" width="160" height="95" rx="10" 
+      <rect x="360" y="375" width="160" height="95" rx="14" 
             class="polder-rect ${isFiltered('tone') ? '' : 'dimmed'}" 
-            fill="rgba(14, 165, 233, 0.08)" stroke="rgba(56, 189, 248, 0.3)" stroke-width="1.5" stroke-dasharray="4 2" />
-      <text x="370" y="392" fill="#94a3b8" font-size="10" font-weight="700" letter-spacing="0.05em">CURRY MOOR POLDER</text>
+            fill="url(#polder-curry-gradient)" stroke="rgba(56, 189, 248, 0.45)" stroke-width="2" />
+      <rect x="364" y="379" width="152" height="87" rx="10" 
+            fill="none" stroke="rgba(148, 163, 184, 0.25)" stroke-width="1" stroke-dasharray="4 2" />
+      <text x="370" y="392" fill="#94a3b8" font-size="10" font-weight="700" letter-spacing="0.05em">CURRY MOOR POLDER (Storage Basin)</text>
       <text x="370" y="405" fill="#64748b" font-size="8" font-weight="500">Tone Inflow: 7.45m | Outflow: Athelney 7.35m</text>
       
       <!-- Northmoor Basin Polder -->
-      <rect x="520" y="155" width="205" height="95" rx="10" 
+      <rect x="520" y="155" width="205" height="95" rx="14" 
             class="polder-rect ${isFiltered('parrett') ? '' : 'dimmed'}" 
-            fill="rgba(14, 165, 233, 0.08)" stroke="rgba(56, 189, 248, 0.3)" stroke-width="1.5" stroke-dasharray="4 2" />
-      <text x="530" y="172" fill="#94a3b8" font-size="10" font-weight="700" letter-spacing="0.05em">NORTHMOOR POLDER</text>
+            fill="url(#polder-northmoor-gradient)" stroke="rgba(56, 189, 248, 0.45)" stroke-width="2" />
+      <rect x="524" y="159" width="197" height="87" rx="10" 
+            fill="none" stroke="rgba(148, 163, 184, 0.25)" stroke-width="1" stroke-dasharray="4 2" />
+      <text x="530" y="172" fill="#94a3b8" font-size="10" font-weight="700" letter-spacing="0.05em">NORTHMOOR POLDER (Storage Basin)</text>
       <text x="530" y="185" fill="#64748b" font-size="8" font-weight="500">Curry Moor Cascade (7.35m) &amp; Parrett Wall (7.80m)</text>
+    </g>
+
+    <!-- Geographic Reference Anchors & Landmarks Layer (aria-hidden) [Issue #5] -->
+    <g class="geographic-anchors" aria-hidden="true">
+      <!-- Bridgwater Bay / Bristol Channel (Sea Outfall) -->
+      <g class="geographic-anchor">
+        <text x="130" y="48" fill="#94a3b8" font-size="10" font-weight="700" letter-spacing="0.05em">🌊 BRIDGWATER BAY / BRISTOL CHANNEL</text>
+        <text x="130" y="60" fill="#64748b" font-size="8" font-weight="500">Tidal Estuary Outfall (Dunball Macro-Tidal Gates)</text>
+      </g>
+      <!-- Bridgwater Corridor -->
+      <g class="geographic-anchor">
+        <text x="215" y="155" fill="#94a3b8" font-size="10" font-weight="700" letter-spacing="0.05em">📍 BRIDGWATER</text>
+        <text x="215" y="167" fill="#64748b" font-size="8" font-weight="500">Tidal River Parrett Corridor</text>
+      </g>
+      <!-- Burrow Mump Landmark at Burrowbridge Confluence -->
+      <g class="geographic-anchor">
+        <text x="460" y="268" fill="#94a3b8" font-size="9.5" font-weight="700" letter-spacing="0.05em">⛰️ BURROW MUMP</text>
+        <text x="460" y="279" fill="#64748b" font-size="7.5" font-weight="500">Burrowbridge Confluence (Tone + Parrett)</text>
+      </g>
+      <!-- Taunton Corridor -->
+      <g class="geographic-anchor">
+        <text x="195" y="465" fill="#94a3b8" font-size="10" font-weight="700" letter-spacing="0.05em">📍 TAUNTON</text>
+        <text x="195" y="477" fill="#64748b" font-size="8" font-weight="500">River Tone Urban Corridor</text>
+      </g>
+      <!-- Langport Hub -->
+      <g class="geographic-anchor">
+        <text x="705" y="395" fill="#94a3b8" font-size="10" font-weight="700" letter-spacing="0.05em">📍 LANGPORT</text>
+        <text x="705" y="407" fill="#64748b" font-size="8" font-weight="500">Parrett &amp; Sowy Relief Hub</text>
+      </g>
+      <!-- A361 Moor Corridor -->
+      <g class="geographic-anchor">
+        <text x="365" y="345" fill="#94a3b8" font-size="9" font-weight="700" letter-spacing="0.05em">🛣️ A361 CORRIDOR</text>
+        <text x="365" y="356" fill="#64748b" font-size="7.5" font-weight="500">East Lyng ↔ Burrowbridge (Cuts Rd)</text>
+      </g>
+      <!-- Muchelney Island Village -->
+      <g class="geographic-anchor">
+        <text x="745" y="480" fill="#94a3b8" font-size="9.5" font-weight="700" letter-spacing="0.05em">📍 MUCHELNEY</text>
+        <text x="745" y="491" fill="#64748b" font-size="7.5" font-weight="500">Spine Road Access Island</text>
+      </g>
+    </g>
+
+    <!-- Downstream Fluvial Flow Indicators Layer (aria-hidden) [Issue #5] -->
+    <g class="downstream-flow-indicators" aria-hidden="true">
+      <text x="200" y="415" fill="#0284c7" font-size="8" font-weight="700" letter-spacing="0.04em">Tone Flow ➔</text>
+      <text x="390" y="322" fill="#0284c7" font-size="8" font-weight="700" letter-spacing="0.04em">Tone Flow ➔</text>
+      <text x="390" y="175" fill="#0284c7" font-size="8" font-weight="700" letter-spacing="0.04em">▲ Seaward Flow</text>
+      <text x="320" y="115" fill="#0284c7" font-size="8" font-weight="700" letter-spacing="0.04em">▲ To Estuary</text>
+      <text x="695" y="415" fill="#0284c7" font-size="8" font-weight="700" letter-spacing="0.04em">▲ Parrett Flow</text>
+      <text x="785" y="255" fill="#0284c7" font-size="8" font-weight="700" letter-spacing="0.04em">▲ Sowy Relief</text>
     </g>
 
     <!-- Flow Lines & Edges Layer (Structural Layout - aria-hidden) -->
@@ -722,7 +892,15 @@ function renderSVGNetwork() {
   svgContent += `<g class="topology-edge-badges">${edgeBadgesHTML}</g>`;
   svgContent += `<g class="topology-nodes">`;
 
-  const placedLabelBoxes = [];
+  const placedLabelBoxes = [
+    { x: 130, y: 38, w: 180, h: 26 },
+    { x: 215, y: 145, w: 90, h: 26 },
+    { x: 460, y: 258, w: 95, h: 26 },
+    { x: 195, y: 455, w: 80, h: 26 },
+    { x: 705, y: 385, w: 80, h: 26 },
+    { x: 745, y: 470, w: 80, h: 26 },
+    { x: 365, y: 335, w: 75, h: 24 }
+  ];
 
   // Draw Nodes
   nodes.forEach(node => {
@@ -969,23 +1147,41 @@ function getNodeStatusVisual(node) {
     if (node.status === 'ALERT') {
       return { stroke: '#f59e0b', fill: '#78350f', symbol: '⚠️', label: 'STORM SURGE ALERT', badgeClass: 'badge-near-crest', sparklineColor: '#f59e0b' };
     }
-    if (node.status === 'SLACK_RESTRICTED' || node.is_tide_locked) {
+    if (node.status === 'SLACK_RESTRICTED' || node.status === 'TIDE_LOCKED' || node.is_tide_locked) {
       return { stroke: '#64748b', fill: '#1e293b', symbol: '🕒', label: 'TIDE-LOCKED', badgeClass: 'badge-tide-locked', sparklineColor: '#0284c7' };
     }
     return { stroke: '#0284c7', fill: '#0c4a6e', symbol: '🟢', label: 'DISCHARGING', badgeClass: 'badge-secure', sparklineColor: '#0284c7' };
   }
   switch (node.status) {
     case 'OVERSPILLING':
-      return { stroke: '#ef4444', fill: '#7f1d1d', symbol: '🔴', label: 'OVERSPILLING', badgeClass: 'badge-overtopping' };
+    case 'OVERTOPPING':
+      return { stroke: '#ef4444', fill: '#7f1d1d', symbol: '🔴', label: node.status === 'OVERTOPPING' ? 'OVERTOPPING' : 'OVERSPILLING', badgeClass: 'badge-overtopping' };
     case 'ALERT':
-      return { stroke: '#f59e0b', fill: '#78350f', symbol: '⚠️', label: 'ALERT', badgeClass: 'badge-near-crest' };
+    case 'NEAR_CREST':
+      return { stroke: '#f59e0b', fill: '#78350f', symbol: '⚠️', label: node.node_type === 'spillway' ? 'NEAR CREST' : 'ALERT', badgeClass: 'badge-near-crest' };
+    case 'PASSABLE':
+      return { stroke: '#10b981', fill: '#064e3b', symbol: '🟢', label: 'PASSABLE', badgeClass: 'badge-secure' };
+    case 'ENCROACHING':
+      return { stroke: '#f59e0b', fill: '#78350f', symbol: '⚠️', label: 'ENCROACHING', badgeClass: 'badge-near-crest' };
+    case 'IMPASSABLE':
+      return { stroke: '#ef4444', fill: '#7f1d1d', symbol: '🔴', label: 'IMPASSABLE', badgeClass: 'badge-overtopping' };
+    case 'DUTY_PUMPING':
+      return { stroke: '#38bdf8', fill: '#0c4a6e', symbol: '💧', label: 'DUTY PUMPING', badgeClass: 'badge-open' };
+    case 'MOBILE_ORDERED':
+      return { stroke: '#f59e0b', fill: '#78350f', symbol: '⚠️', label: 'MOBILE ORDERED', badgeClass: 'badge-near-crest' };
+    case 'MOBILE_ACTIVE':
+      return { stroke: '#f59e0b', fill: '#78350f', symbol: '⚠️', label: 'MOBILE ACTIVE', badgeClass: 'badge-near-crest' };
+    case 'CRITICAL':
+      return { stroke: '#ef4444', fill: '#7f1d1d', symbol: '🔴', label: 'CRITICAL', badgeClass: 'badge-overtopping' };
     case 'DIVERTING':
       return { stroke: '#0284c7', fill: '#0c4a6e', symbol: '🔵', label: 'DIVERTING', badgeClass: 'badge-open' };
     case 'SLACK_RESTRICTED':
+    case 'TIDE_LOCKED':
       return { stroke: '#64748b', fill: '#1e293b', symbol: '🕒', label: 'TIDE-LOCKED', badgeClass: 'badge-tide-locked', sparklineColor: node.id === 'E9094' ? '#38bdf8' : '#0284c7' };
     case 'CLOSED':
       return { stroke: '#64748b', fill: '#1e293b', symbol: '⛔', label: 'CLOSED', badgeClass: 'badge-tide-locked' };
     case 'SECURE':
+    case 'NORMAL':
     default:
       return { stroke: '#10b981', fill: '#064e3b', symbol: '🟢', label: 'SECURE', badgeClass: 'badge-secure', sparklineColor: node.id === 'E9094' ? '#38bdf8' : '#10b981' };
   }
@@ -999,8 +1195,13 @@ function isFiltered(catchmentId) {
 function isNodeMatchingFilter(node) {
   if (activeStatusFilter) {
     if (activeStatusFilter === 'CLOSED') {
-      if (node.status !== 'CLOSED' && node.status !== 'SLACK_RESTRICTED') return false;
+      if (node.status !== 'CLOSED' && node.status !== 'SLACK_RESTRICTED' && node.status !== 'TIDE_LOCKED') return false;
     } else if (node.status !== activeStatusFilter) {
+      return false;
+    }
+  }
+  if (activeAreaFilter && AREA_MAPPINGS[activeAreaFilter]) {
+    if (!AREA_MAPPINGS[activeAreaFilter].stations.includes(node.id)) {
       return false;
     }
   }
@@ -1013,6 +1214,12 @@ function isNodeMatchingFilter(node) {
 }
 
 function isEdgeMatchingFilter(edge, fromNode, toNode) {
+  if (activeAreaFilter && AREA_MAPPINGS[activeAreaFilter]) {
+    const areaStations = AREA_MAPPINGS[activeAreaFilter].stations;
+    if (!areaStations.includes(edge.from) && !areaStations.includes(edge.to)) {
+      return false;
+    }
+  }
   if (activeFilter === 'all') return true;
   if (activeFilter === 'tone') return fromNode?.catchment === 'tone' || toNode?.catchment === 'tone';
   if (activeFilter === 'parrett') return fromNode?.catchment === 'parrett' || toNode?.catchment === 'parrett';
@@ -1068,9 +1275,11 @@ function inspectNode(nodeId, restoreFocus = false) {
 
   const vis = getNodeStatusVisual(node);
 
+  // Progressive Disclosure Level 2: Seasonal Regime & Active Session [RULE-ENT-01]
+  const regime = getSeasonalRegime();
   if (typeBadge) typeBadge.innerText = node.node_type ? node.node_type.toUpperCase().replace('_', ' ') : 'GAUGE NODE';
   if (title) title.innerText = node.name;
-  if (subtitle) subtitle.innerText = `EA Station ID: ${node.id} (${node.river})`;
+  if (subtitle) subtitle.innerHTML = `EA Station ID: ${escapeHTML(node.id)} (${escapeHTML(node.river)}) • <span style="color:#38bdf8;">${regime.isSummer ? '☀️ Summer Penning' : '❄️ Winter Flood'}</span>`;
 
   if (statusPill) {
     statusPill.className = `status-pill status-${vis.badgeClass.replace('badge-', '')}`;
@@ -1085,6 +1294,30 @@ function inspectNode(nodeId, restoreFocus = false) {
   const datum = GAUGE_DATUMS[node.id];
   const isPolder = node.node_type === 'polder_basin';
 
+  // Extract readings for 3h trend calculation [Progressive Disclosure Level 1]
+  const historyMeasures = historyData?.measures || {};
+  const statusMeasures = statusData?.measures || {};
+  const measureKey = Object.keys(historyMeasures).find(k => k.startsWith(`${node.id}-`)) ||
+                     Object.keys(statusMeasures).find(k => k.startsWith(`${node.id}-`)) ||
+                     `${node.id}-level-stage-i-15_min-mAOD`;
+  const readings = historyMeasures[measureKey] || statusMeasures[measureKey] || [];
+  const trendVector = computeTrendVector(readings);
+
+  // Active event session lookup [Progressive Disclosure Level 1 & 2]
+  const activeEvents = statusData?.active_events || [];
+  const activeEvent = activeEvents.find(e => {
+    if (node.id === '52118') return e.asset_id === 'hookbridge';
+    if (node.id === '52158') return e.asset_id === 'baltmoor_wall';
+    if (node.id === '52157') return e.asset_id === 'beer_wall';
+    if (node.id === '52127') return e.asset_id === 'curry_moor' || e.asset_id === 'cuts_road';
+    if (node.id === '52159') return e.asset_id === 'northmoor';
+    if (node.id === '52163') return e.asset_id === 'dunball_outfall';
+    if (node.id === '52233') return e.asset_id === 'monks_leaze_clyse';
+    if (node.id === '52120') return e.asset_id === 'muchelney_access';
+    return false;
+  });
+  const durTimer = activeEvent?.duration_formatted ? ` • ⏱️ ${activeEvent.duration_formatted}` : '';
+
   if (isRelativeGauge && stage !== null && datum !== undefined) {
     const channelDepth = Math.max(0, stage - datum);
     if (stageNum) stageNum.innerText = channelDepth.toFixed(2);
@@ -1095,7 +1328,7 @@ function inspectNode(nodeId, restoreFocus = false) {
     
     if (clearancePill) {
       clearancePill.className = 'clearance-pill pill-secure';
-      clearancePill.innerText = `Gauge Zero: ${datum.toFixed(2)}mAOD`;
+      clearancePill.innerText = `Gauge Zero: ${datum.toFixed(2)}mAOD (${trendVector})${durTimer}`;
     }
 
     if (trackMin) trackMin.innerText = `Channel Bed: 0.00m`;
@@ -1129,17 +1362,20 @@ function inspectNode(nodeId, restoreFocus = false) {
         const inlandStage = typeof node.inland_stage_mAOD === 'number' ? node.inland_stage_mAOD : (typeof inlandNode?.stage_mAOD === 'number' ? inlandNode.stage_mAOD : 2.38);
         const isTideLocked = stage >= inlandStage;
         if (isTideLocked) {
-          clearanceText = `🕒 Tide-Locked (Inland ${renderJargonTerm('KSD')}: ${inlandStage.toFixed(2)}mAOD)`;
+          clearanceText = `🕒 Tide-Locked (Inland ${renderJargonTerm('KSD')}: ${inlandStage.toFixed(2)}mAOD) (${trendVector})${durTimer}`;
           if (clearancePill) clearancePill.className = 'clearance-pill pill-tide-locked';
         } else {
-          clearanceText = `✓ Discharging (Inland ${renderJargonTerm('KSD')}: ${inlandStage.toFixed(2)}mAOD)`;
+          clearanceText = `✓ Discharging (Inland ${renderJargonTerm('KSD')}: ${inlandStage.toFixed(2)}mAOD) (${trendVector})${durTimer}`;
           if (clearancePill) clearancePill.className = 'clearance-pill pill-secure';
         }
       } else if (delta >= 0) {
-        clearanceText = hasCrest ? `▲ Overtopping by +${delta.toFixed(2)}m over crest` : (isPolder ? `▲ Overtopping Inflow Active` : `▲ Above Alert by +${delta.toFixed(2)}m`);
+        const deltaFormatted = delta < 1.0 ? `${Math.round(delta * 100)}cm` : `${delta.toFixed(2)}m`;
+        clearanceText = hasCrest ? `▲ Overtopping by +${deltaFormatted} over crest (${trendVector})${durTimer}` : (isPolder ? `▲ Overtopping Inflow Active (${trendVector})${durTimer}` : `▲ Above Alert by +${deltaFormatted} (${trendVector})${durTimer}`);
         if (clearancePill) clearancePill.className = 'clearance-pill pill-overspill';
       } else {
-        clearanceText = hasCrest ? `${Math.abs(delta).toFixed(2)}m below crest` : (isPolder ? `${Math.abs(delta).toFixed(2)}m retention head below crest` : `${Math.abs(delta).toFixed(2)}m below alert`);
+        const clearanceM = Math.abs(delta);
+        const clearanceFormatted = clearanceM < 1.0 ? `${Math.round(clearanceM * 100)}cm` : `${clearanceM.toFixed(2)}m`;
+        clearanceText = hasCrest ? `${clearanceFormatted} below crest (${trendVector})${durTimer}` : (isPolder ? `${clearanceFormatted} retention head below crest (${trendVector})${durTimer}` : `${clearanceFormatted} below alert (${trendVector})${durTimer}`);
         if (clearancePill) clearancePill.className = 'clearance-pill pill-secure';
       }
     }
@@ -1167,15 +1403,28 @@ function inspectNode(nodeId, restoreFocus = false) {
   const statsGrid = document.getElementById('node-stats-grid');
   const isControlStructure = ['spillway', 'clyse_gate', 'clyse_tailwater', 'spillway_channel', 'outfall_estuary', 'outfall_inland'].includes(node.node_type) || node.status === 'OVERSPILLING' || node.status === 'DIVERTING';
 
+  let activeEventCardHTML = '';
+  if (activeEvent) {
+    activeEventCardHTML = `
+      <div class="stat-card" style="grid-column: span 2; background: rgba(30, 41, 59, 0.85); border: 1px solid #38bdf8;">
+        <span class="stat-title">⚡ ACTIVE TELEMETRY EVENT SESSION (${escapeHTML(activeEvent.asset_id)})</span>
+        <strong class="stat-val" style="font-size: 0.85rem; color: #f8fafc;">
+          State: <code style="color: #38bdf8;">${escapeHTML(activeEvent.to_state)}</code> (Tier ${activeEvent.severity_tier}) • ⏱️ ${escapeHTML(activeEvent.duration_formatted)}
+        </strong>
+        <p style="font-size: 0.78rem; color: #cbd5e1; margin-top: 0.35rem; line-height: 1.4;">${escapeHTML(activeEvent.narrative)}</p>
+      </div>
+    `;
+  }
+
   if (statsGrid) {
     statsGrid.style.display = 'grid';
     if (node.id === '52120') {
-      const regime = getSeasonalRegime();
       const huishEval = evaluateHuishEpiscopi(stage, regime.isSummer);
       const isCutoff = huishEval.isPumpsCutoff;
       const isAlert = huishEval.code === 'ALERT';
       const pumpText = isCutoff ? '🔒 PUMPS LOCKED (RIVER FULL)' : (huishEval.pumpStatus === 'DUTY_PUMPING' ? '⚡ DUTY PUMPS ACTIVE' : (huishEval.pumpStatus === 'LEAD_PUMPING' ? '⚡ LEAD PUMP ACTIVE' : '🟢 STANDBY (GRAVITY DRAIN)'));
       statsGrid.innerHTML = `
+        ${activeEventCardHTML}
         <div class="stat-card">
           <span class="stat-title">8.20m River Cut-off Margin</span>
           <strong class="stat-val" style="color: ${isCutoff ? '#ef4444' : '#38bdf8'}">${stage !== null ? (8.20 - stage >= 0 ? `+${(8.20 - stage).toFixed(2)}m clearance` : `${Math.abs(8.20 - stage).toFixed(2)}m above cutoff`) : '--'}</strong>
@@ -1194,6 +1443,7 @@ function inspectNode(nodeId, restoreFocus = false) {
       const parrettStage = typeof parrettNode?.stage_mAOD === 'number' ? parrettNode.stage_mAOD : null;
       const midelneyEval = evaluateMidelney(stage, parrettStage);
       statsGrid.innerHTML = `
+        ${activeEventCardHTML}
         <div class="stat-card">
           <span class="stat-title">Midelney Sluice State</span>
           <strong class="stat-val" style="color:${midelneyEval.isAlert ? '#ef4444' : (midelneyEval.isHeadLocked ? '#f59e0b' : '#10b981')}">${midelneyEval.isAlert ? '🚨 FSA Overflow / Alert' : (midelneyEval.isHeadLocked ? '🔒 Head-Locked (Pumping)' : '🟢 Gravity Flap Sluice')}</strong>
@@ -1211,8 +1461,9 @@ function inspectNode(nodeId, restoreFocus = false) {
       const isTideLocked = (typeof seaVal === 'number' && typeof inlandVal === 'number') ? (seaVal >= inlandVal) : (node.status === 'SLACK_RESTRICTED');
       const headDiff = (typeof inlandVal === 'number' && typeof seaVal === 'number') ? (inlandVal - seaVal) : 0;
       const doorStateText = isTideLocked ? '🕒 TIDE-LOCKED (SEA HEAD)' : '🟢 GRAVITY DISCHARGE OPEN';
-      const doorStateColor = isTideLocked ? '#fb923c' : '#38bdf8';
+      const doorStateColor = isTideLocked ? '#64748b' : '#0284c7';
       statsGrid.innerHTML = `
+        ${activeEventCardHTML}
         <div class="stat-card">
           <span class="stat-title">Dunball Sea Door State</span>
           <strong class="stat-val" style="color: ${doorStateColor}; font-size:0.82rem;">${doorStateText}</strong>
@@ -1256,6 +1507,7 @@ function inspectNode(nodeId, restoreFocus = false) {
         }
 
         statsGrid.innerHTML = `
+          ${activeEventCardHTML}
           <div class="stat-card">
             <span class="stat-title">Currymoor Pumping Station</span>
             <strong class="stat-val" style="font-size:0.8rem; font-family:monospace;">${pumpText}</strong>
@@ -1288,6 +1540,7 @@ function inspectNode(nodeId, restoreFocus = false) {
         }
 
         statsGrid.innerHTML = `
+          ${activeEventCardHTML}
           <div class="stat-card">
             <span class="stat-title">Saltmoor &amp; Northmoor PS</span>
             <strong class="stat-val" style="font-size:0.8rem; font-family:monospace;">${pumpText}</strong>
@@ -1316,6 +1569,7 @@ function inspectNode(nodeId, restoreFocus = false) {
 
       if (node.id === '52118') {
         statsGrid.innerHTML = `
+          ${activeEventCardHTML}
           <div class="stat-card">
             <span class="stat-title">Spill Duration</span>
             <strong class="stat-val" id="node-duration-val">${durText}</strong>
@@ -1333,6 +1587,7 @@ function inspectNode(nodeId, restoreFocus = false) {
         `;
       } else if (node.id === '52158') {
         statsGrid.innerHTML = `
+          ${activeEventCardHTML}
           <div class="stat-card">
             <span class="stat-title">Overtopping Status</span>
             <strong class="stat-val" id="node-duration-val">${durText}</strong>
@@ -1350,6 +1605,7 @@ function inspectNode(nodeId, restoreFocus = false) {
         `;
       } else {
         statsGrid.innerHTML = `
+          ${activeEventCardHTML}
           <div class="stat-card">
             <span class="stat-title">Spill / Flow Duration</span>
             <strong class="stat-val" id="node-duration-val">${durText}</strong>
@@ -1359,6 +1615,7 @@ function inspectNode(nodeId, restoreFocus = false) {
     } else {
       const datumSubtext = datum !== undefined ? `Gauge Zero: ${datum.toFixed(2)}mAOD` : `River Corridor`;
       statsGrid.innerHTML = `
+        ${activeEventCardHTML}
         <div class="stat-card">
           <span class="stat-title">Hydraulic Asset Type</span>
           <strong class="stat-val">In-Channel River Gauging</strong>

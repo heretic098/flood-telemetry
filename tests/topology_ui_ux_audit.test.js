@@ -730,6 +730,90 @@ test('UI/UX Audit 5.4: Contextual Jargon Popovers - Interactive Lifecycle & Popo
   }
 });
 
+// ---------------------------------------------------------------------------
+// 6. Geographic Anchors, Flow Direction & Progressive Disclosure (Issues #5 & #9)
+// ---------------------------------------------------------------------------
+
+test('UI/UX Audit 6.1 (Issue #5): Geographic Reference Anchors rendered with zero collision', () => {
+  // 1. Anchors group in SVG network rendering
+  assert.ok(topologyJs.includes('class="geographic-anchors"'), 'topology.js must render <g class="geographic-anchors">');
+  
+  // 2. Key geographic landmarks present
+  assert.ok(topologyJs.includes('BRIDGWATER BAY / BRISTOL CHANNEL'), 'Must include Bridgwater Bay / Bristol Channel anchor');
+  assert.ok(topologyJs.includes('TAUNTON'), 'Must include Taunton anchor');
+  assert.ok(topologyJs.includes('LANGPORT'), 'Must include Langport anchor');
+  assert.ok(topologyJs.includes('BURROW MUMP'), 'Must include Burrow Mump anchor');
+  assert.ok(topologyJs.includes('A361 CORRIDOR'), 'Must include A361 Corridor anchor');
+
+  // 3. Anchors pre-seeded into collision detector
+  assert.ok(
+    topologyJs.includes('placedLabelBoxes = [') && topologyJs.includes('{ x: 130, y: 38,'),
+    'Geographic anchors must be registered in placedLabelBoxes to guarantee zero label collisions'
+  );
+});
+
+test('UI/UX Audit 6.2 (Issue #5): Downstream Flow Indicators along major river reaches', () => {
+  assert.ok(topologyJs.includes('class="downstream-flow-indicators"'), 'topology.js must render <g class="downstream-flow-indicators">');
+  assert.ok(topologyJs.includes('Tone Flow'), 'Must include Tone downstream flow marker');
+  assert.ok(topologyJs.includes('Parrett Flow'), 'Must include Parrett downstream flow marker');
+  assert.ok(topologyJs.includes('Seaward Flow'), 'Must include seaward flow marker');
+  assert.ok(topologyJs.includes('To Estuary'), 'Must include sea discharge flow marker');
+  assert.ok(topologyJs.includes('Sowy Relief'), 'Must include Sowy relief flow marker');
+});
+
+test('UI/UX Audit 6.3 (Issue #5): Enhanced Lowland Polder Visual Containers & Storage Basin Gradients', () => {
+  // 1. Defs linear gradients
+  assert.ok(topologyJs.includes('polder-curry-gradient'), 'SVG defs must include polder-curry-gradient');
+  assert.ok(topologyJs.includes('polder-northmoor-gradient'), 'SVG defs must include polder-northmoor-gradient');
+
+  // 2. Translucent storage basin boundary styling
+  assert.ok(topologyJs.includes('polder-containers'), 'topology.js must render polder-containers group');
+  assert.ok(topologyJs.includes('CURRY MOOR POLDER'), 'Must identify Curry Moor retention basin');
+  assert.ok(topologyJs.includes('NORTHMOOR POLDER'), 'Must identify Northmoor retention basin');
+});
+
+test('UI/UX Audit 6.4 (Issue #5): Find My Area / Village Focus Filter Group & Accessibility Targets', () => {
+  // 1. HTML markup for area focus pills
+  assert.ok(topologyHtml.includes('class="area-focus-group"'), 'topology.html must include .area-focus-group container');
+  assert.ok(topologyHtml.includes('data-area="taunton"'), 'Must have Taunton area pill');
+  assert.ok(topologyHtml.includes('data-area="langport"'), 'Must have Langport area pill');
+  assert.ok(topologyHtml.includes('data-area="burrowbridge"'), 'Must have Burrowbridge area pill');
+  assert.ok(topologyHtml.includes('data-area="muchelney"'), 'Must have Muchelney area pill');
+  assert.ok(topologyHtml.includes('data-area="curry_moor"'), 'Must have Curry Moor area pill');
+  assert.ok(topologyHtml.includes('data-area="bridgwater"'), 'Must have Bridgwater area pill');
+
+  // 2. CSS touch target compliance (>= 44x44px per UI-ACC-01)
+  assert.ok(stylesCss.includes('.area-pill-btn'), 'styles.css must style .area-pill-btn');
+  const btnMinHeightMatch = stylesCss.match(/\.area-pill-btn[\s\S]*?min-height:\s*(\d+)px/);
+  assert.ok(btnMinHeightMatch, 'area-pill-btn must have min-height in CSS');
+  assert.ok(parseInt(btnMinHeightMatch[1], 10) >= 44, 'area-pill-btn min-height must be >= 44px');
+
+  // 3. JS area mappings & URL sync
+  assert.ok(topologyJs.includes('AREA_MAPPINGS'), 'topology.js must define AREA_MAPPINGS');
+  assert.ok(topologyJs.includes('setupAreaFocusListeners'), 'topology.js must wire area focus click listeners');
+  assert.ok(topologyJs.includes("urlParams.get('area')"), 'topology.js must read area parameter from URL');
+  assert.ok(topologyJs.includes("params.set('area'"), 'topology.js must serialize area parameter to URL');
+});
+
+test('UI/UX Audit 6.5 (Issue #9): Frontend Progressive Disclosure Wiring (Levels 0, 1, 2)', () => {
+  // Level 0: Consequence Badges
+  assert.ok(topologyJs.includes('PASSABLE') && topologyJs.includes('IMPASSABLE'), 'topology.js must handle road consequence states');
+  assert.ok(topologyJs.includes('DUTY PUMPING') && topologyJs.includes('MOBILE ORDERED'), 'topology.js must handle polder consequence states');
+  assert.ok(topologyJs.includes('TIDE-LOCKED') && topologyJs.includes('DISCHARGING'), 'topology.js must handle tidal outfall consequence states');
+
+  // Level 1: Centimetre Rule Clearance, Trend Vectors, and Duration Timers
+  assert.ok(topologyJs.includes('computeTrendVector'), 'topology.js must use computeTrendVector');
+  assert.ok(appJs.includes('computeTrendVector'), 'app.js must use computeTrendVector');
+  assert.ok(appJs.includes('formatClearanceText'), 'app.js must use formatClearanceText');
+  assert.ok(topologyJs.includes('⏱️'), 'topology.js must display session duration timer');
+  assert.ok(appJs.includes('⏱️'), 'app.js must display session duration timer');
+
+  // Level 2: Drawer full details, geodetic elevation mAOD, seasonal regime & active event card
+  assert.ok(topologyJs.includes('getSeasonalRegime'), 'topology.js must evaluate getSeasonalRegime');
+  assert.ok(topologyJs.includes('Summer Penning') && topologyJs.includes('Winter Flood'), 'topology.js must display seasonal regime badge');
+  assert.ok(topologyJs.includes('ACTIVE TELEMETRY EVENT SESSION'), 'topology.js must render active event session card');
+});
+
 
 
 

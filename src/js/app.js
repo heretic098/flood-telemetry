@@ -1,4 +1,4 @@
-import { evaluateSpillway, evaluateGateState, aggregateGlobalStatus, evaluatePumpStatus, evaluateSowyChannel, evaluateAthelneySpillway, evaluateGravityClyse, evaluateBeerWall, evaluateOathLock, evaluateDunballEmergencyPumping, getSeasonalRegime, getActiveCrestHeight, getActiveCatchmentId, loadCatchmentConfig, evaluateHuishEpiscopi, evaluateMidelney, STATION_REGISTRY, GAUGE_DATUMS } from './hydro_engine.js';
+import { evaluateSpillway, evaluateGateState, aggregateGlobalStatus, evaluatePumpStatus, evaluateSowyChannel, evaluateAthelneySpillway, evaluateGravityClyse, evaluateBeerWall, evaluateOathLock, evaluateDunballEmergencyPumping, getSeasonalRegime, getActiveCrestHeight, getActiveCatchmentId, loadCatchmentConfig, evaluateHuishEpiscopi, evaluateMidelney, STATION_REGISTRY, GAUGE_DATUMS, formatClearanceText, computeTrendVector } from './hydro_engine.js';
 import { initJargonPopovers, renderJargonTerm } from './jargon_popover.js';
 import {
   computeSparklineBounds,
@@ -449,6 +449,14 @@ export async function refreshLiveDashboard() {
 
   const evals = [];
 
+  // Progressive Disclosure: Sourced active event sessions [RULE-ENT-01]
+  const activeEventsMap = new Map();
+  if (Array.isArray(dbData?.active_events)) {
+    for (const ev of dbData.active_events) {
+      activeEventsMap.set(ev.asset_id, ev);
+    }
+  }
+
   // Card 1: Curry Moor
   const hookbridgeConfig = hydroConfig?.moors?.curry_moor?.spillway;
   const hookbridgeCrest = getActiveCrestHeight(hookbridgeConfig, new Date(), 7.45);
@@ -467,13 +475,19 @@ export async function refreshLiveDashboard() {
   const athelneySpillway = evaluateAthelneySpillway(cmMoorLevel, athelneyCrest);
   const cmGravitySluice = evaluateGravityClyse(cmMoorLevel, cmRiverLevel, "Currymoor Sluice");
 
+  // Progressive Disclosure Level 1: Centimetre Rule + 3h Trend Vector + Active Duration
+  const hookbridgeActive = activeEventsMap.get('hookbridge');
+  const cmTrend = computeTrendVector(cmRiverReadings);
+  const cmClearanceFormatted = formatClearanceText(hookbridgeCrest - cmRiverLevel, 'crest');
+  const cmClearanceWithTrend = `${cmClearanceFormatted} (${cmTrend})${hookbridgeActive?.duration_formatted ? ` • ⏱️ ${hookbridgeActive.duration_formatted}` : ''}`;
+
   const cmHeroBanner = renderHeroSpillwayBanner({
     icon: '⚡',
     title: 'Hookbridge Spillway Status',
     statusBadge: cmEval,
     mainMetricValue: cmRiverLevel.toFixed(2),
     mainMetricUnit: 'm AOD (Tone Stage)',
-    clearanceText: cmEval.clearanceText,
+    clearanceText: cmClearanceWithTrend,
     minLevel: 5.50,
     maxLevel: hookbridgeCrest,
     currentLevel: cmRiverLevel,
@@ -482,7 +496,7 @@ export async function refreshLiveDashboard() {
     isAlert: cmEval.code === 'OVERTOPPING' || cmEval.code === 'NEAR_CREST',
     stats: [
       { label: 'Surveyed Crest', value: `${hookbridgeCrest.toFixed(2)}m AOD` },
-      { label: 'Clearance to Crest', value: cmEval.clearanceText }
+      { label: 'Clearance to Crest', value: cmClearanceWithTrend }
     ],
     camLink: {
       url: 'https://thecfh.org/parretttonewsom.php#hook',
@@ -499,11 +513,11 @@ export async function refreshLiveDashboard() {
     provenanceTag: "⚡ LEVEL SOP MODEL",
     provenanceClass: "prov-medium",
     metricText: `${cmRiverLevel.toFixed(2)}m AOD`,
-    clearanceText: cmEval.clearanceText,
+    clearanceText: cmClearanceWithTrend,
     narrative: `Curry Moor Basin level is ${cmMoorLevel.toFixed(2)}m AOD (${isSummerRegime ? 'normal summer target 4.30-4.45m' : 'winter target 3.40-3.80m'}). ${cmEval.narrative}`,
     pills: [
       {
-        html: `<strong>Hookbridge Spillway:</strong> ${cmEval.symbol} ${cmEval.label} (${cmEval.clearanceText})`,
+        html: `<strong>Hookbridge Spillway:</strong> ${cmEval.symbol} ${cmEval.label} (${cmClearanceWithTrend})`,
         tooltip: `📍 Hookbridge Crest: ${hookbridgeCrest.toFixed(2)}m AOD (${hookbridgeScheme})`
       },
       {
@@ -545,10 +559,11 @@ export async function refreshLiveDashboard() {
   athelneyEval.name = "Athelney Spillway";
   evals.push(athelneyEval);
 
+  const cutsRoadActive = activeEventsMap.get('cuts_road');
+  const athelneyTrend = computeTrendVector(cmMoorReadings);
   const athelneyClearanceDelta = Number(Math.abs(cmMoorLevel - athelneyCrest).toFixed(2));
-  const athelneyClearanceFormatted = cmMoorLevel <= athelneyCrest
-    ? `+${athelneyClearanceDelta.toFixed(2)}m`
-    : `-${athelneyClearanceDelta.toFixed(2)}m`;
+  const athelneyClearanceFormatted = formatClearanceText(athelneyCrest - cmMoorLevel, 'spillway crest');
+  const athelneyClearanceWithTrend = `${athelneyClearanceFormatted} (${athelneyTrend})${cutsRoadActive?.duration_formatted ? ` • ⏱️ ${cutsRoadActive.duration_formatted}` : ''}`;
 
   const athelneyHeroBanner = renderHeroSpillwayBanner({
     icon: '🌊',
@@ -556,7 +571,7 @@ export async function refreshLiveDashboard() {
     statusBadge: athelneyEval,
     mainMetricValue: cmMoorLevel.toFixed(2),
     mainMetricUnit: 'm AOD (Curry Moor Level)',
-    clearanceText: athelneyEval.clearanceText,
+    clearanceText: athelneyClearanceWithTrend,
     minLevel: 3.50,
     maxLevel: athelneyCrest,
     currentLevel: cmMoorLevel,
@@ -564,7 +579,7 @@ export async function refreshLiveDashboard() {
     maxLabel: `Spillway Crest: ${athelneyCrest.toFixed(2)}m AOD`,
     isAlert: athelneyEval.code === 'OVERTOPPING' || athelneyEval.code === 'NEAR_CREST',
     stats: [
-      { label: 'Clearance to Spillway', value: athelneyClearanceFormatted },
+      { label: 'Clearance to Spillway', value: athelneyClearanceWithTrend },
       { label: 'Spillway Status', value: athelneyEval.label }
     ],
     camLink: {
@@ -583,11 +598,11 @@ export async function refreshLiveDashboard() {
     provenanceTag: "⚡ LEVEL SOP MODEL",
     provenanceClass: "prov-medium",
     metricText: `${cmMoorLevel.toFixed(2)}m AOD`,
-    clearanceText: `Athelney Crest: ${athelneyEval.clearanceText}`,
+    clearanceText: `Athelney Crest: ${athelneyClearanceWithTrend}`,
     narrative: `Curry Moor storage is ${athelneyClearanceDelta.toFixed(2)}m below Athelney Spillway crest (7.35m AOD). Provides overspill relief from Curry Moor into Northmoor retention storage when Curry Moor reaches capacity.`,
     pills: [
       {
-        html: `<strong>Athelney Spillway:</strong> ${athelneyEval.symbol} ${athelneyEval.label} (${athelneyEval.clearanceText})`,
+        html: `<strong>Athelney Spillway:</strong> ${athelneyEval.symbol} ${athelneyEval.label} (${athelneyClearanceWithTrend})`,
         tooltip: `📍 Athelney Spillway Crest: ${athelneyCrest.toFixed(2)}m AOD (${athelneyScheme}) | Overspill relief cascade from Curry Moor into Northmoor retention storage`
       },
       `<strong>Overland Conduit:</strong> Curry Moor (52127) relieves into Northmoor (52159) retention storage`,
@@ -629,13 +644,18 @@ export async function refreshLiveDashboard() {
   const beerWallScheme = beerWallHist.length ? beerWallHist[beerWallHist.length - 1].notes : 'SRA Greylake Scheme';
   const beerWallSpillway = evaluateBeerWall(nmRiverLevel, beerWallCrest);
 
+  const baltmoorActive = activeEventsMap.get('baltmoor_wall');
+  const nmTrend = computeTrendVector(nmRiverReadings);
+  const nmClearanceFormatted = formatClearanceText(baltmoorCrest - nmRiverLevel, 'defense crest');
+  const nmClearanceWithTrend = `${nmClearanceFormatted} (${nmTrend})${baltmoorActive?.duration_formatted ? ` • ⏱️ ${baltmoorActive.duration_formatted}` : ''}`;
+
   const nmHeroBanner = renderHeroSpillwayBanner({
     icon: '🌊',
     title: 'Baltmoor Wall Overtopping Status',
     statusBadge: nmEval,
     mainMetricValue: nmRiverLevel.toFixed(2),
     mainMetricUnit: 'm AOD (River Stage at Wall)',
-    clearanceText: nmEval.clearanceText,
+    clearanceText: nmClearanceWithTrend,
     minLevel: 5.50,
     maxLevel: baltmoorCrest,
     currentLevel: nmRiverLevel,
@@ -644,7 +664,7 @@ export async function refreshLiveDashboard() {
     isAlert: nmEval.code === 'OVERTOPPING' || nmEval.code === 'NEAR_CREST',
     stats: [
       { label: 'Defense Crest', value: `${baltmoorCrest.toFixed(2)}m AOD` },
-      { label: 'Defense Clearance', value: nmEval.clearanceText }
+      { label: 'Defense Clearance', value: nmClearanceWithTrend }
     ],
     camLink: {
       url: 'https://thecfh.org/parretttonewsom.php#saltmoor',
@@ -661,11 +681,11 @@ export async function refreshLiveDashboard() {
     provenanceTag: "⚡ LEVEL SOP MODEL",
     provenanceClass: "prov-medium",
     metricText: `${nmRiverLevel.toFixed(2)}m AOD`,
-    clearanceText: `Baltmoor Wall: ${nmEval.clearanceText}`,
+    clearanceText: `Baltmoor Wall: ${nmClearanceWithTrend}`,
     narrative: `Baltmoor Wall Saltmoor Barrier sensor live. River levels monitored relative to 7.80m defense overtopping crest.`,
     pills: [
       {
-        html: `<strong>Baltmoor Wall Overtopping:</strong> ${nmEval.symbol} ${nmEval.label} (${nmEval.clearanceText})`,
+        html: `<strong>Baltmoor Wall Overtopping:</strong> ${nmEval.symbol} ${nmEval.label} (${nmClearanceWithTrend})`,
         tooltip: `📍 Baltmoor Wall Defense Crest: ${baltmoorCrest.toFixed(2)}m AOD (${baltmoorScheme})`
       },
       {
@@ -858,6 +878,11 @@ export async function refreshLiveDashboard() {
 
   const huishPump = getPumpEvaluation('huish_episcopi_ps', huishLevel, 'langport_confluence', 'Huish Episcopi PS', 4);
 
+  const muchelneyActive = activeEventsMap.get('muchelney_access');
+  const huishTrend = computeTrendVector(huishReadings);
+  const huishClearanceFormatted = formatClearanceText(8.20 - huishLevel, 'cut-off level');
+  const huishClearanceWithTrend = `${huishClearanceFormatted} (${huishTrend})${muchelneyActive?.duration_formatted ? ` • ⏱️ ${muchelneyActive.duration_formatted}` : ''}`;
+
   const confluenceHeroBanner = renderHeroSpillwayBanner({
     icon: '🔀',
     title: 'Langport Confluence Gateways',
@@ -868,7 +893,7 @@ export async function refreshLiveDashboard() {
         { label: 'CONFLUENCE CONVEYING', badgeClass: 'badge-secure', symbol: '✓' }),
     mainMetricValue: huishLevel.toFixed(2),
     mainMetricUnit: 'm AOD (River Yeo @ Huish)',
-    clearanceText: huishEval.clearanceText,
+    clearanceText: huishClearanceWithTrend,
     minLevel: 5.80,
     maxLevel: 8.20,
     currentLevel: huishLevel,
@@ -876,6 +901,7 @@ export async function refreshLiveDashboard() {
     maxLabel: 'Bankfull Cut-off: 8.20m AOD',
     isAlert: huishEval.isPumpsCutoff || huishEval.code === 'ALERT',
     stats: [
+      { label: 'Cut-off Clearance', value: huishClearanceWithTrend },
       { label: 'Huish PS Status', htmlValue: huishEval.isPumpsCutoff ? '🔒 PUMPS LOCKED OUT' : (huishPump.stage >= 1 ? '🟢 PUMPS ACTIVE' : '⚪ GRAVITY DISCHARGE') },
       { label: 'River Isle (Midelney)', htmlValue: `${midelneyLevel.toFixed(2)}m AOD (${midelneyEval.isHeadLocked ? '🕒 HEAD-LOCKED' : '🟢 GRAVITY'})` }
     ],

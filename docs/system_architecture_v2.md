@@ -234,23 +234,39 @@ CREATE INDEX IF NOT EXISTS idx_camera_analysis_cam_fetched
 
 ---
 
-## 7. Camera Trigger & Visual Evidence Pipeline
+## 7. Decoupled Camera Frame Ingestion & Retroactive Visual Evidence Pipeline
 
-Camera frame grabs are synchronized with discrete state transitions to provide visual ground truth:
+To solve the intrinsic **30 to 90-minute batch upload latency** of upstream Environment Agency telemetry, the camera vision system is explicitly decoupled into two asynchronous tiers: a **continuous sliding window frame buffer** and a **retroactive event keyframe matcher**.
 
 ```mermaid
 flowchart TD
-    A["15m Background Sync"] --> B["Evaluate State Transitions<br/>(hydro_engine.js)"]
-    B --> C{"State Changed?<br/>S(t) != S(t-1)"}
-    C -->|"No"| D["Update Active Duration Peaks"]
-    C -->|"Yes"| E["Insert telemetry_events Record"]
-    E --> F{"Severity Tier >= 3?<br/>(Warning or Critical: Encroaching / Overtopping)"}
-    F -->|"No"| G["Skip Camera Snap"]
-    F -->|"Yes"| H{"Camera Cooldown > 300s?"}
-    H -->|"Yes"| I["Fetch Camera Snapshot Frame"]
-    I --> J["Compute SHA-256 & Store Frame"]
-    J --> K["Link camera_snapshot_id to telemetry_events"]
+    subgraph Tier 1: Continuous Rolling Frame Buffer (Sliding Window)
+        CAM["10 Target Flood Cameras<br/>(thecfh.org)"] -->|"Gentle Trickle: ~1 req/min<br/>(Every 10-15m per camera)"| BUF_WORKER["Background Ingestion Worker<br/>(camera_buffer.js)"]
+        BUF_WORKER --> HASH["Compute SHA-256 Hash<br/>& Timestamp Metadata"]
+        HASH --> DISK_BUF[("Local Rolling Ring Buffer<br/>data/camera_buffer/<br/>(FIFO Pruned: 24h-48h max 350MB)")]
+    end
+
+    subgraph Tier 2: Lagged Telemetry Correlation & Retroactive AI Matching
+        EA_API["EA Telemetry Batch API<br/>(30m - 90m Latency)"] -->|"15m Polling Loop"| SYNC["hydro_engine.js<br/>State Transition Evaluator"]
+        SYNC --> TRANS{"State Transition Detected?<br/>t_event = historical timestamp"}
+        TRANS -->|"No"| IDLE["Update Peak Clearance"]
+        TRANS -->|"Yes"| RETRO["Query Local Ring Buffer<br/>for Frame Nearest to t_event"]
+        RETRO --> MATCH{"Frame Found in Window?<br/>|t_frame - t_event| <= 20m"}
+        MATCH -->|"Yes"| AI["Gemini Multimodal Vision<br/>(Dual-Frame Before/After Analysis)"]
+        MATCH -->|"No (Missing/Dark)"| FB["Generate Rule-Based Telemetry Fallback"]
+        AI & FB --> ARCHIVE[("SQLite camera_analysis Table<br/>& Link camera_snapshot_id to<br/>telemetry_events Record")]
+    end
 ```
+
+### 7.1 Tier 1: Continuous Rolling Frame Ingestion (`src/js/api/camera_buffer.js`)
+1. **Target Monitored Assets:** Only 10 critical hydraulic choke-points are polled (Dunball Tidal Flaps, Hookbridge Weir Crest, Cuts Road Spillway, Currymoor PS, Baltmoor Wall, Monk's Leaze Clyse).
+2. **Bandwidth & Request Pacing:** Paced uniformly across time (~1 HTTP request every 60 seconds). Bandwidth consumption is strictly throttled to $\approx 7\text{MB/hour}$ (~170MB/day), imposing negligible load on community hosts (`[RULE-PROV-01]`).
+3. **Circular Storage Management:** Raw JPEGs are stored in `data/camera_buffer/<camera_id>/<timestamp>.jpg`. A periodic housekeeping task prunes frames older than 48 hours, strictly capping the disk footprint at $\le 350\text{MB}$.
+
+### 7.2 Tier 2: Retroactive Window Matching & Forensic Archival
+1. **Temporal Alignment:** When delayed telemetry arrives indicating an overtopping or inundation event occurred at $t_{\text{event}}$ (e.g. 16:30 GMT), the matcher queries the ring buffer for the frame closest to 16:30 GMT rather than grabbing whatever the camera sees *now* (17:30 GMT).
+2. **Temporal Differential AI Analysis:** If available, Gemini Vision is provided *two* frames ($t_{\text{pre-event}}$ at 16:15 and $t_{\text{event}}$ at 16:30) to evaluate whether floodwater crossed the physical barrier between the two images.
+3. **Forensic Event Ledger Retention:** Only the ~3–5 critical transition keyframes per flood event (Start, Peak, End) are copied from the ephemeral ring buffer into permanent archival storage and linked to `telemetry_events.camera_snapshot_id`. Unreferenced routine frames are automatically purged after 48 hours.
 
 ---
 

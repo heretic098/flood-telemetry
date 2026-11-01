@@ -1742,6 +1742,55 @@ svg.micro-sparkline {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 
+/* Find My Area / Village Focus Pills (Issue #5) */
+.area-focus-group {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.area-pills-bar {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.area-pill-btn {
+  background: rgba(15, 23, 42, 0.6);
+  color: #cbd5e1;
+  border: 1px solid var(--border-color);
+  padding: 0.45rem 0.75rem;
+  min-height: 44px;
+  min-width: 44px;
+  border-radius: 9999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.area-pill-btn:hover {
+  background: var(--bg-card-hover);
+  color: #ffffff;
+  border-color: #38bdf8;
+}
+
+.area-pill-btn:focus-visible {
+  outline: 2px solid #38bdf8;
+  outline-offset: 2px;
+}
+
+.area-pill-btn.active {
+  background: #0284c7;
+  color: #ffffff;
+  border-color: #38bdf8;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.35);
+}
+
 .topology-legend {
   display: flex;
   align-items: center;

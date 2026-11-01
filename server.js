@@ -32,6 +32,7 @@ import {
 
 import { runMigrations } from './src/js/db_migrations.js';
 import { rehydrateActiveSessions, processTelemetryEvents } from './src/js/event_manager.js';
+import { getTelemetryEvents, getActiveTelemetryEvents } from './src/js/event_ledger.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -996,6 +997,41 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // API Route: Canonical Telemetry Events Ledger (Phase 4)
+  if (pathname === '/api/events' || pathname === '/api/events/') {
+    try {
+      const urlObj = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+      const statusParam = urlObj.searchParams.get('status')?.trim()?.toUpperCase() || null;
+      const assetIdParam = urlObj.searchParams.get('asset_id')?.trim()?.toLowerCase() || null;
+      const limitParam = urlObj.searchParams.get('limit');
+
+      const events = getTelemetryEvents(db, {
+        status: statusParam,
+        asset_id: assetIdParam,
+        limit: limitParam
+      });
+
+      const cacheHeader = (statusParam === 'CLOSED')
+        ? 'public, max-age=300'
+        : 'no-cache, no-store, must-revalidate';
+
+      res.writeHead(200, {
+        'Content-Type': 'application/json',
+        'Cache-Control': cacheHeader
+      });
+      res.end(JSON.stringify({
+        status: 'ok',
+        count: events.length,
+        events
+      }));
+    } catch (err) {
+      console.error('[API Events Error]', err);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ status: 'error', message: 'Failed to retrieve telemetry events' }));
+    }
+    return;
+  }
+
   // API Route: Status with all 7 UI/UX Status Tokens & Weir Math
   if (pathname.startsWith('/api/status')) {
     let stored = getStoredTelemetry();
@@ -1037,10 +1073,15 @@ const server = http.createServer(async (req, res) => {
     const hookbridgeDischarge = calculateVillemonteDischarge(hookbridgeStage, curryMoorStage, HYDRO_THRESHOLDS.HOOKBRIDGE.CREST_MAOD);
     const baltmoorDischarge = calculateVillemonteDischarge(baltmoorStage, northMoorStage, HYDRO_THRESHOLDS.BALTMOOR.CREST_MAOD);
 
-    const hookbridgeEvent = db.prepare("SELECT * FROM spill_events WHERE spillway_id = 'hookbridge_spillway' AND status = 'ACTIVE'").get();
-    const baltmoorEvent = db.prepare("SELECT * FROM spill_events WHERE spillway_id = 'baltmoor_wall' AND status = 'ACTIVE'").get();
-
+    // Source active sessions directly from canonical telemetry_events ledger [RULE-ENT-01]
     const nowMs = Date.now();
+    const activeEvents = getActiveTelemetryEvents(db, nowMs);
+
+    const hookbridgeEvent = db.prepare("SELECT * FROM telemetry_events WHERE asset_id = 'hookbridge' AND status = 'ACTIVE'").get()
+      || db.prepare("SELECT * FROM spill_events WHERE spillway_id = 'hookbridge_spillway' AND status = 'ACTIVE'").get();
+    const baltmoorEvent = db.prepare("SELECT * FROM telemetry_events WHERE asset_id = 'baltmoor_wall' AND status = 'ACTIVE'").get()
+      || db.prepare("SELECT * FROM spill_events WHERE spillway_id = 'baltmoor_wall' AND status = 'ACTIVE'").get();
+
     const hookbridgeDuration = hookbridgeEvent ? Math.max(0, Math.floor((nowMs - new Date(hookbridgeEvent.start_time).getTime()) / 1000)) : 0;
     const baltmoorDuration = baltmoorEvent ? Math.max(0, Math.floor((nowMs - new Date(baltmoorEvent.start_time).getTime()) / 1000)) : 0;
 
@@ -1072,6 +1113,7 @@ const server = http.createServer(async (req, res) => {
         top_severity: globalStat.topSeverity,
         is_tide_locked: isTideLocked
       },
+      active_events: activeEvents,
       cards: {
         hookbridge_spillway: {
           id: "hookbridge_spillway",
@@ -1080,16 +1122,16 @@ const server = http.createServer(async (req, res) => {
           stage_mAOD: hookbridgeStage,
           crest_mAOD: 7.45,
           moor_stage_mAOD: curryMoorStage,
-          status_code: mapStatusCode(hookbridgeOverspill),
+          status_code: hookbridgeEvent?.to_state === 'OVERTOPPING' ? 'OVERSPILLING' : (hookbridgeEvent?.to_state === 'NEAR_CREST' ? 'ALERT' : mapStatusCode(hookbridgeOverspill)),
           badge_label: hookbridgeOverspill.label,
           badge_class: hookbridgeOverspill.badgeClass,
           clearance_text: hookbridgeOverspill.clearanceText,
           discharge_m3s: hookbridgeDischarge.flowM3s,
           discharge_mld: hookbridgeDischarge.flowMLD,
-          is_spilling: hookbridgeOverspill.code === 'OVERTOPPING',
+          is_spilling: hookbridgeEvent?.to_state === 'OVERTOPPING' || hookbridgeOverspill.code === 'OVERTOPPING',
           spill_duration_seconds: hookbridgeDuration,
           spill_duration_formatted: `${Math.floor(hookbridgeDuration / 3600)}h ${Math.floor((hookbridgeDuration % 3600) / 60)}m`,
-          narrative: hookbridgeOverspill.narrative
+          narrative: hookbridgeEvent?.narrative || hookbridgeOverspill.narrative
         },
         baltmoor_wall: {
           id: "baltmoor_wall",
@@ -1098,16 +1140,16 @@ const server = http.createServer(async (req, res) => {
           stage_mAOD: baltmoorStage,
           crest_mAOD: 7.80,
           moor_stage_mAOD: northMoorStage,
-          status_code: mapStatusCode(baltmoorOverspill),
+          status_code: baltmoorEvent?.to_state === 'OVERTOPPING' ? 'OVERSPILLING' : (baltmoorEvent?.to_state === 'NEAR_CREST' ? 'ALERT' : mapStatusCode(baltmoorOverspill)),
           badge_label: baltmoorOverspill.label,
           badge_class: baltmoorOverspill.badgeClass,
           clearance_text: baltmoorOverspill.clearanceText,
           discharge_m3s: baltmoorDischarge.flowM3s,
           discharge_mld: baltmoorDischarge.flowMLD,
-          is_spilling: baltmoorOverspill.code === 'OVERTOPPING',
+          is_spilling: baltmoorEvent?.to_state === 'OVERTOPPING' || baltmoorOverspill.code === 'OVERTOPPING',
           spill_duration_seconds: baltmoorDuration,
           spill_duration_formatted: `${Math.floor(baltmoorDuration / 3600)}h ${Math.floor((baltmoorDuration % 3600) / 60)}m`,
-          narrative: baltmoorOverspill.narrative
+          narrative: baltmoorEvent?.narrative || baltmoorOverspill.narrative
         },
         monks_leaze_clyse: {
           id: "monks_leaze_clyse",

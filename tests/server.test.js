@@ -115,4 +115,64 @@ test('GET /somerset/js/sparkline.js serves static sparkline JS module under catc
   assert.ok(res.body.includes('computeSparklineBounds'));
 });
 
+test('GET /api/events returns 200 and structured events payload', async () => {
+  const res = await httpGet('/api/events');
+  assert.equal(res.status, 200);
+  assert.ok(res.headers['content-type'].includes('application/json'));
+  assert.ok(res.headers['cache-control'].includes('no-cache'));
+  const json = JSON.parse(res.body);
+  assert.equal(json.status, 'ok');
+  assert.equal(typeof json.count, 'number');
+  assert.ok(Array.isArray(json.events));
+});
+
+test('GET /api/events?status=ACTIVE returns no-cache headers', async () => {
+  const res = await httpGet('/api/events?status=ACTIVE');
+  assert.equal(res.status, 200);
+  assert.ok(res.headers['cache-control'].includes('no-cache'));
+  const json = JSON.parse(res.body);
+  assert.equal(json.status, 'ok');
+  assert.ok(Array.isArray(json.events));
+  for (const ev of json.events) {
+    assert.equal(ev.status, 'ACTIVE');
+  }
+});
+
+test('GET /api/events?status=CLOSED returns public, max-age=300 cache header', async () => {
+  const res = await httpGet('/api/events?status=CLOSED');
+  assert.equal(res.status, 200);
+  assert.ok(res.headers['cache-control'].includes('public'));
+  assert.ok(res.headers['cache-control'].includes('max-age=300'));
+  const json = JSON.parse(res.body);
+  assert.equal(json.status, 'ok');
+  assert.ok(Array.isArray(json.events));
+  for (const ev of json.events) {
+    assert.equal(ev.status, 'CLOSED');
+  }
+});
+
+test('GET /api/events?asset_id=hookbridge filters events by asset_id', async () => {
+  const res = await httpGet('/api/events?asset_id=hookbridge');
+  assert.equal(res.status, 200);
+  const json = JSON.parse(res.body);
+  assert.equal(json.status, 'ok');
+  assert.ok(Array.isArray(json.events));
+  for (const ev of json.events) {
+    assert.equal(ev.asset_id, 'hookbridge');
+  }
+});
+
+test('GET /api/status includes active_events list and preserves backward-compatible cards', async () => {
+  const res = await httpGet('/api/status');
+  assert.equal(res.status, 200);
+  const json = JSON.parse(res.body);
+  assert.equal(json.status, 'ok');
+  assert.ok(Array.isArray(json.active_events));
+  assert.ok(json.cards.hookbridge_spillway);
+  assert.ok(json.cards.baltmoor_wall);
+  assert.ok(typeof json.cards.hookbridge_spillway.spill_duration_seconds === 'number');
+  assert.ok(typeof json.cards.baltmoor_wall.spill_duration_seconds === 'number');
+});
+
+
 
