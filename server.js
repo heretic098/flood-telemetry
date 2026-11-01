@@ -1155,7 +1155,7 @@ const server = http.createServer(async (req, res) => {
 
   const ext = path.extname(safePath).toLowerCase();
   const contentType = MIME_TYPES[ext] || 'application/octet-stream';
-  const cacheControl = (ext === '.html') ? 'public, max-age=300' : (ext === '.js' ? 'no-cache' : 'public, max-age=86400');
+  const cacheControl = (ext === '.html') ? 'public, max-age=300' : ((ext === '.js' || ext === '.css') ? 'no-cache' : 'public, max-age=86400');
 
   fs.readFile(safePath, (err, content) => {
     if (err) {
