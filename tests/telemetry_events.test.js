@@ -5,7 +5,9 @@ import {
   HYDRO_DEADBANDS,
   computeTrendVector,
   formatClearanceText,
-  evaluateAssetTransition
+  evaluateAssetTransition,
+  getNominalStateForAssetType,
+  calculateDaylightDryHours
 } from '../src/js/hydro_engine.js';
 import { CANONICAL_ASSET_TYPES, CANONICAL_STATES } from '../src/js/db_migrations.js';
 
@@ -191,7 +193,7 @@ test('Telemetry Events: 30-minute debounce window stamps end_time at 1st nominal
   assert.equal(stepNominal2.duration_seconds, 1800);
 });
 
-test('Telemetry Events: Zero-Trust sensor dropout freezes active session in TELEMETRY_INTERRUPTED without closing', () => {
+test('Telemetry Events: Zero-Trust sensor dropout freezes active session in current state with is_interrupted flag without closing', () => {
   const asset = ASSET_DEFINITIONS.cuts_road; // Crown 7.35m
 
   const activeFloodSession = {
@@ -210,13 +212,79 @@ test('Telemetry Events: Zero-Trust sensor dropout freezes active session in TELE
   ]);
 
   // Action MUST be UPDATE (not CLOSE), preserving active duration and peak
+  // to_state MUST preserve the active session state (NEVER set to an unconstrained string like TELEMETRY_INTERRUPTED)
   assert.equal(stepDropout.action, 'UPDATE');
-  assert.equal(stepDropout.to_state, 'TELEMETRY_INTERRUPTED');
+  assert.equal(stepDropout.to_state, 'IMPASSABLE');
   assert.equal(stepDropout.severity_tier, 4);
   assert.equal(stepDropout.peak_stage_mAOD, 7.42);
   assert.equal(stepDropout.start_time, '2026-11-01T10:00:00Z');
   assert.equal(stepDropout.end_time, null);
-  assert.ok(stepDropout.narrative.includes('TELEMETRY_INTERRUPTED'));
+  assert.equal(stepDropout.session_updates.is_interrupted, true);
+  assert.ok(stepDropout.narrative.includes('interrupted'));
+});
+
+test('Telemetry Events: Cold start offline fallback returns canonical nominal state per asset_type', () => {
+  const roadOffline = evaluateAssetTransition(ASSET_DEFINITIONS.cuts_road, null, []);
+  assert.equal(roadOffline.to_state, 'PASSABLE'); // Never 'NORMAL' for road assets
+
+  const spillOffline = evaluateAssetTransition(ASSET_DEFINITIONS.hookbridge, null, []);
+  assert.equal(spillOffline.to_state, 'SECURE');
+
+  const polderOffline = evaluateAssetTransition(ASSET_DEFINITIONS.curry_moor, null, []);
+  assert.equal(polderOffline.to_state, 'STANDBY');
+
+  const gateOffline = evaluateAssetTransition(ASSET_DEFINITIONS.dunball_outfall, null, []);
+  assert.equal(gateOffline.to_state, 'DISCHARGING');
+
+  const sluiceOffline = evaluateAssetTransition(ASSET_DEFINITIONS.monks_leaze_clyse, null, []);
+  assert.equal(sluiceOffline.to_state, 'CLOSED');
+
+  const gaugeOffline = evaluateAssetTransition(ASSET_DEFINITIONS['52108'], null, []);
+  assert.equal(gaugeOffline.to_state, 'NORMAL');
+});
+
+test('Telemetry Events: calculateDaylightDryHours computes deterministic Europe/London daylight hours', () => {
+  // 4 hours on summer day (08:00 to 12:00 BST -> 07:00 to 11:00 UTC)
+  assert.equal(calculateDaylightDryHours('2026-06-15T07:00:00Z', '2026-06-15T11:00:00Z'), 4);
+  // Overnight during BST (18:00 to 07:00 BST -> 0 hours)
+  assert.equal(calculateDaylightDryHours('2026-06-15T17:00:00Z', '2026-06-16T06:00:00Z'), 0);
+  // Full 2 days in winter GMT (08:00 to 17:00 GMT = 9h per day -> 18h)
+  assert.equal(calculateDaylightDryHours('2026-01-01T00:00:00Z', '2026-01-02T23:59:59Z'), 18);
+  // Partial day: 09:30 to 14:15 GMT = 4.75h
+  assert.equal(calculateDaylightDryHours('2026-01-01T09:30:00Z', '2026-01-01T14:15:00Z'), 4.75);
+  // Inverted or invalid dates return 0
+  assert.equal(calculateDaylightDryHours('2026-01-02T00:00:00Z', '2026-01-01T00:00:00Z'), 0);
+  assert.equal(calculateDaylightDryHours('invalid', '2026-01-01T00:00:00Z'), 0);
+});
+
+test('Telemetry Events: ASSET_DEFINITIONS contains all 8 road corridors with unambiguous primary stations', () => {
+  const roadIds = [
+    'cuts_road',
+    'muchelney_access',
+    'beer_wall_a372',
+    'new_road_curry',
+    'a361_burrowbridge',
+    'bicknells_bridge_access',
+    'moorland_new_cut_road',
+    'stan_moor_road'
+  ];
+
+  for (const id of roadIds) {
+    const asset = ASSET_DEFINITIONS[id];
+    assert.ok(asset, `Asset ${id} must exist in ASSET_DEFINITIONS`);
+    assert.equal(asset.asset_type, 'road');
+    assert.ok(typeof asset.primary_station === 'string' && asset.primary_station.length > 0, `${id} must have primary_station string`);
+  }
+
+  // Multi-station topology disambiguation
+  assert.equal(ASSET_DEFINITIONS.a361_burrowbridge.primary_station, '52158');
+  assert.equal(ASSET_DEFINITIONS.a361_burrowbridge.secondary_station, '52127');
+  assert.equal(ASSET_DEFINITIONS.stan_moor_road.primary_station, '52118');
+  assert.equal(ASSET_DEFINITIONS.stan_moor_road.secondary_station, '52127');
+
+  // Beer Wall physical decoupling: 7.30m caution / culvert relief activation; crown >8.00m pending survey
+  assert.equal(ASSET_DEFINITIONS.beer_wall_a372.caution_elevation_mAOD, 7.30);
+  assert.ok(ASSET_DEFINITIONS.beer_wall_a372.crown_elevation_mAOD >= 8.00);
 });
 
 test('Telemetry Events: Road transitions evaluate PASSABLE, ENCROACHING, IMPASSABLE accurately', () => {

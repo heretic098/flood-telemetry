@@ -14,6 +14,11 @@ This project is a community-driven flood telemetry platform coded by autonomous 
 
 All agents collaborating on this project MUST strictly uphold these foundational principles:
 
+0. **[RULE-MOD-01] Mandatory Pro Model Tier for Subagents:**
+   - Whenever invoking subagents (`invoke_subagent`), you **MUST explicitly set `Model: 'pro'`**.
+   - **NEVER** default to `'inherit'`, `'flash'`, or `'flash_lite'`.
+   - All collaborative subagents (`fullstack_developer`, `climate_hydrology_scientist`, `ui_ux_designer`, `code_reviewer`, `legal_eagle`) require the high-depth reasoning, domain fidelity, and architectural precision of the Pro tier.
+
 1. **[RULE-HUM-01] Epistemic Humility & Ban on Simulated Authority:**
    - Do **NOT** posture as an authoritative civil engineering consultant, SCADA operator, or certified hydraulic specialist.
    - Do **NOT** invent academic jargon, speculative differential equations, or uncalibrated mathematical models to "look smart" or create an impression of expertise.

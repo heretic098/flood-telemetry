@@ -1451,7 +1451,18 @@ export const ASSET_DEFINITIONS = Object.freeze({
     crown_elevation_mAOD: 7.35,
     caution_elevation_mAOD: 7.00,
     deadband_crown: HYDRO_DEADBANDS.road_crown,
-    deadband_caution: HYDRO_DEADBANDS.road_caution
+    deadband_caution: HYDRO_DEADBANDS.road_caution,
+    corridor_type: 'Polder Overflow Crossing',
+    driving_station_label: 'Curry Moor Basin (52127)',
+    ea_warning_target_area: '112FWFCUR10A',
+    ea_target_area_name: 'Curry Moor and Hay Moor',
+    survey_tier: 'TIER_1_SURVEYED',
+    survey_label: '📐 SURVEYED CIVIL GEOMETRY',
+    survey_tooltip: 'Concrete spillway relief crest surveyed at 7.35m AOD.',
+    camera_id: 'athelney_cuts_rd',
+    cam_url: 'https://thecfh.org/parretttonewsom.php#athelneyspillway',
+    cam_label: 'Check Live Camera to Verify Gates ↗',
+    station_url: 'https://check-for-flooding.service.gov.uk/station/3064'
   }),
   muchelney_access: Object.freeze({
     asset_type: 'road',
@@ -1461,7 +1472,128 @@ export const ASSET_DEFINITIONS = Object.freeze({
     crown_elevation_mAOD: 7.86,
     caution_elevation_mAOD: 7.30,
     deadband_crown: HYDRO_DEADBANDS.road_crown,
-    deadband_caution: HYDRO_DEADBANDS.road_caution
+    deadband_caution: HYDRO_DEADBANDS.road_caution,
+    corridor_type: 'Community Lifeline Spine',
+    driving_station_label: 'River Yeo @ Huish (52120)',
+    ea_warning_target_area: '112WAFYPM',
+    ea_target_area_name: 'River Yeo & Parrett Moors',
+    survey_tier: 'TIER_1_SURVEYED',
+    survey_label: '📐 SURVEYED CIVIL GEOMETRY',
+    survey_tooltip: 'SRA raised road crown surveyed at 7.86m AOD; low breach 7.30m.',
+    camera_id: 'huish_episcopi',
+    cam_url: 'https://thecfh.org/parretttonewsom.php#huish',
+    cam_label: 'Check Live Camera to Verify Gates ↗',
+    station_url: 'https://check-for-flooding.service.gov.uk/station/3063'
+  }),
+  beer_wall_a372: Object.freeze({
+    asset_type: 'road',
+    asset_id: 'beer_wall_a372',
+    name: 'A372 at Beer Wall / Greylake (Aller ↔ Othery)',
+    primary_station: '52157',
+    crown_elevation_mAOD: 8.00, // ⚠️ PENDING AS-BUILT HIGHWAYS SURVEY (>8.00m AOD)
+    caution_elevation_mAOD: 7.30, // Culvert relief activation threshold into 4 box culverts
+    deadband_crown: HYDRO_DEADBANDS.road_crown,
+    deadband_caution: HYDRO_DEADBANDS.road_caution,
+    corridor_type: 'Engineered Culvert Crossing',
+    driving_station_label: 'River Sowy @ Beerwall (52157)',
+    ea_warning_target_area: 'SOWY_KSD',
+    ea_target_area_name: 'River Sowy / KSD Catchment',
+    survey_tier: 'TIER_1_WEIR_PENDING_SURVEY_CROWN',
+    survey_label: '⚠️ PENDING AS-BUILT SURVEY',
+    survey_tooltip: 'Weir surveyed 7.30m; Carriageway Crown Pending As-Built Survey (>8.00m AOD).',
+    station_url: 'https://check-for-flooding.service.gov.uk/station/3067'
+  }),
+  new_road_curry: Object.freeze({
+    asset_type: 'road',
+    asset_id: 'new_road_curry',
+    name: 'New Road (West Lyng ↔ North Curry)',
+    primary_station: '52127',
+    crown_elevation_mAOD: 7.10, // ⚠️ PENDING TOPOGRAPHIC SURVEY (Council gate closure stage)
+    caution_elevation_mAOD: 6.20,
+    deadband_crown: HYDRO_DEADBANDS.road_crown,
+    deadband_caution: HYDRO_DEADBANDS.road_caution,
+    corridor_type: 'Moor Basin Highway',
+    driving_station_label: 'Curry Moor Basin (52127)',
+    ea_warning_target_area: '112FWFCUR10A',
+    ea_target_area_name: 'Curry Moor and Hay Moor',
+    survey_tier: 'TIER_2_TRIGGER_PLAN',
+    survey_label: '⚠️ TRIGGER PROTOCOL (PENDING SURVEY)',
+    survey_tooltip: 'Correlated to EA Moor stage and Somerset Council emergency gate closure triggers. Topographic road survey pending.',
+    station_url: 'https://check-for-flooding.service.gov.uk/station/3064'
+  }),
+  a361_burrowbridge: Object.freeze({
+    asset_type: 'road',
+    asset_id: 'a361_burrowbridge',
+    name: 'A361 Corridor (East Lyng ↔ Burrowbridge)',
+    primary_station: '52158', // Baltmoor Wall / River Parrett at Burrowbridge
+    secondary_station: '52127', // Curry Moor cascade
+    crown_elevation_mAOD: 7.80, // ⚠️ PENDING AS-BUILT HIGHWAYS SURVEY (Baltmoor levee overtopping)
+    caution_elevation_mAOD: 7.35, // Athelney cascade
+    deadband_crown: HYDRO_DEADBANDS.road_crown,
+    deadband_caution: HYDRO_DEADBANDS.road_caution,
+    corridor_type: 'Strategic Regional Arterial',
+    driving_station_label: 'Baltmoor (52158) & Curry Moor (52127)',
+    ea_warning_target_area: '112FWFEAS10A',
+    ea_target_area_name: 'A361 East Lyng to Burrowbridge',
+    survey_tier: 'TIER_2_TRIGGER_PLAN',
+    survey_label: '⚠️ TRIGGER PROTOCOL (PENDING SURVEY)',
+    survey_tooltip: 'Correlated to Baltmoor levee and Curry Moor cascade triggers. As-built highways survey pending.',
+    station_url: 'https://check-for-flooding.service.gov.uk/station/3065'
+  }),
+  bicknells_bridge_access: Object.freeze({
+    asset_type: 'road',
+    asset_id: 'bicknells_bridge_access',
+    name: "Bicknell's Bridge & Huish Level (Langport ↔ Muchelney)",
+    primary_station: '52120',
+    crown_elevation_mAOD: 7.30, // ⚠️ PENDING TOPOGRAPHIC SURVEY (Approach submergence)
+    caution_elevation_mAOD: 7.00,
+    deadband_crown: HYDRO_DEADBANDS.road_crown,
+    deadband_caution: HYDRO_DEADBANDS.road_caution,
+    corridor_type: 'Lowland Rural Connector',
+    driving_station_label: 'River Yeo @ Huish (52120)',
+    ea_warning_target_area: '112WAFYPM',
+    ea_target_area_name: 'River Yeo & Parrett Moors',
+    survey_tier: 'TIER_3_EMPIRICAL',
+    survey_label: '⚠️ TRIGGER PROTOCOL (PENDING SURVEY)',
+    survey_tooltip: 'Approaches Pending Topographic Survey.',
+    station_url: 'https://check-for-flooding.service.gov.uk/station/3063'
+  }),
+  moorland_new_cut_road: Object.freeze({
+    asset_type: 'road',
+    asset_id: 'moorland_new_cut_road',
+    name: 'New Cut & Moorland Access (Northmoor Polder)',
+    primary_station: '52159',
+    crown_elevation_mAOD: 4.80, // ⚠️ PENDING TOPOGRAPHIC SURVEY (Deep storage retention)
+    caution_elevation_mAOD: 3.80, // Basin alert stage
+    deadband_crown: HYDRO_DEADBANDS.road_crown,
+    deadband_caution: HYDRO_DEADBANDS.road_caution,
+    corridor_type: 'Internal Polder Network',
+    driving_station_label: 'Northmoor Basin (52159)',
+    ea_warning_target_area: '112FWFSAL10A',
+    ea_target_area_name: 'Salt Moor & North Moor',
+    survey_tier: 'TIER_2_TRIGGER_PLAN',
+    survey_label: '⚠️ TRIGGER PROTOCOL (PENDING SURVEY)',
+    survey_tooltip: 'Internal polder road approaches pending topographic survey.',
+    station_url: 'https://check-for-flooding.service.gov.uk/station/3415'
+  }),
+  stan_moor_road: Object.freeze({
+    asset_type: 'road',
+    asset_id: 'stan_moor_road',
+    name: 'Stan Moor Road (Curload ↔ Athelney)',
+    primary_station: '52118', // Hookbridge / River Tone
+    secondary_station: '52127', // Curry Moor
+    crown_elevation_mAOD: 7.30, // ⚠️ PENDING TOPOGRAPHIC SURVEY (Tone high bankfull stage)
+    caution_elevation_mAOD: 7.15,
+    deadband_crown: HYDRO_DEADBANDS.road_crown,
+    deadband_caution: HYDRO_DEADBANDS.road_caution,
+    corridor_type: 'River Embankment Bank',
+    driving_station_label: 'Hookbridge (52118) & Curry Moor (52127)',
+    ea_warning_target_area: '112FWFSTA10A',
+    ea_target_area_name: 'Stan Moor (Athelney & Curload)',
+    survey_tier: 'TIER_2_TRIGGER_PLAN',
+    survey_label: '⚠️ TRIGGER PROTOCOL (PENDING SURVEY)',
+    survey_tooltip: 'Tone embankment road crown pending topographic survey.',
+    station_url: 'https://check-for-flooding.service.gov.uk/station/3073'
   }),
 
   // --- 2. SPILLWAYS ---
@@ -1656,6 +1788,85 @@ export function formatClearanceText(clearanceMeters, descriptor = 'crest') {
 }
 
 /**
+ * Returns the canonical nominal state for a given asset type in accordance with [RULE-ENT-01]
+ * @param {string} assetType
+ * @returns {string}
+ */
+export function getNominalStateForAssetType(assetType) {
+  switch (assetType) {
+    case 'road':
+      return 'PASSABLE';
+    case 'spillway':
+      return 'SECURE';
+    case 'polder':
+      return 'STANDBY';
+    case 'tidal_gate':
+      return 'DISCHARGING';
+    case 'sluice':
+      return 'CLOSED';
+    case 'gauge':
+    default:
+      return 'NORMAL';
+  }
+}
+
+/**
+ * Calculates continuous daylight hours between startTime and endTime within the Somerset
+ * working window (08:00 to 17:00 local time) respecting Europe/London (GMT/BST) boundaries.
+ * 
+ * @param {string|number|Date} startTime - Start of recession / dry condition
+ * @param {string|number|Date} [endTime=new Date()] - Current evaluation timestamp
+ * @returns {number} Elapsed daylight hours rounded to 2 decimal places
+ */
+export function calculateDaylightDryHours(startTime, endTime = new Date()) {
+  const start = new Date(startTime);
+  const end = new Date(endTime);
+
+  if (isNaN(start.getTime()) || isNaN(end.getTime()) || end <= start) {
+    return 0;
+  }
+
+  const getLondonParts = (date) => {
+    const parts = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Europe/London',
+      year: 'numeric',
+      month: 'numeric',
+      day: 'numeric'
+    }).formatToParts(date);
+    const map = {};
+    for (const p of parts) map[p.type] = p.value;
+    return { year: parseInt(map.year, 10), month: parseInt(map.month, 10), day: parseInt(map.day, 10) };
+  };
+
+  const startParts = getLondonParts(start);
+  const endParts = getLondonParts(end);
+
+  let totalMs = 0;
+  let curUtc = new Date(Date.UTC(startParts.year, startParts.month - 1, startParts.day, 12, 0, 0));
+  const lastUtc = new Date(Date.UTC(endParts.year, endParts.month - 1, endParts.day, 12, 0, 0));
+
+  while (curUtc <= lastUtc) {
+    const p = getLondonParts(curUtc);
+    const testD = new Date(Date.UTC(p.year, p.month - 1, p.day, 8, 0, 0));
+    const h = parseInt(new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/London', hour: 'numeric', hourCycle: 'h23' }).format(testD), 10);
+    const offset = h - 8;
+    const dayStart = new Date(Date.UTC(p.year, p.month - 1, p.day, 8 - offset, 0, 0));
+    const dayEnd = new Date(Date.UTC(p.year, p.month - 1, p.day, 17 - offset, 0, 0));
+
+    const winStart = Math.max(start.getTime(), dayStart.getTime());
+    const winEnd = Math.min(end.getTime(), dayEnd.getTime());
+
+    if (winEnd > winStart) {
+      totalMs += (winEnd - winStart);
+    }
+
+    curUtc = new Date(curUtc.getTime() + 24 * 60 * 60 * 1000);
+  }
+
+  return Number((totalMs / (1000 * 60 * 60)).toFixed(2));
+}
+
+/**
  * Pure Deterministic State Transition Evaluator [RULE-ENT-01, RULE-PUMP-01, RULE-ALT-01, RULE-SUB-01, RULE-CALC-01]
  * Zero I/O, zero network, zero SQLite dependencies.
  * 
@@ -1693,6 +1904,9 @@ export function evaluateAssetTransition(assetDef, activeSession = null, readings
     } else {
       const stationKey = assetDef.primary_station || assetDef.station_id;
       readings = readingsWindow[stationKey] || readingsWindow.primary || [];
+      if (assetDef.secondary_station) {
+        secReadings = readingsWindow[assetDef.secondary_station] || readingsWindow.secondary || [];
+      }
     }
   }
 
@@ -1712,14 +1926,14 @@ export function evaluateAssetTransition(assetDef, activeSession = null, readings
         asset_type: assetDef.asset_type,
         asset_id: assetDef.asset_id,
         from_state: activeSession.to_state,
-        to_state: 'TELEMETRY_INTERRUPTED',
+        to_state: activeSession.to_state, // Never set TELEMETRY_INTERRUPTED in to_state (preserves SQLite CHECK constraint)
         severity_tier: activeSession.severity_tier,
         trigger_stage_mAOD: activeSession.trigger_stage_mAOD,
         peak_stage_mAOD: activeSession.peak_stage_mAOD,
         clearance_m: activeSession.clearance_m ?? null,
         clearance_text: 'Telemetry interrupted',
         trend_vector: '— Steady',
-        narrative: 'Upstream telemetry station offline or corrupted. Active session frozen in TELEMETRY_INTERRUPTED state to preserve incident continuity.',
+        narrative: 'Upstream telemetry station offline or corrupted. Active session frozen in current state to preserve incident continuity (telemetry interrupted).',
         start_time: activeSession.start_time,
         end_time: null,
         duration_seconds: null,
@@ -1736,7 +1950,7 @@ export function evaluateAssetTransition(assetDef, activeSession = null, readings
       asset_type: assetDef.asset_type,
       asset_id: assetDef.asset_id,
       from_state: null,
-      to_state: 'NORMAL',
+      to_state: getNominalStateForAssetType(assetDef.asset_type), // Road assets fall back to PASSABLE, never NORMAL
       severity_tier: 1,
       trigger_stage_mAOD: 0,
       peak_stage_mAOD: 0,
@@ -1861,9 +2075,9 @@ export function evaluateAssetTransition(assetDef, activeSession = null, readings
       clearanceM = Number((Z_crown - stage).toFixed(3));
       clearanceDescriptor = 'road crown';
       if (evaluatedState === 'IMPASSABLE') {
-        narrative = `${assetDef.name} is flooded and impassable. Water stage has submerged the road crown (${Z_crown.toFixed(2)}m AOD).`;
+        narrative = `${assetDef.name} is flooded and impassable. Water stage has submerged the road crown (${Z_crown.toFixed(2)}m AOD), or council emergency closure gates are assumed closed.`;
       } else if (evaluatedState === 'ENCROACHING') {
-        narrative = `${assetDef.name} has margin water encroachment. Low spots damp/flooded; caution advised for low vehicles.`;
+        narrative = `${assetDef.name} has margin water encroachment. Low spots damp/flooded; caution advised for low vehicles. Gates assumed closed pending inspection if water recently receded.`;
       } else {
         narrative = `${assetDef.name} is passable. Road crown is dry.`;
       }
@@ -2171,6 +2385,491 @@ export function evaluateAssetTransition(assetDef, activeSession = null, readings
       firstNominalReading,
       peak_stage_mAOD
     }
+  };
+}
+
+/**
+ * Calculates rate of change in stage over 3 hours (dh/dt in m/h)
+ * @param {Array} readings 
+ * @returns {number} rate in m/h rounded to 3 decimal places
+ */
+export function computeRateOfChange3h(readings) {
+  if (!readings || !Array.isArray(readings) || readings.length < 2) return 0;
+  const latestItem = readings[0];
+  const latestVal = (typeof latestItem === 'object' && latestItem !== null) ? latestItem.value : latestItem;
+  if (latestVal === null || latestVal === undefined || isNaN(latestVal)) return 0;
+
+  const nowMs = (typeof latestItem === 'object' && latestItem?.dateTime)
+    ? new Date(latestItem.dateTime).getTime()
+    : Date.now();
+  const threeHoursMs = 3 * 60 * 60 * 1000;
+
+  let refReading = null;
+  let minDiff = Infinity;
+  let refMs = null;
+
+  for (let i = 1; i < readings.length; i++) {
+    const r = readings[i];
+    const val = (typeof r === 'object' && r !== null) ? r.value : r;
+    if (val !== null && val !== undefined && !isNaN(val)) {
+      if (typeof r === 'object' && r?.dateTime) {
+        const itemMs = new Date(r.dateTime).getTime();
+        const age = Math.abs(nowMs - itemMs);
+        const diff = Math.abs(age - threeHoursMs);
+        if (diff < minDiff) {
+          minDiff = diff;
+          refReading = val;
+          refMs = itemMs;
+        }
+      }
+    }
+  }
+
+  if (refReading === null && readings.length >= 2) {
+    const idx = Math.min(12, readings.length - 1);
+    const item = readings[idx];
+    refReading = (typeof item === 'object' && item !== null) ? item.value : item;
+    if (typeof item === 'object' && item?.dateTime) {
+      refMs = new Date(item.dateTime).getTime();
+    }
+  }
+
+  if (refReading === null || isNaN(refReading)) return 0;
+
+  let deltaHours = 3.0;
+  if (refMs && nowMs > refMs) {
+    deltaHours = (nowMs - refMs) / (1000 * 60 * 60);
+    if (deltaHours < 0.25) deltaHours = 0.25;
+  }
+
+  const rate = (latestVal - refReading) / deltaHours;
+  return Number(rate.toFixed(3));
+}
+
+/**
+ * Evaluates highway passability for a single road corridor adhering strictly
+ * to the Multi-Factor Passability Model [docs/road_network_passability_spec.md v3.0]
+ * 
+ * @param {object} assetDef - Definition from ASSET_DEFINITIONS
+ * @param {Array|object} readingsSource - Readings array or measures map
+ * @param {object|null} activeSession - Active event session from SQLite telemetry_events
+ * @param {object} [options]
+ * @returns {object} Evaluated road entity payload
+ */
+export function evaluateRoadCorridor(assetDef, readingsSource = [], activeSession = null, options = {}) {
+  const stationId = assetDef.primary_station;
+  let readings = [];
+  let secReadings = [];
+
+  // Extract readings for primary station
+  if (Array.isArray(readingsSource)) {
+    readings = readingsSource;
+  } else if (readingsSource && typeof readingsSource === 'object') {
+    // Try multiple lookup keys
+    readings = readingsSource[stationId]
+      || readingsSource[`${stationId}-level-stage-i-15_min-mAOD`]
+      || readingsSource[`${stationId}-level-stage-i-15_min-mASD`]
+      || [];
+    if (typeof readings === 'number') {
+      readings = [{ value: readings, dateTime: options.timestamp || new Date().toISOString() }];
+    }
+
+    if (assetDef.secondary_station) {
+      const secId = assetDef.secondary_station;
+      secReadings = readingsSource[secId]
+        || readingsSource[`${secId}-level-stage-i-15_min-mAOD`]
+        || readingsSource[`${secId}-level-stage-i-15_min-mASD`]
+        || [];
+      if (typeof secReadings === 'number') {
+        secReadings = [{ value: secReadings, dateTime: options.timestamp || new Date().toISOString() }];
+      }
+    }
+  }
+
+  // Datum offset correction if readings are mASD (Huish 52120: +5.000m)
+  const reg = STATION_REGISTRY[stationId];
+  const datumOffset = (reg?.unit === 'mASD' && typeof reg.datum_mAOD === 'number') ? reg.datum_mAOD : 0;
+
+  const latestItem = readings[0];
+  let rawStage = (typeof latestItem === 'object' && latestItem !== null) ? latestItem.value : latestItem;
+  if (rawStage !== null && rawStage !== undefined && !isNaN(rawStage) && datumOffset > 0) {
+    rawStage = Number((rawStage + datumOffset).toFixed(3));
+  }
+  const stage = sanitizeStageValue(rawStage);
+  const readingTime = (typeof latestItem === 'object' && latestItem?.dateTime)
+    ? latestItem.dateTime
+    : (options.timestamp || new Date().toISOString());
+
+  const rateOfRise = computeRateOfChange3h(readings);
+  const trendVector = computeTrendVector(readings);
+
+  // EA Warning state (options or default INACTIVE)
+  const eaWarningState = options.eaWarnings?.[assetDef.ea_warning_target_area] || options.eaWarningState || 'INACTIVE';
+
+  const Z_crown = assetDef.crown_elevation_mAOD;
+  const Z_caution = assetDef.caution_elevation_mAOD;
+  const dbCrown = assetDef.deadband_crown ?? HYDRO_DEADBANDS.road_crown;
+  const dbCaution = assetDef.deadband_caution ?? HYDRO_DEADBANDS.road_caution;
+
+  // Handle offline sensor
+  if (stage === null) {
+    if (activeSession && activeSession.status === 'ACTIVE') {
+      return {
+        asset_type: 'road',
+        asset_id: assetDef.asset_id,
+        name: assetDef.name,
+        corridor_type: assetDef.corridor_type || 'Highway Corridor',
+        status: activeSession.to_state || 'PASSABLE',
+        severity_tier: activeSession.severity_tier || 1,
+        phase: activeSession.to_state === 'IMPASSABLE' ? 'SUBMERGED' : 'APPROACHING_FLOOD',
+        primary_station: stationId,
+        secondary_station: assetDef.secondary_station || null,
+        driving_station_label: assetDef.driving_station_label || stationId,
+        stage_mAOD: null,
+        crown_elevation_mAOD: Z_crown,
+        caution_elevation_mAOD: Z_caution,
+        clearance_m: null,
+        clearance_text: 'Telemetry interrupted',
+        rate_of_rise_mh: 0,
+        trend_vector: '— Steady',
+        ea_warning_target_area: assetDef.ea_warning_target_area,
+        ea_target_area_name: assetDef.ea_target_area_name,
+        ea_warning_state: eaWarningState,
+        submerged_end_time: null,
+        dry_duration_hours: 0,
+        daylight_dry_hours: 0,
+        daylight_progress_percent: 0,
+        inspection_window_met: false,
+        camera_id: assetDef.camera_id || null,
+        cam_url: assetDef.cam_url || null,
+        cam_label: assetDef.cam_label || null,
+        station_url: assetDef.station_url || null,
+        survey_tier: assetDef.survey_tier || 'TIER_2_TRIGGER_PLAN',
+        survey_label: assetDef.survey_label || '⚠️ TRIGGER PROTOCOL (PENDING SURVEY)',
+        survey_tooltip: assetDef.survey_tooltip || '',
+        badge_symbol: activeSession.to_state === 'IMPASSABLE' ? '🔴' : '🟡',
+        badge_label: activeSession.to_state === 'IMPASSABLE' ? 'CLOSED & SUBMERGED' : 'CAUTION: VERGE WATER',
+        badge_class: activeSession.to_state === 'IMPASSABLE' ? 'badge-impassable' : 'badge-encroaching',
+        narrative: 'Upstream telemetry station offline. Session state preserved.'
+      };
+    }
+    return {
+      asset_type: 'road',
+      asset_id: assetDef.asset_id,
+      name: assetDef.name,
+      corridor_type: assetDef.corridor_type || 'Highway Corridor',
+      status: 'PASSABLE',
+      severity_tier: 1,
+      phase: 'NOMINAL',
+      primary_station: stationId,
+      secondary_station: assetDef.secondary_station || null,
+      driving_station_label: assetDef.driving_station_label || stationId,
+      stage_mAOD: null,
+      crown_elevation_mAOD: Z_crown,
+      caution_elevation_mAOD: Z_caution,
+      clearance_m: null,
+      clearance_text: 'Sensor offline',
+      rate_of_rise_mh: 0,
+      trend_vector: '— Steady',
+      ea_warning_target_area: assetDef.ea_warning_target_area,
+      ea_target_area_name: assetDef.ea_target_area_name,
+      ea_warning_state: eaWarningState,
+      submerged_end_time: null,
+      dry_duration_hours: 0,
+      daylight_dry_hours: 0,
+      daylight_progress_percent: 0,
+      inspection_window_met: true,
+      camera_id: assetDef.camera_id || null,
+      cam_url: assetDef.cam_url || null,
+      cam_label: assetDef.cam_label || null,
+      station_url: assetDef.station_url || null,
+      survey_tier: assetDef.survey_tier || 'TIER_2_TRIGGER_PLAN',
+      survey_label: assetDef.survey_label || '⚠️ TRIGGER PROTOCOL (PENDING SURVEY)',
+      survey_tooltip: assetDef.survey_tooltip || '',
+      badge_symbol: '🟢',
+      badge_label: 'PASSABLE',
+      badge_class: 'badge-passable',
+      narrative: 'Sensor offline. Fallback to normal access.'
+    };
+  }
+
+  // Physical clearance to crown
+  const clearanceM = Number((Z_crown - stage).toFixed(3));
+  const clearanceText = formatClearanceText(clearanceM, 'road crown');
+
+  let status = 'PASSABLE';
+  let severityTier = 1;
+  let phase = 'NOMINAL';
+  let badgeSymbol = '🟢';
+  let badgeLabel = 'PASSABLE';
+  let badgeClass = 'badge-passable';
+  let narrative = '';
+
+  let submergedEndTime = activeSession?.submerged_end_time || options.submergedEndTime || null;
+  let dryDurationHours = 0;
+  let daylightDryHours = 0;
+  let daylightProgressPercent = 0;
+  let inspectionWindowMet = false;
+
+  const prevSessionState = activeSession?.to_state || null;
+  const isRisingSurge = (rateOfRise >= 0.03 && stage >= (Z_caution - 0.10));
+
+  // Determine State & Phase
+  if (prevSessionState === 'IMPASSABLE' || options.forceClearing) {
+    // Road was submerged / closed
+    if (stage >= Z_crown - dbCrown && !options.forceClearing) {
+      // Still submerged
+      status = 'IMPASSABLE';
+      severityTier = 4;
+      phase = 'SUBMERGED';
+      badgeSymbol = '🔴';
+      badgeLabel = 'CLOSED & SUBMERGED';
+      badgeClass = 'badge-impassable';
+      narrative = `Carriageway submerged or Somerset Council emergency gates locked shut. Impassable to all vehicles. Follow official highways diversion.`;
+    } else {
+      // Receded below crown: Enter CLEARING_INSPECTION_PENDING
+      if (!submergedEndTime) {
+        submergedEndTime = readingTime;
+      }
+      const nowMs = options.nowMs || Date.now();
+      dryDurationHours = Math.max(0, Number(((nowMs - new Date(submergedEndTime).getTime()) / (3600 * 1000)).toFixed(2)));
+      daylightDryHours = calculateDaylightDryHours(submergedEndTime, nowMs);
+      daylightProgressPercent = Math.min(100, Math.round((daylightDryHours / 6.0) * 100));
+
+      const isCrownDry = stage < (Z_crown - dbCrown);
+      const isRhyneDrained = stage < (Z_caution - dbCaution);
+      const isWarningCleared = eaWarningState === 'INACTIVE';
+
+      // Exit Pathway A: 6 daylight hours + drained + warning cleared
+      const pathwayAMet = isCrownDry && isRhyneDrained && isWarningCleared && (daylightDryHours >= 6.0);
+      // Exit Pathway B: 24 continuous dry hours + drained (overriding agricultural warnings)
+      const pathwayBMet = isCrownDry && isRhyneDrained && (dryDurationHours >= 24.0);
+
+      if (pathwayAMet || pathwayBMet) {
+        inspectionWindowMet = true;
+        status = 'PASSABLE';
+        severityTier = 1;
+        phase = 'NOMINAL';
+        badgeSymbol = '🟢';
+        badgeLabel = 'PASSABLE';
+        badgeClass = 'badge-passable';
+        narrative = pathwayBMet && !isWarningCleared
+          ? `Road dry for >24h; council safety inspection window complete. (Agricultural flood warning remains active for surrounding low-lying moorland).`
+          : `Road safety inspection window complete and carriageway clear. Standard vehicular access restored.`;
+      } else {
+        status = 'ENCROACHING';
+        severityTier = 3;
+        phase = 'CLEARING_INSPECTION_PENDING';
+        badgeSymbol = '🕒';
+        badgeLabel = 'CLEARING / INSPECTING';
+        badgeClass = 'badge-clearing';
+        const recedeTimeFormatted = new Date(submergedEndTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        narrative = `Floodwaters receded below road crown at ${recedeTimeFormatted} (dry for ${dryDurationHours.toFixed(1)}h). Carriageway is clear of standing water, but emergency gates remain padlocked pending daylight safety inspection for hazardous river silt, debris, and tarmac scour.`;
+      }
+    }
+  } else {
+    // Corridors operating on normal rising/falling logic
+    let isImpassable = false;
+    let isEncroaching = false;
+
+    // Corridor-specific triggers
+    if (assetDef.asset_id === 'cuts_road') {
+      if (stage >= Z_crown) isImpassable = true;
+      else if (stage >= Z_caution) isEncroaching = true;
+    } else if (assetDef.asset_id === 'muchelney_access') {
+      if (stage >= Z_crown) isImpassable = true;
+      else if (stage >= Z_caution) isEncroaching = true;
+    } else if (assetDef.asset_id === 'beer_wall_a372') {
+      // Hydraulic decoupling: 7.30m activates 4 box culverts beneath A372 (ENCROACHING); road crown is >8.00m
+      if (stage >= Z_crown) isImpassable = true;
+      else if (stage >= Z_caution) isEncroaching = true;
+    } else if (assetDef.asset_id === 'new_road_curry') {
+      if (stage >= Z_crown) isImpassable = true;
+      else if (stage >= Z_caution) isEncroaching = true;
+    } else if (assetDef.asset_id === 'a361_burrowbridge') {
+      // Baltmoor levee overtopping is 7.80m; Curry Moor cascade caution is 7.35m
+      const curryStage = sanitizeStageValue(secReadings[0]?.value ?? secReadings[0] ?? null);
+      if (stage >= Z_crown) isImpassable = true;
+      else if (stage >= Z_caution || (curryStage !== null && curryStage >= 7.35)) isEncroaching = true;
+    } else if (assetDef.asset_id === 'bicknells_bridge_access') {
+      if (stage >= Z_crown) isImpassable = true;
+      else if (stage >= Z_caution) isEncroaching = true;
+    } else if (assetDef.asset_id === 'moorland_new_cut_road') {
+      if (stage >= Z_crown) isImpassable = true;
+      else if (stage >= Z_caution) isEncroaching = true;
+    } else if (assetDef.asset_id === 'stan_moor_road') {
+      if (stage >= Z_crown && eaWarningState === 'WARNING') isImpassable = true;
+      else if (stage >= Z_caution || eaWarningState === 'ALERT') isEncroaching = true;
+      else if (stage >= Z_crown) isImpassable = true;
+    } else {
+      if (stage >= Z_crown) isImpassable = true;
+      else if (stage >= Z_caution) isEncroaching = true;
+    }
+
+    if (isImpassable) {
+      status = 'IMPASSABLE';
+      severityTier = 4;
+      phase = 'SUBMERGED';
+      badgeSymbol = '🔴';
+      badgeLabel = 'CLOSED & SUBMERGED';
+      badgeClass = 'badge-impassable';
+      narrative = `Carriageway submerged or Somerset Council emergency gates locked shut. Impassable to all vehicles. Follow official highways diversion.`;
+    } else if (isEncroaching || isRisingSurge || eaWarningState === 'WARNING' || eaWarningState === 'ALERT') {
+      status = 'ENCROACHING';
+      severityTier = 3;
+      phase = 'APPROACHING_FLOOD';
+      if (isRisingSurge) {
+        badgeSymbol = '⚠️';
+        badgeLabel = 'HIGH RISK: RISING';
+        badgeClass = 'badge-encroaching-surge';
+        narrative = `Water rising rapidly (+${rateOfRise.toFixed(2)}m/h) toward road crown. Somerset Council emergency gate closure imminent. Plan alternative route.`;
+      } else {
+        badgeSymbol = '🟡';
+        badgeLabel = 'CAUTION: VERGE WATER';
+        badgeClass = 'badge-encroaching';
+        const freeboardCm = Math.max(0, Math.round(clearanceM * 100));
+        narrative = `Water encroaching on roadside rhynes and low verge spots (${freeboardCm}cm freeboard remaining). Low vehicles use caution.`;
+      }
+    } else {
+      status = 'PASSABLE';
+      severityTier = 1;
+      phase = 'NOMINAL';
+      badgeSymbol = '🟢';
+      badgeLabel = 'PASSABLE';
+      badgeClass = 'badge-passable';
+      narrative = `Road crown is clear and dry. Standard vehicular transit open. (If council gates remain shut for local maintenance, report to Somerset Highways).`;
+    }
+  }
+
+  // Format momentum display string
+  const momentumText = rateOfRise >= 0.02
+    ? `Rising (+${rateOfRise.toFixed(2)} m/h)`
+    : (rateOfRise <= -0.02 ? `Falling (${rateOfRise.toFixed(2)} m/h)` : `Steady (${rateOfRise >= 0 ? '+' : ''}${rateOfRise.toFixed(2)} m/h)`);
+
+  return {
+    asset_type: 'road',
+    asset_id: assetDef.asset_id,
+    name: assetDef.name,
+    corridor_type: assetDef.corridor_type || 'Highway Corridor',
+    status,
+    severity_tier: severityTier,
+    phase,
+    primary_station: stationId,
+    secondary_station: assetDef.secondary_station || null,
+    driving_station_label: assetDef.driving_station_label || stationId,
+    stage_mAOD: stage,
+    crown_elevation_mAOD: Z_crown,
+    caution_elevation_mAOD: Z_caution,
+    clearance_m: clearanceM,
+    clearance_text: clearanceText,
+    rate_of_rise_mh: rateOfRise,
+    trend_vector: trendVector,
+    momentum_text: momentumText,
+    ea_warning_target_area: assetDef.ea_warning_target_area,
+    ea_target_area_name: assetDef.ea_target_area_name,
+    ea_warning_state: eaWarningState,
+    submerged_end_time: submergedEndTime,
+    dry_duration_hours: dryDurationHours,
+    daylight_dry_hours: daylightDryHours,
+    daylight_progress_percent: daylightProgressPercent,
+    inspection_window_met: inspectionWindowMet,
+    camera_id: assetDef.camera_id || null,
+    cam_url: assetDef.cam_url || null,
+    cam_label: assetDef.cam_label || null,
+    station_url: assetDef.station_url || null,
+    survey_tier: assetDef.survey_tier || 'TIER_2_TRIGGER_PLAN',
+    survey_label: assetDef.survey_label || '⚠️ TRIGGER PROTOCOL (PENDING SURVEY)',
+    survey_tooltip: assetDef.survey_tooltip || '',
+    badge_symbol: badgeSymbol,
+    badge_label: badgeLabel,
+    badge_class: badgeClass,
+    narrative
+  };
+}
+
+/**
+ * Evaluates the full 8-corridor highway network across the Somerset Levels.
+ * 
+ * @param {object|Array} readingsSource - Readings map or measures summary
+ * @param {Map|object|null} [activeEvents=null] - Active event sessions map or array
+ * @param {object} [options]
+ * @returns {object} { corridors, corridors_list, counts, summary_badge }
+ */
+export function evaluateRoadNetwork(readingsSource, activeEvents = null, options = {}) {
+  const activeEventsMap = (activeEvents instanceof Map)
+    ? activeEvents
+    : new Map(Array.isArray(activeEvents) ? activeEvents.map(e => [e.asset_id, e]) : Object.entries(activeEvents || {}));
+
+  const roadKeys = [
+    'cuts_road',
+    'muchelney_access',
+    'a361_burrowbridge',
+    'new_road_curry',
+    'bicknells_bridge_access',
+    'moorland_new_cut_road',
+    'stan_moor_road',
+    'beer_wall_a372'
+  ];
+
+  const corridors = {};
+  const corridorsList = [];
+  let closedCount = 0;
+  let cautionCount = 0;
+  let passableCount = 0;
+
+  for (const key of roadKeys) {
+    const assetDef = ASSET_DEFINITIONS[key];
+    if (!assetDef) continue;
+
+    const activeSession = activeEventsMap.get(key) || null;
+    const evaluated = evaluateRoadCorridor(assetDef, readingsSource, activeSession, options);
+    corridors[key] = evaluated;
+    corridorsList.push(evaluated);
+
+    if (evaluated.status === 'IMPASSABLE') {
+      closedCount++;
+    } else if (evaluated.status === 'ENCROACHING') {
+      cautionCount++;
+    } else {
+      passableCount++;
+    }
+  }
+
+  // Summary badge for the master card header
+  let summaryBadge;
+  if (closedCount > 0) {
+    summaryBadge = {
+      status: 'IMPASSABLE',
+      label: `${closedCount} CLOSED • ${cautionCount} CAUTION`,
+      class: 'badge-impassable',
+      symbol: '🔴'
+    };
+  } else if (cautionCount > 0) {
+    summaryBadge = {
+      status: 'ENCROACHING',
+      label: `${cautionCount} CAUTION / CLEARING`,
+      class: 'badge-encroaching',
+      symbol: '🟡'
+    };
+  } else {
+    summaryBadge = {
+      status: 'PASSABLE',
+      label: 'ALL 8 CORRIDORS PASSABLE',
+      class: 'badge-passable',
+      symbol: '🟢'
+    };
+  }
+
+  return {
+    corridors,
+    corridors_list: corridorsList,
+    counts: {
+      all: corridorsList.length,
+      impassable: closedCount,
+      encroaching: cautionCount,
+      passable: passableCount
+    },
+    summary_badge: summaryBadge
   };
 }
 

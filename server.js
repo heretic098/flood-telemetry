@@ -14,7 +14,8 @@ import {
   sanitizeStageValue,
   HYDRO_THRESHOLDS,
   STATION_REGISTRY,
-  extractStationStage
+  extractStationStage,
+  evaluateRoadNetwork
 } from './src/js/hydro_engine.js';
 
 import {
@@ -1005,6 +1006,9 @@ const server = http.createServer(async (req, res) => {
     const nowMs = Date.now();
     const activeEvents = getActiveTelemetryEvents(db, nowMs);
 
+    // Evaluate highway passability across 8 Somerset Levels corridors [Issue #12]
+    const roadNetwork = evaluateRoadNetwork(measures, activeEvents, { nowMs });
+
     const hookbridgeEvent = db.prepare("SELECT * FROM telemetry_events WHERE asset_id = 'hookbridge' AND status = 'ACTIVE'").get();
     const baltmoorEvent = db.prepare("SELECT * FROM telemetry_events WHERE asset_id = 'baltmoor_wall' AND status = 'ACTIVE'").get();
 
@@ -1040,6 +1044,8 @@ const server = http.createServer(async (req, res) => {
         is_tide_locked: isTideLocked
       },
       active_events: activeEvents,
+      roads: roadNetwork,
+      road_corridors: roadNetwork.corridors_list,
       cards: {
         hookbridge_spillway: {
           id: "hookbridge_spillway",

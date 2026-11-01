@@ -2804,6 +2804,424 @@ svg.inspector-sparkline-svg {
   font-weight: 600;
 }
 
+/* ==========================================================================
+   Community Roads & Access Component Styles (Issue #12)
+   Enforces [UI-COL-01] Trichromatic Separation & [UI-ACC-01] Contrast / Touch
+   ========================================================================== */
+
+/* Road Network Master Card */
+.moor-card.road-network-card {
+  grid-column: 1 / -1;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.98) 0%, rgba(30, 41, 59, 0.9) 100%);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+  margin-bottom: 1.5rem;
+}
+
+.road-card-header {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 0.85rem;
+  margin-bottom: 0.85rem;
+}
+
+.road-title-group {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.road-icon-title {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.road-header-icon {
+  font-size: 1.75rem;
+}
+
+/* Epistemic Humility Banner */
+.road-humility-notice {
+  background: rgba(15, 23, 42, 0.75);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-left: 3px solid #38bdf8;
+  border-radius: 0.375rem;
+  padding: 0.65rem 0.85rem;
+  margin-bottom: 0.75rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  font-size: 0.825rem;
+  line-height: 1.45;
+  color: #cbd5e1;
+}
+
+.road-humility-notice strong {
+  color: #f8fafc;
+}
+
+/* Life Safety Warning Banner */
+.road-safety-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  border-left: 3px solid #ef4444;
+  border-radius: 0.375rem;
+  padding: 0.65rem 0.85rem;
+  margin-bottom: 0.85rem;
+  font-size: 0.825rem;
+  line-height: 1.45;
+  color: #fee2e2;
+}
+
+.road-safety-banner strong {
+  color: #ffffff;
+}
+
+.road-safety-banner a {
+  color: #38bdf8;
+  text-decoration: underline;
+}
+
+/* Filter Bar */
+.road-filter-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.road-filter-bar .filter-label {
+  font-size: 0.825rem;
+  font-weight: 600;
+  color: #94a3b8;
+  margin-right: 0.25rem;
+}
+
+.road-filter-btn {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0.45rem 0.9rem;
+  border-radius: 0.375rem;
+  font-size: 0.825rem;
+  font-weight: 600;
+  background: rgba(30, 41, 59, 0.8);
+  border: 1px solid #475569;
+  color: #cbd5e1;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.road-filter-btn:hover {
+  background: rgba(51, 65, 85, 0.9);
+  color: #f8fafc;
+  border-color: #64748b;
+}
+
+.road-filter-btn.active {
+  background: rgba(14, 165, 233, 0.2);
+  border-color: #38bdf8;
+  color: #ffffff;
+  box-shadow: 0 0 8px rgba(56, 189, 248, 0.25);
+}
+
+.road-filter-btn:focus-visible {
+  outline: 2px solid #38bdf8;
+  outline-offset: 2px;
+}
+
+/* Corridors List */
+.road-corridors-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.road-corridor-row {
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0.5rem;
+  padding: 0.85rem 1rem;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.road-corridor-row:hover {
+  border-color: rgba(148, 163, 184, 0.3);
+}
+
+/* Corridor Status Borders */
+.road-corridor-row.status-passable {
+  border-left: 4px solid #10b981;
+}
+
+.road-corridor-row.status-encroaching {
+  border-left: 4px solid #f59e0b;
+}
+
+.road-corridor-row.status-impassable {
+  border-left: 4px solid #ef4444;
+}
+
+/* Corridor Row Header */
+.corridor-main-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.65rem;
+}
+
+.corridor-heading-wrap {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.corridor-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #f8fafc;
+  margin: 0;
+}
+
+.corridor-type-badge {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.15rem 0.45rem;
+  border-radius: 0.25rem;
+  background: rgba(100, 116, 139, 0.25);
+  color: #94a3b8;
+  border: 1px solid rgba(100, 116, 139, 0.35);
+  text-transform: uppercase;
+}
+
+.corridor-provenance-wrap {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.corridor-station-label {
+  font-size: 0.75rem;
+  color: #94a3b8;
+}
+
+/* Badges for Roads (Triple Encoded) */
+.badge-passable {
+  background: rgba(16, 185, 129, 0.2);
+  border: 1px solid #10b981;
+  color: #ecfdf5;
+}
+
+.badge-encroaching {
+  background: rgba(245, 158, 11, 0.2);
+  border: 1px solid #f59e0b;
+  color: #fef3c7;
+}
+
+.badge-encroaching-surge {
+  background: rgba(245, 158, 11, 0.25);
+  border: 1px solid #fbbf24;
+  color: #ffffff;
+  animation: pulse-border 2s infinite ease-in-out;
+}
+
+.badge-clearing {
+  background: rgba(217, 119, 6, 0.25);
+  border: 1px solid #d97706;
+  color: #fef3c7;
+}
+
+.badge-impassable {
+  background: rgba(239, 68, 68, 0.25);
+  border: 1px solid #ef4444;
+  color: #fee2e2;
+}
+
+/* Metrics Strip */
+.corridor-metrics-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0.5rem;
+  background: rgba(30, 41, 59, 0.5);
+  border-radius: 0.375rem;
+  padding: 0.5rem 0.75rem;
+  margin-bottom: 0.65rem;
+}
+
+.corridor-metric-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.corridor-metric-item .metric-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+.corridor-metric-item .metric-val {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #f8fafc;
+  font-family: monospace;
+}
+
+.metric-val small {
+  font-size: 0.75rem;
+  font-weight: normal;
+  color: #cbd5e1;
+}
+
+.trending-rising {
+  color: #fbbf24;
+}
+
+.trending-falling {
+  color: #38bdf8;
+}
+
+.trending-steady {
+  color: #cbd5e1;
+}
+
+/* Clearing Lifecycle & Daylight Progress Box */
+.corridor-lifecycle-box {
+  background: rgba(30, 41, 59, 0.75);
+  border-radius: 0.375rem;
+  padding: 0.75rem;
+  margin-bottom: 0.65rem;
+  border-left: 3px solid #f59e0b;
+}
+
+.lifecycle-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.5rem;
+  font-size: 0.825rem;
+}
+
+.lifecycle-title {
+  color: #fbbf24;
+}
+
+.lifecycle-timer {
+  color: #e2e8f0;
+  font-family: monospace;
+}
+
+.daylight-progress-wrap {
+  margin-bottom: 0.5rem;
+}
+
+.daylight-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  color: #cbd5e1;
+  margin-bottom: 0.25rem;
+}
+
+.daylight-progress-track {
+  width: 100%;
+  height: 8px;
+  background: rgba(15, 23, 42, 0.8);
+  border-radius: 9999px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.daylight-progress-fill {
+  height: 100%;
+  background: #f59e0b;
+  border-radius: 9999px;
+  transition: width 0.3s ease;
+}
+
+.lifecycle-narrative {
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: #cbd5e1;
+  margin: 0;
+}
+
+/* Actions Bar */
+.corridor-actions-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin-top: 0.5rem;
+}
+
+.road-cam-btn {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0.45rem 0.85rem;
+  background: rgba(14, 165, 233, 0.15);
+  border: 1px solid #38bdf8;
+  color: #f8fafc;
+  border-radius: 0.375rem;
+  font-size: 0.825rem;
+  font-weight: 700;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  transition: all 0.15s ease;
+}
+
+.road-cam-btn:hover {
+  background: rgba(14, 165, 233, 0.3);
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.3);
+}
+
+.road-cam-btn:focus-visible {
+  outline: 2px solid #38bdf8;
+  outline-offset: 2px;
+}
+
+.road-station-link {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.775rem;
+  color: #94a3b8;
+  text-decoration: underline;
+  padding: 0 0.5rem;
+}
+
+.road-station-link:hover {
+  color: #38bdf8;
+}
+
+.road-network-summary-badge {
+  display: flex;
+  align-items: center;
+}
+
+@keyframes pulse-border {
+  0% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4); }
+  70% { box-shadow: 0 0 0 6px rgba(245, 158, 11, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+}
+
 
 
 

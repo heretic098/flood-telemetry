@@ -1,4 +1,4 @@
-import { evaluateSpillway, evaluateGateState, aggregateGlobalStatus, evaluatePumpStatus, evaluateSowyChannel, evaluateAthelneySpillway, evaluateGravityClyse, evaluateBeerWall, evaluateOathLock, evaluateDunballEmergencyPumping, getSeasonalRegime, getActiveCrestHeight, getActiveCatchmentId, loadCatchmentConfig, evaluateHuishEpiscopi, evaluateMidelney, STATION_REGISTRY, GAUGE_DATUMS, formatClearanceText, computeTrendVector } from './hydro_engine.js';
+import { evaluateSpillway, evaluateGateState, aggregateGlobalStatus, evaluatePumpStatus, evaluateSowyChannel, evaluateAthelneySpillway, evaluateGravityClyse, evaluateBeerWall, evaluateOathLock, evaluateDunballEmergencyPumping, getSeasonalRegime, getActiveCrestHeight, getActiveCatchmentId, loadCatchmentConfig, evaluateHuishEpiscopi, evaluateMidelney, STATION_REGISTRY, GAUGE_DATUMS, formatClearanceText, computeTrendVector, evaluateRoadNetwork } from './hydro_engine.js';
 import { initJargonPopovers, renderJargonTerm } from './jargon_popover.js';
 import {
   computeSparklineBounds,
@@ -455,6 +455,13 @@ export async function refreshLiveDashboard() {
     for (const ev of dbData.active_events) {
       activeEventsMap.set(ev.asset_id, ev);
     }
+  }
+
+  // Dedicated Community Roads & Access Card (Top-tier Strategic Anchor Card) [Issue #12]
+  const roadData = dbData?.roads || evaluateRoadNetwork(dbMeasures || {}, activeEventsMap);
+  const roadCard = renderRoadNetworkCard(roadData, activeEventsMap);
+  if (roadCard) {
+    container.appendChild(roadCard);
   }
 
   // Card 1: Curry Moor
@@ -986,6 +993,11 @@ export async function refreshLiveDashboard() {
     updatedPill.innerHTML = `⏱️ Synced ${timeStr}`;
   }
 
+  // Ensure Community Roads card is prepended to top of container [Issue #12]
+  if (roadCard && container.firstChild !== roadCard) {
+    container.prepend(roadCard);
+  }
+
   // Bind synchronized crosshair & tooltip event listeners across all cards
   bindSparklineEvents(container);
 }
@@ -1095,6 +1107,248 @@ function createMoorCard(opts) {
       </div>
     </div>
   `;
+
+  return card;
+}
+
+/**
+ * Renders the Dedicated Community Roads & Access Master Card (Top-tier Strategic Anchor Card)
+ * Supports all 8 monitored Somerset Levels corridors with interactive client-side filtering,
+ * elapsed dry timer, daylight inspection progress bar, and ground-truth optical webcam links.
+ * 
+ * @param {object|null} roadEvaluations - Evaluated road network data or raw readings
+ * @param {Map|object|null} [activeEventsMap=null] - Active event sessions map
+ * @returns {HTMLElement} Article element containing the master road card
+ */
+export function renderRoadNetworkCard(roadEvaluations, activeEventsMap = null) {
+  let roadData = roadEvaluations;
+  if (!roadData || !roadData.corridors_list) {
+    roadData = evaluateRoadNetwork(roadEvaluations || {}, activeEventsMap);
+  }
+
+  const corridors_list = Array.isArray(roadData.corridors_list) ? roadData.corridors_list : [];
+  const counts = roadData.counts || {
+    all: corridors_list.length,
+    impassable: corridors_list.filter(c => c.status === 'IMPASSABLE').length,
+    encroaching: corridors_list.filter(c => c.status === 'ENCROACHING').length,
+    passable: corridors_list.filter(c => c.status === 'PASSABLE').length
+  };
+  const summary_badge = roadData.summary_badge || {
+    status: 'PASSABLE',
+    label: 'ALL 8 CORRIDORS PASSABLE',
+    class: 'badge-passable',
+    symbol: '🟢'
+  };
+
+  const card = document.createElement('article');
+  card.className = 'moor-card road-network-card';
+  card.id = 'card-road-network';
+  card.setAttribute('tabindex', '0');
+  card.setAttribute('aria-label', 'Community Roads & Access Highway Passability');
+
+  const summaryBadgeHtml = `
+    <div class="road-network-summary-badge" id="road-network-global-badge" aria-live="polite">
+      <span class="status-badge ${escapeAttr(summary_badge.class || 'badge-passable')}">
+        <span aria-hidden="true">${escapeHTML(summary_badge.symbol || '🟢')}</span>
+        <span>${escapeHTML(summary_badge.label || 'ALL 8 CORRIDORS PASSABLE')}</span>
+      </span>
+    </div>
+  `;
+
+  const corridorsHtml = corridors_list.map(corridor => {
+    const statusLower = (corridor.status || 'passable').toLowerCase();
+    const isClearing = corridor.phase === 'CLEARING_INSPECTION_PENDING';
+
+    const provClass = (corridor.survey_tier === 'TIER_1_SURVEYED' || corridor.survey_tier === 'TIER_1_WEIR_PENDING_SURVEY_CROWN')
+      ? 'prov-high' : 'prov-medium';
+
+    const momentumClass = (typeof corridor.rate_of_rise_mh === 'number' && corridor.rate_of_rise_mh >= 0.02)
+      ? 'trending-rising'
+      : ((typeof corridor.rate_of_rise_mh === 'number' && corridor.rate_of_rise_mh <= -0.02) ? 'trending-falling' : 'trending-steady');
+
+    let crownLabel = 'Road Crown:';
+    if (corridor.asset_id === 'cuts_road') crownLabel = 'Spillway Crown:';
+    else if (corridor.asset_id === 'beer_wall_a372') crownLabel = 'Culvert Relief:';
+
+    let eaStateText = 'Inactive';
+    if (corridor.ea_warning_state === 'RED_WARNING') eaStateText = '⚠️ Active Warning';
+    else if (corridor.ea_warning_state === 'AMBER_ALERT') eaStateText = '⚠️ Active Alert';
+
+    let lifecycleHtml = '';
+    if (isClearing) {
+      const timeFormatted = corridor.submerged_end_time 
+        ? new Date(corridor.submerged_end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        : '';
+      const dryHours = (typeof corridor.dry_duration_hours === 'number' && Number.isFinite(corridor.dry_duration_hours))
+        ? `${corridor.dry_duration_hours.toFixed(1)}h`
+        : '0.0h';
+      const daylightHours = (typeof corridor.daylight_dry_hours === 'number' && Number.isFinite(corridor.daylight_dry_hours))
+        ? `${corridor.daylight_dry_hours.toFixed(1)} / 6.0 daylight hrs`
+        : '0.0 / 6.0 daylight hrs';
+      const progressPct = Math.min(100, Math.max(0, corridor.daylight_progress_percent || 0));
+
+      lifecycleHtml = `
+        <div class="corridor-lifecycle-box lifecycle-clearing" role="region" aria-label="Inspection Progress">
+          <div class="lifecycle-header">
+            <span class="lifecycle-title"><strong>Council Gate Safety Inspection Pending</strong></span>
+            <span class="lifecycle-timer">⏱️ ${timeFormatted ? `Water receded ${timeFormatted} • ` : ''}Dry for ${dryHours}</span>
+          </div>
+          <div class="daylight-progress-wrap">
+            <div class="daylight-labels">
+              <span>Daylight Inspection Window (08:00–17:00):</span>
+              <strong>${daylightHours}</strong>
+            </div>
+            <div class="daylight-progress-track" role="progressbar" aria-valuenow="${progressPct.toFixed(0)}" aria-valuemin="0" aria-valuemax="100" aria-label="Daylight inspection window progress">
+              <div class="daylight-progress-fill" style="width: ${progressPct.toFixed(1)}%;"></div>
+            </div>
+          </div>
+          <p class="lifecycle-narrative">
+            ${escapeHTML(corridor.narrative || '')}
+          </p>
+        </div>
+      `;
+    } else if (corridor.narrative) {
+      lifecycleHtml = `
+        <p class="lifecycle-narrative" style="margin-bottom: 0.5rem; font-size: 0.8rem; color: #cbd5e1;">
+          ${escapeHTML(corridor.narrative)}
+        </p>
+      `;
+    }
+
+    const camBtnHtml = corridor.cam_url ? `
+      <a href="${escapeAttr(corridor.cam_url)}" target="_blank" rel="noopener noreferrer" class="road-cam-btn" title="View live camera for ${escapeAttr(corridor.name)}" aria-label="View live camera for ${escapeAttr(corridor.name)}">
+        <span aria-hidden="true">📷</span> ${escapeHTML(corridor.cam_label || 'Check Live Camera to Verify Gates ↗')}
+      </a>
+    ` : '';
+
+    const stationBtnHtml = corridor.station_url ? `
+      <a href="${escapeAttr(corridor.station_url)}" target="_blank" rel="noopener noreferrer" class="road-station-link" title="Verify raw EA telemetry for ${escapeAttr(corridor.driving_station_label)}">
+        📊 Raw Station Telemetry ↗
+      </a>
+    ` : '';
+
+    const stageValText = (typeof corridor.stage_mAOD === 'number') ? `${corridor.stage_mAOD.toFixed(2)}m AOD` : 'N/A';
+    const crownValText = (typeof corridor.crown_elevation_mAOD === 'number') ? `${corridor.crown_elevation_mAOD.toFixed(2)}m AOD` : 'N/A';
+
+    return `
+      <section class="road-corridor-row status-${statusLower}" data-asset-id="${escapeAttr(corridor.asset_id)}" data-status="${statusLower}" role="listitem" aria-labelledby="road-title-${escapeAttr(corridor.asset_id)}">
+        <div class="corridor-main-header">
+          <div class="corridor-title-col">
+            <div class="corridor-heading-wrap">
+              <h3 class="corridor-title" id="road-title-${escapeAttr(corridor.asset_id)}">${escapeHTML(corridor.name)}</h3>
+              <span class="corridor-type-badge">${escapeHTML(corridor.corridor_type)}</span>
+            </div>
+            <div class="corridor-provenance-wrap">
+              <span class="provenance-tag ${provClass}" title="${escapeAttr(corridor.survey_tooltip || '')}">${escapeHTML(corridor.survey_label || '')}</span>
+              <span class="corridor-station-label">Driving Station: ${escapeHTML(corridor.driving_station_label)}</span>
+            </div>
+          </div>
+
+          <div class="corridor-status-col">
+            <div class="status-badge ${escapeAttr(corridor.badge_class)}" aria-live="polite">
+              <span aria-hidden="true">${escapeHTML(corridor.badge_symbol)}</span>
+              <span class="sr-only">Status: </span>
+              <span>${escapeHTML(corridor.badge_label)}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="corridor-metrics-strip">
+          <div class="corridor-metric-item">
+            <span class="metric-label">Water Stage:</span>
+            <span class="metric-val">${stageValText}</span>
+          </div>
+          <div class="corridor-metric-item">
+            <span class="metric-label">${crownLabel}</span>
+            <span class="metric-val">${crownValText} <small>(${escapeHTML(corridor.clearance_text || '')})</small></span>
+          </div>
+          <div class="corridor-metric-item">
+            <span class="metric-label">3h Momentum:</span>
+            <span class="metric-val ${momentumClass}">${escapeHTML(corridor.momentum_text || 'Steady')}</span>
+          </div>
+          <div class="corridor-metric-item">
+            <span class="metric-label">EA Warning Area:</span>
+            <span class="metric-val">${escapeHTML(corridor.ea_warning_target_area || 'None')} <small>(${eaStateText})</small></span>
+          </div>
+        </div>
+
+        ${lifecycleHtml}
+
+        <div class="corridor-actions-bar">
+          ${camBtnHtml}
+          ${stationBtnHtml}
+        </div>
+      </section>
+    `;
+  }).join('');
+
+  card.innerHTML = `
+    <div class="card-header road-card-header">
+      <div class="road-title-group">
+        <div class="road-icon-title">
+          <span class="road-header-icon" aria-hidden="true">🚗</span>
+          <div>
+            <h2 class="card-title">Community Roads &amp; Access</h2>
+            <div class="river-tag">Somerset Levels Highway Passability &amp; Council Emergency Gates</div>
+          </div>
+        </div>
+        ${summaryBadgeHtml}
+      </div>
+    </div>
+
+    <div class="road-safety-banner" role="alert">
+      <span aria-hidden="true">⚠️</span>
+      <span><strong>Life-Safety Warning:</strong> Water stage estimates are theoretical inferences and do not detect physical council gate padlocks, localized silt, or ditch ponding. <strong>Never attempt to drive through floodwater.</strong> Check <a href="https://www.travelsomerset.co.uk" target="_blank" rel="noopener noreferrer">Travel Somerset ↗</a> for official highway orders.</span>
+    </div>
+
+    <div class="road-humility-notice" role="note">
+      <span class="humility-icon" aria-hidden="true">ℹ️</span>
+      <p>
+        <strong>How Passability is Evaluated:</strong> Status combines live EA river telemetry, rate-of-rise momentum, 
+        statutory flood warnings, and Somerset Council emergency gate procedures. Emergency gates are locked manually by council crews 
+        and remain locked until daylight safety inspections for silt and structural scour are completed.
+      </p>
+    </div>
+
+    <div class="road-filter-bar" role="toolbar" aria-label="Filter road corridors by status">
+      <span class="filter-label">Filter:</span>
+      <button type="button" class="road-filter-btn active" data-filter="all" aria-pressed="true">All (${counts.all || corridors_list.length})</button>
+      <button type="button" class="road-filter-btn" data-filter="impassable" aria-pressed="false">🔴 Closed (${counts.impassable || 0})</button>
+      <button type="button" class="road-filter-btn" data-filter="encroaching" aria-pressed="false">🟡 Caution / Clearing (${counts.encroaching || 0})</button>
+      <button type="button" class="road-filter-btn" data-filter="passable" aria-pressed="false">🟢 Passable (${counts.passable || 0})</button>
+    </div>
+
+    <div class="road-corridors-list" id="road-corridors-container" role="list">
+      ${corridorsHtml}
+    </div>
+  `;
+
+  // Attach interactive filter event handlers
+  const filterButtons = card.querySelectorAll('.road-filter-btn');
+  const corridorRows = card.querySelectorAll('.road-corridor-row');
+
+  filterButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const filter = btn.getAttribute('data-filter');
+
+      filterButtons.forEach(b => {
+        b.classList.remove('active');
+        b.setAttribute('aria-pressed', 'false');
+      });
+
+      btn.classList.add('active');
+      btn.setAttribute('aria-pressed', 'true');
+
+      corridorRows.forEach(row => {
+        const rowStatus = row.getAttribute('data-status');
+        if (filter === 'all' || rowStatus === filter) {
+          row.style.display = '';
+        } else {
+          row.style.display = 'none';
+        }
+      });
+    });
+  });
 
   return card;
 }

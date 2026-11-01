@@ -183,5 +183,47 @@ test('GET /api/status includes active_events list and preserves backward-compati
   assert.equal(json.cards.monks_leaze_clyse.flow_mld, undefined);
 });
 
+test('GET /api/status includes evaluated roads and road_corridors for all 8 corridors', async () => {
+  const res = await httpGet('/api/status');
+  assert.equal(res.status, 200);
+  const json = JSON.parse(res.body);
+  assert.equal(json.status, 'ok');
+  assert.ok(json.roads, 'roads object must be present in /api/status');
+  assert.ok(Array.isArray(json.road_corridors), 'road_corridors array must be present');
+  assert.equal(json.road_corridors.length, 8, 'must evaluate all 8 monitored highway corridors');
+  assert.ok(json.roads.summary_badge, 'roads.summary_badge must be present');
+  assert.equal(typeof json.roads.counts.all, 'number');
+  assert.equal(typeof json.roads.counts.impassable, 'number');
+  assert.equal(typeof json.roads.counts.encroaching, 'number');
+  assert.equal(typeof json.roads.counts.passable, 'number');
+
+  const expectedIds = [
+    'cuts_road',
+    'muchelney_access',
+    'a361_burrowbridge',
+    'new_road_curry',
+    'bicknells_bridge_access',
+    'moorland_new_cut_road',
+    'stan_moor_road',
+    'beer_wall_a372'
+  ];
+
+  for (const id of expectedIds) {
+    const corridor = json.road_corridors.find(c => c.asset_id === id);
+    assert.ok(corridor, `Corridor ${id} must be present in road_corridors`);
+    assert.ok(['PASSABLE', 'ENCROACHING', 'IMPASSABLE'].includes(corridor.status), `Status of ${id} must be canonical`);
+    assert.equal(corridor.asset_type, 'road');
+    assert.ok(corridor.name, `${id} must have a name`);
+    assert.ok(corridor.driving_station_label, `${id} must have driving_station_label`);
+  }
+
+  // Cuts Road & Muchelney webcams
+  const cutsRoad = json.road_corridors.find(c => c.asset_id === 'cuts_road');
+  assert.equal(cutsRoad.cam_url, 'https://thecfh.org/parretttonewsom.php#athelneyspillway');
+  const muchelney = json.road_corridors.find(c => c.asset_id === 'muchelney_access');
+  assert.equal(muchelney.cam_url, 'https://thecfh.org/parretttonewsom.php#huish');
+});
+
+
 
 

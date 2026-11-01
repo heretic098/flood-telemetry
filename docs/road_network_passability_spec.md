@@ -20,7 +20,7 @@ However:
 1. **Separation of Concerns:** A highway is a civil transportation corridor, not an open-channel hydraulic weir or SCADA pumping station. Blending road closures into river spillway cards created cognitive clutter and metric confusion for residents.
 2. **Distinct Failure Modes:** River spillways overtop by deliberate hydraulic design to relieve fluvial channels into agricultural polders; road inundation is a civil emergency requiring physical gate closures, traffic diversions, and structural safety inspections.
 3. **Rigorous Empirical Provenance:** While surveyed civil elevations exist for engineered road-weir crossings like Cuts Road (Athelney Spillway at $7.35\text{m AOD}$) and the SRA-raised Muchelney Spine Road ($7.86\text{m AOD}$ crown / $7.30\text{m AOD}$ low spot), other critical community access arteries operate on multi-agency flood trigger protocols where exact lowest road crown spot heights are unconfirmed in open data. In accordance with `[RULE-HUM-01]` and `[RULE-SUB-01]`, this platform explicitly differentiates between **Surveyed Civil Geometry (Tier 1)** and **Unsurveyed / Pending Survey** corridors.
-4. **Physical Gate Reality & Reopening Protocol:** Road closures are enforced by physical heavy-duty steel gates locked shut with padlocks by Somerset Council Highways crews during daylight hours. Reopening is **never instantaneous** the second water recedes below asphalt. As Somerset Council protocol explicitly states: *"Once water levels have reduced, we will return to inspect the road and reopen the gates as soon as it is safe to do so."* The platform must accurately model the physical delay, debris clearance, and daylight inspection requirements rather than falsely reporting immediate access.
+4. **Physical Gate Reality & Reopening Protocol:** Road closures are enforced by physical heavy-duty steel gates closed by Somerset Council Highways crews during daylight hours. Reopening is **never instantaneous** the second water recedes below asphalt. In accordance with `[RULE-HUM-01]`, because our platform ingests river and moor stage telemetry rather than council lock telemetry, gates must be assumed closed pending physical daylight safety inspection by highways crews. As Somerset Council protocol explicitly states: *"Once water levels have reduced, we will return to inspect the road and reopen the gates as soon as it is safe to do so."* The platform models this operational inspection window and debris clearance delay rather than falsely asserting immediate reopening or pretending to have live lock telemetry.
 
 ---
 
@@ -139,14 +139,18 @@ Lowland polders (Curry Moor, Northmoor) exceed 1,000 hectares in surface area. A
 * **Driving EA Telemetry Station:** `52157` (River Sowy at Beerwall Upstream).
 * **Station Geodetic Datum:** $0.000\text{m AOD}$ Newlyn.
 * **Statutory EA Warning Target Area:** River Sowy / King's Sedgemoor Drain catchment.
-* **Survey Status:** Concrete Relief Weir Crest **$7.30\text{m AOD}$ (Tier 1)**; Carriageway Crown **UNSURVEYED / PENDING AS-BUILT TOPOGRAPHIC SURVEY** (`[RULE-HUM-01]`, `[RULE-SUB-01]`).
+* **Survey Status:** Concrete Relief Weir Crest **$7.30\text{m AOD}$ (Tier 1)**; Carriageway Crown **$> 8.00\text{m AOD}$ (⚠️ PENDING AS-BUILT HIGHWAYS SURVEY)** (`[RULE-HUM-01]`, `[RULE-SUB-01]`).
+
+> [!IMPORTANT]
+> **Hydraulic Decoupling of Relief Weir from Highway Carriageway:**  
+> The surveyed concrete relief weir at Beer Wall is at **$7.30\text{m AOD}$**. When stage reaches $7.30\text{m AOD}$, floodwaters overtop this weir into four large $2\text{m} \times 3\text{m}$ culverts passing **underneath** the A372. This activation represents an engineered relief flow, **not road inundation**! The carriageway was significantly raised by the Somerset Rivers Authority (SRA) following 2014 and exceeds **$> 8.00\text{m AOD}$**. Therefore, $7.30\text{m AOD}$ is strictly the caution / culvert relief activation threshold (`ENCROACHING`, Severity 3). `IMPASSABLE` only triggers if extreme floodwaters exceed the raised road crown ($> 8.00\text{m AOD}$) or on official highways closure order.
 
 | Operational Condition | Sowy Stage ($h_{\text{sowy}}$) | Normalized Status | Practical / Physical Impact |
 | :--- | :---: | :---: | :--- |
-| **Normal Access** | $< 7.15\text{m AOD}$ | `PASSABLE` | Carriageway dry. Flow conveyed through culverts. |
+| **Normal Access** | $< 7.15\text{m AOD}$ | `PASSABLE` | Carriageway dry. Sowy baseflow safely conveyed through primary channel. |
 | **High Flow Pre-Spill** | $\ge 7.15\text{m AOD}$ (to $7.29\text{m}$) | `ENCROACHING` | Water level within 15cm of relief weir lip. Sowy diversion channel near bankfull. |
-| **Relief Weir Overspill** | $\ge 7.30\text{m AOD}$ | `ENCROACHING` / `MONITORING` | Water overtops relief weir into 4 box culverts ($2\text{m} \times 3\text{m}$) beneath A372. Road remains passable while culverts handle discharge. |
-| **Carriageway Inundation** | Exceeds Raised Road Crown | `IMPASSABLE` | Extreme event exceeding culvert capacity; carriageway overtopped. Diversion via A361/A39. |
+| **Culvert Relief Overspill** | $\ge 7.30\text{m AOD}$ | `ENCROACHING` | Water actively overtops relief weir into 4 box culverts ($2\text{m} \times 3\text{m}$) beneath A372. Road carriageway remains passable while culverts handle relief discharge. |
+| **Carriageway Inundation / Closure** | $> 8.00\text{m AOD}$ (or Emergency Order) | `IMPASSABLE` | Extreme catastrophic event exceeding culvert conveyance; raised carriageway crown ($>8.00\text{m AOD}$) threatened or emergency gates closed. Diversion via A361/A39. |
 
 ---
 
@@ -172,7 +176,9 @@ Lowland polders (Curry Moor, Northmoor) exceed 1,000 hectares in surface area. A
 * **Asset ID:** `a361_burrowbridge`
 * **Asset Type:** `road`
 * **Highway:** A361 major regional arterial road connecting Taunton, Othery, and Glastonbury across the low ridge between Curry Moor and Northmoor.
-* **Driving EA Telemetry Stations:** `52127` (Curry Moor), `52158` (Baltmoor Wall / Parrett), `52159` (Northmoor Basin).
+* **Primary EA Telemetry Station:** `52158` (Baltmoor Wall / River Parrett at Burrowbridge).
+* **Secondary Corroborating Station:** `52127` (Curry Moor Basin cascade).
+* **Station Geodetic Datum:** $0.000\text{m AOD}$ Newlyn.
 * **Statutory EA Warning Target Area:** `112FWFEAS10A` (A361 East Lyng to Burrowbridge).
 * **Survey Status:** Tier 2 Statutory Trigger Plan; Carriageway Crown **UNSURVEYED / PENDING AS-BUILT HIGHWAYS AUDIT** (`[RULE-HUM-01]`).
 * **Council Emergency Closure Gates:** Permanent heavy-duty gates located at East Lyng and Burrowbridge.
@@ -181,7 +187,7 @@ Lowland polders (Curry Moor, Northmoor) exceed 1,000 hectares in surface area. A
 | :--- | :---: | :---: | :--- |
 | **Normal Access** | Normal river and polder baseflows | `PASSABLE` | Strategic regional arterial fully open. |
 | **Moor Retention Threat** | $h_{\text{curry}} \ge 7.35\text{m}$ AND $h_{\text{northmoor}} \ge 4.80\text{m}$ | `ENCROACHING` | Inter-moor cascade from Curry Moor into Northmoor; floodwaters approaching highway embankment toe. Active highways patrols. |
-| **Arterial Closure** | Multi-agency closure order (or $h_{\text{baltmoor}} \ge 7.80\text{m}$ / EA Warning) | `IMPASSABLE` | Somerset Council emergency gates locked shut at East Lyng and Burrowbridge. Major regional detour via Bridgwater/M5 or Langport. |
+| **Arterial Closure** | Multi-agency closure order (or $h_{\text{baltmoor}} \ge 7.80\text{m}$ / EA Warning) | `IMPASSABLE` | Somerset Council emergency gates assumed closed at East Lyng and Burrowbridge. Major regional detour via Bridgwater/M5 or Langport. |
 
 ---
 
@@ -223,7 +229,9 @@ Lowland polders (Curry Moor, Northmoor) exceed 1,000 hectares in surface area. A
 * **Asset ID:** `stan_moor_road`
 * **Asset Type:** `road`
 * **Highway:** Stan Moor Bank / Curload Road running along the Tone right bank between Curload and Athelney.
-* **Driving EA Telemetry Stations:** `52118` (Hookbridge, River Tone) and `52127` (Curry Moor).
+* **Primary EA Telemetry Station:** `52118` (Hookbridge, River Tone).
+* **Secondary Corroborating Station:** `52127` (Curry Moor Basin).
+* **Station Geodetic Datum:** $0.000\text{m AOD}$ Newlyn.
 * **Statutory EA Warning Target Area:** `112FWFSTA10A` (Stan Moor including Athelney and Curload).
 * **Survey Status:** Tier 2 Statutory Trigger Plan; Crown **UNSURVEYED / PENDING SURVEY**.
 
@@ -231,7 +239,7 @@ Lowland polders (Curry Moor, Northmoor) exceed 1,000 hectares in surface area. A
 | :--- | :---: | :---: | :--- |
 | **Normal Access** | $h_{\text{hook}} < 7.15\text{m AOD}$ | `PASSABLE` | Embankment road open and dry. |
 | **Seepage & Ditch Encroachment** | $h_{\text{hook}} \ge 7.15\text{m}$ OR $W_{\text{EA}} = \text{'ALERT'}$ | `ENCROACHING` | Tone high stage creates bank seepage and fills Stan Moor internal rhynes. Verges wet. |
-| **Bank Inundation / Closure** | $W_{\text{EA}} = \text{'WARNING'}$ AND $h_{\text{hook}} \ge 7.30\text{m}$ | `IMPASSABLE` | Stan Moor road impassable; local access cut off between Curload and Athelney. |
+| **Bank Inundation / Closure** | $W_{\text{EA}} = \text{'WARNING'}$ AND $h_{\text{hook}} \ge 7.30\text{m}$ | `IMPASSABLE` | Stan Moor road impassable; gates assumed closed; local access cut off between Curload and Athelney. |
 
 ---
 
@@ -247,7 +255,7 @@ stateDiagram-v2
     PASSABLE --> ENCROACHING: Stage reaches Caution OR EA Alert/Warning OR Momentum Surge
     ENCROACHING --> IMPASSABLE: Stage reaches Crown OR Council Gates Closed OR EA Warning + Rapid Surge
     IMPASSABLE --> ENCROACHING: Stage recedes below Crown - 3cm (Enter CLEARING / INSPECTION PENDING)
-    ENCROACHING --> PASSABLE: Stage below Caution - 5cm AND EA Warning Removed AND Daylight Inspection Window / 24h Timeout Met
+    ENCROACHING --> PASSABLE: Stage below Caution - 5cm AND (Daylight Window + EA Warning Removed OR 24h Continuous Dry Override)
 ```
 
 ---
@@ -281,41 +289,43 @@ The road exits `IMPASSABLE` and enters `ENCROACHING` with operational metadata `
 
 > [!IMPORTANT]
 > **Why ENCROACHING instead of PASSABLE?**  
-> Even though water has receded off the asphalt, Somerset Council emergency road closure gates remain padlocked shut. Roadside rhynes remain full, and the highway surface may carry slippery river silt, washed-out verges, or structural damage. In accordance with `[RULE-HUM-01]` and `[RULE-PROV-01]`, reporting the road as `PASSABLE` while gates are locked is strictly forbidden.
+> Even though water has receded off the asphalt, Somerset Council emergency road closure gates are assumed closed pending physical safety inspection. Roadside rhynes remain full, and the highway surface may carry slippery river silt, washed-out verges, or structural damage. In accordance with `[RULE-HUM-01]` and `[RULE-PROV-01]`, reporting the road as `PASSABLE` while gates are assumed closed pending inspection is strictly forbidden.
 
-#### 2. Resolving the Reopening Dilemma: The Post-Flood Inspection Window
+#### 2. Resolving the Reopening Dilemma: The Post-Flood Inspection Window & Anti-Hostage Override
 The user rightly asked: *"How long will the road show that it's clearing / inspecting for as we have no way of knowing when the road is declared fit to be reopened?"*
 
-The platform resolves this using a **four-stage exit gate**:
+A critical edge case in the Somerset Levels is the **EA Warning Hostage Problem**: The Environment Agency routinely keeps agricultural flood warnings active for days to weeks while low-lying sheep pastures and peat marshes drain, long after roads are dry and council gates have been reopened. If road passability required EA warnings to be cleared, dry roads would remain trapped in warning status indefinitely.
+
+To prevent this deadlock while maintaining safety, the platform establishes two deterministic exit pathways:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                 EXIT CRITERIA: CLEARING → PASSABLE                          │
 ├─────────────────────────────────────────────────────────────────────────────┤
-│  Criterion 1: Continuous Dry Crown                                          │
-│               Stage has remained continuously below Crown - 3cm without a   │
-│               single re-submergence since t_submerged_end.                  │
+│  PATHWAY A: Standard Daylight Inspection Window                             │
+│  All 4 of the following must be satisfied:                                  │
+│  1. Continuous Dry Crown: h < Z_crown - 3cm since t_submerged_end.          │
+│  2. Rhyne Drainage Below Caution: h < Z_caution - 5cm.                      │
+│  3. Statutory EA Flood Warning Removed: W_EA = 'INACTIVE'.                  │
+│  4. Daylight Inspection Window: 6 Daylight Hours (08:00 to 17:00 local      │
+│     time in Europe/London) have elapsed since Criteria 1, 2, and 3 met.     │
 │                                                                             │
-│  Criterion 2: Rhyne Drainage Below Caution                                  │
-│               Stage has dropped below Caution - 5cm (HYDRO_DEADBANDS.caution)│
-│               confirming roadside ditches have drained to safe levels.      │
+│  ---------------------------------- OR -----------------------------------  │
 │                                                                             │
-│  Criterion 3: Statutory EA Flood Warning Removed                            │
-│               Environment Agency Flood Warning for this corridor is no      │
-│               longer active (W_EA = 'INACTIVE').                            │
-│                                                                             │
-│  Criterion 4: Daylight Inspection Window OR 24-Hour Safety Timeout          │
-│               EITHER:                                                       │
-│               - 6 Daylight Hours (08:00 to 17:00 GMT/BST) have elapsed      │
-│                 since Criteria 1, 2, and 3 were met (the working window for │
-│                 Somerset Highways gate inspection crews).                   │
-│               OR:                                                           │
-│               - 24 Elapsed Dry Hours (t_current - t_submerged_end >= 24h)   │
-│                 have elapsed with Criteria 1, 2, and 3 satisfied.           │
+│  PATHWAY B: Unconditional 24-Hour Continuous Dry Fail-Safe (Override)       │
+│  Overrides lingering EA agricultural warnings if the following are met:     │
+│  1. Continuous Dry Crown: h has remained continuously below Z_crown - 3cm   │
+│     for >= 24 elapsed hours (t_current - t_submerged_end >= 24h) without a  │
+│     single re-submergence.                                                  │
+│  2. Rhyne Drainage Below Caution: h < Z_caution - 5cm.                      │
+│  3. FAIL-SAFE OVERRIDE: Unconditionally overrides lingering EA Moor         │
+│     Warnings. Transitions to PASSABLE with explanatory microcopy:           │
+│     "Road dry for >24h; agricultural flood warning remains active for       │
+│     surrounding low-lying moorland."                                        │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-When all four criteria are satisfied, the asset transitions from `ENCROACHING` to `PASSABLE` (Severity Tier 1).
+When either Pathway A or Pathway B is satisfied, the asset transitions from `ENCROACHING` to `PASSABLE` (Severity Tier 1).
 
 #### 3. Recession without Submergence (Caution Only)
 If a road entered `ENCROACHING` during a high-water event but **never reached `IMPASSABLE`** (water encroached upon low verges or an EA alert was issued, but the crown remained dry and gates were not closed):
@@ -329,15 +339,15 @@ If a road entered `ENCROACHING` during a high-water event but **never reached `I
 
 ## 5. Microcopy & Epistemic Humility Messaging (`[RULE-HUM-01]`)
 
-Because the platform does not possess automated telemetry on the council's physical padlocks, user-facing microcopy must be transparent, modest, and empowering:
+Because the platform does not possess automated telemetry on the council's physical gates, user-facing microcopy must be transparent, modest, and empowering:
 
 | State & Phase | Status Pill | User-Facing Microcopy & Driver Guidance | Live Ground-Truth Link |
 | :--- | :---: | :--- | :---: |
 | **`PASSABLE`** | `🟢 PASSABLE` | "Road crown is dry and clear. Standard vehicular transit open. (If council gates remain shut for maintenance, report to Somerset Highways)." | `[📷 View Camera]` (where available) |
 | **`ENCROACHING`** (Rising / Verge) | `🟡 CAUTION: DAMP` | "Water encroaching on roadside rhynes and low spots ($X\text{cm}$ freeboard remaining). Low vehicles use caution." | `[📷 View Camera]` |
 | **`ENCROACHING`** (Rapid Surge) | `🟡 HIGH RISK: RISING` | "Water rising rapidly ($+X.XX\text{m/h}$). Inundation possible within hours. Somerset Council gate closure imminent." | `[📷 View Camera]` |
-| **`IMPASSABLE`** | `🔴 CLOSED & SUBMERGED` | "Carriageway submerged or Somerset Council emergency gates locked shut. Impassable to all vehicles. Follow official diversion." | `[📷 View Camera]` |
-| **`ENCROACHING`** (Clearing / Inspection) | `🟡 CLEARING / INSPECTING` | "Floodwaters receded below crown at **[Time]** (dry for **$X$ hours**). Carriageway is clear, but emergency gates remain locked pending Somerset Council safety inspection for silt, debris, and scour. Gates are typically inspected and reopened during daylight hours." | `[📷 Check Live Camera to Verify Gates ↗]` |
+| **`IMPASSABLE`** | `🔴 CLOSED & SUBMERGED` | "Carriageway submerged or council emergency gates assumed closed. Impassable to all vehicles. Follow official diversion." | `[📷 View Camera]` |
+| **`ENCROACHING`** (Clearing / Inspection) | `🟡 CLEARING / INSPECTING` | "Floodwaters receded below crown at **[Time]** (dry for **$X$ hours**). Carriageway is clear, but emergency gates assumed closed pending Somerset Council safety inspection for silt, debris, and scour. Gates are typically inspected and reopened during daylight hours." | `[📷 Check Live Camera to Verify Gates ↗]` |
 
 ---
 
@@ -345,23 +355,23 @@ Because the platform does not possess automated telemetry on the council's physi
 
 This matrix establishes the strict single source of truth for `ASSET_DEFINITIONS` in `src/js/hydro_engine.js`:
 
-| Asset ID | Driving Station | Gauge Datum | Caution Elevation ($Z_{\text{caution}}$) | Crown / Closure Elevation ($Z_{\text{crown}}$) | EA Target Area Code | EA Target Area Name | Correlated Camera | Survey Status |
-| :--- | :---: | :---: | :---: | :---: | :--- | :--- | :---: | :---: |
-| **`cuts_road`** | `52127` | $+0.00\text{m}$ | $7.00\text{m AOD}$ | $7.35\text{m AOD}$ | `112FWFCUR10A` | Curry Moor and Hay Moor | `athelney_cuts_rd` | `📐 Surveyed` |
-| **`muchelney_access`** | `52120` | $+5.00\text{m}$ | $7.30\text{m AOD}$ ($2.30\text{m}$) | $7.86\text{m AOD}$ ($2.86\text{m}$) | `112WAFYPM` | River Yeo & Parrett Moors | `huish_episcopi` | `📐 Surveyed` |
-| **`beer_wall_a372`** | `52157` | $+0.00\text{m}$ | $7.15\text{m AOD}$ | $7.30\text{m AOD}$ (Weir) | `SOWY_KSD` | River Sowy / KSD Catchment | — | `⚠️ PENDING SURVEY` |
-| **`new_road_curry`** | `52127` | $+0.00\text{m}$ | $6.20\text{m AOD}$ | $7.10\text{m AOD}$ (Gate) | `112FWFCUR10A` | Curry Moor and Hay Moor | — | `⚠️ PENDING SURVEY` |
-| **`a361_burrowbridge`** | `52127` / `52158` | $+0.00\text{m}$ | $7.35\text{m}$ (Cascade) | $7.80\text{m AOD}$ (Levee) | `112FWFEAS10A` | A361 East Lyng to Burrowbridge | — | `⚠️ PENDING SURVEY` |
-| **`bicknells_bridge_access`** | `52120` | $+5.00\text{m}$ | $7.00\text{m AOD}$ ($2.00\text{m}$) | $7.30\text{m AOD}$ ($2.30\text{m}$) | `112WAFYPM` | River Yeo & Parrett Moors | `huish_episcopi` | `⚠️ PENDING SURVEY` |
-| **`moorland_new_cut_road`** | `52159` | $+0.00\text{m}$ | $3.80\text{m AOD}$ | $4.80\text{m AOD}$ (Pumps) | `112FWFSAL10A` | Salt Moor & North Moor | — | `⚠️ PENDING SURVEY` |
-| **`stan_moor_road`** | `52118` / `52127` | $+0.00\text{m}$ | $7.15\text{m AOD}$ | $7.30\text{m AOD}$ (Tone) | `112FWFSTA10A` | Stan Moor (Athelney & Curload) | — | `⚠️ PENDING SURVEY` |
+| Asset ID | Primary Station | Secondary Station | Gauge Datum | Caution Elevation ($Z_{\text{caution}}$) | Crown / Closure Elevation ($Z_{\text{crown}}$) | EA Target Area Code | EA Target Area Name | Correlated Camera | Survey Status |
+| :--- | :---: | :---: | :---: | :---: | :---: | :--- | :--- | :---: | :---: |
+| **`cuts_road`** | `52127` | — | $+0.00\text{m}$ | $7.00\text{m AOD}$ | $7.35\text{m AOD}$ | `112FWFCUR10A` | Curry Moor and Hay Moor | `athelney_cuts_rd` | `📐 Surveyed` |
+| **`muchelney_access`** | `52120` | — | $+5.00\text{m}$ | $7.30\text{m AOD}$ ($2.30\text{m}$) | $7.86\text{m AOD}$ ($2.86\text{m}$) | `112WAFYPM` | River Yeo & Parrett Moors | `huish_episcopi` | `📐 Surveyed` |
+| **`beer_wall_a372`** | `52157` | — | $+0.00\text{m}$ | $7.30\text{m AOD}$ (Culverts) | $> 8.00\text{m AOD}$ (Pending Survey) | `SOWY_KSD` | River Sowy / KSD Catchment | — | `⚠️ PENDING AS-BUILT HIGHWAYS SURVEY` |
+| **`new_road_curry`** | `52127` | — | $+0.00\text{m}$ | $6.20\text{m AOD}$ | $7.10\text{m AOD}$ (Gate) | `112FWFCUR10A` | Curry Moor and Hay Moor | — | `⚠️ PENDING SURVEY` |
+| **`a361_burrowbridge`** | `52158` | `52127` | $+0.00\text{m}$ | $7.35\text{m}$ (Cascade) | $7.80\text{m AOD}$ (Levee) | `112FWFEAS10A` | A361 East Lyng to Burrowbridge | — | `⚠️ PENDING SURVEY` |
+| **`bicknells_bridge_access`** | `52120` | — | $+5.00\text{m}$ | $7.00\text{m AOD}$ ($2.00\text{m}$) | $7.30\text{m AOD}$ ($2.30\text{m}$) | `112WAFYPM` | River Yeo & Parrett Moors | `huish_episcopi` | `⚠️ PENDING SURVEY` |
+| **`moorland_new_cut_road`** | `52159` | — | $+0.00\text{m}$ | $3.80\text{m AOD}$ | $4.80\text{m AOD}$ (Pumps) | `112FWFSAL10A` | Salt Moor & North Moor | — | `⚠️ PENDING SURVEY` |
+| **`stan_moor_road`** | `52118` | `52127` | $+0.00\text{m}$ | $7.15\text{m AOD}$ | $7.30\text{m AOD}$ (Tone) | `112FWFSTA10A` | Stan Moor (Athelney & Curload) | — | `⚠️ PENDING SURVEY` |
 
 ### Deadband Offsets (`HYDRO_DEADBANDS`):
 - `road_crown`: $0.03\text{m}$ ($3\text{cm}$ exit deadband below crown).
 - `road_caution`: $0.05\text{m}$ ($5\text{cm}$ exit deadband below caution).
 - `surge_threshold`: $+0.03\text{m/h}$ ($3\text{cm/h}$ over 3-hour moving window).
-- `inspection_daylight_hours`: $6$ (hours between 08:00 and 17:00 GMT/BST).
-- `inspection_hard_timeout_hours`: $24$ (hours elapsed since water recession).
+- `inspection_daylight_hours`: $6$ (hours between 08:00 and 17:00 local time in Europe/London).
+- `inspection_hard_timeout_hours`: $24$ (continuous dry hours elapsed since water recession, overriding lingering EA Moor Warnings).
 
 ---
 
@@ -388,7 +398,7 @@ To enable the Full Stack Developer to implement Issue #12 seamlessly:
   daylight_dry_hours: 3.0,
   inspection_window_met: false,
   camera_id: "athelney_cuts_rd",
-  narrative: "Floodwaters receded below crown at 14:15 (dry for 4.5 hours). Carriageway is clear, but emergency gates remain locked pending Somerset Council safety inspection for silt and scour. Gates are typically inspected and reopened during daylight hours."
+  narrative: "Floodwaters receded below crown at 14:15 (dry for 4.5 hours). Carriageway is clear, but emergency gates assumed closed pending Somerset Council safety inspection for silt and scour. Gates are typically inspected and reopened during daylight hours."
 }
 ```
 
