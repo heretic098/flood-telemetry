@@ -2,19 +2,24 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { JARGON_DEFINITIONS, renderJargonTerm } from '../src/js/jargon_popover.js';
 
 // Load source files for automated static and heuristic analysis
 const topologyJsPath = path.resolve('src/js/topology.js');
 const appJsPath = path.resolve('src/js/app.js');
 const stylesCssPath = path.resolve('src/css/styles.css');
 const topologyHtmlPath = path.resolve('src/topology.html');
+const indexHtmlPath = path.resolve('src/index.html');
 const methodologyHtmlPath = path.resolve('src/methodology.html');
+const jargonPopoverJsPath = path.resolve('src/js/jargon_popover.js');
 
 const topologyJs = fs.readFileSync(topologyJsPath, 'utf8');
 const appJs = fs.readFileSync(appJsPath, 'utf8');
 const stylesCss = fs.readFileSync(stylesCssPath, 'utf8');
 const topologyHtml = fs.readFileSync(topologyHtmlPath, 'utf8');
+const indexHtml = fs.readFileSync(indexHtmlPath, 'utf8');
 const methodologyHtml = fs.readFileSync(methodologyHtmlPath, 'utf8');
+const jargonPopoverJs = fs.readFileSync(jargonPopoverJsPath, 'utf8');
 
 // Helper: WCAG relative luminance and contrast calculation
 function getLuminance(r, g, b) {
@@ -38,6 +43,29 @@ function getContrastRatio(hex1, hex2) {
   const brightest = Math.max(lum1, lum2);
   const darkest = Math.min(lum1, lum2);
   return (brightest + 0.05) / (darkest + 0.05);
+}
+
+// Helper: APCA (Accessible Perceptual Contrast Algorithm - W3C SAPC)
+function getApcaY(r, g, b) {
+  const rLin = Math.pow(r / 255.0, 2.4);
+  const gLin = Math.pow(g / 255.0, 2.4);
+  const bLin = Math.pow(b / 255.0, 2.4);
+  let y = 0.2126729 * rLin + 0.7151522 * gLin + 0.0721750 * bLin;
+  if (y < 0.022) {
+    y += Math.pow(0.022 - y, 1.414);
+  }
+  return y;
+}
+
+function getApcaContrast(txtHex, bgHex) {
+  const yTxt = getApcaY(...hexToRgb(txtHex));
+  const yBg = getApcaY(...hexToRgb(bgHex));
+  // Dark mode (light text on dark background):
+  if (yTxt >= yBg) {
+    return (Math.pow(yTxt, 0.57) - Math.pow(yBg, 0.56)) * 1.14 * 100;
+  }
+  // Light mode (dark text on light background):
+  return (Math.pow(yTxt, 0.62) - Math.pow(yBg, 0.65)) * 1.14 * 100;
 }
 
 // ---------------------------------------------------------------------------
@@ -214,6 +242,25 @@ test('UI/UX Audit 3.2: Minimum 4.5:1 text contrast and 3:1 graphical non-text co
   const slate500 = '#64748b';
   const slate500Contrast = getContrastRatio(slate500, bgCanvas);
   assert.ok(slate500Contrast >= 3.0, `Slate 500 graphical contrast (${slate500Contrast.toFixed(2)}:1) must meet 3:1`);
+});
+
+test('UI/UX Audit 3.2b: APCA perceptual readability (Lc >= 75 for buttons/controls, Lc >= 90 for small text)', () => {
+  const bgCanvas = '#0f172a'; // Dark background
+  const slate50 = '#f8fafc';  // Primary high-contrast button/link text
+  const white = '#ffffff';
+
+  const apcaSlate50 = getApcaContrast(slate50, bgCanvas);
+  const apcaWhite = getApcaContrast(white, bgCanvas);
+
+  // Both should exceed Lc 90 (fluent readability for small text)
+  assert.ok(apcaSlate50 >= 90, `Slate 50 APCA contrast (${apcaSlate50.toFixed(1)}) must meet Lc >= 90 for small text`);
+  assert.ok(apcaWhite >= 90, `White APCA contrast (${apcaWhite.toFixed(1)}) must meet Lc >= 90 for small text`);
+
+  // Verify that camera buttons (.cam-bar-btn) in styles.css enforce high APCA text color (#f8fafc)
+  const camBtnMatch = stylesCss.match(/\.cam-bar-btn\s*\{[\s\S]*?\}/);
+  assert.ok(camBtnMatch, '.cam-bar-btn rule must exist in styles.css');
+  assert.ok(camBtnMatch[0].includes('color: #f8fafc;'), '.cam-bar-btn must use #f8fafc to guarantee APCA Lc >= 90');
+  assert.ok(camBtnMatch[0].includes('min-height: 44px;'), '.cam-bar-btn must satisfy 44px touch target');
 });
 
 test('UI/UX Audit 3.3: Touch hit targets >= 44x44px across all interactive controls', () => {
@@ -500,6 +547,187 @@ test('UI/UX Audit 4.10: 4-Tier Threshold Provenance UX & Zero Semantic Collision
     topologyJs.includes('escapeHTML(item.label)') && topologyJs.includes('escapeAttr(item.authority)'),
     'topology.js must sanitize dynamic provenance text and attributes with escapeHTML and escapeAttr'
   );
+});
+
+test('UI/UX Audit 5.1: Contextual Jargon Popovers - Plain-English Definitions & Domain Invariant Compliance', () => {
+  // 1. Mandatory 4 plain-English jargon definitions exist
+  assert.ok(JARGON_DEFINITIONS.mAOD, 'mAOD definition must be registered');
+  assert.ok(JARGON_DEFINITIONS.KSD, 'KSD definition must be registered');
+  assert.ok(JARGON_DEFINITIONS.Clyse, 'Clyse definition must be registered');
+  assert.ok(JARGON_DEFINITIONS.Penning, 'Penning definition must be registered');
+
+  // 2. [RULE-HUM-01] Epistemic Humility & Plain Language verification
+  // mAOD: Clarifies height relative to sea level, not depth over ground
+  assert.ok(
+    JARGON_DEFINITIONS.mAOD.definition.includes('Metres Above Ordnance Datum') &&
+    JARGON_DEFINITIONS.mAOD.definition.includes('Not depth over the ground') &&
+    JARGON_DEFINITIONS.mAOD.definition.includes('~2m to 4m AOD'),
+    'mAOD definition must explain datum vs depth over ground in plain English'
+  );
+
+  // KSD: Explains King\'s Sedgemoor Drain relief channel
+  assert.ok(
+    JARGON_DEFINITIONS.KSD.definition.includes("King's Sedgemoor Drain") &&
+    JARGON_DEFINITIONS.KSD.definition.includes('18km relief channel') &&
+    JARGON_DEFINITIONS.KSD.definition.includes('Monk\'s Leaze Clyse') &&
+    JARGON_DEFINITIONS.KSD.definition.includes('Dunball'),
+    'KSD definition must explain channel function from Monk\'s Leaze Clyse to Dunball'
+  );
+
+  // Clyse: Explains local Somerset terminology for sluice / gravity outfall
+  assert.ok(
+    JARGON_DEFINITIONS.Clyse.definition.includes('Somerset term for a sluice gate') &&
+    JARGON_DEFINITIONS.Clyse.definition.includes('gravity outfall structure') &&
+    JARGON_DEFINITIONS.Clyse.definition.includes('penstocks or tidal flap doors'),
+    'Clyse definition must explain local Somerset sluice / flap door meaning'
+  );
+
+  // Penning: Clarifies routine seasonal retention vs winter flood evacuation
+  assert.ok(
+    JARGON_DEFINITIONS.Penning.definition.includes('Routine seasonal water retention') &&
+    JARGON_DEFINITIONS.Penning.definition.includes('rhynes') &&
+    JARGON_DEFINITIONS.Penning.definition.includes('livestock drinking') &&
+    JARGON_DEFINITIONS.Penning.definition.includes('distinct from winter flood evacuation'),
+    'Penning definition must distinguish seasonal agricultural retention from flood states'
+  );
+
+  // 3. [RULE-CALC-01] Strict ban on volumetric flow / cumec speculation in jargon definitions
+  for (const [key, def] of Object.entries(JARGON_DEFINITIONS)) {
+    assert.ok(
+      !def.definition.toLowerCase().includes('cumec') &&
+      !def.definition.toLowerCase().includes('m3/s') &&
+      !def.definition.toLowerCase().includes('megalitre'),
+      `Jargon definition for ${key} must not speculate on volumetric flow rates [RULE-CALC-01]`
+    );
+  }
+});
+
+test('UI/UX Audit 5.2: Contextual Jargon Popovers - Accessibility & WCAG/APCA Contrast Compliance', () => {
+  // 1. renderJargonTerm generates compliant accessible markup
+  const rendered = renderJargonTerm('mAOD');
+  assert.ok(rendered.includes('class="jargon-term"'), 'Must include .jargon-term class');
+  assert.ok(rendered.includes('tabindex="0"'), 'Must be keyboard focusable (tabindex="0")');
+  assert.ok(rendered.includes('role="button"'), 'Must have role="button"');
+  assert.ok(rendered.includes('aria-haspopup="dialog"'), 'Must declare aria-haspopup="dialog"');
+  assert.ok(rendered.includes('aria-expanded="false"'), 'Must initialize with aria-expanded="false"');
+  assert.ok(rendered.includes('data-term="mAOD"'), 'Must declare data-term attribute');
+  assert.ok(rendered.includes('class="jargon-help-icon"'), 'Must include help icon');
+  assert.ok(rendered.includes('aria-hidden="true"'), 'Help icon must be aria-hidden="true"');
+
+  // 2. APCA contrast compliance: Popover background #0f172a, body text #f8fafc (Lc >= 90)
+  const apcaScore = getApcaContrast('#f8fafc', '#0f172a');
+  assert.ok(
+    apcaScore >= 90,
+    `Popover text (#f8fafc) against dark background (#0f172a) must achieve APCA Lc >= 90 (got ${apcaScore.toFixed(1)})`
+  );
+
+  // Standard WCAG 2.1 AA text contrast floor >= 4.5:1
+  const wcagRatio = getContrastRatio('#f8fafc', '#0f172a');
+  assert.ok(
+    wcagRatio >= 4.5,
+    `Popover text against background must exceed WCAG 4.5:1 ratio (got ${wcagRatio.toFixed(1)}:1)`
+  );
+
+  // 3. Touch hit target expansion in CSS
+  assert.ok(
+    stylesCss.includes('.jargon-term::after'),
+    'styles.css must declare .jargon-term::after for touch hit expansion'
+  );
+  assert.ok(
+    stylesCss.includes('min-width: 44px') && stylesCss.includes('min-height: 44px'),
+    'styles.css must guarantee >= 44x44px touch targets for interactive controls [UI-ACC-01]'
+  );
+
+  // 4. Popover styling in CSS
+  assert.ok(stylesCss.includes('.jargon-popover'), 'styles.css must style .jargon-popover');
+  assert.ok(stylesCss.includes('background: #0f172a'), 'Popover must use #0f172a background');
+  assert.ok(stylesCss.includes('border: 1px solid rgba(56, 189, 248, 0.4)'), 'Popover border must use sky blue accent');
+  assert.ok(stylesCss.includes('.jargon-popover-close'), 'styles.css must style .jargon-popover-close button');
+});
+
+test('UI/UX Audit 5.3: Contextual Jargon Popovers - Cross-View Integration, Keyboard & Viewport Bounds Handling', () => {
+  // 1. Template integration: index.html & topology.html include jargon triggers
+  assert.ok(indexHtml.includes('class="jargon-term"'), 'index.html must include jargon term triggers');
+  assert.ok(topologyHtml.includes('class="jargon-term"'), 'topology.html must include jargon term triggers');
+  assert.ok(topologyHtml.includes('data-term="mAOD"'), 'topology.html must include mAOD jargon trigger');
+  assert.ok(topologyHtml.includes('data-term="KSD"'), 'topology.html must include KSD jargon trigger');
+  assert.ok(topologyHtml.includes('data-term="Clyse"'), 'topology.html must include Clyse jargon trigger');
+  assert.ok(topologyHtml.includes('data-term="Penning"'), 'topology.html must include Penning jargon trigger');
+
+  // 2. Script integration: app.js and topology.js initialize popovers
+  assert.ok(appJs.includes('initJargonPopovers'), 'app.js must import and call initJargonPopovers()');
+  assert.ok(topologyJs.includes('initJargonPopovers'), 'topology.js must import and call initJargonPopovers()');
+  assert.ok(appJs.includes("renderJargonTerm('Clyse')"), 'app.js must render Clyse jargon triggers in cards');
+  assert.ok(appJs.includes("renderJargonTerm('KSD')"), 'app.js must render KSD jargon triggers in cards');
+  assert.ok(appJs.includes("renderJargonTerm('Penning')"), 'app.js must render Penning jargon triggers in cards');
+  assert.ok(topologyJs.includes("renderJargonTerm('mAOD')"), 'topology.js must render mAOD jargon trigger');
+
+  // 3. Interactive keyboard support in jargon_popover.js
+  assert.ok(jargonPopoverJs.includes("'Escape'"), 'jargon_popover.js must handle Escape key dismissal');
+  assert.ok(
+    jargonPopoverJs.includes("'Enter'") && jargonPopoverJs.includes("' '"),
+    'jargon_popover.js must handle Enter and Space keyboard activation'
+  );
+  assert.ok(jargonPopoverJs.includes('positionPopover'), 'jargon_popover.js must calculate popover positioning');
+  assert.ok(
+    jargonPopoverJs.includes('Math.min') && jargonPopoverJs.includes('Math.max'),
+    'jargon_popover.js must clamp popover within viewport bounds'
+  );
+});
+
+test('UI/UX Audit 5.4: Contextual Jargon Popovers - Interactive Lifecycle & Popover Positioning', async () => {
+  const { positionPopover } = await import('../src/js/jargon_popover.js');
+
+  const mockTrigger = {
+    getAttribute: (attr) => (attr === 'data-term' ? 'mAOD' : null),
+    setAttribute: (attr, val) => { mockTrigger[attr] = val; },
+    focus: () => { mockTrigger.focused = true; },
+    getBoundingClientRect: () => ({ left: 200, right: 260, top: 300, bottom: 324, width: 60, height: 24 })
+  };
+
+  const mockPopover = {
+    style: {},
+    classList: {
+      classes: new Set(['hidden']),
+      add(cls) { this.classes.add(cls); },
+      remove(cls) { this.classes.delete(cls); },
+      contains(cls) { return this.classes.has(cls); }
+    },
+    offsetHeight: 120
+  };
+
+  // Mock window dimensions
+  const originalWindow = globalThis.window;
+  globalThis.window = {
+    innerWidth: 1280,
+    innerHeight: 800
+  };
+
+  try {
+    positionPopover(mockTrigger, mockPopover);
+
+    assert.equal(mockPopover.style.position, 'fixed');
+    assert.equal(mockPopover.style.width, '320px');
+    const leftVal = parseInt(mockPopover.style.left, 10);
+    const topVal = parseInt(mockPopover.style.top, 10);
+
+    // Left should center on trigger (200 + 30 - 160 = 70px)
+    assert.equal(leftVal, 70);
+    // Top should place below trigger (324 + 8 = 332px)
+    assert.equal(topVal, 332);
+
+    // Test viewport clamp near right edge
+    const edgeTrigger = {
+      ...mockTrigger,
+      getBoundingClientRect: () => ({ left: 1250, right: 1270, top: 300, bottom: 324, width: 20, height: 24 })
+    };
+    positionPopover(edgeTrigger, mockPopover);
+    const clampLeft = parseInt(mockPopover.style.left, 10);
+    // Must clamp to window.innerWidth - popoverWidth - 12 = 1280 - 320 - 12 = 948px
+    assert.equal(clampLeft, 948, 'Popover must clamp inside right viewport margin');
+  } finally {
+    globalThis.window = originalWindow;
+  }
 });
 
 

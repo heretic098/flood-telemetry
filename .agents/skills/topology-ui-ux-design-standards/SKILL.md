@@ -95,16 +95,29 @@ Threshold lines on hydrographs (e.g. spillway crests or alert levels) MUST dynam
 
 ---
 
-## 6. WCAG 2.1 AA Triple Encoding & Sizing
+## 6. Contrast & Readability: APCA & WCAG 2.1 AA Dual Standard
 
-1. **Triple Encoding:** Never use color alone. Every status state MUST combine:
-   $$\text{Status} = \text{Contrast Color} + \text{Geometric Shape/Icon} + \text{Verbal Uppercase Text}$$
-   - Examples: `🔴 OVERSPILLING`, `🟢 SECURE`, `🔵 DIVERTING`, `⛔ TIDE-LOCKED`.
-2. **Contrast Ratios:**
-   - Normal text: $\ge 4.5:1$ against `#0f172a`.
-   - Non-text graphical components (lines, rings, icons): $\ge 3:1$.
-3. **Touch Targets:**
-   - Minimum $44 \times 44\text{px}$ on all interactive buttons, filters, and SVG node hit proxies (`r=24` transparent circle).
+The platform enforces the **Accessible Perceptual Contrast Algorithm (APCA)** as its primary perceptual readability engine for dark mode, while maintaining **WCAG 2.1 AA** (4.5:1 text, 3:1 graphical) as the absolute statutory floor.
+
+### 1. Why APCA Governs Our Dark-Mode Interface:
+WCAG 2.1's mathematical ratio $(L_1 + 0.05)/(L_2 + 0.05)$ is symmetric and assumes black text on white paper. It fails on dark-mode monitors because:
+- Human pupil dilation and spatial frequency make thin, light colored text (e.g. cyan `#38bdf8`) feel washed out and illegible against dark backgrounds (`#0f172a`), despite technically scoring 6.8:1 under WCAG 2.1.
+- APCA models human visual cone response, rod halation, spatial frequency (font size and weight), and polarity (light text on dark background).
+
+### 2. APCA Lightness Contrast ($L_c$) Thresholds:
+For dark-mode backgrounds (`#0f172a`, `rgba(15, 23, 42, ...)`):
+- **Small & Compact Text ($<14\text{px}$, or font weight $<500$):** Target APCA $|L_c| \ge 90$. Use high-luminance text such as `#f8fafc` or `#ffffff` ($L_c \approx 102$).
+- **Interactive Controls & Buttons (e.g. Camera links, Filter pills, Navigation):** Target APCA $|L_c| \ge 75$. Text must use high-contrast foregrounds (`#f8fafc`, `#ffffff`), with solid backdrops (`#0f172a`) and prominent borders (`rgba(56, 189, 248, 0.6)`).
+- **Secondary / Informational Text ($\ge 14\text{px}$ bold or $\ge 16\text{px}$ regular):** Minimum APCA $|L_c| \ge 60$.
+- **Statutory Floor:** WCAG 2.1 AA contrast ratio MUST simultaneously exceed $\ge 4.5:1$ for all text and $\ge 3:1$ for graphical objects.
+
+### 3. Triple Encoding Invariant:
+Never use color alone. Every status state MUST combine:
+$$\text{Status} = \text{Contrast Color} + \text{Geometric Shape/Icon} + \text{Verbal Uppercase Text}$$
+- Examples: `🔴 OVERSPILLING`, `🟢 SECURE`, `🔵 DIVERTING`, `⛔ TIDE-LOCKED`.
+
+### 4. Touch Targets:
+- Minimum $44 \times 44\text{px}$ on all interactive buttons, filters, camera links, and SVG node hit proxies (`r=24` transparent circle).
 
 ---
 

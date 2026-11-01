@@ -87,16 +87,28 @@ function checkUrl(url) {
   });
 }
 
+async function checkUrlWithRetry(url, retries = 1) {
+  let result = await checkUrl(url);
+  if (result.status === 'TIMEOUT' && retries > 0) {
+    // Wait 500ms before retrying once
+    await new Promise(r => setTimeout(r, 500));
+    result = await checkUrl(url);
+  }
+  return result;
+}
+
 async function run() {
   const list = Array.from(urls).sort();
   let failures = 0;
 
   for (const u of list) {
-    const res = await checkUrl(u);
+    const res = await checkUrlWithRetry(u);
     const ok = (typeof res.status === 'number' && res.status >= 200 && res.status < 400);
     const icon = ok ? '✅' : '❌';
     console.log(`${icon} [${res.status}] ${res.url}`);
     if (!ok) failures++;
+    // Small inter-request pacing to avoid triggering upstream rate limits
+    await new Promise(r => setTimeout(r, 150));
   }
 
   console.log(`\n[Link Auditor] Completed scan of ${list.length} URLs. Failures: ${failures}`);

@@ -31,6 +31,7 @@ import {
 } from './src/js/api/ai_vision_client.js';
 
 import { runMigrations } from './src/js/db_migrations.js';
+import { rehydrateActiveSessions, processTelemetryEvents } from './src/js/event_manager.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -49,6 +50,9 @@ db.pragma('synchronous = NORMAL');
 
 // Ensure database tables exist via versioned migrations
 runMigrations(db);
+
+// Rehydrate active telemetry event sessions on server boot
+rehydrateActiveSessions(db);
 
 const MEASURE_IDS = [
   '52108-level-stage-i-15_min-mASD',
@@ -183,6 +187,14 @@ export async function syncAllTelemetry(overrideLimit = null, fetchFn = globalThi
     const limit = overrideLimit || (isBackfill ? 2688 : 96);
     await Promise.all(MEASURE_IDS.map(id => syncMeasure(id, limit, fetchFn)));
     updateSpillEvents();
+
+    // Process canonical telemetry events in shadow mode
+    try {
+      const stored = getStoredTelemetry();
+      processTelemetryEvents(db, stored);
+    } catch (evtErr) {
+      console.warn('[Event Manager Warning] Failed to process telemetry events:', evtErr.message);
+    }
   } finally {
     isSyncRunning = false;
   }

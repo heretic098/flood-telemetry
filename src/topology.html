@@ -52,6 +52,13 @@
         <button type="button" class="legend-item" data-status="OVERSPILLING" title="Click to filter Overspilling nodes" aria-label="Filter by Overspilling status"><span class="legend-dot status-overspilling"></span> 🔴 Overspilling</button>
         <button type="button" class="legend-item" data-status="DIVERTING" title="Click to filter Diverting nodes" aria-label="Filter by Diverting status"><span class="legend-dot status-diverting"></span> 🔵 Diverting</button>
         <button type="button" class="legend-item" data-status="CLOSED" title="Click to filter Closed nodes" aria-label="Filter by Closed status"><span class="legend-dot status-closed"></span> ⛔ Closed / Tide-Locked</button>
+        <div class="jargon-guide-bar" aria-label="Somerset hydraulic terminology guide" style="margin-left: 0.5rem; padding-left: 0.5rem; border-left: 1px solid rgba(255,255,255,0.1);">
+          <span class="jargon-guide-title">Terms:</span>
+          <span class="jargon-term" tabindex="0" role="button" aria-haspopup="dialog" aria-expanded="false" data-term="mAOD">mAOD <span class="jargon-help-icon" aria-hidden="true">?</span></span>
+          <span class="jargon-term" tabindex="0" role="button" aria-haspopup="dialog" aria-expanded="false" data-term="KSD">KSD <span class="jargon-help-icon" aria-hidden="true">?</span></span>
+          <span class="jargon-term" tabindex="0" role="button" aria-haspopup="dialog" aria-expanded="false" data-term="Clyse">Clyse <span class="jargon-help-icon" aria-hidden="true">?</span></span>
+          <span class="jargon-term" tabindex="0" role="button" aria-haspopup="dialog" aria-expanded="false" data-term="Penning">Penning <span class="jargon-help-icon" aria-hidden="true">?</span></span>
+        </div>
       </div>
     </section>
 
@@ -60,7 +67,7 @@
       <section class="topology-canvas-container" aria-label="Interactive Hydrological Flow Canvas">
         <div class="canvas-header-info">
           <h2>Somerset Levels Hydrological Topology</h2>
-          <span class="canvas-subtext">Click or tap any node to inspect real-time telemetry, stage elevations, engineered crests, and 24h hydrographs.</span>
+          <span class="canvas-subtext">Click or tap any node to inspect real-time telemetry, stage elevations (<span class="jargon-term" tabindex="0" role="button" aria-haspopup="dialog" aria-expanded="false" data-term="mAOD">mAOD <span class="jargon-help-icon" aria-hidden="true">?</span></span>), engineered crests, and 24h hydrographs.</span>
         </div>
         <div class="svg-wrapper" id="svg-wrapper">
           <div class="zoom-controls-overlay" aria-label="Map Zoom and Pan Controls" role="toolbar">
@@ -101,7 +108,7 @@
           <div class="inspector-hero-metric">
             <div class="metric-stage-group">
               <span class="stage-num" id="node-stage-num">0.00</span>
-              <span class="stage-unit">mAOD</span>
+              <span class="stage-unit"><span class="jargon-term" tabindex="0" role="button" aria-haspopup="dialog" aria-expanded="false" data-term="mAOD">mAOD <span class="jargon-help-icon" aria-hidden="true">?</span></span></span>
             </div>
             <div class="metric-crest-group">
               <span class="crest-label" id="node-crest-label">Engineered Crest:</span>

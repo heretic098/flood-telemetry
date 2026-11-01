@@ -20,6 +20,8 @@ import {
   STATION_BASELINES
 } from './hydro_engine.js?v=1.2.0';
 
+import { initJargonPopovers, renderJargonTerm } from './jargon_popover.js';
+
 import {
   computeSparklineBounds,
   checkFlatStage,
@@ -81,6 +83,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 async function initTopology() {
+  initJargonPopovers();
   if (typeof window !== 'undefined' && window.location) {
     const urlParams = new URLSearchParams(window.location.search);
     const stationParam = urlParams.get('station') || urlParams.get('node');
@@ -1104,7 +1107,7 @@ function inspectNode(nodeId, restoreFocus = false) {
     }
   } else {
     if (stageNum) stageNum.innerText = stage !== null ? stage.toFixed(2) : '--';
-    if (stageUnit) stageUnit.innerText = 'mAOD';
+    if (stageUnit) stageUnit.innerHTML = renderJargonTerm('mAOD');
 
     // Compute Crest / Alert Clearance
     const hasCrest = !!node.crest_elevation_mAOD && !isPolder;
@@ -1126,10 +1129,10 @@ function inspectNode(nodeId, restoreFocus = false) {
         const inlandStage = typeof node.inland_stage_mAOD === 'number' ? node.inland_stage_mAOD : (typeof inlandNode?.stage_mAOD === 'number' ? inlandNode.stage_mAOD : 2.38);
         const isTideLocked = stage >= inlandStage;
         if (isTideLocked) {
-          clearanceText = `🕒 Tide-Locked (Inland KSD: ${inlandStage.toFixed(2)}mAOD)`;
+          clearanceText = `🕒 Tide-Locked (Inland ${renderJargonTerm('KSD')}: ${inlandStage.toFixed(2)}mAOD)`;
           if (clearancePill) clearancePill.className = 'clearance-pill pill-tide-locked';
         } else {
-          clearanceText = `✓ Discharging (Inland KSD: ${inlandStage.toFixed(2)}mAOD)`;
+          clearanceText = `✓ Discharging (Inland ${renderJargonTerm('KSD')}: ${inlandStage.toFixed(2)}mAOD)`;
           if (clearancePill) clearancePill.className = 'clearance-pill pill-secure';
         }
       } else if (delta >= 0) {
@@ -1140,7 +1143,7 @@ function inspectNode(nodeId, restoreFocus = false) {
         if (clearancePill) clearancePill.className = 'clearance-pill pill-secure';
       }
     }
-    if (clearancePill) clearancePill.innerText = clearanceText;
+    if (clearancePill) clearancePill.innerHTML = clearanceText;
 
     // Track progress fill calculation
     let pct = 0;
@@ -1215,15 +1218,15 @@ function inspectNode(nodeId, restoreFocus = false) {
           <strong class="stat-val" style="color: ${doorStateColor}; font-size:0.82rem;">${doorStateText}</strong>
         </div>
         <div class="stat-card">
-          <span class="stat-title">Head Differential (KSD ➔ Sea)</span>
+          <span class="stat-title">Head Differential (${renderJargonTerm('KSD')} ➔ Sea)</span>
           <strong class="stat-val" style="font-size:0.82rem; font-family:monospace; color:${isTideLocked ? '#fbbf24' : '#38bdf8'};">${formatHeadDelta(headDiff)} (${inlandVal?.toFixed(2) ?? '--'}m ➔ ${seaVal?.toFixed(2) ?? '--'}m)</strong>
         </div>
         <div class="stat-card" style="grid-column: span 2;">
           <span class="stat-title">Tidal Outfall Hydrostatics</span>
           <strong class="stat-val" style="font-size:0.8rem; font-weight:normal; color:#cbd5e1;">
             ${isTideLocked
-              ? `High tide in Parrett Estuary (${seaVal?.toFixed(2)}mAOD) exceeds inland King's Sedgemoor Drain (${inlandVal?.toFixed(2)}mAOD). Passive flap doors shut under reverse hydrostatic head.`
-              : `Estuary tide (${seaVal?.toFixed(2)}mAOD) is below inland KSD (${inlandVal?.toFixed(2)}mAOD). Positive head opens Dunball flap clyse for gravity evacuation.`}
+              ? `High tide in Parrett Estuary (${seaVal?.toFixed(2)}mAOD) exceeds inland King's Sedgemoor Drain (${renderJargonTerm('KSD')}) (${inlandVal?.toFixed(2)}mAOD). Passive flap doors shut under reverse hydrostatic head.`
+              : `Estuary tide (${seaVal?.toFixed(2)}mAOD) is below inland ${renderJargonTerm('KSD')} (${inlandVal?.toFixed(2)}mAOD). Positive head opens Dunball flap ${renderJargonTerm('Clyse')} for gravity evacuation.`}
           </strong>
         </div>
       `;
@@ -1459,7 +1462,7 @@ function inspectNode(nodeId, restoreFocus = false) {
   }
 
   if (narrative) {
-    narrative.innerText = getInspectorNarrative(node, stage, crest);
+    narrative.innerHTML = getInspectorNarrative(node, stage, crest);
     narrative.className = `inspector-narrative status-border-${node.status.toLowerCase().replace('_', '-')}`;
   }
 
@@ -1580,20 +1583,23 @@ function getCatchmentLabel(c) {
 function getInspectorNarrative(node, stage, crest) {
   const isPolder = node.node_type === 'polder_basin';
   const hasCrest = !!node.crest_elevation_mAOD && !isPolder;
-  const crestStr = typeof crest === 'number' ? `${crest.toFixed(2)}m AOD` : 'threshold';
+  const crestStr = typeof crest === 'number' ? `${crest.toFixed(2)} ${renderJargonTerm('mAOD', 'm AOD')}` : 'threshold';
+  const stageStr = stage !== null && stage !== undefined ? `${stage.toFixed(2)} ${renderJargonTerm('mAOD', 'm AOD')}` : '--';
+  const groundStr = node.ground_elevation_mAOD !== undefined ? `${node.ground_elevation_mAOD.toFixed(2)} ${renderJargonTerm('mAOD', 'm AOD')}` : '--';
+
   if (isPolder) {
     if (node.status === 'ALERT') {
-      return `POLDER STORAGE ALERT: Moor stage height (${stage?.toFixed(2)}m AOD) has reached the high flood storage alert threshold (${crestStr}). IDB/EA evacuation pumps are on high alert.`;
+      return `POLDER STORAGE ALERT: Moor stage height (${stageStr}) has reached the high flood storage alert threshold (${crestStr}). IDB/EA evacuation pumps are on high alert.`;
     }
-    return `POLDER STORAGE SECURE: Moor water level (${stage?.toFixed(2)}m AOD) is resting safely on moor bed (${node.ground_elevation_mAOD?.toFixed(2)}m AOD), securely below evacuation triggers.`;
+    return `POLDER STORAGE SECURE: Moor water level (${stageStr}) is resting safely on moor bed (${groundStr}), securely below evacuation triggers.`;
   }
   if (node.status === 'OVERSPILLING') {
-    return `CRITICAL: Stage height (${stage?.toFixed(2)}m AOD) exceeds the engineered crest height (${crestStr}). Floodwaters are overtopping into adjacent storage basins.`;
+    return `CRITICAL: Stage height (${stageStr}) exceeds the engineered crest height (${crestStr}). Floodwaters are overtopping into adjacent storage basins.`;
   }
   if (node.status === 'ALERT') {
     return hasCrest
-      ? `ALERT: Water elevation (${stage?.toFixed(2)}m AOD) is within pre-warning threshold (<30cm) of engineered spillway crest (${crestStr}).`
-      : `ALERT: Water elevation (${stage?.toFixed(2)}m AOD) has reached the high water alert threshold (${crestStr}).`;
+      ? `ALERT: Water elevation (${stageStr}) is within pre-warning threshold (<30cm) of engineered spillway crest (${crestStr}).`
+      : `ALERT: Water elevation (${stageStr}) has reached the high water alert threshold (${crestStr}).`;
   }
   if (node.status === 'DIVERTING') {
     return `ACTIVE DIVERSION: Sluice gates are raised, routing headwater discharge from the River Parrett into the Sowy Relief Channel.`;
@@ -1601,7 +1607,7 @@ function getInspectorNarrative(node, stage, crest) {
   if (node.status === 'SLACK_RESTRICTED') {
     return `TIDE-LOCKED: High estuarine sea tide in Parrett Estuary exceeds inland drain level. Flap sluices shut tightly under hydrostatic backpressure.`;
   }
-  return `NOMINAL / SECURE: Telemetry is live & active (96 readings synced today). River stage (${stage?.toFixed(2)}m AOD) is in steady summer baseflow, securely below the alert threshold (${crestStr}).`;
+  return `NOMINAL / SECURE: Telemetry is live & active (96 readings synced today). River stage (${stageStr}) is in steady summer baseflow, securely below the alert threshold (${crestStr}).`;
 }
 
 function renderInspectorSparkline(readings, strokeColor = '#38bdf8', crestHeight = null, isRelative = false) {

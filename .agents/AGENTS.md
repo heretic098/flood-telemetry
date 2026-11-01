@@ -129,9 +129,10 @@ All agents collaborating on this project MUST strictly uphold these foundational
   6. **[UI-HERO-01] Taxonomic Metric Hierarchy:**
      * **In-Channel River Gauges:** Hero metric is **Channel Depth** (`0.45 m depth`), with absolute elevation and datum in subtext.
      * **Spillways:** Hero metric is **Elevation in mAOD** with Engineered Crest and Crest Clearance delta (`0.25m below crest` or `▲ Overtopping by +0.17m`).
-  7. **[UI-ACC-01] WCAG 2.1 AA Triple-Encoding & Target Sizing:**
+  7. **[UI-ACC-01] WCAG 2.1 AA & APCA Contrast & Readability Standard:**
      * All statuses must be simultaneously encoded via **Color + Shape/Icon + Explicit Text**.
-     * Minimum 4.5:1 text contrast and 3:1 graphical contrast against `#0f172a`.
+     * **APCA Perceptual Readability Target:** Small text ($<14\text{px}$) targets APCA $|L_c| \ge 90$; interactive controls, camera buttons, and pills target APCA $|L_c| \ge 75$ against dark canvas backgrounds (`#0f172a`).
+     * **Statutory Floor:** Minimum 4.5:1 text contrast and 3:1 graphical contrast against `#0f172a` under WCAG 2.1 AA.
      * Interactive targets must be $\ge 44 \times 44\text{px}$.
   8. **[UI-INT-01] Universal Sparkline Inspection & Timeline Scrubbing:**
      * Sparklines must NEVER be rendered as dead static SVG paths without inspection.

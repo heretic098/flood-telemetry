@@ -109,14 +109,21 @@ All structural geometries are fixed geodetic benchmarks surveyed relative to Ord
 
 ---
 
-## 4. Community Road Passability Thresholds (Tier 1 & Tier 2)
+## 4. Community Road Passability Thresholds (Tier 1, Tier 2 & Tier 4)
 
-Documented in detail in `docs/road_network_passability_spec.md`:
+Documented in complete engineering detail in [`docs/road_network_passability_spec.md`](file:///home/jonathan/Desktop/flood-telemetry/docs/road_network_passability_spec.md).
 
-| Road Asset | Surveyed Sills | Operating Agency / Plan | Action Protocol |
-| :--- | :--- | :--- | :--- |
-| **Cuts Road (East Lyng to Athelney)** | • Lowest Crown: $7.35\text{m AOD}$<br>• Submerged: $> 7.35\text{m AOD}$ | Somerset Council Highways / EA Trigger Point Plan | • $h_{\text{curry}} \ge 7.05\text{m}$: Encroaching margin warning (10-30cm freeboard).<br>• $h_{\text{curry}} \ge 7.35\text{m}$: Road impassable; flood gates closed by Somerset Highways. |
-| **Muchelney Access (Lawyers Mill & Spine Road)** | • Low-point Sill: $7.30\text{m AOD}$<br>• Raised Spine: $7.70\text{m AOD}$<br>• High Crown: $7.86\text{m AOD}$ | Somerset Rivers Authority (SRA) 2014 Road Raising Scheme & Council Emergency Access Plan | • $h_{\text{yeo}} \ge 7.30\text{m}$: Lawyers Mill impassable.<br>• $h_{\text{yeo}} \ge 7.70\text{m}$: Raised spine impassable; village cut off from road access; emergency SRA/Council boat service mobilized. |
+In accordance with `[RULE-ENT-01]`, road assets adhere strictly to the tripartite entity schema (`asset_type: 'road'`, `asset_id`, `status: 'PASSABLE' | 'ENCROACHING' | 'IMPASSABLE'`). In accordance with `[RULE-HUM-01]` and `[RULE-SUB-01]`, assets whose precise carriageway crown spot heights have not been confirmed in published engineering surveys are transparently designated as `⚠️ PENDING SURVEY` rather than adopting speculative numbers:
+
+| Asset ID | Road Corridor | Driving Station | Gauge Datum | Encroaching Stage | Impassable Stage | Provenance Tier | Survey Status & Authoritative Citation |
+| :--- | :--- | :---: | :---: | :---: | :---: | :---: | :--- |
+| **`cuts_road`** | Cuts Road (East Lyng ↔ Athelney) | `52127` (Curry Moor) | $+0.00\text{m}$ (mAOD) | $7.00\text{m AOD}$ | $7.35\text{m AOD}$ | **Tier 1** (Crest)<br>**Tier 2** (Gates) | `📐 Surveyed Civil Geometry`<br>Concrete Athelney Spillway relief crest ($7.35\text{m AOD}$). Somerset Council emergency closure gates locked at $7.30–7.35\text{m AOD}$. |
+| **`muchelney_access`** | Muchelney Spine Road / Langport Road | `52120` (Huish PS) | $+5.000\text{m AOD}$ | $7.30\text{m AOD}$ ($2.30\text{m}$ depth) | $7.86\text{m AOD}$ ($2.86\text{m}$ depth) | **Tier 1** (Crown)<br>**Tier 2** (Breach) | `📐 Surveyed Civil Geometry`<br>SRA / SCC 2014 Road Raising Scheme ($7.86\text{m AOD}$ crown). Low-spot field hollow breach at Lawyers Mill ($7.30\text{m AOD}$). |
+| **`beer_wall_a372`** | A372 at Beer Wall / Greylake | `52157` (Sowy Beerwall) | $+0.00\text{m}$ (mAOD) | $7.15\text{m AOD}$ (15cm buffer) | $7.30\text{m AOD}$ (Relief Weir) | **Tier 1** (Weir)<br>**Tier 4** (Buffer) | `⚠️ PENDING HIGHWAYS AS-BUILT SURVEY`<br>Concrete relief weir crest surveyed at $7.30\text{m AOD}$. Raised A372 road crown over culverts pending official Highways topographic release. |
+| **`new_road_curry`** | New Road (West Lyng ↔ North Curry) | `52127` (Curry Moor) | $+0.00\text{m}$ (mAOD) | $6.20\text{m AOD}$ (Moor Rhyne) | $7.10–7.30\text{m AOD}$ (Gate Closure) | **Tier 2** (Plan) | `⚠️ PENDING TOPOGRAPHIC SURVEY`<br>Correlated to Curry Moor storage & EA Flood Warning `051FWF124`. Gates closed by Somerset Council Highways before Athelney spillway activation. |
+| **`a361_burrowbridge`** | A361 Corridor (East Lyng ↔ Burrowbridge) | `52127` / `52158` | $+0.00\text{m}$ (mAOD) | $7.35\text{m}$ (Athelney cascade) | Multi-agency order ($7.80\text{m}$ levee) | **Tier 2** (Plan) | `⚠️ PENDING HIGHWAYS AUDIT`<br>Regional arterial ridge route. Emergency gates closed under EA Flood Warning `051FWF126` when Curry Moor overspill and Northmoor retention threaten carriageway. |
+| **`bicknells_bridge_access`** | Bicknell's Bridge & Huish Level | `52120` (Huish PS) | $+5.000\text{m AOD}$ | $7.00\text{m AOD}$ ($2.00\text{m}$ depth) | $7.30\text{m AOD}$ ($2.30\text{m}$ depth) | **Tier 2 / Tier 3** | `⚠️ PENDING TOPOGRAPHIC SURVEY`<br>Historic 1830 bridge across River Yeo. Approach verges flooded at $7.00\text{m AOD}$; approaches submerged at $7.30\text{m AOD}$ (Historic England List 1056588). |
+| **`moorland_new_cut_road`** | New Cut & Moorland Access Roads | `52159` (Northmoor) | $+0.00\text{m}$ (mAOD) | $3.80\text{m AOD}$ (Basin Alert) | $4.80–5.20\text{m AOD}$ (Mobile Pumping) | **Tier 2** (Trigger) | `⚠️ PENDING TOPOGRAPHIC SURVEY`<br>Lowland basin floor surveyed at $1.80\text{m AOD}$. Internal polder lanes submerged during severe storage retention under EA Trigger Point Plan. |
 
 ---
 

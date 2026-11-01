@@ -1,4 +1,5 @@
 import { evaluateSpillway, evaluateGateState, aggregateGlobalStatus, evaluatePumpStatus, evaluateSowyChannel, evaluateAthelneySpillway, evaluateGravityClyse, evaluateBeerWall, evaluateOathLock, evaluateDunballEmergencyPumping, getSeasonalRegime, getActiveCrestHeight, getActiveCatchmentId, loadCatchmentConfig, evaluateHuishEpiscopi, evaluateMidelney, STATION_REGISTRY, GAUGE_DATUMS } from './hydro_engine.js';
+import { initJargonPopovers, renderJargonTerm } from './jargon_popover.js';
 import {
   computeSparklineBounds,
   checkFlatStage,
@@ -68,9 +69,9 @@ export function renderHeroSpillwayBanner(opts) {
       <div class="hero-banner-main-metric">
         <div>
           <span class="hero-metric-value">${escapeHTML(opts.mainMetricValue)}</span>
-          <span class="hero-metric-unit">${escapeHTML(opts.mainMetricUnit || '')}</span>
+          <span class="hero-metric-unit">${opts.mainMetricUnitHtml || escapeHTML(opts.mainMetricUnit || '')}</span>
         </div>
-        ${opts.clearanceText ? `<span class="hero-clearance-pill">${escapeHTML(opts.clearanceText)}</span>` : ''}
+        ${opts.clearanceText ? `<span class="hero-clearance-pill">${opts.clearanceText}</span>` : ''}
       </div>
 
       ${trackHtml}
@@ -180,6 +181,7 @@ export async function setupCatchmentNav(currentCatchmentId) {
 }
 
 export async function initApp() {
+  initJargonPopovers();
   activeCatchmentId = getActiveCatchmentId();
   try {
     hydroConfig = await loadCatchmentConfig(activeCatchmentId);
@@ -508,7 +510,7 @@ export async function refreshLiveDashboard() {
         html: `<strong>Athelney Spillway (Outflow):</strong> ${athelneySpillway.statusText}`,
         tooltip: `📍 Athelney Crest: ${athelneyCrest.toFixed(2)}m AOD (Standard Profile) | Overspill cascade from Curry Moor into Northmoor when stage ≥ 7.35m AOD`
       },
-      `<strong>Currymoor Gravity Sluice:</strong> ${cmGravitySluice.statusText}`,
+      `<strong>Currymoor Gravity ${renderJargonTerm('Clyse')}:</strong> ${cmGravitySluice.statusText}`,
       {
         html: `<strong>Currymoor PS:</strong> ${currymoorPump.statusText}`,
         tooltip: `📍 Currymoor Pumping Station`
@@ -674,7 +676,7 @@ export async function refreshLiveDashboard() {
         html: `<strong>Beer Wall / Allens Spillway:</strong> ${beerWallSpillway.statusText}`,
         tooltip: `📍 Beer Wall Crest: ${beerWallCrest.toFixed(2)}m AOD (${beerWallScheme})`
       },
-      `<strong>Northmoor Gravity Clyse:</strong> ${nmGravitySluice.statusText}`,
+      `<strong>Northmoor Gravity ${renderJargonTerm('Clyse')}:</strong> ${nmGravitySluice.statusText}`,
       {
         html: `<strong>Saltmoor PS:</strong> ${saltmoorPump.statusText}`,
         tooltip: `📍 Saltmoor Pumping Station`
@@ -739,25 +741,25 @@ export async function refreshLiveDashboard() {
   container.appendChild(createMoorCard({
     title: "Sowy Relief Channel",
     heroBanner: sowyHeroBanner,
-    riverTag: `Diverts: Parrett ➔ Sedgemoor Drain (${regime.label})`,
+    riverTag: `Diverts: Parrett ➔ Sedgemoor Drain (${renderJargonTerm('KSD')}) (${regime.label})`,
     eval: sowyEval,
     provenanceTag: "📡 DEDICATED SENSORS",
     provenanceClass: "prov-high",
     metricText: `Sowy Level: ${monksDownLevel.toFixed(2)}m AOD`,
-    clearanceText: `Head Drop Across Clyse: ${headDropFormatted} (${monksUpLevel.toFixed(3)}m ➔ ${monksDownLevel.toFixed(3)}m)`,
+    clearanceText: `Head Drop Across ${renderJargonTerm('Clyse')}: ${headDropFormatted} (${monksUpLevel.toFixed(3)}m ➔ ${monksDownLevel.toFixed(3)}m)`,
     narrative: sowyEval.narrative,
     pills: [
       {
-        html: `<strong>Monk's Leaze Clyse:</strong> ${sowyEval.pillText}`,
+        html: `<strong>Monk's Leaze ${renderJargonTerm('Clyse')}:</strong> ${sowyEval.pillText}`,
         tooltip: `📍 Monk's Leaze Sill: 4.20m AOD`
       },
       `<strong>Monk's Leaze Intake Differential:</strong> 🟢 ${headDropFormatted} Head Drop (Parrett ➔ Sowy)`,
       {
-        html: `<strong>Oath Lock Penning Sluice:</strong> ${oathLock.statusText}`,
+        html: `<strong>Oath Lock ${renderJargonTerm('Penning')} Sluice:</strong> ${oathLock.statusText}`,
         tooltip: `📍 Oath Lock Penning Structure`
       },
       `<strong>Upstream Tributary Inflow:</strong> River Yeo: ${huishLevel.toFixed(2)}m AOD | River Isle: ${midelneyLevel.toFixed(2)}m AOD`,
-      `<strong>Beer Wall Intake (Greylake):</strong> ${monksDownLevel >= 6.00 ? '🟢 CONVEYANCE TO KSD' : '⚪ PENNING LEVEL'}`
+      `<strong>Beer Wall Intake (Greylake):</strong> ${monksDownLevel >= 6.00 ? '🟢 CONVEYANCE TO ' + renderJargonTerm('KSD') : '⚪ ' + renderJargonTerm('Penning') + ' LEVEL'}`
     ],
     camLinks: [
       { label: "Monk's Leaze Clyse", url: "https://thecfh.org/parretttonewsom.php#monksleaze", title: "View 3-min EA Snapshot Camera at Monk's Leaze Clyse" },
@@ -792,7 +794,7 @@ export async function refreshLiveDashboard() {
       { label: "DISCHARGING", badgeClass: "badge-secure", symbol: "✓" },
     mainMetricValue: dunballSea.toFixed(2),
     mainMetricUnit: 'm AOD (Parrett Estuary)',
-    clearanceText: `Inland KSD: ${dunballInland.toFixed(2)}m AOD`,
+    clearanceText: `Inland ${renderJargonTerm('KSD')}: ${dunballInland.toFixed(2)}m AOD`,
     minLevel: Math.min(dunballSea, dunballInland) - 0.5,
     maxLevel: Math.max(dunballSea, dunballInland) + 0.5,
     currentLevel: dunballSea,
@@ -827,9 +829,9 @@ export async function refreshLiveDashboard() {
     pills: [
       {
         html: `<strong>Dunball Flap Doors:</strong> ${isTideLocked ? '🕒 TIDE-LOCKED (SEA HEAD)' : '🟢 GRAVITY DISCHARGING'}`,
-        tooltip: `📍 Dunball Primary Clyse Outfall`
+        tooltip: `📍 Dunball Primary ${renderJargonTerm('Clyse')} Outfall`
       },
-      `<strong>Dunball Penstock Barrier:</strong> ${isTideLocked ? '🔒 PENNING / SURGE SEALED' : '🟢 OPEN FOR DISCHARGE'}`,
+      `<strong>Dunball ${renderJargonTerm('Penning')} Barrier:</strong> ${isTideLocked ? '🔒 PENNING / SURGE SEALED' : '🟢 OPEN FOR DISCHARGE'}`,
       `<strong>Emergency High-Volume Pumps:</strong> ${dunballEmergencyPump.statusText}`
     ],
     camLinks: [
@@ -1048,7 +1050,7 @@ function createMoorCard(opts) {
         ${opts.spillwayMeta ? `
         <div class="sub-station-row">
           <span>Surveyed Spillway Crest</span>
-          <strong style="color: #38bdf8; font-family: monospace;">${opts.spillwayMeta.crest}m AOD</strong>
+          <strong style="color: #38bdf8; font-family: monospace;">${opts.spillwayMeta.crest} ${renderJargonTerm('mAOD', 'm AOD')}</strong>
         </div>
         <div class="sub-station-row">
           <span>Survey & Scheme Origin</span>
