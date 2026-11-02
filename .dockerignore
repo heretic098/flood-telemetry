@@ -1,5 +1,8 @@
 node_modules
 .git
 telemetry.db*
+flood_telemetry.db*
 .agents
 .env
+private_outreach
+
