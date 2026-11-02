@@ -8,6 +8,22 @@
 </head>
 <body>
 
+  <!-- Sticky Network Offline Banner -->
+  <div id="network-offline-banner" class="network-offline-banner" role="alert" aria-live="assertive" style="display: none;"></div>
+
+  <!-- Print Situation Report Header (Shown only during @media print) -->
+  <div class="print-situation-header" aria-hidden="true">
+    <div class="print-title-group">
+      <h1>Somerset Levels &amp; Moors — Flood Telemetry Situation Report</h1>
+      <p class="print-subtitle">Hydrological Assets, Lowland Flood Storage Basins &amp; River Telemetry</p>
+    </div>
+    <div class="print-situation-meta">
+      <span><strong>Generated:</strong> <span id="print-time-stamp">Loading...</span></span>
+      <span><strong>Authority:</strong> UK Environment Agency Telemetry • OGL v3.0</span>
+      <span><strong>Classification:</strong> Public Advisory Briefing</span>
+    </div>
+  </div>
+
   <header role="banner">
     <div class="header-top">
       <div class="title-group">
@@ -18,9 +34,10 @@
         </div>
       </div>
       <nav class="nav-links" aria-label="Main Navigation">
-        <a href="index.html" class="nav-btn active" aria-current="page">📊 Live Dashboard</a>
-        <a href="topology.html" class="nav-btn">🗺️ River Network Map</a>
-        <a href="methodology.html" class="nav-btn">📖 Methodology &amp; Provenance</a>
+        <a href="index.html" class="nav-btn nav-link active" aria-current="page">📊 Overview</a>
+        <a href="roads.html" class="nav-btn nav-link">🚗 Roads &amp; Access</a>
+        <a href="topology.html" class="nav-btn nav-link">🗺️ River Topology</a>
+        <a href="methodology.html" class="nav-btn nav-link">📖 Methodology</a>
       </nav>
       <div class="time-preset-group" id="time-preset-group" title="Select historical lookback window for sparklines and status evaluation">
         <span class="preset-label">Period:</span>
@@ -41,6 +58,14 @@
     
     <div class="alert-banner" id="alert-banner" role="status" aria-live="polite">
       INITIALIZING SYSTEM TELEMETRY...
+    </div>
+
+    <!-- Road Status Bridge Banner [Roads View Carve-Out] -->
+    <div id="road-status-summary-banner" class="road-status-banner banner-passable" role="region" aria-label="Roads &amp; Access Status Summary">
+      <a href="roads.html" class="road-banner-inner" id="road-banner-link">
+        <span class="road-banner-text" id="road-banner-text">🚗 <strong>Roads &amp; Access:</strong> All 8 Monitored Corridors Passable</span>
+        <span class="road-banner-action" id="road-banner-action">View Roads Status ↗</span>
+      </a>
     </div>
 
     <div class="global-timestamp-bar" id="global-timestamp-banner" role="region" aria-label="Telemetry Freshness Status">
@@ -164,6 +189,7 @@
   </footer>
 
   <script type="module" src="js/sparkline.js"></script>
+  <script type="module" src="js/camera_guide.js"></script>
   <script type="module" src="js/app.js"></script>
 </body>
 </html>

@@ -123,12 +123,77 @@ let isPanning = false;
 let panStart = { x: 0, y: 0 };
 let isDragMoved = false;
 
-document.addEventListener('DOMContentLoaded', () => {
-  initTopology();
-});
+
+let currentActiveRange = '24h';
+let lastSuccessfulSyncTime = null;
+
+export function setupOfflineBanner() {
+  if (typeof window === 'undefined') return;
+  const banner = document.getElementById('network-offline-banner');
+  if (!banner) return;
+
+  function handleOffline() {
+    const timeStr = lastSuccessfulSyncTime
+      ? lastSuccessfulSyncTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      : '--:--';
+    banner.textContent = `⚠️ Network Disconnected — Displaying cached data from ${timeStr}`;
+    banner.className = 'network-offline-banner offline';
+    banner.style.display = 'block';
+  }
+
+  async function handleOnline() {
+    banner.textContent = '✅ Connection Restored — Refreshing data...';
+    banner.className = 'network-offline-banner online';
+    banner.style.display = 'block';
+    await loadTopologyData(false);
+    setTimeout(() => {
+      banner.style.display = 'none';
+    }, 2500);
+  }
+
+  window.addEventListener('offline', handleOffline);
+  window.addEventListener('online', handleOnline);
+
+  if (!navigator.onLine) {
+    handleOffline();
+  }
+}
+
+function setupPeriodListeners() {
+  const buttons = document.querySelectorAll('.preset-btn');
+  buttons.forEach(btn => {
+    btn.addEventListener('click', async () => {
+      buttons.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentActiveRange = btn.getAttribute('data-range') || '24h';
+      if (typeof window !== 'undefined' && window.sessionStorage) {
+        try {
+          sessionStorage.setItem('somerset_time_range', currentActiveRange);
+        } catch (e) {}
+      }
+      await loadTopologyData(false);
+    });
+  });
+
+  // Rehydrate from sessionStorage
+  if (typeof window !== 'undefined' && window.sessionStorage) {
+    try {
+      const savedRange = sessionStorage.getItem('somerset_time_range');
+      if (savedRange && ['24h', '7d', '30d'].includes(savedRange)) {
+        currentActiveRange = savedRange;
+        buttons.forEach(b => {
+          const isMatch = b.getAttribute('data-range') === currentActiveRange;
+          b.classList.toggle('active', isMatch);
+        });
+      }
+    } catch (e) {}
+  }
+}
 
 async function initTopology() {
   initJargonPopovers();
+  setupOfflineBanner();
+  setupPeriodListeners();
   if (typeof window !== 'undefined' && window.location) {
     const urlParams = new URLSearchParams(window.location.search);
     const stationParam = urlParams.get('station') || urlParams.get('node');
@@ -528,17 +593,19 @@ async function loadTopologyData(isSilentRefresh = false) {
     const results = await Promise.allSettled([
       fetch('/api/topology'),
       fetch('/api/status'),
-      fetch('/api/history?range=24h')
+      fetch(`/api/history?range=${currentActiveRange}`)
     ]);
 
     if (results[0].status === 'fulfilled' && results[0].value.ok) {
       topologyData = await results[0].value.json();
+      lastSuccessfulSyncTime = new Date();
     } else if (!topologyData) {
       topologyData = { nodes: DEFAULT_TOPOLOGY_NODES, edges: DEFAULT_TOPOLOGY_EDGES };
     }
 
     if (results[1].status === 'fulfilled' && results[1].value.ok) {
       statusData = await results[1].value.json();
+      lastSuccessfulSyncTime = new Date();
     }
 
     if (results[2].status === 'fulfilled' && results[2].value.ok) {
@@ -1228,6 +1295,38 @@ function isEdgeMatchingFilter(edge, fromNode, toNode) {
   return true;
 }
 
+export function getDashboardCardIdForNode(nodeId) {
+  const NODE_TO_CARD_MAP = {
+    '52108': '52118',
+    '52109': '52118',
+    '52111': '52118',
+    '52162': '52118',
+    '52118': '52118',
+    '52127': '52118',
+    'currymoor_ps': '52118',
+    '52116': '52158',
+    '52119': '52158',
+    '52158': '52158',
+    '52159': '52158',
+    'saltmoor_ps': '52158',
+    '52124': '52158',
+    '52233': '52233',
+    '52234': '52233',
+    '52157': '52233',
+    'E9531': '52233',
+    '52163': '52163',
+    'E9094': '52163',
+    '52120': '52120',
+    '52121': '52120',
+    '52117': '52120',
+    '52112': '52120',
+    '52153': '52120',
+    '52115': '52120',
+    '52114': '52120'
+  };
+  return NODE_TO_CARD_MAP[nodeId] || nodeId;
+}
+
 function inspectNode(nodeId, restoreFocus = false) {
   selectedNodeId = nodeId;
   syncUrlState();
@@ -1820,11 +1919,39 @@ function inspectNode(nodeId, restoreFocus = false) {
   if (footerLinks) {
     const mainGovUkUrl = node.govuk_link || node.ea_link || `https://environment.data.gov.uk/flood-monitoring/id/stations/${node.id}.html`;
     const mainGovUkText = node.govuk_link ? '📊 View GOV.UK Gauge Page ↗' : '📡 View EA Open Telemetry API ↗';
+    
+    const cardTargetId = getDashboardCardIdForNode(node.id);
+    const dashboardCardBtn = `
+      <a href="index.html#card-${cardTargetId}" class="ext-link-btn" id="btn-view-dashboard-card" title="View Full Dashboard Card for ${escapeAttr(node.name)}">
+        📊 View Full Dashboard Card ↗
+      </a>
+    `;
+
+    const NODE_CAM_MAP = {
+      '52118': 'hookbridge',
+      '52127': 'currymoor',
+      'currymoor_ps': 'currymoor',
+      '52158': 'baltmoor',
+      '52159': 'saltmoor',
+      'saltmoor_ps': 'saltmoor',
+      '52233': 'monksleaze',
+      '52234': 'monksleaze',
+      '52163': 'dunball',
+      'E9094': 'dunball'
+    };
+    const camSite = NODE_CAM_MAP[node.id];
+    const camGuideHtml = camSite ? `
+      <button type="button" class="ext-link-btn camera-guide-trigger" data-camera-guide="${camSite}" title="Open Layperson Camera Guide">🧭 Camera Guide</button>
+    ` : '';
+
     const cameraHtml = node.id === '52233' ? `
       <a href="https://thecfh.org/parretttonewsom.php#monksleaze" target="_blank" rel="noopener noreferrer" class="ext-link-btn" style="border-color: rgba(56, 189, 248, 0.4); color: #38bdf8;" title="View Monk's Leaze Clyse Spillway Crest &amp; Intake Camera at thecfh.org">📷 Spillway Crest &amp; Intake Camera ↗</a>
     ` : '';
+
     footerLinks.innerHTML = `
+      ${dashboardCardBtn}
       ${cameraHtml}
+      ${camGuideHtml}
       <a href="${escapeAttr(mainGovUkUrl)}" target="_blank" rel="noopener noreferrer" class="ext-link-btn" id="node-govuk-link">${escapeHTML(mainGovUkText)}</a>
     `;
   }
@@ -2129,3 +2256,15 @@ function bindInspectorSparklineEvents(container) {
     }
   });
 }
+
+// Auto-boot if in browser context
+if (typeof window !== 'undefined') {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+      initTopology();
+    });
+  } else {
+    initTopology();
+  }
+}
+

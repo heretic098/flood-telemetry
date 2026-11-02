@@ -2598,12 +2598,14 @@ export function evaluateRoadCorridor(assetDef, readingsSource = [], activeSessio
 
   // Datum offset correction if readings are mASD (Huish 52120: +5.000m)
   const reg = STATION_REGISTRY[stationId];
-  const datumOffset = (reg?.unit === 'mASD' && typeof reg.datum_mAOD === 'number') ? reg.datum_mAOD : 0;
+  const datumOffset = reg?.datum_offset_mAOD || 0;
 
   const latestItem = readings[0];
   let rawStage = (typeof latestItem === 'object' && latestItem !== null) ? latestItem.value : latestItem;
   if (rawStage !== null && rawStage !== undefined && !isNaN(rawStage) && datumOffset > 0) {
-    rawStage = Number((rawStage + datumOffset).toFixed(3));
+    if (rawStage < datumOffset) {
+      rawStage = Number((rawStage + datumOffset).toFixed(3));
+    }
   }
   const stage = sanitizeStageValue(rawStage);
   const readingTime = (typeof latestItem === 'object' && latestItem?.dateTime)

@@ -74,9 +74,12 @@ async function run() {
   const topologyPath = path.join(outDirArg, `topology_${stationArg}.png`);
   const mobileDashboardPath = path.join(outDirArg, 'dashboard_mobile_375.png');
   const mobileTopologyPath = path.join(outDirArg, `topology_mobile_375.png`);
+  const roadsPath = path.join(outDirArg, 'roads_main.png');
+  const mobileRoadsPath = path.join(outDirArg, 'roads_mobile_375.png');
 
   const commonFlags = [
     '--headless=new',
+    '--incognito',
     '--no-sandbox',
     '--disable-gpu',
     '--hide-scrollbars',
@@ -109,6 +112,18 @@ async function run() {
         '--window-size=375,1400',
         `--screenshot=${mobileTopologyPath}`,
         `${baseUrl}/topology.html?station=${encodeURIComponent(stationArg)}`
+      ]),
+      execFileAsync(chromeBin, [
+        ...commonFlags,
+        '--window-size=1440,1850',
+        `--screenshot=${roadsPath}`,
+        `${baseUrl}/roads.html`
+      ]),
+      execFileAsync(chromeBin, [
+        ...commonFlags,
+        '--window-size=375,1400',
+        `--screenshot=${mobileRoadsPath}`,
+        `${baseUrl}/roads.html`
       ])
     ]);
 
@@ -118,6 +133,8 @@ async function run() {
     console.log(`  2. Topology View  Desktop (1440x1700): ${topologyPath}`);
     console.log(`  3. Main Dashboard Mobile  (375x1400):  ${mobileDashboardPath}`);
     console.log(`  4. Topology View  Mobile  (375x1400):  ${mobileTopologyPath}`);
+    console.log(`  5. Roads View     Desktop (1440x1850): ${roadsPath}`);
+    console.log(`  6. Roads View     Mobile  (375x1400):  ${mobileRoadsPath}`);
   } finally {
     if (ephemeralServer) {
       await new Promise(resolve => ephemeralServer.close(resolve));

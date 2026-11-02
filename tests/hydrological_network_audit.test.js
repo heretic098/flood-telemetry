@@ -435,3 +435,45 @@ test('HYDRO-14: All 19 network stations define structured 4-tier threshold prove
     assert.ok(node.provenance.alert, `Topology node ${node.id} must deliver alert provenance metadata`);
   }
 });
+
+test('HYDRO-15: Road passability model strictly applies surveyed geodetic datum offsets (mAOD Newlyn) to raw gauge telemetry', async () => {
+  const { evaluateRoadNetwork } = await import('../src/js/hydro_engine.js');
+
+  // Huish Episcopi (52120) raw stage in mASD: 1.68m
+  // Surveyed datum offset: +5.000m ODN -> Expected stage: 6.68m AOD
+  const mockMeasuresBaseflow = {
+    '52120-level-stage-i-15_min-mASD': [{ value: 1.68, dateTime: new Date().toISOString() }],
+    '52127-level-stage-i-15_min-mAOD': [{ value: 4.48, dateTime: new Date().toISOString() }]
+  };
+
+  const resBaseflow = evaluateRoadNetwork(mockMeasuresBaseflow);
+  const muchelney = resBaseflow.corridors.muchelney_access;
+  const bicknells = resBaseflow.corridors.bicknells_bridge_access;
+
+  assert.equal(muchelney.stage_mAOD, 6.68, 'Muchelney stage must convert 1.68m mASD to 6.68m AOD');
+  assert.equal(muchelney.clearance_m, 1.18, 'Clearance to 7.86m crown must be 1.18m (not 6.18m)');
+  assert.equal(muchelney.status, 'PASSABLE');
+
+  assert.equal(bicknells.stage_mAOD, 6.68, 'Bicknells bridge stage must convert 1.68m mASD to 6.68m AOD');
+  assert.equal(bicknells.clearance_m, 0.62, 'Clearance to 7.30m crown must be 0.62m');
+  assert.equal(bicknells.status, 'PASSABLE');
+
+  // Encroachment scenario: Huish stage 2.35m mASD = 7.35m AOD (exceeds 7.30m Lawyers Mill breach)
+  const mockMeasuresEncroaching = {
+    '52120-level-stage-i-15_min-mASD': [{ value: 2.35, dateTime: new Date().toISOString() }],
+    '52127-level-stage-i-15_min-mAOD': [{ value: 4.48, dateTime: new Date().toISOString() }]
+  };
+  const resEncroaching = evaluateRoadNetwork(mockMeasuresEncroaching);
+  assert.equal(resEncroaching.corridors.muchelney_access.stage_mAOD, 7.35);
+  assert.equal(resEncroaching.corridors.muchelney_access.status, 'ENCROACHING');
+
+  // Impassable scenario: Huish stage 2.90m mASD = 7.90m AOD (exceeds 7.86m SRA raised crown)
+  const mockMeasuresImpassable = {
+    '52120-level-stage-i-15_min-mASD': [{ value: 2.90, dateTime: new Date().toISOString() }],
+    '52127-level-stage-i-15_min-mAOD': [{ value: 4.48, dateTime: new Date().toISOString() }]
+  };
+  const resImpassable = evaluateRoadNetwork(mockMeasuresImpassable);
+  assert.equal(resImpassable.corridors.muchelney_access.stage_mAOD, 7.90);
+  assert.equal(resImpassable.corridors.muchelney_access.status, 'IMPASSABLE');
+});
+

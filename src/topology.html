@@ -8,6 +8,9 @@
 </head>
 <body>
 
+  <!-- Sticky Network Offline Banner -->
+  <div id="network-offline-banner" class="network-offline-banner" role="alert" aria-live="assertive" style="display: none;"></div>
+
   <header role="banner">
     <div class="header-top">
       <div class="title-group">
@@ -18,10 +21,17 @@
         </div>
       </div>
       <nav class="nav-links" aria-label="Main Navigation">
-        <a href="index.html" class="nav-btn">📊 Live Dashboard</a>
-        <a href="topology.html" class="nav-btn active" aria-current="page">🗺️ River Network Map</a>
-        <a href="methodology.html" class="nav-btn">📖 Methodology &amp; Provenance</a>
+        <a href="index.html" class="nav-btn nav-link">📊 Overview</a>
+        <a href="roads.html" class="nav-btn nav-link">🚗 Roads &amp; Access</a>
+        <a href="topology.html" class="nav-btn nav-link active" aria-current="page">🗺️ River Topology</a>
+        <a href="methodology.html" class="nav-btn nav-link">📖 Methodology</a>
       </nav>
+      <div class="time-preset-group" id="time-preset-group" title="Select historical lookback window for sparklines and status evaluation">
+        <span class="preset-label">Period:</span>
+        <button class="preset-btn active" data-range="24h" id="btn-preset-24h">24h</button>
+        <button class="preset-btn" data-range="7d" id="btn-preset-7d">7d</button>
+        <button class="preset-btn" data-range="30d" id="btn-preset-30d">30d Archive</button>
+      </div>
       <div class="header-right-group">
         <div class="counter-pill" id="counter-pill" role="status" aria-live="polite">[ Loading Topology... ]</div>
         <div class="telemetry-freshness-pill freshness-fresh" id="ea-freshness-pill" role="status" aria-live="polite">📡 Telemetry: Loading...</div>
@@ -216,6 +226,7 @@
   </footer>
 
   <script type="module" src="js/sparkline.js"></script>
+  <script type="module" src="js/camera_guide.js"></script>
   <script type="module" src="js/topology.js?v=1.2.0"></script>
 </body>
 </html>

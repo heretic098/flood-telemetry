@@ -183,13 +183,15 @@ export async function setupCatchmentNav(currentCatchmentId) {
       const data = await res.json();
       if (data.catchments && Array.isArray(data.catchments)) {
         const isDashboard = window.location.pathname.endsWith('index.html') || window.location.pathname === '/' || window.location.pathname.endsWith('/somerset') || window.location.pathname.endsWith('/somerset/');
+        const isRoads = window.location.pathname.endsWith('roads.html');
         const isTopology = window.location.pathname.endsWith('topology.html');
         const isMethodology = window.location.pathname.endsWith('methodology.html');
 
         navContainer.innerHTML = `
-          <a href="index.html" class="nav-btn ${isDashboard ? 'active' : ''}" ${isDashboard ? 'aria-current="page"' : ''}>📊 Live Dashboard</a>
-          <a href="topology.html" class="nav-btn ${isTopology ? 'active' : ''}" ${isTopology ? 'aria-current="page"' : ''}>🗺️ River Network Map</a>
-          <a href="methodology.html" class="nav-btn ${isMethodology ? 'active' : ''}" ${isMethodology ? 'aria-current="page"' : ''}>📖 Methodology &amp; Provenance</a>
+          <a href="index.html" class="nav-btn nav-link ${isDashboard ? 'active' : ''}" ${isDashboard ? 'aria-current="page"' : ''}>📊 Overview</a>
+          <a href="roads.html" class="nav-btn nav-link ${isRoads ? 'active' : ''}" ${isRoads ? 'aria-current="page"' : ''}>🚗 Roads &amp; Access</a>
+          <a href="topology.html" class="nav-btn nav-link ${isTopology ? 'active' : ''}" ${isTopology ? 'aria-current="page"' : ''}>🗺️ River Topology</a>
+          <a href="methodology.html" class="nav-btn nav-link ${isMethodology ? 'active' : ''}" ${isMethodology ? 'aria-current="page"' : ''}>📖 Methodology</a>
         `;
       }
     }
@@ -304,6 +306,7 @@ export async function initApp() {
   setupModalListeners();
   setupPeriodListeners();
   setupManualRefreshListener();
+  setupOfflineBanner();
   await refreshLiveDashboard();
   startAutoRefresh(60000);
 }
@@ -334,6 +337,80 @@ function setupModalListeners() {
   }
 }
 
+let lastSuccessfulSyncTime = null;
+
+export function setupOfflineBanner() {
+  if (typeof window === 'undefined') return;
+  const banner = document.getElementById('network-offline-banner');
+  if (!banner) return;
+
+  function handleOffline() {
+    const timeStr = lastSuccessfulSyncTime
+      ? lastSuccessfulSyncTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      : '--:--';
+    banner.textContent = `⚠️ Network Disconnected — Displaying cached data from ${timeStr}`;
+    banner.className = 'network-offline-banner offline';
+    banner.style.display = 'block';
+  }
+
+  async function handleOnline() {
+    banner.textContent = '✅ Connection Restored — Refreshing data...';
+    banner.className = 'network-offline-banner online';
+    banner.style.display = 'block';
+    await refreshLiveDashboard();
+    setTimeout(() => {
+      banner.style.display = 'none';
+    }, 2500);
+  }
+
+  window.addEventListener('offline', handleOffline);
+  window.addEventListener('online', handleOnline);
+
+  if (!navigator.onLine) {
+    handleOffline();
+  }
+}
+
+export function updateRoadStatusSummaryBanner(roadData) {
+  if (typeof document === 'undefined') return;
+  const banner = document.getElementById('road-status-summary-banner');
+  if (!banner) return;
+
+  const corridorsList = roadData?.corridors_list || [];
+  const counts = roadData?.counts || {
+    all: corridorsList.length,
+    impassable: corridorsList.filter(c => c.status === 'IMPASSABLE').length,
+    encroaching: corridorsList.filter(c => c.status === 'ENCROACHING').length,
+    passable: corridorsList.filter(c => c.status === 'PASSABLE').length
+  };
+
+  const closedCorridors = corridorsList.filter(c => c.status === 'IMPASSABLE');
+  const encroachingCorridors = corridorsList.filter(c => c.status === 'ENCROACHING');
+  const affectedCount = closedCorridors.length + encroachingCorridors.length;
+
+  if (affectedCount === 0) {
+    banner.className = 'road-status-banner banner-passable';
+    banner.innerHTML = `
+      <a href="roads.html" class="road-banner-inner" id="road-banner-link">
+        <span class="road-banner-text">🚗 <strong>Roads &amp; Access:</strong> All 8 Monitored Corridors Passable</span>
+        <span class="road-banner-action">View Roads Status ↗</span>
+      </a>
+    `;
+  } else {
+    const leadCorridor = closedCorridors[0] || encroachingCorridors[0];
+    const leadName = leadCorridor ? leadCorridor.name : 'Highway';
+    const leadStatus = closedCorridors.length > 0 ? 'Impassable' : 'Encroaching';
+    const warningClass = closedCorridors.length > 0 ? 'banner-critical' : 'banner-alert';
+    banner.className = `road-status-banner ${warningClass}`;
+    banner.innerHTML = `
+      <a href="roads.html" class="road-banner-inner" id="road-banner-link">
+        <span class="road-banner-text">⚠️ <strong>Road Warning:</strong> ${affectedCount} Corridor${affectedCount > 1 ? 's' : ''} Affected (${escapeHTML(leadName)} ${leadStatus})</span>
+        <span class="road-banner-action">View Roads Dashboard ↗</span>
+      </a>
+    `;
+  }
+}
+
 function setupPeriodListeners() {
   const buttons = document.querySelectorAll('.preset-btn');
   buttons.forEach(btn => {
@@ -341,9 +418,28 @@ function setupPeriodListeners() {
       buttons.forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       currentActiveRange = btn.getAttribute('data-range') || '24h';
+      if (typeof window !== 'undefined' && window.sessionStorage) {
+        try {
+          sessionStorage.setItem('somerset_time_range', currentActiveRange);
+        } catch (e) {}
+      }
       await refreshLiveDashboard();
     });
   });
+
+  // Rehydrate saved preset from sessionStorage
+  if (typeof window !== 'undefined' && window.sessionStorage) {
+    try {
+      const savedRange = sessionStorage.getItem('somerset_time_range');
+      if (savedRange && ['24h', '7d', '30d'].includes(savedRange)) {
+        currentActiveRange = savedRange;
+        buttons.forEach(b => {
+          const isMatch = b.getAttribute('data-range') === currentActiveRange;
+          b.classList.toggle('active', isMatch);
+        });
+      }
+    } catch (e) {}
+  }
 }
 
 async function fetchAllTelemetryFromDB(range = currentActiveRange) {
@@ -600,12 +696,9 @@ export async function refreshLiveDashboard() {
     }
   }
 
-  // Dedicated Community Roads & Access Card (Top-tier Strategic Anchor Card) [Issue #12]
+  // Dedicated Community Roads & Access Summary Bridge Banner [Issue #12 / Roads Carve-Out]
   const roadData = dbData?.roads || evaluateRoadNetwork(dbMeasures || {}, activeEventsMap);
-  const roadCard = renderRoadNetworkCard(roadData, activeEventsMap);
-  if (roadCard) {
-    container.appendChild(roadCard);
-  }
+  updateRoadStatusSummaryBanner(roadData);
 
   // Card 1: Curry Moor
   const hookbridgeConfig = hydroConfig?.moors?.curry_moor?.spillway;
@@ -663,6 +756,9 @@ export async function refreshLiveDashboard() {
 
   container.appendChild(createMoorCard({
     title: "Curry Moor System",
+    cardId: "card-52118",
+    stationId: "52118",
+    cameraGuideSite: "hookbridge",
     heroBanner: cmHeroBanner,
     riverTag: `Catchment: River Tone (${regime.label})`,
     eval: cmEval,
@@ -717,6 +813,7 @@ export async function refreshLiveDashboard() {
       }
     ],
     extLinks: [
+      { label: "🗺️ View on River Map ↗", url: "topology.html?station=52118" },
       { label: "📷 Live Curry Moor Webcams (thecfh.org#hook) ↗", url: "https://thecfh.org/parretttonewsom.php#hook" },
       { label: "📊 GOV.UK Tone Stage (3073) ↗", url: "https://check-for-flooding.service.gov.uk/station/3073" },
       { label: "📊 GOV.UK Moor Stage (3064) ↗", url: "https://check-for-flooding.service.gov.uk/station/3064" },
@@ -770,6 +867,9 @@ export async function refreshLiveDashboard() {
 
   container.appendChild(createMoorCard({
     title: "Athelney Spillway (Inter-Moor Relief)",
+    cardId: "card-52127",
+    stationId: "52127",
+    cameraGuideSite: "baltmoor",
     cardClass: "athelney-cascade-card",
     heroBanner: athelneyHeroBanner,
     riverTag: `Inter-Moor Cascade: Curry Moor ➔ Northmoor`,
@@ -814,6 +914,7 @@ export async function refreshLiveDashboard() {
       }
     ],
     extLinks: [
+      { label: "🗺️ View on River Map ↗", url: "topology.html?station=52127" },
       { label: "📷 Live Athelney Webcam (thecfh.org) ↗", url: "https://thecfh.org/parretttonewsom.php#athelneyspillway" },
       { label: "📊 GOV.UK Curry Moor Stage (3064) ↗", url: "https://check-for-flooding.service.gov.uk/station/3064" },
       { label: "📊 GOV.UK Northmoor Stage (3415) ↗", url: "https://check-for-flooding.service.gov.uk/station/3415" },
@@ -877,6 +978,9 @@ export async function refreshLiveDashboard() {
 
   container.appendChild(createMoorCard({
     title: "Northmoor & Saltmoor",
+    cardId: "card-52158",
+    stationId: "52158",
+    cameraGuideSite: "baltmoor",
     heroBanner: nmHeroBanner,
     riverTag: `Catchment: River Parrett (${regime.label})`,
     eval: nmEval,
@@ -940,6 +1044,7 @@ export async function refreshLiveDashboard() {
       }
     ],
     extLinks: [
+      { label: "🗺️ View on River Map ↗", url: "topology.html?station=52158" },
       { label: "📷 Live Saltmoor & Northmoor Webcams (thecfh.org#saltmoor) ↗", url: "https://thecfh.org/parretttonewsom.php#saltmoor" },
       { label: "📊 GOV.UK Wall Stage (3400) ↗", url: "https://check-for-flooding.service.gov.uk/station/3400" },
       { label: "📊 GOV.UK Drain Stage (3415) ↗", url: "https://check-for-flooding.service.gov.uk/station/3415" },
@@ -985,6 +1090,9 @@ export async function refreshLiveDashboard() {
 
   container.appendChild(createMoorCard({
     title: "Sowy Relief Channel",
+    cardId: "card-52233",
+    stationId: "52233",
+    cameraGuideSite: "monksleaze",
     heroBanner: sowyHeroBanner,
     riverTag: `Diverts: Parrett ➔ Sedgemoor Drain (${renderJargonTerm('KSD')}) (${regime.label})`,
     eval: sowyEval,
@@ -1033,6 +1141,7 @@ export async function refreshLiveDashboard() {
       }
     ],
     extLinks: [
+      { label: "🗺️ View on River Map ↗", url: "topology.html?station=52233" },
       { label: "📷 Live Sowy Channel Webcams (thecfh.org#monksleaze) ↗", url: "https://thecfh.org/parretttonewsom.php#monksleaze" },
       { label: "EA Upstream (52233) ↗", url: "https://environment.data.gov.uk/flood-monitoring/id/stations/52233.html" },
       { label: "EA Downstream (52234) ↗", url: "https://environment.data.gov.uk/flood-monitoring/id/stations/52234.html" },
@@ -1081,6 +1190,9 @@ export async function refreshLiveDashboard() {
 
   container.appendChild(createMoorCard({
     title: "Dunball Sea Outfall",
+    cardId: "card-52163",
+    stationId: "52163",
+    cameraGuideSite: "dunball",
     heroBanner: dunballHeroBanner,
     riverTag: `Outfall: Sedgemoor Drain ➔ Parrett Estuary (${regime.label})`,
     eval: dunballStatusBadge,
@@ -1128,6 +1240,7 @@ export async function refreshLiveDashboard() {
       }
     ],
     extLinks: [
+      { label: "🗺️ View on River Map ↗", url: "topology.html?station=52163" },
       { label: "📷 Live Dunball Webcams (thecfh.org#dunball) ↗", url: "https://thecfh.org/parretttonewsom.php#dunball" },
       { label: "📊 GOV.UK KSD Stage (9499) ↗", url: "https://check-for-flooding.service.gov.uk/station/9499" },
       { label: "📊 GOV.UK Tidal Stage (9129) ↗", url: "https://check-for-flooding.service.gov.uk/station/9129" },
@@ -1183,6 +1296,9 @@ export async function refreshLiveDashboard() {
 
   container.appendChild(createMoorCard({
     title: "Langport Confluence & Tributaries",
+    cardId: "card-52120",
+    stationId: "52120",
+    cameraGuideSite: "currymoor",
     heroBanner: confluenceHeroBanner,
     riverTag: `Catchment: River Yeo & Isle Confluence (${regime.label})`,
     eval: confluenceBadge,
@@ -1241,6 +1357,7 @@ export async function refreshLiveDashboard() {
       }
     ],
     extLinks: [
+      { label: "🗺️ View on River Map ↗", url: "topology.html?station=52120" },
       { label: "EA Data (52120) ↗", url: "https://environment.data.gov.uk/flood-monitoring/id/stations/52120.html" },
       { label: "EA Data (52153) ↗", url: "https://environment.data.gov.uk/flood-monitoring/id/stations/52153.html" },
       { label: "📊 GOV.UK Huish Stage (3071) ↗", url: "https://check-for-flooding.service.gov.uk/station/3071" }
@@ -1272,13 +1389,27 @@ export async function refreshLiveDashboard() {
     updatedPill.innerHTML = `⏱️ Synced ${timeStr}`;
   }
 
-  // Ensure Community Roads card is prepended to top of container [Issue #12]
-  if (roadCard && container.firstChild !== roadCard) {
-    container.prepend(roadCard);
+  // Update print situation header timestamp
+  const printTimeEl = document.getElementById('print-time-stamp');
+  if (printTimeEl) {
+    printTimeEl.textContent = new Date().toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' });
   }
 
   // Bind synchronized crosshair & tooltip event listeners across all cards
   bindSparklineEvents(container);
+
+  // Smooth-scroll and focus target card if URL hash is present (Issue #17 Deep Linking)
+  if (typeof window !== 'undefined' && window.location && window.location.hash) {
+    try {
+      const hashTarget = document.querySelector(window.location.hash);
+      if (hashTarget) {
+        hashTarget.scrollIntoView({ behavior: 'smooth' });
+        hashTarget.focus();
+      }
+    } catch (e) {
+      // Ignore invalid selector in hash
+    }
+  }
   } finally {
     isRefreshing = false;
     if (refreshBtn) refreshBtn.setAttribute('aria-busy', 'false');
@@ -1291,6 +1422,11 @@ function createMoorCard(opts) {
   card.className = opts.cardClass ? `moor-card ${opts.cardClass}` : 'moor-card';
   card.setAttribute('tabindex', '0');
   card.setAttribute('aria-label', `${opts.title} Infrastructure Status`);
+  if (opts.cardId) {
+    card.id = opts.cardId;
+  } else if (opts.stationId) {
+    card.id = `card-${opts.stationId}`;
+  }
 
   let badgeClass = opts.eval?.badgeClass || '';
   let badgeSymbol = opts.eval?.symbol || '';
@@ -1317,15 +1453,22 @@ function createMoorCard(opts) {
     </div>
   ` : '';
 
-  const camBarHtml = (Array.isArray(opts.camLinks) && opts.camLinks.length > 0) ? `
+  const camGuideBtn = opts.cameraGuideSite ? `
+    <button type="button" class="cam-bar-btn camera-guide-trigger" data-camera-guide="${escapeAttr(opts.cameraGuideSite)}" title="Open Layperson Camera Guide for ${escapeAttr(opts.title)}">
+      🧭 Camera Guide
+    </button>
+  ` : '';
+
+  const camBarHtml = ((Array.isArray(opts.camLinks) && opts.camLinks.length > 0) || opts.cameraGuideSite) ? `
     <div class="card-cam-bar" aria-label="${escapeAttr(opts.title)} Ground-Truth Cameras">
       <span class="cam-bar-label"><span aria-hidden="true">📷</span> Live Cameras:</span>
       <div class="cam-bar-links">
-        ${opts.camLinks.map(c => `
+        ${(opts.camLinks || []).map(c => `
           <a href="${escapeAttr(c.url)}" target="_blank" rel="noopener noreferrer" class="cam-bar-btn" title="${escapeAttr(c.title || c.label)}" aria-label="${escapeAttr(c.ariaLabel || c.label)}">
             ${escapeHTML(c.label)} <span class="cam-arrow" aria-hidden="true" style="color: #38bdf8; font-weight: bold; margin-left: 2px;">↗</span>
           </a>
         `).join('')}
+        ${camGuideBtn}
       </div>
     </div>
   ` : '';

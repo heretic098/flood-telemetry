@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Somerset Levels Road Network & Access Status | Flood Telemetry</title>
+  <link rel="stylesheet" href="css/styles.css?v=2.2">
+</head>
+<body>
+
+  <!-- Sticky Network Offline Banner -->
+  <div id="network-offline-banner" class="network-offline-banner" role="alert" aria-live="assertive" style="display: none;"></div>
+
+  <!-- Print Situation Report Header (Shown only during @media print) -->
+  <div class="print-situation-header" aria-hidden="true">
+    <div class="print-title-group">
+      <h1>Somerset Levels &amp; Moors — Flood Telemetry Situation Report</h1>
+      <p class="print-subtitle">Highway Network Passability &amp; Council Emergency Flood Gates Status</p>
+    </div>
+    <div class="print-situation-meta">
+      <span><strong>Generated:</strong> <span id="print-time-stamp">Loading...</span></span>
+      <span><strong>Authority:</strong> Environment Agency Telemetry &amp; Somerset Council Highways Protocol</span>
+      <span><strong>Classification:</strong> Public Advisory Briefing</span>
+    </div>
+  </div>
+
+  <header role="banner">
+    <div class="header-top">
+      <div class="title-group">
+        <h1>Somerset Levels Road Status</h1>
+        <div class="live-pill" id="live-toggle" title="Real-time highway passability model operational" role="status" aria-live="polite">
+          <span class="live-dot"></span>
+          <span>ROADS &amp; ACCESS</span>
+        </div>
+      </div>
+      <nav class="nav-links" aria-label="Main Navigation">
+        <a href="index.html" class="nav-btn nav-link">📊 Overview</a>
+        <a href="roads.html" class="nav-btn nav-link active" aria-current="page">🚗 Roads &amp; Access</a>
+        <a href="topology.html" class="nav-btn nav-link">🗺️ River Topology</a>
+        <a href="methodology.html" class="nav-btn nav-link">📖 Methodology</a>
+      </nav>
+      <div class="header-right-group">
+        <div class="telemetry-freshness-pill prov-high" id="ea-freshness-pill" role="status" aria-live="polite">📡 Telemetry: Loading...</div>
+        <div class="auto-refresh-group" id="auto-refresh-group">
+          <div class="countdown-pill" id="countdown-pill" role="status" aria-live="polite" title="Auto-refresh countdown">⏱️ 60s</div>
+          <button type="button" class="refresh-now-btn" id="btn-refresh-now" aria-label="Refresh live telemetry now" title="Refresh live telemetry now">🔄 Refresh</button>
+        </div>
+      </div>
+    </div>
+    
+    <div class="alert-banner banner-secure" id="alert-banner" role="status" aria-live="polite">
+      INITIALIZING ROAD NETWORK TELEMETRY...
+    </div>
+  </header>
+
+  <main class="roads-page-container" role="main" aria-label="Somerset Levels Highway & Access Corridors">
+    
+    <!-- Top Emergency / Caution Summary Cards -->
+    <section class="roads-summary-grid" aria-label="Highway Passability Summary Statistics">
+      <div class="road-summary-card card-impassable">
+        <div class="summary-card-header">
+          <span class="summary-card-icon" aria-hidden="true">🔴</span>
+          <span class="summary-card-title">Closed / Impassable</span>
+        </div>
+        <div class="summary-card-metric">
+          <span class="summary-count" id="summary-impassable-count">0</span>
+          <span class="summary-unit">Corridors</span>
+        </div>
+        <p class="summary-card-desc">Water above surveyed road crown or council emergency flood gates closed.</p>
+      </div>
+
+      <div class="road-summary-card card-encroaching">
+        <div class="summary-card-header">
+          <span class="summary-card-icon" aria-hidden="true">🟡</span>
+          <span class="summary-card-title">Caution / Clearing</span>
+        </div>
+        <div class="summary-card-metric">
+          <span class="summary-count" id="summary-encroaching-count">0</span>
+          <span class="summary-unit">Corridors</span>
+        </div>
+        <p class="summary-card-desc">Margin water encroaching carriageway or daylight safety inspection pending.</p>
+      </div>
+
+      <div class="road-summary-card card-passable">
+        <div class="summary-card-header">
+          <span class="summary-card-icon" aria-hidden="true">🟢</span>
+          <span class="summary-card-title">Nominal / Passable</span>
+        </div>
+        <div class="summary-card-metric">
+          <span class="summary-count" id="summary-passable-count">8</span>
+          <span class="summary-unit">Corridors</span>
+        </div>
+        <p class="summary-card-desc">Water stage securely below engineered overflow and highway crest thresholds.</p>
+      </div>
+    </section>
+
+    <!-- Life-Safety Warning Banner [Mandatory Domain Rule] -->
+    <div class="road-safety-banner" role="alert">
+      <span aria-hidden="true">⚠️</span>
+      <span><strong>Life-Safety Warning:</strong> Water stage estimates are theoretical inferences and do not detect physical council gate padlocks, localized silt, or ditch ponding. <strong>Never attempt to drive through floodwater.</strong> Check <a href="https://www.travelsomerset.co.uk" target="_blank" rel="noopener noreferrer">Travel Somerset ↗</a> for official highway orders.</span>
+    </div>
+
+    <!-- Epistemic Humility Notice [RULE-HUM-01] -->
+    <div class="road-humility-notice" role="note">
+      <span class="humility-icon" aria-hidden="true">ℹ️</span>
+      <p>
+        <strong>How Passability is Evaluated:</strong> Status combines live EA river telemetry, rate-of-rise momentum, 
+        statutory flood warnings, and Somerset Council emergency gate procedures. Emergency gates are locked manually by council crews 
+        and remain locked until daylight safety inspections for silt and structural scour are completed.
+      </p>
+    </div>
+
+    <!-- Quick Filter Toolbar -->
+    <div class="road-filter-bar" role="toolbar" aria-label="Filter road corridors by status">
+      <span class="filter-label">Filter Corridors:</span>
+      <button type="button" class="road-filter-btn active" data-filter="all" aria-pressed="true">All (8)</button>
+      <button type="button" class="road-filter-btn" data-filter="impassable" aria-pressed="false">🔴 Closed (0)</button>
+      <button type="button" class="road-filter-btn" data-filter="encroaching" aria-pressed="false">🟡 Caution / Clearing (0)</button>
+      <button type="button" class="road-filter-btn" data-filter="passable" aria-pressed="false">🟢 Passable (8)</button>
+    </div>
+
+    <!-- Corridor Cards Grid Container -->
+    <div class="road-corridors-list" id="roads-corridors-container" role="list">
+      <!-- Injected dynamically by roads.js -->
+    </div>
+
+    <!-- Historical Context & Trigger Thresholds Reference Table -->
+    <section class="roads-reference-section" aria-label="Somerset Levels Highway Trigger Reference">
+      <div class="reference-section-header">
+        <h3>🏛️ Somerset Levels Road Inundation &amp; Council Emergency Gates Reference</h3>
+        <p class="reference-section-subtitle">Surveyed carriageway crown benchmarks (mAOD Newlyn), controlling Environment Agency gauging stations, and council gate operational protocols.</p>
+      </div>
+
+      <div class="reference-table-wrap">
+        <table class="data-table roads-ref-table">
+          <thead>
+            <tr>
+              <th scope="col">Corridor</th>
+              <th scope="col">Controlling Station</th>
+              <th scope="col">Crown / Spillway (<span class="jargon-term" tabindex="0" role="button" aria-haspopup="dialog" aria-expanded="false" data-term="mAOD">mAOD</span>)</th>
+              <th scope="col">Warning Level (<span class="jargon-term" tabindex="0" role="button" aria-haspopup="dialog" aria-expanded="false" data-term="mAOD">mAOD</span>)</th>
+              <th scope="col">Emergency Gate Location &amp; Protocol</th>
+              <th scope="col">Historical Inundation Context</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Cuts Road</strong> (East Lyng ↔ Athelney)</td>
+              <td>Curry Moor Basin (52127) / Hookbridge (52118)</td>
+              <td><code>7.35m AOD</code> (Spillway)</td>
+              <td><code>7.15m AOD</code></td>
+              <td>Dual council gates at East Lyng and Athelney junctions. Padlocked when Athelney spillway cascades.</td>
+              <td>Submerged for up to 10 weeks during the 2013–14 winter floods; inundated in 2023 Storm Henk.</td>
+            </tr>
+            <tr>
+              <td><strong>Muchelney Spine Road</strong> (Langport ↔ Muchelney)</td>
+              <td>Huish Episcopi (52120) / River Parrett</td>
+              <td><code>7.86m AOD</code> (Road Crown)</td>
+              <td><code>7.60m AOD</code></td>
+              <td>Emergency flood boat deployed by Somerset Council / Fire &amp; Rescue when road cut off.</td>
+              <td>Cut off for 66 days in 2014, requiring EA rescue boat shuttle service.</td>
+            </tr>
+            <tr>
+              <td><strong>A361 Corridor</strong> (East Lyng ↔ Burrowbridge)</td>
+              <td>Burrowbridge Confluence (52158)</td>
+              <td><code>7.80m AOD</code> (Carriageway)</td>
+              <td><code>7.50m AOD</code></td>
+              <td>Primary strategic A-road artery across Levels. Council gates closed at East Lyng &amp; Burrowbridge when Baltmoor Wall spills.</td>
+              <td>Strategic transport corridor closed for 9 weeks in 2014; major commuter diversion route via M5.</td>
+            </tr>
+            <tr>
+              <td><strong>New Road</strong> (West Curry ↔ North Curry)</td>
+              <td>Curry Moor Basin (52127)</td>
+              <td><code>6.80m AOD</code> (Rhyne Level)</td>
+              <td><code>6.50m AOD</code></td>
+              <td>Low-lying moor connection subject to early ditch overflowing and shallow sheet flooding.</td>
+              <td>Frequently affected by early agricultural runoff and ponding prior to main spillway overtopping.</td>
+            </tr>
+            <tr>
+              <td><strong>Bicknell's Bridge Access</strong> (Huish Moor)</td>
+              <td>Huish Episcopi PS (52120)</td>
+              <td><code>7.40m AOD</code> (Approach Dip)</td>
+              <td><code>7.20m AOD</code></td>
+              <td>Access road to Huish Moor pumping station and local farm dwellings.</td>
+              <td>Vulnerable during high backwater conditions from the confluence of the Parrett and Yeo.</td>
+            </tr>
+            <tr>
+              <td><strong>Moorland New Cut Road</strong> (Moorland ↔ Fordgate)</td>
+              <td>Northmoor Basin (52159)</td>
+              <td><code>4.80m AOD</code> (Moor Bed Dip)</td>
+              <td><code>4.20m AOD</code></td>
+              <td>Northmoor basin interior road network behind Baltmoor Wall flood defense embankment.</td>
+              <td>Devastated during the 2014 Northmoor pumping failure; evacuated for months.</td>
+            </tr>
+            <tr>
+              <td><strong>Stan Moor Road</strong> (Burrowbridge ↔ Moorland)</td>
+              <td>Burrowbridge Confluence (52158)</td>
+              <td><code>7.50m AOD</code> (River Bank)</td>
+              <td><code>7.20m AOD</code></td>
+              <td>Runs along the riverward embankment of the River Tone to Burrowbridge.</td>
+              <td>Subject to wave wash and embankment seepage during prolonged elevated River Tone levels.</td>
+            </tr>
+            <tr>
+              <td><strong>Beer Wall / A372</strong> (Aller Drove Crossing)</td>
+              <td>Beerwall Greylake (52157)</td>
+              <td><code>7.30m AOD</code> (Relief Culverts)</td>
+              <td><code>6.80m AOD</code></td>
+              <td>Major culvert relief scheme installed in 2015 to pass Sowy diversion flows beneath the A372.</td>
+              <td>Severely flooded in 2014; reconstructed with elevated culvert pipes to maintain highway continuity.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="app-disclaimer-footer" role="contentinfo">
+    <div class="disclaimer-content">
+      <div class="kofi-support-banner">
+        <span>☕ <strong>Independent &amp; Open Source:</strong> Built for Somerset communities under the Apache-2.0 License. View source on <a href="https://github.com/heretic098/flood-telemetry" target="_blank" rel="noopener noreferrer" class="disclaimer-link">GitHub ↗</a>, review our <a href="methodology.html#open-source-licensing" class="disclaimer-link">Licensing &amp; Provenance ↗</a>, or <a href="https://ko-fi.com/heretic098" target="_blank" rel="noopener noreferrer" class="kofi-link">support on Ko-fi ↗</a>.</span>
+      </div>
+      
+      <p>
+        <strong>⚠️ Public Safety &amp; Non-Reliance Notice:</strong> Information displayed on this dashboard is synthesized from Environment Agency (EA) open telemetry APIs and surveyed hydraulic benchmarks. 
+        This is an independent civic tool and <strong>does not constitute official flood warnings, emergency evacuation orders, or road navigation advice</strong>. 
+        Road passability estimates (e.g. Cuts Road, A361) are computational inferences and do not reflect council gate padlocks, localized washouts, or flash ponding. <strong>Never drive into floodwater.</strong>
+      </p>
+      
+      <p>
+        For official UK statutory flood warnings, consult the 
+        <a href="https://check-for-flooding.service.gov.uk" target="_blank" rel="noopener noreferrer" class="disclaimer-link">GOV.UK Flood Warning Service ↗</a> 
+        or call Floodline at <strong>0345 988 1188</strong>. For official road closures, check 
+        <a href="https://www.travelsomerset.co.uk" target="_blank" rel="noopener noreferrer" class="disclaimer-link">Travel Somerset ↗</a>.
+      </p>
+
+      <p class="ogl-attribution">
+        Contains Environment Agency data &copy; Crown copyright and database right 2026, licensed under the 
+        <a href="https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/" target="_blank" rel="noopener noreferrer" class="disclaimer-link">Open Government Licence v3.0 ↗</a>. 
+        Webcam links courtesy of <a href="https://thecfh.org" target="_blank" rel="noopener noreferrer" class="disclaimer-link">thecfh.org ↗</a>. 
+        Provided on an &ldquo;as is&rdquo; basis without warranty of any kind under the Apache 2.0 License.
+      </p>
+    </div>
+  </footer>
+
+  <script type="module" src="js/camera_guide.js"></script>
+  <script type="module" src="js/roads.js"></script>
+</body>
+</html>
