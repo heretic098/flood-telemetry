@@ -45,14 +45,14 @@
         <div class="info-card">
           <h4>📡 EA Flood Monitoring API</h4>
           <p>
-            Fetches live stage elevations in meters above Ordnance Datum Newlyn (<strong>mAOD</strong>) across 8 critical gauging stations.
+            Fetches live stage elevations in meters above Ordnance Datum Newlyn (<strong>mAOD</strong>) across 19 critical gauging stations.
           </p>
           <code class="code-block">https://environment.data.gov.uk/flood-monitoring/id/measures/{id}/readings</code>
         </div>
         <div class="info-card">
           <h4>⚡ SQLite Embedded WAL Cache</h4>
           <p>
-            A background process (<code>server.js</code>) syncs all 8 station measures every 5 minutes into a local SQLite database (<code>telemetry.db</code> in WAL mode). The frontend fetches <code>/api/status</code> for instant <strong>&lt; 20ms page loads</strong> without waiting for external API calls.
+            A background process (<code>server.js</code>) syncs all 19 station measures every 5 minutes into a local SQLite database (<code>telemetry.db</code> in WAL mode). The frontend fetches <code>/api/status</code> for instant <strong>&lt; 20ms page loads</strong> without waiting for external API calls.
           </p>
         </div>
       </div>
@@ -159,23 +159,23 @@
       <h3 class="section-heading"><span class="heading-icon">📐</span> 3. Hydrological & Hydraulic Core Equations</h3>
       
       <div class="equation-card">
-        <h4>A. Spillway Overtopping & Submergence (Villemonte Weir Model)</h4>
+        <h4>A. Spillway Overtopping, Clearance &amp; Tailwater Submergence Model</h4>
         <p>
           Given upstream river stage $h_{\text{river}}$, moor basin stage $h_{\text{moor}}$, and surveyed crest elevation $Z_{\text{crest}}$:
         </p>
         <div class="math-box">
           $$H_u = h_{\text{river}} - Z_{\text{crest}} \quad \text{and} \quad H_d = h_{\text{moor}} - Z_{\text{crest}}$$
-          $$\text{Submergence Ratio } S = \frac{H_d}{H_u}$$
+          $$\text{Tailwater Submergence Ratio } S = \frac{H_d}{H_u}$$
         </div>
         <ul class="doc-list">
           <li><strong>SECURE:</strong> $H_u < -0.15\text{m}$ (River level is &gt;15cm below spillway crest).</li>
           <li><strong>NEAR CREST:</strong> $-0.15\text{m} \le H_u < 0\text{m}$ (River level is within 15cm of overtopping).</li>
-          <li><strong>FREE OVERTOPPING:</strong> $H_u \ge 0\text{m}$ and $S < 0.70$ (Water flows freely over spillway crest into moor).</li>
-          <li><strong>DROWNED / SUBMERGED:</strong> $H_u \ge 0\text{m}$ and $S \ge 0.70$ (High tailwater in flooded moor drowns the spillway).</li>
-          <li><strong>REVERSE SPILL:</strong> $H_d > H_u \ge 0\text{m}$ (Flooded moor level exceeds river level, spilling back into channel).</li>
+          <li><strong>OVERTOPPING:</strong> $H_u \ge 0\text{m}$ and $S < 0.70$ (Water stage exceeds surveyed crest; free gravity spill into moor).</li>
+          <li><strong>SUBMERGED (DROWNED):</strong> $H_u \ge 0\text{m}$ and $S \ge 0.70$ (High tailwater stage in flooded moor submerges the spillway crest).</li>
+          <li><strong>REVERSE SPILL:</strong> $H_d \ge H_u \ge 0\text{m}$ (Flooded moor stage equals or exceeds river stage, spilling back into channel).</li>
         </ul>
         <p class="math-subtext">
-          Applied across all engineered weirs and inter-moor cascades:
+          Applied across all engineered weirs and inter-moor cascades using strictly measured stage ($m\text{ AOD}$) and vertical clearance ($m$):
           <strong>Hookbridge Spillway</strong> ($Z_{\text{crest}} = 7.45\text{m AOD}$, Tone ➔ Curry Moor),
           <strong>Athelney Spillway &amp; Cuts Road</strong> ($Z_{\text{crest}} = 7.35\text{m AOD}$, Curry Moor ➔ Northmoor cascade), and
           <strong>Baltmoor Wall Defense</strong> ($Z_{\text{crest}} = 7.80\text{m AOD}$, Parrett confluence levee defense).
@@ -183,15 +183,21 @@
       </div>
 
       <div class="equation-card">
-        <h4>B. Submerged Gate Volumetric Discharge Equation</h4>
+        <h4>B. Dual-Gauge Differential Head &amp; Sill Clearance Model (<code>[RULE-CALC-01]</code>)</h4>
         <p>
-          Discharge across Monk's Leaze Clyse into the Sowy Relief Channel is estimated using the hydraulic submerged gate formula:
+          Because public Environment Agency telemetry provides water stage ($m\text{ AOD}$) without real-time sluice gate apertures ($w$) or calibrated open-channel rating curves ($Q(h)$), <strong>volumetric discharge speculation ($m^3/s$ / cumecs or Megalitres/day) is strictly prohibited</strong> under <code>[RULE-CALC-01]</code>. Instead, sluices and tidal outfalls are evaluated strictly from paired stage sensors and surveyed sill geometry:
         </p>
         <div class="math-box">
-          $$Q = C_d \cdot B \cdot H_{\text{head}} \cdot \sqrt{2g \Delta h}$$
+          $$\Delta h = h_{\text{up}} - h_{\text{down}} \quad \text{and} \quad H_{\text{sill}} = h_{\text{up}} - Z_{\text{sill}}$$
         </div>
+        <ul class="doc-list">
+          <li><strong>PENNING / CLOSED (<code>CLOSED</code>):</strong> $h_{\text{up}} < Z_{\text{sill}}$ (Upstream River Parrett stage <code>52233</code> is below the $4.20\text{m AOD}$ Monk's Leaze Clyse intake sill).</li>
+          <li><strong>ACTIVE DIVERSION (<code>DIVERTING</code>):</strong> $h_{\text{up}} \ge Z_{\text{sill}}$ and $\Delta h > +0.10\text{m}$ (Stage exceeds sill with positive gravity head drop into the Sowy Relief Channel <code>52234</code>).</li>
+          <li><strong>RESTRICTED / THROTTLED (<code>THROTTLED</code>):</strong> $h_{\text{up}} \ge Z_{\text{sill}}$ and $\Delta h \le +0.10\text{m}$ (Downstream Sowy head equalizes against upstream Parrett stage, restricting gravity diversion).</li>
+          <li><strong>TIDE-LOCKED (<code>TIDE_LOCKED</code>):</strong> $h_{\text{sea}} \ge h_{\text{inland}}$ ($\Delta h \le 0\text{m}$ at Dunball Outfall; tidal Parrett Estuary stage <code>52163</code> exceeds inland KSD stage <code>E9094</code>, physically forcing passive flap doors shut).</li>
+        </ul>
         <p class="math-subtext">
-          Where $C_d = 0.60$ (discharge coefficient), $B = 4.20\text{m}$ (gate width), $H_{\text{head}} = h_{\text{up}} - Z_{\text{threshold}}$ (Diversion Threshold $Z_{\text{threshold}} = 4.20\text{m}$ AOD; Structure Sill / Wall Height $Z_{\text{structure}} = 6.70\text{m}$ AOD), and $\Delta h = h_{\text{up}} - h_{\text{down}}$.
+          Where $Z_{\text{sill}} = 4.20\text{m AOD}$ is the surveyed Monk's Leaze Clyse diversion threshold sill (structure top elevation $Z_{\text{structure}} = 6.70\text{m AOD}$).
         </p>
       </div>
 

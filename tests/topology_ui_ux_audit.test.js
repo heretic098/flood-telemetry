@@ -818,6 +818,23 @@ test('UI/UX Audit 6.5 (Issue #9): Frontend Progressive Disclosure Wiring (Levels
   assert.ok(topologyJs.includes('ACTIVE TELEMETRY EVENT SESSION'), 'topology.js must render active event session card');
 });
 
+test('UI/UX Audit 2.6: methodology.html enforces [RULE-CALC-01] with zero volumetric discharge equations', () => {
+  const methodologyHtml = fs.readFileSync(path.resolve('src/methodology.html'), 'utf8');
+  assert.ok(
+    !methodologyHtml.includes('Submerged Gate Volumetric Discharge Equation'),
+    'methodology.html must not contain legacy Submerged Gate Volumetric Discharge Equation'
+  );
+  assert.ok(
+    !methodologyHtml.includes('C_d \\cdot B'),
+    'methodology.html must not contain volumetric discharge formula Q = C_d * B * H * sqrt(2g * dh)'
+  );
+  assert.ok(
+    methodologyHtml.includes('[RULE-CALC-01]'),
+    'methodology.html must explicitly cite [RULE-CALC-01] ban on volumetric discharge speculation'
+  );
+});
+
+
 
 
 
