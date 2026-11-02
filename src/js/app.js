@@ -1,4 +1,4 @@
-import { evaluateSpillway, evaluateGateState, aggregateGlobalStatus, evaluatePumpStatus, evaluateSowyChannel, evaluateAthelneySpillway, evaluateGravityClyse, evaluateBeerWall, evaluateOathLock, evaluateDunballEmergencyPumping, getSeasonalRegime, getActiveCrestHeight, getActiveCatchmentId, loadCatchmentConfig, evaluateHuishEpiscopi, evaluateMidelney, STATION_REGISTRY, GAUGE_DATUMS, formatClearanceText, computeTrendVector, evaluateRoadNetwork } from './hydro_engine.js';
+import { evaluateSpillway, evaluateGateState, aggregateGlobalStatus, evaluatePumpStatus, evaluateSowyChannel, evaluateAthelneySpillway, evaluateGravityClyse, evaluateBeerWall, evaluateOathLock, evaluateDunballEmergencyPumping, getSeasonalRegime, getActiveCrestHeight, getActiveCatchmentId, loadCatchmentConfig, evaluateHuishEpiscopi, evaluateMidelney, STATION_REGISTRY, GAUGE_DATUMS, formatClearanceText, computeTrendVector, evaluateRoadNetwork, evaluateStationFreshness, getValidStageOrFallback } from './hydro_engine.js';
 import { initJargonPopovers, renderJargonTerm } from './jargon_popover.js';
 import {
   computeSparklineBounds,
@@ -25,11 +25,28 @@ export function renderHeroSpillwayBanner(opts) {
   
   const fillClass = isAlert ? ' hero-stage-fill fill-alert' : ' hero-stage-fill';
 
+  let badgeClass = opts.statusBadge?.badgeClass || '';
+  let badgeSymbol = opts.statusBadge?.symbol || '';
+  let badgeLabel = opts.statusBadge?.label || '';
+
+  if (opts.staleInfo && opts.staleInfo.isStale) {
+    if (badgeClass === 'badge-secure' || badgeClass === 'badge-passable') {
+      badgeClass = opts.staleInfo.badgeClass || 'badge-stale';
+      badgeSymbol = opts.staleInfo.isOffline ? '⚠️' : '🕒';
+    }
+  }
+
   const badgeHtml = opts.statusBadge ? `
-    <div class="status-badge ${opts.statusBadge.badgeClass}" aria-live="polite">
-      <span aria-hidden="true">${opts.statusBadge.symbol}</span>
+    <div class="status-badge ${badgeClass}" aria-live="polite">
+      <span aria-hidden="true">${badgeSymbol}</span>
       <span class="sr-only">Status: </span>
-      <span>${opts.statusBadge.label}</span>
+      <span>${badgeLabel}</span>
+    </div>
+  ` : '';
+
+  const staleBannerHtml = (opts.staleInfo && opts.staleInfo.isStale && opts.staleInfo.badgeText) ? `
+    <div class="sensor-offline-banner" role="alert" aria-live="polite">
+      <span>${escapeHTML(opts.staleInfo.badgeText)}</span>
     </div>
   ` : '';
 
@@ -65,6 +82,7 @@ export function renderHeroSpillwayBanner(opts) {
         </div>
         ${badgeHtml}
       </div>
+      ${staleBannerHtml}
 
       <div class="hero-banner-main-metric">
         <div>
@@ -180,6 +198,91 @@ export async function setupCatchmentNav(currentCatchmentId) {
   }
 }
 
+export { getValidStageOrFallback };
+
+let autoRefreshTimer = null;
+let autoRefreshIntervalMs = 60000;
+let countdownRemainingSec = 60;
+let isRefreshing = false;
+let isUserInspecting = false;
+let refreshDeferred = false;
+
+export function updateCountdownDisplay() {
+  if (typeof document === 'undefined') return;
+  const pill = document.getElementById('countdown-pill');
+  if (!pill) return;
+  if (isRefreshing) {
+    pill.classList.add('refreshing');
+    pill.innerText = '🔄 Refreshing...';
+  } else if (isUserInspecting) {
+    pill.classList.remove('refreshing');
+    pill.innerText = `⏱️ ${countdownRemainingSec}s (Paused)`;
+  } else {
+    pill.classList.remove('refreshing');
+    pill.innerText = `⏱️ ${countdownRemainingSec}s`;
+  }
+}
+
+export function startAutoRefresh(intervalMs = 60000) {
+  stopAutoRefresh();
+  autoRefreshIntervalMs = intervalMs;
+  countdownRemainingSec = Math.max(1, Math.round(intervalMs / 1000));
+  updateCountdownDisplay();
+
+  autoRefreshTimer = setInterval(async () => {
+    // If currently scrubbing / inspecting sparklines, pause auto-refresh
+    if (isUserInspecting || currentHoverRatio !== null) {
+      refreshDeferred = true;
+      updateCountdownDisplay();
+      return;
+    }
+
+    if (countdownRemainingSec > 1) {
+      countdownRemainingSec--;
+      updateCountdownDisplay();
+    } else {
+      countdownRemainingSec = Math.max(1, Math.round(autoRefreshIntervalMs / 1000));
+      updateCountdownDisplay();
+      await triggerManualRefresh();
+    }
+  }, 1000);
+}
+
+export function stopAutoRefresh() {
+  if (autoRefreshTimer) {
+    clearInterval(autoRefreshTimer);
+    autoRefreshTimer = null;
+  }
+}
+
+export async function triggerManualRefresh() {
+  if (isRefreshing) return;
+  countdownRemainingSec = Math.max(1, Math.round(autoRefreshIntervalMs / 1000));
+  updateCountdownDisplay();
+  await refreshLiveDashboard();
+  updateCountdownDisplay();
+}
+
+export function getAutoRefreshState() {
+  return {
+    isRunning: autoRefreshTimer !== null,
+    intervalMs: autoRefreshIntervalMs,
+    remainingSec: countdownRemainingSec,
+    isRefreshing,
+    isUserInspecting: isUserInspecting || currentHoverRatio !== null,
+    refreshDeferred
+  };
+}
+
+function setupManualRefreshListener() {
+  const refreshBtn = document.getElementById('btn-refresh-now');
+  if (refreshBtn) {
+    refreshBtn.addEventListener('click', async () => {
+      await triggerManualRefresh();
+    });
+  }
+}
+
 export async function initApp() {
   initJargonPopovers();
   activeCatchmentId = getActiveCatchmentId();
@@ -200,7 +303,9 @@ export async function initApp() {
   await setupCatchmentNav(activeCatchmentId);
   setupModalListeners();
   setupPeriodListeners();
+  setupManualRefreshListener();
   await refreshLiveDashboard();
+  startAutoRefresh(60000);
 }
 
 function setupModalListeners() {
@@ -256,194 +361,232 @@ async function fetchAllTelemetryFromDB(range = currentActiveRange) {
 }
 
 export async function refreshLiveDashboard() {
+  if (typeof document === 'undefined') return;
   const container = document.getElementById('cards-container');
   if (!container) return;
 
-  const dbData = await fetchAllTelemetryFromDB();
-  const dbMeasures = dbData ? dbData.measures : null;
-  const sysTimestamps = dbData ? dbData.system_timestamps : null;
-  const measuresSummary = dbData ? dbData.measures_summary : null;
+  isRefreshing = true;
+  updateCountdownDisplay();
+  const refreshBtn = document.getElementById('btn-refresh-now');
+  if (refreshBtn) refreshBtn.setAttribute('aria-busy', 'true');
 
-  // Update telemetry freshness pill & sys health modal drawer
-  if (sysTimestamps) {
-    const eaReadingTime = sysTimestamps.latest_ea_reading_at ? new Date(sysTimestamps.latest_ea_reading_at) : new Date();
-    const diffMs = Date.now() - eaReadingTime.getTime();
-    const diffMins = Math.max(0, Math.floor(diffMs / 60000));
-    
-    let ageStr = `${diffMins} min ago`;
-    if (diffMins < 1) ageStr = 'Just now';
-    else if (diffMins >= 60) ageStr = `${(diffMins / 60).toFixed(1)} hrs ago`;
+  try {
+    const dbData = await fetchAllTelemetryFromDB();
+    const dbMeasures = dbData ? dbData.measures : null;
+    const sysTimestamps = dbData ? dbData.system_timestamps : null;
+    const measuresSummary = dbData ? dbData.measures_summary : null;
 
-    const eaPill = document.getElementById('ea-freshness-pill');
-    if (eaPill) {
-      let pillText = '';
-      if (diffMins < 1) {
-        pillText = 'Just now';
-      } else if (diffMins <= 120) {
-        pillText = diffMins < 60 ? `${diffMins}m ago` : `${(diffMins / 60).toFixed(1)}h ago`;
-      } else if (diffMins <= 360) {
-        pillText = `${(diffMins / 60).toFixed(1)}h ago (Lagging)`;
-      } else {
-        pillText = `${(diffMins / 60).toFixed(1)}h ago (Stale)`;
+    // Update telemetry freshness pill & sys health modal drawer
+    if (sysTimestamps) {
+      const eaReadingTime = sysTimestamps.latest_ea_reading_at ? new Date(sysTimestamps.latest_ea_reading_at) : new Date();
+      const diffMs = Date.now() - eaReadingTime.getTime();
+      const diffMins = Math.max(0, Math.floor(diffMs / 60000));
+      
+      let ageStr = `${diffMins} min ago`;
+      if (diffMins < 1) ageStr = 'Just now';
+      else if (diffMins >= 60) ageStr = `${(diffMins / 60).toFixed(1)} hrs ago`;
+
+      const eaPill = document.getElementById('ea-freshness-pill');
+      if (eaPill) {
+        let pillText = '';
+        if (diffMins < 1) {
+          pillText = 'Just now';
+        } else if (diffMins <= 120) {
+          pillText = diffMins < 60 ? `${diffMins}m ago` : `${(diffMins / 60).toFixed(1)}h ago`;
+        } else if (diffMins <= 360) {
+          pillText = `${(diffMins / 60).toFixed(1)}h ago (Lagging)`;
+        } else {
+          pillText = `${(diffMins / 60).toFixed(1)}h ago (Stale)`;
+        }
+
+        eaPill.innerText = `📡 Telemetry: ${pillText}`;
+        eaPill.classList.remove('freshness-fresh', 'freshness-warning', 'freshness-stale');
+        if (diffMins <= 120) {
+          eaPill.classList.add('freshness-fresh');
+        } else if (diffMins <= 360) {
+          eaPill.classList.add('freshness-warning');
+        } else {
+          eaPill.classList.add('freshness-stale');
+        }
       }
 
-      eaPill.innerText = `📡 Telemetry: ${pillText}`;
-      eaPill.classList.remove('freshness-fresh', 'freshness-warning', 'freshness-stale');
-      if (diffMins <= 120) {
-        eaPill.classList.add('freshness-fresh');
-      } else if (diffMins <= 360) {
-        eaPill.classList.add('freshness-warning');
-      } else {
-        eaPill.classList.add('freshness-stale');
+      const modalEaTime = document.getElementById('modal-ea-time');
+      const modalEaAge = document.getElementById('modal-ea-age');
+      const modalDbTime = document.getElementById('modal-db-time');
+      const modalClientTime = document.getElementById('modal-client-time');
+
+      if (modalEaTime) modalEaTime.innerText = eaReadingTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      if (modalEaAge) modalEaAge.innerText = `Reading age: ${ageStr}`;
+      if (modalDbTime) modalDbTime.innerText = new Date(sysTimestamps.db_synced_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      if (modalClientTime) modalClientTime.innerText = new Date(sysTimestamps.client_poll_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    }
+
+    // Populate station telemetry matrix in modal
+    if (measuresSummary && Object.keys(measuresSummary).length > 0) {
+      const matrixBody = document.getElementById('modal-station-matrix');
+      if (matrixBody) {
+        const STATION_NAMES = {
+          "52118-level-stage-i-15_min-mAOD": "Currymoor PS (River Tone)",
+          "52127-level-stage-i-15_min-mAOD": "Curry Moor Basin",
+          "52158-level-stage-i-15_min-mAOD": "Baltmoor Wall (Saltmoor)",
+          "52159-level-stage-i-15_min-mAOD": "Northmoor Main Drain",
+          "52233-level-stage-i-15_min-mAOD": "Monk's Leaze Upstream",
+          "52234-level-downstage-i-15_min-mAOD": "Monk's Leaze Downstream",
+          "E9094-level-stage-i-15_min-mAOD": "Dunball Inland KSD",
+          "52163-level-tidal_level-i-15_min-mAOD": "Dunball Tidal Parrett",
+          "52120-level-stage-i-15_min-mASD": "Huish Episcopi PS (River Yeo)",
+          "52153-level-stage-i-15_min-mASD": "Midelney (River Isle)"
+        };
+
+        matrixBody.innerHTML = Object.entries(measuresSummary).map(([measureId, timeStr]) => {
+          const name = STATION_NAMES[measureId] || measureId;
+          const time = timeStr ? new Date(timeStr) : null;
+          const timeFormatted = time ? time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'N/A';
+          const diffMins = time ? Math.max(0, Math.floor((Date.now() - time.getTime()) / 60000)) : 999;
+          const ageFormatted = diffMins < 60 ? `${diffMins}m ago` : `${(diffMins/60).toFixed(1)}h ago`;
+          const statusBadge = diffMins <= 120 ? 
+            '<span class="badge freshness-fresh">🟢 FRESH</span>' : 
+            (diffMins <= 360 ? '<span class="badge freshness-warning">🟡 LAGGING</span>' : '<span class="badge freshness-stale">🔴 STALE</span>');
+
+          return `
+            <tr>
+              <td><strong>${escapeHTML(name)}</strong><br><small style="color:#64748b;">${escapeHTML(measureId)}</small></td>
+              <td><code>${escapeHTML(timeFormatted)}</code></td>
+              <td>${escapeHTML(ageFormatted)}</td>
+              <td>${statusBadge}</td>
+            </tr>
+          `;
+        }).join('');
       }
     }
 
-    const modalEaTime = document.getElementById('modal-ea-time');
-    const modalEaAge = document.getElementById('modal-ea-age');
-    const modalDbTime = document.getElementById('modal-db-time');
-    const modalClientTime = document.getElementById('modal-client-time');
-
-    if (modalEaTime) modalEaTime.innerText = eaReadingTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    if (modalEaAge) modalEaAge.innerText = `Reading age: ${ageStr}`;
-    if (modalDbTime) modalDbTime.innerText = new Date(sysTimestamps.db_synced_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    if (modalClientTime) modalClientTime.innerText = new Date(sysTimestamps.client_poll_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-  }
-
-  // Populate station telemetry matrix in modal
-  if (measuresSummary && Object.keys(measuresSummary).length > 0) {
-    const matrixBody = document.getElementById('modal-station-matrix');
-    if (matrixBody) {
-      const STATION_NAMES = {
-        "52118-level-stage-i-15_min-mAOD": "Currymoor PS (River Tone)",
-        "52127-level-stage-i-15_min-mAOD": "Curry Moor Basin",
-        "52158-level-stage-i-15_min-mAOD": "Baltmoor Wall (Saltmoor)",
-        "52159-level-stage-i-15_min-mAOD": "Northmoor Main Drain",
-        "52233-level-stage-i-15_min-mAOD": "Monk's Leaze Upstream",
-        "52234-level-downstage-i-15_min-mAOD": "Monk's Leaze Downstream",
-        "E9094-level-stage-i-15_min-mAOD": "Dunball Inland KSD",
-        "52163-level-tidal_level-i-15_min-mAOD": "Dunball Tidal Parrett",
-        "52120-level-stage-i-15_min-mASD": "Huish Episcopi PS (River Yeo)",
-        "52153-level-stage-i-15_min-mASD": "Midelney (River Isle)"
-      };
-
-      matrixBody.innerHTML = Object.entries(measuresSummary).map(([measureId, timeStr]) => {
-        const name = STATION_NAMES[measureId] || measureId;
-        const time = timeStr ? new Date(timeStr) : null;
-        const timeFormatted = time ? time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'N/A';
-        const diffMins = time ? Math.max(0, Math.floor((Date.now() - time.getTime()) / 60000)) : 999;
-        const ageFormatted = diffMins < 60 ? `${diffMins}m ago` : `${(diffMins/60).toFixed(1)}h ago`;
-        const statusBadge = diffMins <= 120 ? 
-          '<span class="badge freshness-fresh">🟢 FRESH</span>' : 
-          (diffMins <= 360 ? '<span class="badge freshness-warning">🟡 LAGGING</span>' : '<span class="badge freshness-stale">🔴 STALE</span>');
-
+    // Populate Infrastructure Baseline & Spillway Crest Matrix in Modal
+    const infraBody = document.getElementById('modal-infra-matrix');
+    if (infraBody && hydroConfig && hydroConfig.moors) {
+      const SPILLWAY_ROWS = [
+        { name: "Hookbridge Spillway (River Tone ➔ Curry Moor)", config: hydroConfig.moors.curry_moor?.spillway, fallback: 7.45 },
+        { name: "Athelney Spillway (Curry Moor ➔ Northmoor Cascade)", config: hydroConfig.moors.curry_moor?.athelney_spillway, fallback: 7.35 },
+        { name: "Baltmoor Wall Defense (River Parrett ➔ Northmoor Overtopping)", config: hydroConfig.moors.northmoor?.spillway, fallback: 7.80 },
+        { name: "Beer Wall / Allens Spillway (Greylake ➔ Sowy Relief)", config: hydroConfig.moors.northmoor?.beer_wall, fallback: 7.30 }
+      ];
+      infraBody.innerHTML = SPILLWAY_ROWS.map(item => {
+        const crest = getActiveCrestHeight(item.config, new Date(), item.fallback);
+        const history = item.config?.crest_history || [];
+        const latestEntry = history.length > 0 ? history[history.length - 1] : null;
+        const scheme = latestEntry ? latestEntry.notes : 'EA Hydraulic Baseline';
+        const dateWindow = latestEntry ? `${latestEntry.valid_from ? latestEntry.valid_from.substring(0, 4) : '1970'} – Present` : '1970 – Present';
         return `
           <tr>
-            <td><strong>${escapeHTML(name)}</strong><br><small style="color:#64748b;">${escapeHTML(measureId)}</small></td>
-            <td><code>${escapeHTML(timeFormatted)}</code></td>
-            <td>${escapeHTML(ageFormatted)}</td>
-            <td>${statusBadge}</td>
+            <td><strong>${item.name}</strong></td>
+            <td><code style="color: #38bdf8; font-weight: 700;">${crest.toFixed(2)}m AOD</code></td>
+            <td><span class="scheme-badge">${scheme}</span></td>
+            <td><small style="color: #94a3b8;">${dateWindow}</small></td>
           </tr>
         `;
       }).join('');
     }
-  }
 
-  // Populate Infrastructure Baseline & Spillway Crest Matrix in Modal
-  const infraBody = document.getElementById('modal-infra-matrix');
-  if (infraBody && hydroConfig && hydroConfig.moors) {
-    const SPILLWAY_ROWS = [
-      { name: "Hookbridge Spillway (River Tone ➔ Curry Moor)", config: hydroConfig.moors.curry_moor?.spillway, fallback: 7.45 },
-      { name: "Athelney Spillway (Curry Moor ➔ Northmoor Cascade)", config: hydroConfig.moors.curry_moor?.athelney_spillway, fallback: 7.35 },
-      { name: "Baltmoor Wall Defense (River Parrett ➔ Northmoor Overtopping)", config: hydroConfig.moors.northmoor?.spillway, fallback: 7.80 },
-      { name: "Beer Wall / Allens Spillway (Greylake ➔ Sowy Relief)", config: hydroConfig.moors.northmoor?.beer_wall, fallback: 7.30 }
-    ];
-    infraBody.innerHTML = SPILLWAY_ROWS.map(item => {
-      const crest = getActiveCrestHeight(item.config, new Date(), item.fallback);
-      const history = item.config?.crest_history || [];
-      const latestEntry = history.length > 0 ? history[history.length - 1] : null;
-      const scheme = latestEntry ? latestEntry.notes : 'EA Hydraulic Baseline';
-      const dateWindow = latestEntry ? `${latestEntry.valid_from ? latestEntry.valid_from.substring(0, 4) : '1970'} – Present` : '1970 – Present';
-      return `
-        <tr>
-          <td><strong>${item.name}</strong></td>
-          <td><code style="color: #38bdf8; font-weight: 700;">${crest.toFixed(2)}m AOD</code></td>
-          <td><span class="scheme-badge">${scheme}</span></td>
-          <td><small style="color: #94a3b8;">${dateWindow}</small></td>
-        </tr>
-      `;
-    }).join('');
-  }
+    // Seasonal Penning Regime Evaluation (Summer: April 15 - Oct 15 | Winter: Oct 16 - April 14)
+    const regime = getSeasonalRegime();
+    const isSummerRegime = regime.isSummer;
 
-  // Seasonal Penning Regime Evaluation (Summer: April 15 - Oct 15 | Winter: Oct 16 - April 14)
-  const regime = getSeasonalRegime();
-  const isSummerRegime = regime.isSummer;
+    // 1. Curry Moor Live Data (River Tone 52118 & Curry Moor 52127)
+    const cmRiverReadings = (dbMeasures && dbMeasures["52118-level-stage-i-15_min-mAOD"]) || await fetchEAReadings("52118-level-stage-i-15_min-mAOD");
+    const cmMoorReadings = (dbMeasures && dbMeasures["52127-level-stage-i-15_min-mAOD"]) || await fetchEAReadings("52127-level-stage-i-15_min-mAOD");
 
-  // 1. Curry Moor Live Data (River Tone 52118 & Curry Moor 52127)
-  const cmRiverReadings = (dbMeasures && dbMeasures["52118-level-stage-i-15_min-mAOD"]) || await fetchEAReadings("52118-level-stage-i-15_min-mAOD");
-  const cmMoorReadings = (dbMeasures && dbMeasures["52127-level-stage-i-15_min-mAOD"]) || await fetchEAReadings("52127-level-stage-i-15_min-mAOD");
+    const cmRiverLevel = getValidStageOrFallback(cmRiverReadings, STATION_REGISTRY['52118'].fallback_stage_mAOD);
+    const cmMoorLevel = getValidStageOrFallback(cmMoorReadings, STATION_REGISTRY['52127'].fallback_stage_mAOD);
 
-  const cmRiverLevel = cmRiverReadings && cmRiverReadings.length ? cmRiverReadings[0].value : STATION_REGISTRY['52118'].fallback_stage_mAOD;
-  const cmMoorLevel = cmMoorReadings && cmMoorReadings.length ? cmMoorReadings[0].value : STATION_REGISTRY['52127'].fallback_stage_mAOD;
+    // 2. Northmoor & Saltmoor Live Data (Baltmoor Wall Saltmoor 52158 & Northmoor Drain 52159)
+    const nmRiverReadings = (dbMeasures && dbMeasures["52158-level-stage-i-15_min-mAOD"]) || await fetchEAReadings("52158-level-stage-i-15_min-mAOD");
+    const nmMoorReadings = (dbMeasures && dbMeasures["52159-level-stage-i-15_min-mAOD"]) || await fetchEAReadings("52159-level-stage-i-15_min-mAOD");
 
-  // 2. Northmoor & Saltmoor Live Data (Baltmoor Wall Saltmoor 52158 & Northmoor Drain 52159)
-  const nmRiverReadings = (dbMeasures && dbMeasures["52158-level-stage-i-15_min-mAOD"]) || await fetchEAReadings("52158-level-stage-i-15_min-mAOD");
-  const nmMoorReadings = (dbMeasures && dbMeasures["52159-level-stage-i-15_min-mAOD"]) || await fetchEAReadings("52159-level-stage-i-15_min-mAOD");
+    const nmRiverLevel = getValidStageOrFallback(nmRiverReadings, STATION_REGISTRY['52158'].fallback_stage_mAOD);
+    const nmMoorLevel = getValidStageOrFallback(nmMoorReadings, STATION_REGISTRY['52159'].fallback_stage_mAOD);
 
-  const nmRiverLevel = nmRiverReadings && nmRiverReadings.length ? nmRiverReadings[0].value : STATION_REGISTRY['52158'].fallback_stage_mAOD;
-  const nmMoorLevel = nmMoorReadings && nmMoorReadings.length ? nmMoorReadings[0].value : STATION_REGISTRY['52159'].fallback_stage_mAOD;
+    // 3. Monk's Leaze / Sowy Relief Channel Live Data (52233 Upstream & 52234 Downstream Sowy)
+    const monksUpReadings = (dbMeasures && dbMeasures["52233-level-stage-i-15_min-mAOD"]) || await fetchEAReadings("52233-level-stage-i-15_min-mAOD");
+    const monksDownReadings = (dbMeasures && dbMeasures["52234-level-downstage-i-15_min-mAOD"]) || await fetchEAReadings("52234-level-downstage-i-15_min-mAOD");
 
-  // 3. Monk's Leaze / Sowy Relief Channel Live Data (52233 Upstream & 52234 Downstream Sowy)
-  const monksUpReadings = (dbMeasures && dbMeasures["52233-level-stage-i-15_min-mAOD"]) || await fetchEAReadings("52233-level-stage-i-15_min-mAOD");
-  const monksDownReadings = (dbMeasures && dbMeasures["52234-level-downstage-i-15_min-mAOD"]) || await fetchEAReadings("52234-level-downstage-i-15_min-mAOD");
+    const monksUpLevel = getValidStageOrFallback(monksUpReadings, STATION_REGISTRY['52233'].fallback_stage_mAOD);
+    const monksDownLevel = getValidStageOrFallback(monksDownReadings, STATION_REGISTRY['52234'].fallback_stage_mAOD);
 
-  const monksUpLevel = monksUpReadings && monksUpReadings.length ? monksUpReadings[0].value : STATION_REGISTRY['52233'].fallback_stage_mAOD;
-  const monksDownLevel = monksDownReadings && monksDownReadings.length ? monksDownReadings[0].value : STATION_REGISTRY['52234'].fallback_stage_mAOD;
+    // 4. Dunball Outfall Live Data (E9094 Inland & 52163 Sea Tidal)
+    const dunballInlandReadings = (dbMeasures && dbMeasures["E9094-level-stage-i-15_min-mAOD"]) || await fetchEAReadings("E9094-level-stage-i-15_min-mAOD");
+    const seaReadings = (dbMeasures && dbMeasures["52163-level-tidal_level-i-15_min-mAOD"]) || await fetchEAReadings("52163-level-tidal_level-i-15_min-mAOD");
 
-  // 4. Dunball Outfall Live Data (E9094 Inland & 52163 Sea Tidal)
-  const dunballInlandReadings = (dbMeasures && dbMeasures["E9094-level-stage-i-15_min-mAOD"]) || await fetchEAReadings("E9094-level-stage-i-15_min-mAOD");
-  const seaReadings = (dbMeasures && dbMeasures["52163-level-tidal_level-i-15_min-mAOD"]) || await fetchEAReadings("52163-level-tidal_level-i-15_min-mAOD");
+    const dunballInland = getValidStageOrFallback(dunballInlandReadings, STATION_REGISTRY['E9094'].fallback_stage_mAOD);
+    const dunballSea = getValidStageOrFallback(seaReadings, STATION_REGISTRY['52163'].fallback_stage_mAOD);
 
-  const dunballInland = dunballInlandReadings && dunballInlandReadings.length ? dunballInlandReadings[0].value : STATION_REGISTRY['E9094'].fallback_stage_mAOD;
-  const dunballSea = seaReadings && seaReadings.length ? seaReadings[0].value : STATION_REGISTRY['52163'].fallback_stage_mAOD;
+    // 5. Langport Confluence Live Data (River Yeo 52120 & River Isle 52153)
+    const huishReadings = (dbMeasures && dbMeasures["52120-level-stage-i-15_min-mASD"]) || await fetchEAReadings("52120-level-stage-i-15_min-mASD");
+    const midelneyReadings = (dbMeasures && dbMeasures["52153-level-stage-i-15_min-mASD"]) || await fetchEAReadings("52153-level-stage-i-15_min-mASD");
 
-  // 5. Langport Confluence Live Data (River Yeo 52120 & River Isle 52153)
-  const huishReadings = (dbMeasures && dbMeasures["52120-level-stage-i-15_min-mASD"]) || await fetchEAReadings("52120-level-stage-i-15_min-mASD");
-  const midelneyReadings = (dbMeasures && dbMeasures["52153-level-stage-i-15_min-mASD"]) || await fetchEAReadings("52153-level-stage-i-15_min-mASD");
+    const huishDatum = STATION_REGISTRY['52120']?.datum_offset_mAOD ?? GAUGE_DATUMS['52120'];
+    const midelneyDatum = STATION_REGISTRY['52153']?.datum_offset_mAOD ?? GAUGE_DATUMS['52153'];
+    const huishDefaultStage = (STATION_REGISTRY['52120']?.fallback_stage_mAOD ?? 6.68) - huishDatum;
+    const midelneyDefaultStage = (STATION_REGISTRY['52153']?.fallback_stage_mAOD ?? 6.60) - midelneyDatum;
+    const huishRaw = getValidStageOrFallback(huishReadings, huishDefaultStage);
+    const midelneyRaw = getValidStageOrFallback(midelneyReadings, midelneyDefaultStage);
+    const huishLevel = Number((huishRaw + huishDatum).toFixed(2));
+    const midelneyLevel = Number((midelneyRaw + midelneyDatum).toFixed(2));
 
-  const huishDatum = GAUGE_DATUMS['52120'] || 5.000;
-  const midelneyDatum = GAUGE_DATUMS['52153'] || 5.185;
-  const huishRaw = huishReadings && huishReadings.length ? huishReadings[0].value : 1.681;
-  const midelneyRaw = midelneyReadings && midelneyReadings.length ? midelneyReadings[0].value : 1.417;
-  const huishLevel = Number((huishRaw + huishDatum).toFixed(2));
-  const midelneyLevel = Number((midelneyRaw + midelneyDatum).toFixed(2));
+    // Station Freshness Evaluations [Issue #14: Ban Zombie Gauges]
+    const cmRiverFreshness = evaluateStationFreshness(cmRiverReadings, { fallbackLabel: 'River Tone 52118 Baseline' });
+    const cmMoorFreshness = evaluateStationFreshness(cmMoorReadings, { fallbackLabel: 'Curry Moor 52127 Baseline' });
+    const cmIsStale = cmRiverFreshness.isStale || cmMoorFreshness.isStale;
+    const cmStaleInfo = cmRiverFreshness.isStale ? cmRiverFreshness : (cmMoorFreshness.isStale ? cmMoorFreshness : null);
 
-  // Build trend histories according to selected lookback period (24h, 7d, 30d)
-  const rangeLimitMap = { '24h': 96, '7d': 672, '30d': 2688 };
-  const maxLimit = rangeLimitMap[currentActiveRange] || 96;
+    const nmRiverFreshness = evaluateStationFreshness(nmRiverReadings, { fallbackLabel: 'Baltmoor Wall 52158 Baseline' });
+    const nmMoorFreshness = evaluateStationFreshness(nmMoorReadings, { fallbackLabel: 'Northmoor 52159 Baseline' });
+    const nmIsStale = nmRiverFreshness.isStale || nmMoorFreshness.isStale;
+    const nmStaleInfo = nmRiverFreshness.isStale ? nmRiverFreshness : (nmMoorFreshness.isStale ? nmMoorFreshness : null);
 
-  const extractHistory = (items, datum = 0) => {
-    if (!items || !Array.isArray(items) || items.length === 0) return [];
-    const validDatum = Number.isFinite(datum) ? datum : 0;
-    let sliced = items
-      .filter(i => i && typeof i.value === 'number' && Number.isFinite(i.value))
-      .slice(0, maxLimit)
-      .map(i => ({ value: Number((i.value + validDatum).toFixed(3)), time: i.dateTime }));
-    if ((currentActiveRange === '30d' || currentActiveRange === '7d') && sliced.length > 250) {
-      const step = Math.ceil(sliced.length / 180);
-      sliced = sliced.filter((_, idx) => idx % step === 0);
-    }
-    return sliced.reverse();
-  };
-  const cmRiverHistory = extractHistory(cmRiverReadings);
-  const cmMoorHistory = extractHistory(cmMoorReadings);
-  const nmRiverHistory = extractHistory(nmRiverReadings);
-  const nmMoorHistory = extractHistory(nmMoorReadings);
-  const monksUpHistory = extractHistory(monksUpReadings);
-  const monksDownHistory = extractHistory(monksDownReadings);
-  const inlandHistory = extractHistory(dunballInlandReadings);
-  const seaHistory = extractHistory(seaReadings);
-  const huishHistory = extractHistory(huishReadings, huishDatum);
-  const midelneyHistory = extractHistory(midelneyReadings, midelneyDatum);
+    const athelneyIsStale = cmMoorFreshness.isStale || nmMoorFreshness.isStale;
+    const athelneyStaleInfo = cmMoorFreshness.isStale ? cmMoorFreshness : (nmMoorFreshness.isStale ? nmMoorFreshness : null);
+
+    const monksUpFreshness = evaluateStationFreshness(monksUpReadings, { fallbackLabel: 'Monk\'s Leaze 52233 Baseline' });
+    const monksDownFreshness = evaluateStationFreshness(monksDownReadings, { fallbackLabel: 'Monk\'s Leaze 52234 Baseline' });
+    const sowyIsStale = monksUpFreshness.isStale || monksDownFreshness.isStale;
+    const sowyStaleInfo = monksUpFreshness.isStale ? monksUpFreshness : (monksDownFreshness.isStale ? monksDownFreshness : null);
+
+    const dunballInlandFreshness = evaluateStationFreshness(dunballInlandReadings, { fallbackLabel: 'Dunball Inland E9094 Baseline' });
+    const dunballSeaFreshness = evaluateStationFreshness(seaReadings, { fallbackLabel: 'Dunball Sea 52163 Baseline' });
+    const dunballIsStale = dunballInlandFreshness.isStale || dunballSeaFreshness.isStale;
+    const dunballStaleInfo = dunballInlandFreshness.isStale ? dunballInlandFreshness : (dunballSeaFreshness.isStale ? dunballSeaFreshness : null);
+
+    const huishFreshness = evaluateStationFreshness(huishReadings, { fallbackLabel: 'Huish 52120 Baseline' });
+    const midelneyFreshness = evaluateStationFreshness(midelneyReadings, { fallbackLabel: 'Midelney 52153 Baseline' });
+    const confluenceIsStale = huishFreshness.isStale || midelneyFreshness.isStale;
+    const confluenceStaleInfo = huishFreshness.isStale ? huishFreshness : (midelneyFreshness.isStale ? midelneyFreshness : null);
+
+    // Build trend histories according to selected lookback period (24h, 7d, 30d)
+    const rangeLimitMap = { '24h': 96, '7d': 672, '30d': 2688 };
+    const maxLimit = rangeLimitMap[currentActiveRange] || 96;
+
+    const extractHistory = (items, datum = 0) => {
+      if (!items || !Array.isArray(items) || items.length === 0) return [];
+      const validDatum = Number.isFinite(datum) ? datum : 0;
+      let sliced = items
+        .filter(i => i && typeof i.value === 'number' && Number.isFinite(i.value))
+        .slice(0, maxLimit)
+        .map(i => ({ value: Number((i.value + validDatum).toFixed(3)), time: i.dateTime }));
+      if ((currentActiveRange === '30d' || currentActiveRange === '7d') && sliced.length > 250) {
+        const step = Math.ceil(sliced.length / 180);
+        sliced = sliced.filter((_, idx) => idx % step === 0);
+      }
+      return sliced.reverse();
+    };
+    const cmRiverHistory = extractHistory(cmRiverReadings);
+    const cmMoorHistory = extractHistory(cmMoorReadings);
+    const nmRiverHistory = extractHistory(nmRiverReadings);
+    const nmMoorHistory = extractHistory(nmMoorReadings);
+    const monksUpHistory = extractHistory(monksUpReadings);
+    const monksDownHistory = extractHistory(monksDownReadings);
+    const inlandHistory = extractHistory(dunballInlandReadings);
+    const seaHistory = extractHistory(seaReadings);
+    const huishHistory = extractHistory(huishReadings, huishDatum);
+    const midelneyHistory = extractHistory(midelneyReadings, midelneyDatum);
 
   container.innerHTML = '';
 
@@ -472,6 +615,11 @@ export async function refreshLiveDashboard() {
 
   const cmEval = evaluateSpillway(cmRiverLevel, cmMoorLevel, hookbridgeCrest);
   cmEval.name = "Curry Moor System";
+  if (cmIsStale && (cmEval.badgeClass === 'badge-secure' || cmEval.code === 'SECURE')) {
+    cmEval.badgeClass = cmStaleInfo.badgeClass || 'badge-stale';
+    cmEval.symbol = cmStaleInfo.isOffline ? '⚠️' : '🕒';
+    cmEval.label = `${cmEval.label} (UNCONFIRMED - ${cmStaleInfo.isOffline ? 'OFFLINE' : 'STALE'})`;
+  }
   evals.push(cmEval);
 
   const currymoorPump = getPumpEvaluation('currymoor_ps', cmMoorLevel, 'curry_moor', 'Currymoor PS', 2);
@@ -501,6 +649,7 @@ export async function refreshLiveDashboard() {
     minLabel: 'Normal Stage: 5.50m',
     maxLabel: `Crest: ${hookbridgeCrest.toFixed(2)}m AOD`,
     isAlert: cmEval.code === 'OVERTOPPING' || cmEval.code === 'NEAR_CREST',
+    staleInfo: cmStaleInfo,
     stats: [
       { label: 'Surveyed Crest', value: `${hookbridgeCrest.toFixed(2)}m AOD` },
       { label: 'Clearance to Crest', value: cmClearanceWithTrend }
@@ -517,6 +666,7 @@ export async function refreshLiveDashboard() {
     heroBanner: cmHeroBanner,
     riverTag: `Catchment: River Tone (${regime.label})`,
     eval: cmEval,
+    staleInfo: cmStaleInfo,
     provenanceTag: "⚡ LEVEL SOP MODEL",
     provenanceClass: "prov-medium",
     metricText: `${cmRiverLevel.toFixed(2)}m AOD`,
@@ -544,11 +694,27 @@ export async function refreshLiveDashboard() {
       { label: "Currymoor PS", url: "https://thecfh.org/parretttonewsom.php#currymoor", title: "View 3-min EA Snapshot Camera at Currymoor PS" }
     ],
     spillwayMeta: { crest: hookbridgeCrest.toFixed(2), scheme: hookbridgeScheme },
-    sparkline: renderSingleSparkline(cmRiverHistory, cmEval.code === 'OVERTOPPING' ? '#f87171' : '#4ade80', { streamLabel: 'River Tone @ Currymoor PS', stationId: '52118', unit: 'mAOD' }),
+    sparkline: renderSingleSparkline(cmRiverHistory, cmEval.code === 'OVERTOPPING' ? '#f87171' : (cmIsStale ? '#f59e0b' : '#4ade80'), { streamLabel: 'River Tone @ Currymoor PS', stationId: '52118', unit: 'mAOD' }),
     pumpGauge: renderPumpTriggerGauge(currymoorPump),
     gauges: [
-      { name: "River Tone (Currymoor PS)", id: "52118", value: `${cmRiverLevel.toFixed(2)}m AOD`, history: cmRiverHistory, color: "#4ade80", link: "https://check-for-flooding.service.gov.uk/station/3073" },
-      { name: "Curry Moor Basin", id: "52127", value: `${cmMoorLevel.toFixed(2)}m AOD`, history: cmMoorHistory, color: "#38bdf8", link: "https://check-for-flooding.service.gov.uk/station/3064" }
+      {
+        name: "River Tone (Currymoor PS)",
+        id: "52118",
+        value: `${cmRiverLevel.toFixed(2)}m AOD`,
+        history: cmRiverHistory,
+        color: cmRiverFreshness.isStale ? "#f59e0b" : "#4ade80",
+        link: "https://check-for-flooding.service.gov.uk/station/3073",
+        staleTag: cmRiverFreshness.isStale ? (cmRiverFreshness.isOffline ? '⚠️ OFFLINE' : `⚠️ STALE (${cmRiverFreshness.ageHours}h)`) : null
+      },
+      {
+        name: "Curry Moor Basin",
+        id: "52127",
+        value: `${cmMoorLevel.toFixed(2)}m AOD`,
+        history: cmMoorHistory,
+        color: cmMoorFreshness.isStale ? "#f59e0b" : "#38bdf8",
+        link: "https://check-for-flooding.service.gov.uk/station/3064",
+        staleTag: cmMoorFreshness.isStale ? (cmMoorFreshness.isOffline ? '⚠️ OFFLINE' : `⚠️ STALE (${cmMoorFreshness.ageHours}h)`) : null
+      }
     ],
     extLinks: [
       { label: "📷 Live Curry Moor Webcams (thecfh.org#hook) ↗", url: "https://thecfh.org/parretttonewsom.php#hook" },
@@ -564,6 +730,11 @@ export async function refreshLiveDashboard() {
   const athelneyScheme = athelneyHist.length ? athelneyHist[athelneyHist.length - 1].notes : 'Standard Hydraulic Profile';
   const athelneyEval = evaluateSpillway(cmMoorLevel, nmMoorLevel, athelneyCrest);
   athelneyEval.name = "Athelney Spillway";
+  if (athelneyIsStale && (athelneyEval.badgeClass === 'badge-secure' || athelneyEval.code === 'SECURE')) {
+    athelneyEval.badgeClass = athelneyStaleInfo.badgeClass || 'badge-stale';
+    athelneyEval.symbol = athelneyStaleInfo.isOffline ? '⚠️' : '🕒';
+    athelneyEval.label = `${athelneyEval.label} (UNCONFIRMED - ${athelneyStaleInfo.isOffline ? 'OFFLINE' : 'STALE'})`;
+  }
   evals.push(athelneyEval);
 
   const cutsRoadActive = activeEventsMap.get('cuts_road');
@@ -585,6 +756,7 @@ export async function refreshLiveDashboard() {
     minLabel: 'Normal Moor: 3.80m',
     maxLabel: `Spillway Crest: ${athelneyCrest.toFixed(2)}m AOD`,
     isAlert: athelneyEval.code === 'OVERTOPPING' || athelneyEval.code === 'NEAR_CREST',
+    staleInfo: athelneyStaleInfo,
     stats: [
       { label: 'Clearance to Spillway', value: athelneyClearanceWithTrend },
       { label: 'Spillway Status', value: athelneyEval.label }
@@ -602,6 +774,7 @@ export async function refreshLiveDashboard() {
     heroBanner: athelneyHeroBanner,
     riverTag: `Inter-Moor Cascade: Curry Moor ➔ Northmoor`,
     eval: athelneyEval,
+    staleInfo: athelneyStaleInfo,
     provenanceTag: "⚡ LEVEL SOP MODEL",
     provenanceClass: "prov-medium",
     metricText: `${cmMoorLevel.toFixed(2)}m AOD`,
@@ -619,10 +792,26 @@ export async function refreshLiveDashboard() {
       { label: "Athelney Spillway", url: "https://thecfh.org/parretttonewsom.php#athelneyspillway", title: "View 3-min EA Snapshot Camera at Athelney" }
     ],
     spillwayMeta: { crest: athelneyCrest.toFixed(2), scheme: athelneyScheme },
-    sparkline: renderSingleSparkline(cmMoorHistory, athelneyEval.code === 'OVERTOPPING' ? '#f87171' : '#38bdf8', { streamLabel: 'Curry Moor Basin @ Athelney', stationId: '52127', unit: 'mAOD' }),
+    sparkline: renderSingleSparkline(cmMoorHistory, athelneyEval.code === 'OVERTOPPING' ? '#f87171' : (athelneyIsStale ? '#f59e0b' : '#38bdf8'), { streamLabel: 'Curry Moor Basin @ Athelney', stationId: '52127', unit: 'mAOD' }),
     gauges: [
-      { name: "Curry Moor Basin", id: "52127", value: `${cmMoorLevel.toFixed(2)}m AOD`, history: cmMoorHistory, color: "#38bdf8", link: "https://check-for-flooding.service.gov.uk/station/3064" },
-      { name: "Northmoor Main Drain", id: "52159", value: `${nmMoorLevel.toFixed(2)}m AOD`, history: nmMoorHistory, color: "#4ade80", link: "https://check-for-flooding.service.gov.uk/station/3415" }
+      {
+        name: "Curry Moor Basin",
+        id: "52127",
+        value: `${cmMoorLevel.toFixed(2)}m AOD`,
+        history: cmMoorHistory,
+        color: cmMoorFreshness.isStale ? "#f59e0b" : "#38bdf8",
+        link: "https://check-for-flooding.service.gov.uk/station/3064",
+        staleTag: cmMoorFreshness.isStale ? (cmMoorFreshness.isOffline ? '⚠️ OFFLINE' : `⚠️ STALE (${cmMoorFreshness.ageHours}h)`) : null
+      },
+      {
+        name: "Northmoor Main Drain",
+        id: "52159",
+        value: `${nmMoorLevel.toFixed(2)}m AOD`,
+        history: nmMoorHistory,
+        color: nmMoorFreshness.isStale ? "#f59e0b" : "#4ade80",
+        link: "https://check-for-flooding.service.gov.uk/station/3415",
+        staleTag: nmMoorFreshness.isStale ? (nmMoorFreshness.isOffline ? '⚠️ OFFLINE' : `⚠️ STALE (${nmMoorFreshness.ageHours}h)`) : null
+      }
     ],
     extLinks: [
       { label: "📷 Live Athelney Webcam (thecfh.org) ↗", url: "https://thecfh.org/parretttonewsom.php#athelneyspillway" },
@@ -639,6 +828,11 @@ export async function refreshLiveDashboard() {
   const baltmoorScheme = baltmoorHist.length ? baltmoorHist[baltmoorHist.length - 1].notes : 'Post-2014 EA Levee Strengthening';
   const nmEval = evaluateSpillway(nmRiverLevel, nmMoorLevel, baltmoorCrest);
   nmEval.name = "Northmoor & Saltmoor";
+  if (nmIsStale && (nmEval.badgeClass === 'badge-secure' || nmEval.code === 'SECURE')) {
+    nmEval.badgeClass = nmStaleInfo.badgeClass || 'badge-stale';
+    nmEval.symbol = nmStaleInfo.isOffline ? '⚠️' : '🕒';
+    nmEval.label = `${nmEval.label} (UNCONFIRMED - ${nmStaleInfo.isOffline ? 'OFFLINE' : 'STALE'})`;
+  }
   evals.push(nmEval);
 
   const saltmoorPump = getPumpEvaluation('saltmoor_ps', nmMoorLevel, 'northmoor', 'Saltmoor PS', 2);
@@ -669,6 +863,7 @@ export async function refreshLiveDashboard() {
     minLabel: 'Normal Stage: 5.50m',
     maxLabel: `Defense Crest: ${baltmoorCrest.toFixed(2)}m AOD`,
     isAlert: nmEval.code === 'OVERTOPPING' || nmEval.code === 'NEAR_CREST',
+    staleInfo: nmStaleInfo,
     stats: [
       { label: 'Defense Crest', value: `${baltmoorCrest.toFixed(2)}m AOD` },
       { label: 'Defense Clearance', value: nmClearanceWithTrend }
@@ -685,6 +880,7 @@ export async function refreshLiveDashboard() {
     heroBanner: nmHeroBanner,
     riverTag: `Catchment: River Parrett (${regime.label})`,
     eval: nmEval,
+    staleInfo: nmStaleInfo,
     provenanceTag: "⚡ LEVEL SOP MODEL",
     provenanceClass: "prov-medium",
     metricText: `${nmRiverLevel.toFixed(2)}m AOD`,
@@ -721,11 +917,27 @@ export async function refreshLiveDashboard() {
       { label: "Northmoor PS", url: "https://thecfh.org/parretttonewsom.php#northmoor", title: "View 3-min EA Snapshot Camera at Northmoor PS" }
     ],
     spillwayMeta: { crest: baltmoorCrest.toFixed(2), scheme: baltmoorScheme },
-    sparkline: renderSingleSparkline(nmRiverHistory, nmEval.code === 'OVERTOPPING' ? '#f87171' : '#4ade80', { streamLabel: 'Baltmoor Wall Barrier', stationId: '52158', unit: 'mAOD' }),
+    sparkline: renderSingleSparkline(nmRiverHistory, nmEval.code === 'OVERTOPPING' ? '#f87171' : (nmIsStale ? '#f59e0b' : '#4ade80'), { streamLabel: 'Baltmoor Wall Barrier', stationId: '52158', unit: 'mAOD' }),
     pumpGauge: renderPumpTriggerGauge(saltmoorPump),
     gauges: [
-      { name: "Baltmoor Wall Saltmoor Barrier", id: "52158", value: `${nmRiverLevel.toFixed(2)}m AOD`, history: nmRiverHistory, color: "#4ade80", link: "https://check-for-flooding.service.gov.uk/station/3400" },
-      { name: "Northmoor Main Drain", id: "52159", value: `${nmMoorLevel.toFixed(2)}m AOD`, history: nmMoorHistory, color: "#38bdf8", link: "https://check-for-flooding.service.gov.uk/station/3415" }
+      {
+        name: "Baltmoor Wall Saltmoor Barrier",
+        id: "52158",
+        value: `${nmRiverLevel.toFixed(2)}m AOD`,
+        history: nmRiverHistory,
+        color: nmRiverFreshness.isStale ? "#f59e0b" : "#4ade80",
+        link: "https://check-for-flooding.service.gov.uk/station/3400",
+        staleTag: nmRiverFreshness.isStale ? (nmRiverFreshness.isOffline ? '⚠️ OFFLINE' : `⚠️ STALE (${nmRiverFreshness.ageHours}h)`) : null
+      },
+      {
+        name: "Northmoor Main Drain",
+        id: "52159",
+        value: `${nmMoorLevel.toFixed(2)}m AOD`,
+        history: nmMoorHistory,
+        color: nmMoorFreshness.isStale ? "#f59e0b" : "#38bdf8",
+        link: "https://check-for-flooding.service.gov.uk/station/3415",
+        staleTag: nmMoorFreshness.isStale ? (nmMoorFreshness.isOffline ? '⚠️ OFFLINE' : `⚠️ STALE (${nmMoorFreshness.ageHours}h)`) : null
+      }
     ],
     extLinks: [
       { label: "📷 Live Saltmoor & Northmoor Webcams (thecfh.org#saltmoor) ↗", url: "https://thecfh.org/parretttonewsom.php#saltmoor" },
@@ -737,6 +949,11 @@ export async function refreshLiveDashboard() {
 
   // Card 3: Sowy Relief Channel
   const sowyEval = evaluateSowyChannel(monksUpLevel, monksDownLevel, 4.20);
+  if (sowyIsStale && (sowyEval.badgeClass === 'badge-secure' || sowyEval.badgeClass === 'badge-open' || sowyEval.code === 'CLOSED' || sowyEval.code === 'GRAVITY_OPEN')) {
+    sowyEval.badgeClass = sowyStaleInfo.badgeClass || 'badge-stale';
+    sowyEval.symbol = sowyStaleInfo.isOffline ? '⚠️' : '🕒';
+    sowyEval.label = `${sowyEval.label} (UNCONFIRMED - ${sowyStaleInfo.isOffline ? 'OFFLINE' : 'STALE'})`;
+  }
   const headDropMeters = Number((monksUpLevel - monksDownLevel).toFixed(2));
   const headDropFormatted = formatHeadDelta(headDropMeters);
   const oathLock = evaluateOathLock(monksUpLevel, monksDownLevel);
@@ -754,6 +971,7 @@ export async function refreshLiveDashboard() {
     minLabel: 'Intake Sill: 4.20m',
     maxLabel: `Parrett Stage: ${monksUpLevel.toFixed(2)}m AOD`,
     isAlert: false,
+    staleInfo: sowyStaleInfo,
     stats: [
       { label: 'Gate Position', htmlValue: sowyEval.code === 'GRAVITY_OPEN' ? '🔵 DIVERTING' : '🔒 PENNING / CLOSED' },
       { label: 'Intake Head Drop', value: `${headDropMeters >= 0 ? '+' : ''}${headDropMeters.toFixed(2)}m` }
@@ -770,6 +988,7 @@ export async function refreshLiveDashboard() {
     heroBanner: sowyHeroBanner,
     riverTag: `Diverts: Parrett ➔ Sedgemoor Drain (${renderJargonTerm('KSD')}) (${regime.label})`,
     eval: sowyEval,
+    staleInfo: sowyStaleInfo,
     provenanceTag: "📡 DEDICATED SENSORS",
     provenanceClass: "prov-high",
     metricText: `Sowy Level: ${monksDownLevel.toFixed(2)}m AOD`,
@@ -792,10 +1011,26 @@ export async function refreshLiveDashboard() {
       { label: "Monk's Leaze Clyse", url: "https://thecfh.org/parretttonewsom.php#monksleaze", title: "View 3-min EA Snapshot Camera at Monk's Leaze Clyse" },
       { label: "Oath Lock Penning Sluice", url: "https://thecfh.org/parretttonewsom.php#oath", title: "View 3-min EA Snapshot Camera at Oath Lock Penning Sluice" }
     ],
-    sparkline: renderSingleSparkline(monksDownHistory, '#38bdf8', { streamLabel: 'Monk\'s Leaze Downstream Sowy', stationId: '52234', unit: 'mAOD' }),
+    sparkline: renderSingleSparkline(monksDownHistory, sowyIsStale ? '#f59e0b' : '#38bdf8', { streamLabel: 'Monk\'s Leaze Downstream Sowy', stationId: '52234', unit: 'mAOD' }),
     gauges: [
-      { name: "Monk's Leaze River Level", id: "52233", value: `${monksUpLevel.toFixed(2)}m AOD`, history: monksUpHistory, color: "#4ade80", link: "https://environment.data.gov.uk/flood-monitoring/id/stations/52233.html" },
-      { name: "Monk's Leaze Downstream Sowy", id: "52234", value: `${monksDownLevel.toFixed(2)}m AOD`, history: monksDownHistory, color: "#38bdf8", link: "https://environment.data.gov.uk/flood-monitoring/id/stations/52234.html" }
+      {
+        name: "Monk's Leaze River Level",
+        id: "52233",
+        value: `${monksUpLevel.toFixed(2)}m AOD`,
+        history: monksUpHistory,
+        color: monksUpFreshness.isStale ? "#f59e0b" : "#4ade80",
+        link: "https://environment.data.gov.uk/flood-monitoring/id/stations/52233.html",
+        staleTag: monksUpFreshness.isStale ? (monksUpFreshness.isOffline ? '⚠️ OFFLINE' : `⚠️ STALE (${monksUpFreshness.ageHours}h)`) : null
+      },
+      {
+        name: "Monk's Leaze Downstream Sowy",
+        id: "52234",
+        value: `${monksDownLevel.toFixed(2)}m AOD`,
+        history: monksDownHistory,
+        color: monksDownFreshness.isStale ? "#f59e0b" : "#38bdf8",
+        link: "https://environment.data.gov.uk/flood-monitoring/id/stations/52234.html",
+        staleTag: monksDownFreshness.isStale ? (monksDownFreshness.isOffline ? '⚠️ OFFLINE' : `⚠️ STALE (${monksDownFreshness.ageHours}h)`) : null
+      }
     ],
     extLinks: [
       { label: "📷 Live Sowy Channel Webcams (thecfh.org#monksleaze) ↗", url: "https://thecfh.org/parretttonewsom.php#monksleaze" },
@@ -812,13 +1047,17 @@ export async function refreshLiveDashboard() {
   const dunballEmergencyPump = evaluateDunballEmergencyPumping(dunballInland, isTideLocked, dunballEmergencyThreshold);
   const dunballPumpGaugeEval = getPumpEvaluation('dunball_mobile_ps', dunballInland, 'dunball_outfall', 'Dunball Emergency Pumps', 4);
 
+  const dunballStatusBadge = isTideLocked ? 
+    { label: "TIDE-LOCKED", badgeClass: "badge-tide-locked", symbol: "🕒" } :
+    (dunballIsStale ?
+      { label: `DISCHARGING (UNCONFIRMED - ${dunballStaleInfo.isOffline ? 'OFFLINE' : 'STALE'})`, badgeClass: dunballStaleInfo.badgeClass || "badge-stale", symbol: dunballStaleInfo.isOffline ? "⚠️" : "🕒" } :
+      { label: "DISCHARGING", badgeClass: "badge-secure", symbol: "✓" });
+
   const tideDiff = dunballInland - dunballSea;
   const dunballHeroBanner = renderHeroSpillwayBanner({
     icon: '🚪',
     title: 'Dunball Sea Outfall Doors',
-    statusBadge: isTideLocked ? 
-      { label: "TIDE-LOCKED", badgeClass: "badge-tide-locked", symbol: "🕒" } :
-      { label: "DISCHARGING", badgeClass: "badge-secure", symbol: "✓" },
+    statusBadge: dunballStatusBadge,
     mainMetricValue: dunballSea.toFixed(2),
     mainMetricUnit: 'm AOD (Parrett Estuary)',
     clearanceText: `Inland ${renderJargonTerm('KSD')}: ${dunballInland.toFixed(2)}m AOD`,
@@ -828,8 +1067,9 @@ export async function refreshLiveDashboard() {
     minLabel: `Inland: ${dunballInland.toFixed(2)}m`,
     maxLabel: `Tide: ${dunballSea.toFixed(2)}m AOD`,
     isAlert: dunballSea >= 6.50,
+    staleInfo: dunballStaleInfo,
     stats: [
-      { label: 'Sea Door State', htmlValue: isTideLocked ? '🟡 TIDE-LOCKED' : '🟢 GRAVITY DISCHARGE OPEN' },
+      { label: 'Sea Door State', htmlValue: isTideLocked ? '🟡 TIDE-LOCKED' : (dunballIsStale ? '🟡 UNCONFIRMED DISCHARGE' : '🟢 GRAVITY DISCHARGE OPEN') },
       { label: 'Head Differential', value: formatHeadDelta(tideDiff) }
     ],
     camLink: {
@@ -843,19 +1083,20 @@ export async function refreshLiveDashboard() {
     title: "Dunball Sea Outfall",
     heroBanner: dunballHeroBanner,
     riverTag: `Outfall: Sedgemoor Drain ➔ Parrett Estuary (${regime.label})`,
-    eval: isTideLocked ? 
-      { label: "TIDE-LOCKED", badgeClass: "badge-tide-locked", symbol: "🕒" } :
-      { label: "DISCHARGING", badgeClass: "badge-secure", symbol: "✓" },
+    eval: dunballStatusBadge,
+    staleInfo: dunballStaleInfo,
     provenanceTag: "⚖️ HYDROSTATIC LAW",
     provenanceClass: "prov-high",
     metricText: `Sea Tide: ${dunballSea.toFixed(2)}m AOD`,
     clearanceText: `Inland Drain: ${dunballInland.toFixed(2)}m AOD`,
     narrative: isTideLocked ? 
       `High sea tide in Parrett Estuary (${dunballSea.toFixed(2)}m) exceeds inland drain (${dunballInland.toFixed(2)}m). Passive flap doors shut under reverse hydrostatic pressure.` :
-      `Seawater level below inland drain. Positive head differential opens flap doors for gravity discharge.`,
+      (dunballIsStale ?
+        `Telemetry unconfirmed (${dunballStaleInfo.badgeText}). Flap doors inferred from fallback baseline.` :
+        `Seawater level below inland drain. Positive head differential opens flap doors for gravity discharge.`),
     pills: [
       {
-        html: `<strong>Dunball Flap Doors:</strong> ${isTideLocked ? '🕒 TIDE-LOCKED (SEA HEAD)' : '🟢 GRAVITY DISCHARGING'}`,
+        html: `<strong>Dunball Flap Doors:</strong> ${isTideLocked ? '🕒 TIDE-LOCKED (SEA HEAD)' : (dunballIsStale ? '🟡 UNCONFIRMED DISCHARGE' : '🟢 GRAVITY DISCHARGING')}`,
         tooltip: `📍 Dunball Primary ${renderJargonTerm('Clyse')} Outfall`
       },
       `<strong>Dunball ${renderJargonTerm('Penning')} Barrier:</strong> ${isTideLocked ? '🔒 PENNING / SURGE SEALED' : '🟢 OPEN FOR DISCHARGE'}`,
@@ -867,8 +1108,24 @@ export async function refreshLiveDashboard() {
     sparkline: renderDualSparkline(seaHistory, inlandHistory, isTideLocked),
     pumpGauge: renderPumpTriggerGauge(dunballPumpGaugeEval),
     gauges: [
-      { name: "Dunball Tidal Parrett", id: "52163", value: `${dunballSea.toFixed(2)}m AOD`, history: seaHistory.map(h => h.value), color: "#0284c7", link: "https://check-for-flooding.service.gov.uk/station/9129" },
-      { name: "Dunball Inland KSD", id: "E9094", value: `${dunballInland.toFixed(2)}m AOD`, history: inlandHistory.map(h => h.value), color: "#38bdf8", link: "https://check-for-flooding.service.gov.uk/station/9499" }
+      {
+        name: "Dunball Tidal Parrett",
+        id: "52163",
+        value: `${dunballSea.toFixed(2)}m AOD`,
+        history: seaHistory.map(h => h.value),
+        color: "#0284c7",
+        link: "https://check-for-flooding.service.gov.uk/station/9129",
+        staleTag: dunballSeaFreshness.isStale ? (dunballSeaFreshness.isOffline ? '⚠️ OFFLINE' : `⚠️ STALE (${dunballSeaFreshness.ageHours}h)`) : null
+      },
+      {
+        name: "Dunball Inland KSD",
+        id: "E9094",
+        value: `${dunballInland.toFixed(2)}m AOD`,
+        history: inlandHistory.map(h => h.value),
+        color: "#38bdf8",
+        link: "https://check-for-flooding.service.gov.uk/station/9499",
+        staleTag: dunballInlandFreshness.isStale ? (dunballInlandFreshness.isOffline ? '⚠️ OFFLINE' : `⚠️ STALE (${dunballInlandFreshness.ageHours}h)`) : null
+      }
     ],
     extLinks: [
       { label: "📷 Live Dunball Webcams (thecfh.org#dunball) ↗", url: "https://thecfh.org/parretttonewsom.php#dunball" },
@@ -890,14 +1147,18 @@ export async function refreshLiveDashboard() {
   const huishClearanceFormatted = formatClearanceText(8.20 - huishLevel, 'cut-off level');
   const huishClearanceWithTrend = `${huishClearanceFormatted} (${huishTrend})${muchelneyActive?.duration_formatted ? ` • ⏱️ ${muchelneyActive.duration_formatted}` : ''}`;
 
+  let confluenceBadge = huishEval.isPumpsCutoff ?
+    { label: 'PUMPS CUT-OFF', badgeClass: 'badge-critical', symbol: '🔒' } :
+    (huishEval.code === 'ALERT' ?
+      { label: 'FLOOD ALERT', badgeClass: 'badge-alert', symbol: '▲' } :
+      (confluenceIsStale ?
+        { label: `CONFLUENCE CONVEYING (UNCONFIRMED - ${confluenceStaleInfo.isOffline ? 'OFFLINE' : 'STALE'})`, badgeClass: confluenceStaleInfo.badgeClass || 'badge-stale', symbol: confluenceStaleInfo.isOffline ? '⚠️' : '🕒' } :
+        { label: 'CONFLUENCE CONVEYING', badgeClass: 'badge-secure', symbol: '✓' }));
+
   const confluenceHeroBanner = renderHeroSpillwayBanner({
     icon: '🔀',
     title: 'Langport Confluence Gateways',
-    statusBadge: huishEval.isPumpsCutoff ?
-      { label: 'PUMPS CUT-OFF', badgeClass: 'badge-critical', symbol: '🔒' } :
-      (huishEval.code === 'ALERT' ?
-        { label: 'FLOOD ALERT', badgeClass: 'badge-alert', symbol: '▲' } :
-        { label: 'CONFLUENCE CONVEYING', badgeClass: 'badge-secure', symbol: '✓' }),
+    statusBadge: confluenceBadge,
     mainMetricValue: huishLevel.toFixed(2),
     mainMetricUnit: 'm AOD (River Yeo @ Huish)',
     clearanceText: huishClearanceWithTrend,
@@ -907,6 +1168,7 @@ export async function refreshLiveDashboard() {
     minLabel: 'Baseflow: 5.80m',
     maxLabel: 'Bankfull Cut-off: 8.20m AOD',
     isAlert: huishEval.isPumpsCutoff || huishEval.code === 'ALERT',
+    staleInfo: confluenceStaleInfo,
     stats: [
       { label: 'Cut-off Clearance', value: huishClearanceWithTrend },
       { label: 'Huish PS Status', htmlValue: huishEval.isPumpsCutoff ? '🔒 PUMPS LOCKED OUT' : (huishPump.stage >= 1 ? '🟢 PUMPS ACTIVE' : '⚪ GRAVITY DISCHARGE') },
@@ -923,7 +1185,8 @@ export async function refreshLiveDashboard() {
     title: "Langport Confluence & Tributaries",
     heroBanner: confluenceHeroBanner,
     riverTag: `Catchment: River Yeo & Isle Confluence (${regime.label})`,
-    eval: huishEval,
+    eval: confluenceBadge,
+    staleInfo: confluenceStaleInfo,
     provenanceTag: "⚡ LEVEL SOP MODEL",
     provenanceClass: "prov-medium",
     metricText: `Yeo: ${huishLevel.toFixed(2)}m | Isle: ${midelneyLevel.toFixed(2)}m AOD`,
@@ -950,16 +1213,32 @@ export async function refreshLiveDashboard() {
     sparkline: renderDualSparkline(huishHistory, midelneyHistory, false, {
       primaryName: 'Yeo',
       secondaryName: 'Isle',
-      primaryColor: '#4ade80',
-      secondaryColor: '#38bdf8',
+      primaryColor: huishFreshness.isStale ? '#f59e0b' : '#4ade80',
+      secondaryColor: midelneyFreshness.isStale ? '#f59e0b' : '#38bdf8',
       streamLabel: '<span class="stream-dot" style="background:#4ade80; color:#4ade80"></span><span class="sparkline-title">River Yeo (52120)</span> <span style="color:#64748b; font-size:0.65rem;">vs</span> <span class="stream-dot" style="background:#38bdf8; color:#38bdf8"></span><span class="sparkline-title">River Isle (52153)</span>',
       showTideLock: false,
-      statusPill: midelneyEval.isHeadLocked ? '🕒 Head-Locked by Parrett' : '✓ Confluence Conveying'
+      statusPill: midelneyEval.isHeadLocked ? '🕒 Head-Locked by Parrett' : (confluenceIsStale ? '⚠️ Unconfirmed Conveyance' : '✓ Confluence Conveying')
     }),
     pumpGauge: renderPumpTriggerGauge(huishPump),
     gauges: [
-      { name: "Huish Episcopi PS (River Yeo)", id: "52120", value: `${huishLevel.toFixed(2)}m AOD`, history: huishHistory.map(h => h.value), color: "#4ade80", link: "https://environment.data.gov.uk/flood-monitoring/id/stations/52120.html" },
-      { name: "Midelney (River Isle)", id: "52153", value: `${midelneyLevel.toFixed(2)}m AOD`, history: midelneyHistory.map(h => h.value), color: "#38bdf8", link: "https://environment.data.gov.uk/flood-monitoring/id/stations/52153.html" }
+      {
+        name: "Huish Episcopi PS (River Yeo)",
+        id: "52120",
+        value: `${huishLevel.toFixed(2)}m AOD`,
+        history: huishHistory.map(h => h.value),
+        color: huishFreshness.isStale ? "#f59e0b" : "#4ade80",
+        link: "https://environment.data.gov.uk/flood-monitoring/id/stations/52120.html",
+        staleTag: huishFreshness.isStale ? (huishFreshness.isOffline ? '⚠️ OFFLINE' : `⚠️ STALE (${huishFreshness.ageHours}h)`) : null
+      },
+      {
+        name: "Midelney (River Isle)",
+        id: "52153",
+        value: `${midelneyLevel.toFixed(2)}m AOD`,
+        history: midelneyHistory.map(h => h.value),
+        color: midelneyFreshness.isStale ? "#f59e0b" : "#38bdf8",
+        link: "https://environment.data.gov.uk/flood-monitoring/id/stations/52153.html",
+        staleTag: midelneyFreshness.isStale ? (midelneyFreshness.isOffline ? '⚠️ OFFLINE' : `⚠️ STALE (${midelneyFreshness.ageHours}h)`) : null
+      }
     ],
     extLinks: [
       { label: "EA Data (52120) ↗", url: "https://environment.data.gov.uk/flood-monitoring/id/stations/52120.html" },
@@ -1000,6 +1279,11 @@ export async function refreshLiveDashboard() {
 
   // Bind synchronized crosshair & tooltip event listeners across all cards
   bindSparklineEvents(container);
+  } finally {
+    isRefreshing = false;
+    if (refreshBtn) refreshBtn.setAttribute('aria-busy', 'false');
+    updateCountdownDisplay();
+  }
 }
 
 function createMoorCard(opts) {
@@ -1008,12 +1292,29 @@ function createMoorCard(opts) {
   card.setAttribute('tabindex', '0');
   card.setAttribute('aria-label', `${opts.title} Infrastructure Status`);
 
+  let badgeClass = opts.eval?.badgeClass || '';
+  let badgeSymbol = opts.eval?.symbol || '';
+  let badgeLabel = opts.eval?.label || '';
+
+  if (opts.staleInfo && opts.staleInfo.isStale) {
+    if (badgeClass === 'badge-secure' || badgeClass === 'badge-passable') {
+      badgeClass = opts.staleInfo.badgeClass || 'badge-stale';
+      badgeSymbol = opts.staleInfo.isOffline ? '⚠️' : '🕒';
+    }
+  }
+
   // Consolidate into a single, unified hero block per card (Issue #1 UX Usability)
   // When heroBanner is present, it already renders the complete stage & clearance hero.
   // Rendering .hero-metric / .clearance-text when heroBanner exists causes redundant double-hero display.
   const standaloneHero = (!opts.heroBanner && opts.metricText) ? `
     <div class="hero-metric">${escapeHTML(opts.metricText)}</div>
     ${opts.clearanceText ? `<div class="clearance-text">${escapeHTML(opts.clearanceText)}</div>` : ''}
+  ` : '';
+
+  const staleBannerHtml = (opts.staleInfo && opts.staleInfo.isStale && opts.staleInfo.badgeText && !opts.heroBanner) ? `
+    <div class="sensor-offline-banner" role="alert" aria-live="polite">
+      <span>${escapeHTML(opts.staleInfo.badgeText)}</span>
+    </div>
   ` : '';
 
   const camBarHtml = (Array.isArray(opts.camLinks) && opts.camLinks.length > 0) ? `
@@ -1036,12 +1337,13 @@ function createMoorCard(opts) {
           <h2 class="card-title">${opts.title}</h2>
           <div class="river-tag">${opts.riverTag}</div>
         </div>
-        <div class="status-badge ${opts.eval.badgeClass}" aria-live="polite">
-          <span aria-hidden="true">${opts.eval.symbol}</span>
+        <div class="status-badge ${badgeClass}" aria-live="polite">
+          <span aria-hidden="true">${badgeSymbol}</span>
           <span class="sr-only">Status: </span>
-          <span>${opts.eval.label}</span>
+          <span>${badgeLabel}</span>
         </div>
       </div>
+      ${staleBannerHtml}
 
       ${opts.heroBanner || standaloneHero}
 
@@ -1072,6 +1374,7 @@ function createMoorCard(opts) {
               <div class="gauge-name">
                 <a href="${g.link}" target="_blank" rel="noopener noreferrer" class="gauge-link" title="Verify Station ${g.id} on GOV.UK">${g.name}</a>
                 <span class="gauge-id-badge">ID: ${g.id}</span>
+                ${g.staleTag ? `<span class="gauge-offline-tag">${escapeHTML(g.staleTag)}</span>` : ''}
               </div>
               <div class="gauge-value">${g.value}</div>
             </div>
@@ -1217,7 +1520,7 @@ export function renderRoadNetworkCard(roadEvaluations, activeEventsMap = null) {
 
     const camBtnHtml = corridor.cam_url ? `
       <a href="${escapeAttr(corridor.cam_url)}" target="_blank" rel="noopener noreferrer" class="road-cam-btn" title="View live camera for ${escapeAttr(corridor.name)}" aria-label="View live camera for ${escapeAttr(corridor.name)}">
-        <span aria-hidden="true">📷</span> ${escapeHTML(corridor.cam_label || 'Check Live Camera to Verify Gates ↗')}
+        <span aria-hidden="true">📷</span> ${escapeHTML(corridor.cam_label || 'Check Live Camera ↗')}
       </a>
     ` : '';
 
@@ -1803,6 +2106,7 @@ export function bindSparklineEvents(container = document) {
 
   const setGlobalSparklineHover = (ratio) => {
     currentHoverRatio = ratio;
+    isUserInspecting = ratio !== null;
     updateGlobalTimestampBanner(ratio);
     wrappers.forEach(w => {
       if (ratio === null) {
@@ -1812,6 +2116,13 @@ export function bindSparklineEvents(container = document) {
         updateWrapperCrosshair(w, ratio);
       }
     });
+
+    if (ratio === null && refreshDeferred) {
+      refreshDeferred = false;
+      triggerManualRefresh();
+    } else {
+      updateCountdownDisplay();
+    }
   };
 
   wrappers.forEach(wrapper => {

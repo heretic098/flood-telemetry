@@ -382,14 +382,18 @@ test('UI/UX Audit 4.5: Usability & Deep Linking: URL state sync, escape dismissa
   assert.ok(topologyJs.includes('function setupLegendListeners()'), 'topology.js must implement setupLegendListeners');
 });
 
-test('UI/UX Audit 4.6: Monk\'s Leaze Clyse (52233) AI gate camera link', () => {
+test('UI/UX Audit 4.6: Monk\'s Leaze Clyse (52233) spillway and intake camera link ([RULE-CAM-01])', () => {
   assert.ok(
     topologyJs.includes('node.id === \'52233\''),
     'topology.js must check for station 52233 in inspectNode'
   );
   assert.ok(
-    topologyJs.includes('Sluice Gate Camera &amp; AI Analysis'),
-    'topology.js must render camera link for Monk\'s Leaze Clyse'
+    topologyJs.includes('Spillway Crest &amp; Intake Camera'),
+    'topology.js must render camera link for Monk\'s Leaze Clyse pointing to optical intake crest ([RULE-CAM-01])'
+  );
+  assert.ok(
+    !topologyJs.includes('AI Analysis'),
+    'topology.js must never invent speculative AI Gate Analysis ([RULE-CAM-01], [RULE-HUM-01])'
   );
 });
 

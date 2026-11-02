@@ -31,6 +31,10 @@
       <div class="header-right-group">
         <div class="counter-pill" id="counter-pill" role="status" aria-live="polite">[ Loading... ]</div>
         <div class="telemetry-freshness-pill prov-high" id="ea-freshness-pill" title="Timestamp of latest Environment Agency physical gauge reading" role="status" aria-live="polite">📡 Telemetry: Loading...</div>
+        <div class="auto-refresh-group" id="auto-refresh-group">
+          <div class="countdown-pill" id="countdown-pill" role="status" aria-live="polite" title="Auto-refresh countdown">⏱️ 60s</div>
+          <button class="refresh-now-btn" id="btn-refresh-now" aria-label="Refresh live telemetry now" title="Refresh live telemetry now">🔄 Refresh</button>
+        </div>
         <button class="sys-health-btn" id="sys-health-toggle" title="Click to view Telemetry Health &amp; Database Sync details" aria-haspopup="dialog">🟢 DB Sync ⚙️</button>
       </div>
     </div>
@@ -87,7 +91,7 @@
         <div class="health-card">
           <span class="health-label">Browser Client State</span>
           <strong class="health-value" id="modal-client-time">--</strong>
-          <span class="health-subtext">3-Min Auto Refresh</span>
+          <span class="health-subtext">60s Auto Refresh</span>
         </div>
       </div>
 

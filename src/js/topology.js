@@ -1713,9 +1713,9 @@ function inspectNode(nodeId, restoreFocus = false) {
     }
   }
 
-  if (window.innerWidth < 1024) {
+  if (typeof window !== 'undefined' && window.innerWidth < 1024) {
     const drawer = document.getElementById('node-inspector-drawer');
-    if (drawer) drawer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    if (drawer) drawer.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   if (narrative) {
@@ -1821,7 +1821,7 @@ function inspectNode(nodeId, restoreFocus = false) {
     const mainGovUkUrl = node.govuk_link || node.ea_link || `https://environment.data.gov.uk/flood-monitoring/id/stations/${node.id}.html`;
     const mainGovUkText = node.govuk_link ? '📊 View GOV.UK Gauge Page ↗' : '📡 View EA Open Telemetry API ↗';
     const cameraHtml = node.id === '52233' ? `
-      <a href="index.html#camera-section" class="ext-link-btn" style="border-color: rgba(56, 189, 248, 0.4); color: #38bdf8;" title="View Monk's Leaze Clyse Sluice Gate Webcam & AI Analysis">📷 Sluice Gate Camera &amp; AI Analysis ↗</a>
+      <a href="https://thecfh.org/parretttonewsom.php#monksleaze" target="_blank" rel="noopener noreferrer" class="ext-link-btn" style="border-color: rgba(56, 189, 248, 0.4); color: #38bdf8;" title="View Monk's Leaze Clyse Spillway Crest &amp; Intake Camera at thecfh.org">📷 Spillway Crest &amp; Intake Camera ↗</a>
     ` : '';
     footerLinks.innerHTML = `
       ${cameraHtml}

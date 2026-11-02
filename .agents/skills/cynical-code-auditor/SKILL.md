@@ -51,7 +51,9 @@ Never accept assertions like *"it works on my machine"*, *"tests pass"*, or *"it
 4. **Interactive Timeline Scrubbing (UI-INT-01):**
    - Is any sparkline rendered as dead, uninterruptible SVG?
    - Does every sparkline provide hover/touch hit testing, crosshair alignment, floating tooltips with timestamps and units, and keyboard scrubbing (`ArrowLeft`/`ArrowRight`)?
-5. **Cross-View Parity & Empirical Headless Chrome Verification (UI-VIS-01):**
+5. **Optical Camera Ground-Truth Invariant ([RULE-CAM-01]):**
+   - Does any camera link, button, tooltip, or label promise or imply visual verification of features (such as internal sluice gate apertures, pump impellers, or off-camera reaches) that are not actually framed by the physical camera lens? *(INSTANT REJECTION if yes; camera links must strictly reflect the physical field of view)*.
+6. **Cross-View Parity & Empirical Headless Chrome Verification (UI-VIS-01):**
    - Never trust static regex tests alone to prove visual correctness. Run `npm run snapshot` (`node scripts/capture_views.js`) and inspect `/tmp/flood-snapshots/dashboard_main.png` and `/tmp/flood-snapshots/topology_52163.png` via `read_file`.
    - Do `index.html` and `topology.html` show any discrepancy in global status banners, counter pills, or station status/coloration (`52163` tidal status and `#0284c7` sparkline)? *(INSTANT REJECTION if yes)*.
    - Are any CSS selectors mismatched with HTML templates (causing unstyled text or broken flexbox layouts), or do any SVG badges collide with station nodes? *(INSTANT REJECTION if yes)*.

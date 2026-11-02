@@ -1020,6 +1020,116 @@ export function extractStationStage(measures, stationId) {
 }
 
 /**
+ * Safely extracts the latest stage reading or returns the surveyed fallback baseline.
+ * Guards against empty arrays, null, undefined, non-finite values, and malformed items.
+ *
+ * @param {Array|object|null|undefined} readings - Telemetry reading(s)
+ * @param {number} fallbackValue - Surveyed fallback baseline in mAOD or mASD
+ * @returns {number}
+ */
+export function getValidStageOrFallback(readings, fallbackValue) {
+  if (Array.isArray(readings) && readings.length > 0) {
+    const item = readings[0];
+    const val = (typeof item === 'object' && item !== null) ? item.value : item;
+    if (typeof val === 'number' && Number.isFinite(val)) {
+      return val;
+    }
+  } else if (readings && typeof readings === 'object' && typeof readings.value === 'number' && Number.isFinite(readings.value)) {
+    return readings.value;
+  }
+  return fallbackValue;
+}
+
+/**
+ * Evaluates the freshness of station telemetry readings against a 2-hour latency threshold.
+ * Prevents "zombie gauges" from silently presenting stale readings as fresh/nominal.
+ *
+ * @param {Array|null|undefined} readings - Array of reading items sorted descending by time (latest first)
+ * @param {object} [options]
+ * @param {number} [options.maxAgeHours=2.0] - Age in hours after which data is classified as STALE
+ * @param {number} [options.nowMs=Date.now()] - Current epoch timestamp
+ * @param {string} [options.fallbackLabel='Fallback Baseline'] - Label when no readings are available
+ * @returns {object} { isFresh: boolean, isStale: boolean, isOffline: boolean, ageHours: number|null, ageMinutes: number|null, latestTimestamp: string|null, badgeText: string|null, badgeClass: string }
+ */
+export function evaluateStationFreshness(readings, options = {}) {
+  const maxAgeHours = options.maxAgeHours ?? 2.0;
+  const nowMs = options.nowMs ?? Date.now();
+  const fallbackLabel = options.fallbackLabel || 'Fallback Baseline';
+
+  if (!readings || !Array.isArray(readings) || readings.length === 0) {
+    return {
+      isFresh: false,
+      isStale: true,
+      isOffline: true,
+      ageHours: null,
+      ageMinutes: null,
+      latestTimestamp: null,
+      badgeText: `⚠️ SENSOR OFFLINE (${fallbackLabel})`,
+      badgeClass: 'badge-offline'
+    };
+  }
+
+  const latest = readings[0];
+  const dateStr = (typeof latest === 'object' && latest !== null) ? (latest.dateTime || latest.date) : null;
+  const rawVal = (typeof latest === 'object' && latest !== null) ? latest.value : latest;
+
+  if (!dateStr || rawVal === null || rawVal === undefined || !Number.isFinite(Number(rawVal))) {
+    return {
+      isFresh: false,
+      isStale: true,
+      isOffline: true,
+      ageHours: null,
+      ageMinutes: null,
+      latestTimestamp: null,
+      badgeText: `⚠️ SENSOR OFFLINE (${fallbackLabel})`,
+      badgeClass: 'badge-offline'
+    };
+  }
+
+  const readingMs = new Date(dateStr).getTime();
+  if (isNaN(readingMs)) {
+    return {
+      isFresh: false,
+      isStale: true,
+      isOffline: true,
+      ageHours: null,
+      ageMinutes: null,
+      latestTimestamp: null,
+      badgeText: `⚠️ SENSOR OFFLINE (${fallbackLabel})`,
+      badgeClass: 'badge-offline'
+    };
+  }
+
+  const ageMs = Math.max(0, nowMs - readingMs);
+  const ageMinutes = Math.floor(ageMs / 60000);
+  const ageHours = Number((ageMs / (1000 * 60 * 60)).toFixed(1));
+
+  if (ageHours > maxAgeHours) {
+    return {
+      isFresh: false,
+      isStale: true,
+      isOffline: false,
+      ageHours,
+      ageMinutes,
+      latestTimestamp: dateStr,
+      badgeText: `⚠️ SENSOR OFFLINE (Showing ${ageHours.toFixed(1)}h old reading)`,
+      badgeClass: 'badge-stale'
+    };
+  }
+
+  return {
+    isFresh: true,
+    isStale: false,
+    isOffline: false,
+    ageHours,
+    ageMinutes,
+    latestTimestamp: dateStr,
+    badgeText: null,
+    badgeClass: 'badge-fresh'
+  };
+}
+
+/**
  * Surveyed relative gauge vertical datum transformations (+mAOD)
  */
 export const GAUGE_DATUMS = {
@@ -1461,7 +1571,7 @@ export const ASSET_DEFINITIONS = Object.freeze({
     survey_tooltip: 'Concrete spillway relief crest surveyed at 7.35m AOD.',
     camera_id: 'athelney_cuts_rd',
     cam_url: 'https://thecfh.org/parretttonewsom.php#athelneyspillway',
-    cam_label: 'Check Live Camera to Verify Gates ↗',
+    cam_label: 'Check Live Camera (Carriageway & Spillway) ↗',
     station_url: 'https://check-for-flooding.service.gov.uk/station/3064'
   }),
   muchelney_access: Object.freeze({
@@ -1482,7 +1592,7 @@ export const ASSET_DEFINITIONS = Object.freeze({
     survey_tooltip: 'SRA raised road crown surveyed at 7.86m AOD; low breach 7.30m.',
     camera_id: 'huish_episcopi',
     cam_url: 'https://thecfh.org/parretttonewsom.php#huish',
-    cam_label: 'Check Live Camera to Verify Gates ↗',
+    cam_label: 'Check Live Camera (River Level & Approaches) ↗',
     station_url: 'https://check-for-flooding.service.gov.uk/station/3063'
   }),
   beer_wall_a372: Object.freeze({

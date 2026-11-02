@@ -72,9 +72,11 @@ async function run() {
 
   const dashboardPath = path.join(outDirArg, 'dashboard_main.png');
   const topologyPath = path.join(outDirArg, `topology_${stationArg}.png`);
+  const mobileDashboardPath = path.join(outDirArg, 'dashboard_mobile_375.png');
+  const mobileTopologyPath = path.join(outDirArg, `topology_mobile_375.png`);
 
   const commonFlags = [
-    '--headless',
+    '--headless=new',
     '--no-sandbox',
     '--disable-gpu',
     '--hide-scrollbars',
@@ -95,13 +97,27 @@ async function run() {
         '--window-size=1440,1700',
         `--screenshot=${topologyPath}`,
         `${baseUrl}/topology.html?station=${encodeURIComponent(stationArg)}`
+      ]),
+      execFileAsync(chromeBin, [
+        ...commonFlags,
+        '--window-size=375,1400',
+        `--screenshot=${mobileDashboardPath}`,
+        `${baseUrl}/index.html`
+      ]),
+      execFileAsync(chromeBin, [
+        ...commonFlags,
+        '--window-size=375,1400',
+        `--screenshot=${mobileTopologyPath}`,
+        `${baseUrl}/topology.html?station=${encodeURIComponent(stationArg)}`
       ])
     ]);
 
     const elapsedMs = Date.now() - t0;
     console.log(`[Snapshot Complete in ${elapsedMs}ms]`);
-    console.log(`  1. Main Dashboard (1440x1850): ${dashboardPath}`);
-    console.log(`  2. Topology View  (1440x1700): ${topologyPath}`);
+    console.log(`  1. Main Dashboard Desktop (1440x1850): ${dashboardPath}`);
+    console.log(`  2. Topology View  Desktop (1440x1700): ${topologyPath}`);
+    console.log(`  3. Main Dashboard Mobile  (375x1400):  ${mobileDashboardPath}`);
+    console.log(`  4. Topology View  Mobile  (375x1400):  ${mobileTopologyPath}`);
   } finally {
     if (ephemeralServer) {
       await new Promise(resolve => ephemeralServer.close(resolve));
