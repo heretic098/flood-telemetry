@@ -1,5 +1,7 @@
 import { evaluateSpillway, evaluateGateState, aggregateGlobalStatus, evaluatePumpStatus, evaluateSowyChannel, evaluateAthelneySpillway, evaluateGravityClyse, evaluateBeerWall, evaluateOathLock, evaluateDunballEmergencyPumping, getSeasonalRegime, getActiveCrestHeight, getActiveCatchmentId, loadCatchmentConfig, evaluateHuishEpiscopi, evaluateMidelney, STATION_REGISTRY, GAUGE_DATUMS, formatClearanceText, computeTrendVector, evaluateRoadNetwork, evaluateStationFreshness, getValidStageOrFallback } from './hydro_engine.js';
 import { initJargonPopovers, renderJargonTerm } from './jargon_popover.js';
+import { createRefreshController } from './modules/refresh_controller.js';
+import { setupOfflineBanner as setupResilienceBanner } from './modules/network_resilience.js';
 import {
   computeSparklineBounds,
   checkFlatStage,
@@ -177,112 +179,80 @@ export async function setupCatchmentNav(currentCatchmentId) {
   const navContainer = document.querySelector('.nav-links');
   if (!navContainer) return;
 
-  try {
-    const res = await fetch('/api/catchments');
-    if (res.ok) {
-      const data = await res.json();
-      if (data.catchments && Array.isArray(data.catchments)) {
-        const isDashboard = window.location.pathname.endsWith('index.html') || window.location.pathname === '/' || window.location.pathname.endsWith('/somerset') || window.location.pathname.endsWith('/somerset/');
-        const isRoads = window.location.pathname.endsWith('roads.html');
-        const isTopology = window.location.pathname.endsWith('topology.html');
-        const isMethodology = window.location.pathname.endsWith('methodology.html');
+  const pathname = window.location.pathname;
+  const isDashboard = pathname.endsWith('index.html') || pathname === '/' || pathname.endsWith('/somerset') || pathname.endsWith('/somerset/');
+  const isRoads = pathname.endsWith('roads.html');
+  const isTopology = pathname.endsWith('topology.html');
+  const isMethodology = pathname.endsWith('methodology.html');
 
-        navContainer.innerHTML = `
-          <a href="index.html" class="nav-btn nav-link ${isDashboard ? 'active' : ''}" ${isDashboard ? 'aria-current="page"' : ''}>📊 Overview</a>
-          <a href="roads.html" class="nav-btn nav-link ${isRoads ? 'active' : ''}" ${isRoads ? 'aria-current="page"' : ''}>🚗 Roads &amp; Access</a>
-          <a href="topology.html" class="nav-btn nav-link ${isTopology ? 'active' : ''}" ${isTopology ? 'aria-current="page"' : ''}>🗺️ River Topology</a>
-          <a href="methodology.html" class="nav-btn nav-link ${isMethodology ? 'active' : ''}" ${isMethodology ? 'aria-current="page"' : ''}>📖 Methodology</a>
-        `;
+  // If server-side partial injection already rendered nav links, safely update active state in place without re-creating DOM
+  const existingLinks = navContainer.querySelectorAll('a.nav-btn');
+  if (existingLinks.length > 0) {
+    existingLinks.forEach(link => {
+      const href = link.getAttribute('href');
+      let isActive = false;
+      if (href === 'index.html' && isDashboard) isActive = true;
+      else if (href === 'roads.html' && isRoads) isActive = true;
+      else if (href === 'topology.html' && isTopology) isActive = true;
+      else if (href === 'methodology.html' && isMethodology) isActive = true;
+
+      if (isActive) {
+        link.classList.add('active');
+        link.setAttribute('aria-current', 'page');
+      } else if (!link.classList.contains('nav-btn-kofi')) {
+        link.classList.remove('active');
+        link.removeAttribute('aria-current');
       }
-    }
-  } catch (err) {
-    console.warn("Could not fetch catchments nav:", err);
+    });
+    return;
   }
+
+  // Fallback template if static file was loaded without server-side partial injection
+  navContainer.innerHTML = `
+    <a href="index.html" class="nav-btn nav-link ${isDashboard ? 'active' : ''}" ${isDashboard ? 'aria-current="page"' : ''}>📊 Overview</a>
+    <a href="roads.html" class="nav-btn nav-link ${isRoads ? 'active' : ''}" ${isRoads ? 'aria-current="page"' : ''}>🚗 Roads &amp; Access</a>
+    <a href="topology.html" class="nav-btn nav-link ${isTopology ? 'active' : ''}" ${isTopology ? 'aria-current="page"' : ''}>🗺️ River Topology</a>
+    <a href="methodology.html" class="nav-btn nav-link ${isMethodology ? 'active' : ''}" ${isMethodology ? 'aria-current="page"' : ''}>📖 Methodology</a>
+    <a href="https://ko-fi.com/heretic098" target="_blank" rel="noopener noreferrer" class="nav-btn nav-link nav-btn-kofi" title="Support the developer on Ko-fi" aria-label="Support the developer on Ko-fi (opens in new tab)">☕ Support ↗</a>
+  `;
 }
 
 export { getValidStageOrFallback };
 
-let autoRefreshTimer = null;
-let autoRefreshIntervalMs = 60000;
-let countdownRemainingSec = 60;
-let isRefreshing = false;
 let isUserInspecting = false;
-let refreshDeferred = false;
+let isRefreshing = false;
+let currentHoverRatio = null;
+
+export const refreshController = createRefreshController({
+  intervalMs: 60000,
+  countdownPillId: 'countdown-pill',
+  refreshBtnId: 'btn-refresh-now',
+  onRefresh: async () => { await refreshLiveDashboard(); },
+  isUserInspectingFn: () => isUserInspecting || currentHoverRatio !== null
+});
 
 export function updateCountdownDisplay() {
-  if (typeof document === 'undefined') return;
-  const pill = document.getElementById('countdown-pill');
-  if (!pill) return;
-  if (isRefreshing) {
-    pill.classList.add('refreshing');
-    pill.innerText = '🔄 Refreshing...';
-  } else if (isUserInspecting) {
-    pill.classList.remove('refreshing');
-    pill.innerText = `⏱️ ${countdownRemainingSec}s (Paused)`;
-  } else {
-    pill.classList.remove('refreshing');
-    pill.innerText = `⏱️ ${countdownRemainingSec}s`;
-  }
+  refreshController.updateDisplay();
 }
 
 export function startAutoRefresh(intervalMs = 60000) {
-  stopAutoRefresh();
-  autoRefreshIntervalMs = intervalMs;
-  countdownRemainingSec = Math.max(1, Math.round(intervalMs / 1000));
-  updateCountdownDisplay();
-
-  autoRefreshTimer = setInterval(async () => {
-    // If currently scrubbing / inspecting sparklines, pause auto-refresh
-    if (isUserInspecting || currentHoverRatio !== null) {
-      refreshDeferred = true;
-      updateCountdownDisplay();
-      return;
-    }
-
-    if (countdownRemainingSec > 1) {
-      countdownRemainingSec--;
-      updateCountdownDisplay();
-    } else {
-      countdownRemainingSec = Math.max(1, Math.round(autoRefreshIntervalMs / 1000));
-      updateCountdownDisplay();
-      await triggerManualRefresh();
-    }
-  }, 1000);
+  refreshController.start(intervalMs);
 }
 
 export function stopAutoRefresh() {
-  if (autoRefreshTimer) {
-    clearInterval(autoRefreshTimer);
-    autoRefreshTimer = null;
-  }
+  refreshController.stop();
 }
 
 export async function triggerManualRefresh() {
-  if (isRefreshing) return;
-  countdownRemainingSec = Math.max(1, Math.round(autoRefreshIntervalMs / 1000));
-  updateCountdownDisplay();
-  await refreshLiveDashboard();
-  updateCountdownDisplay();
+  await refreshController.triggerManualRefresh();
 }
 
 export function getAutoRefreshState() {
-  return {
-    isRunning: autoRefreshTimer !== null,
-    intervalMs: autoRefreshIntervalMs,
-    remainingSec: countdownRemainingSec,
-    isRefreshing,
-    isUserInspecting: isUserInspecting || currentHoverRatio !== null,
-    refreshDeferred
-  };
+  return refreshController.getState();
 }
 
 function setupManualRefreshListener() {
-  const refreshBtn = document.getElementById('btn-refresh-now');
-  if (refreshBtn) {
-    refreshBtn.addEventListener('click', async () => {
-      await triggerManualRefresh();
-    });
-  }
+  // refresh_controller handles click binding automatically
 }
 
 export async function initApp() {
@@ -339,36 +309,17 @@ function setupModalListeners() {
 
 let lastSuccessfulSyncTime = null;
 
+/**
+ * Updates sticky network offline banner ("Network Disconnected" / "Connection Restored").
+ * Wires window.addEventListener('offline', ...) and window.addEventListener('online', ...) via shared controller.
+ */
 export function setupOfflineBanner() {
-  if (typeof window === 'undefined') return;
-  const banner = document.getElementById('network-offline-banner');
-  if (!banner) return;
-
-  function handleOffline() {
-    const timeStr = lastSuccessfulSyncTime
-      ? lastSuccessfulSyncTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      : '--:--';
-    banner.textContent = `⚠️ Network Disconnected — Displaying cached data from ${timeStr}`;
-    banner.className = 'network-offline-banner offline';
-    banner.style.display = 'block';
-  }
-
-  async function handleOnline() {
-    banner.textContent = '✅ Connection Restored — Refreshing data...';
-    banner.className = 'network-offline-banner online';
-    banner.style.display = 'block';
-    await refreshLiveDashboard();
-    setTimeout(() => {
-      banner.style.display = 'none';
-    }, 2500);
-  }
-
-  window.addEventListener('offline', handleOffline);
-  window.addEventListener('online', handleOnline);
-
-  if (!navigator.onLine) {
-    handleOffline();
-  }
+  return setupResilienceBanner({
+    bannerId: 'network-offline-banner',
+    onOnline: async () => { await refreshLiveDashboard(); },
+    getLastSyncTime: () => lastSuccessfulSyncTime,
+    isScrubbingFn: () => isUserInspecting || currentHoverRatio !== null
+  });
 }
 
 export function updateRoadStatusSummaryBanner(roadData) {
@@ -462,6 +413,7 @@ export async function refreshLiveDashboard() {
   if (!container) return;
 
   isRefreshing = true;
+  refreshController.isRefreshing = true;
   updateCountdownDisplay();
   const refreshBtn = document.getElementById('btn-refresh-now');
   if (refreshBtn) refreshBtn.setAttribute('aria-busy', 'true');
@@ -1412,6 +1364,7 @@ export async function refreshLiveDashboard() {
   }
   } finally {
     isRefreshing = false;
+    refreshController.isRefreshing = false;
     if (refreshBtn) refreshBtn.setAttribute('aria-busy', 'false');
     updateCountdownDisplay();
   }
@@ -2131,7 +2084,6 @@ export function renderDualSparkline(seaInput, inlandInput, isTideLocked, options
   `;
 }
 
-let currentHoverRatio = null;
 let hoverStickyTimer = null;
 
 export function bindSparklineEvents(container = document) {
@@ -2250,6 +2202,7 @@ export function bindSparklineEvents(container = document) {
   const setGlobalSparklineHover = (ratio) => {
     currentHoverRatio = ratio;
     isUserInspecting = ratio !== null;
+    refreshController.setScrubbing(ratio !== null);
     updateGlobalTimestampBanner(ratio);
     wrappers.forEach(w => {
       if (ratio === null) {
@@ -2260,12 +2213,7 @@ export function bindSparklineEvents(container = document) {
       }
     });
 
-    if (ratio === null && refreshDeferred) {
-      refreshDeferred = false;
-      triggerManualRefresh();
-    } else {
-      updateCountdownDisplay();
-    }
+    updateCountdownDisplay();
   };
 
   wrappers.forEach(wrapper => {

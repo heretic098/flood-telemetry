@@ -18,6 +18,8 @@ import {
   evaluateRoadNetwork
 } from './src/js/hydro_engine.js';
 
+import { validateEAIngestPayload } from './src/js/contracts/index.js';
+
 import {
   fetchWebcamImageSecure,
   computeImageHash,
@@ -36,7 +38,81 @@ const __dirname = path.dirname(__filename);
 
 const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = path.join(__dirname, 'src');
+const PARTIALS_DIR = path.join(PUBLIC_DIR, 'partials');
 const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'telemetry.db');
+
+// In-memory cache for server-side HTML partials
+const partialsCache = new Map();
+
+function loadPartials() {
+  partialsCache.clear();
+  if (fs.existsSync(PARTIALS_DIR)) {
+    const files = fs.readdirSync(PARTIALS_DIR);
+    for (const file of files) {
+      if (file.endsWith('.html')) {
+        const key = path.basename(file, '.html');
+        partialsCache.set(key, fs.readFileSync(path.join(PARTIALS_DIR, file), 'utf8'));
+      }
+    }
+  }
+}
+
+function renderNav(targetPage = 'index.html') {
+  let navTemplate = partialsCache.get('nav');
+  if (!navTemplate) {
+    const navPath = path.join(PARTIALS_DIR, 'nav.html');
+    if (fs.existsSync(navPath)) {
+      navTemplate = fs.readFileSync(navPath, 'utf8');
+      partialsCache.set('nav', navTemplate);
+    } else {
+      return '';
+    }
+  }
+
+  const baseName = path.basename(targetPage);
+  const isIndex = baseName === 'index.html' || baseName === '' || baseName === '/';
+  const isRoads = baseName === 'roads.html';
+  const isTopology = baseName === 'topology.html';
+  const isMethodology = baseName === 'methodology.html';
+
+  return navTemplate
+    .replace('{{NAV_INDEX_ACTIVE}}', isIndex ? ' active' : '')
+    .replace('{{NAV_INDEX_CURRENT}}', isIndex ? ' aria-current="page"' : '')
+    .replace('{{NAV_ROADS_ACTIVE}}', isRoads ? ' active' : '')
+    .replace('{{NAV_ROADS_CURRENT}}', isRoads ? ' aria-current="page"' : '')
+    .replace('{{NAV_TOPOLOGY_ACTIVE}}', isTopology ? ' active' : '')
+    .replace('{{NAV_TOPOLOGY_CURRENT}}', isTopology ? ' aria-current="page"' : '')
+    .replace('{{NAV_METHODOLOGY_ACTIVE}}', isMethodology ? ' active' : '')
+    .replace('{{NAV_METHODOLOGY_CURRENT}}', isMethodology ? ' aria-current="page"' : '');
+}
+
+function getFooterPartial() {
+  let footer = partialsCache.get('footer');
+  if (!footer) {
+    const footerPath = path.join(PARTIALS_DIR, 'footer.html');
+    if (fs.existsSync(footerPath)) {
+      footer = fs.readFileSync(footerPath, 'utf8');
+      partialsCache.set('footer', footer);
+    } else {
+      return '';
+    }
+  }
+  return footer;
+}
+
+function renderHtmlWithPartials(htmlContent, targetPage = 'index.html') {
+  let rendered = htmlContent;
+  if (/<!--\s*INCLUDE:\s*nav\s*-->/.test(rendered)) {
+    rendered = rendered.replace(/<!--\s*INCLUDE:\s*nav\s*-->/g, renderNav(targetPage));
+  }
+  if (/<!--\s*INCLUDE:\s*footer\s*-->/.test(rendered)) {
+    rendered = rendered.replace(/<!--\s*INCLUDE:\s*footer\s*-->/g, getFooterPartial());
+  }
+  return rendered;
+}
+
+// Pre-load partials into memory
+loadPartials();
 
 // Ensure target directory exists for SQLite database
 fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
@@ -121,6 +197,12 @@ export async function syncBackfillTelemetry(dbInstance = db, measures = MEASURE_
       }
 
       const data = await res.json();
+      const validation = validateEAIngestPayload(data, id);
+      if (!validation.valid) {
+        console.warn(`[Backfill Worker Contract Warning] Schema validation failed for ${id}:`, validation.errors.slice(0, 2).join('; '));
+        continue;
+      }
+
       if (data.items && Array.isArray(data.items)) {
         const items = data.items.map(item => ({
           measure_id: id,
@@ -151,6 +233,12 @@ async function syncMeasure(measureId, limit = 96, fetchFn = globalThis.fetch) {
   try {
     const res = await fetchFn(url);
     const data = await res.json();
+    const validation = validateEAIngestPayload(data, measureId);
+    if (!validation.valid) {
+      console.warn(`[SQLite Ingest Contract Warning] Invalid payload for ${measureId}:`, validation.errors.slice(0, 2).join('; '));
+      return null;
+    }
+
     if (data.items && data.items.length > 0) {
       const stmt = db.prepare("INSERT OR REPLACE INTO telemetry (measure_id, readings_json, updated_at) VALUES (?, ?, datetime('now'))");
       stmt.run(measureId, JSON.stringify(data.items));
@@ -273,7 +361,9 @@ const MIME_TYPES = {
   '.json': 'application/json',
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
-  '.svg': 'image/svg+xml'
+  '.svg': 'image/svg+xml',
+  '.ico': 'image/x-icon',
+  '.webmanifest': 'application/manifest+json'
 };
 
 // Simple In-Memory Rate Limiting (SEC-04)
@@ -1123,7 +1213,7 @@ const server = http.createServer(async (req, res) => {
     ? path.resolve(path.join(CATCHMENTS_DIR, 'somerset.json'))
     : path.resolve(path.join(PUBLIC_DIR, reqFile));
 
-  if (!safePath.startsWith(PUBLIC_DIR)) {
+  if (!safePath.startsWith(PUBLIC_DIR) || safePath.startsWith(PARTIALS_DIR)) {
     res.writeHead(403, { 'Content-Type': 'text/plain' });
     res.end('403 Forbidden');
     return;
@@ -1151,7 +1241,12 @@ const server = http.createServer(async (req, res) => {
         'Content-Type': contentType,
         'Cache-Control': cacheControl
       });
-      res.end(content, 'utf-8');
+      if (ext === '.html') {
+        const injected = renderHtmlWithPartials(content.toString('utf-8'), path.basename(safePath));
+        res.end(injected, 'utf-8');
+      } else {
+        res.end(content);
+      }
     }
   });
 });
@@ -1165,4 +1260,4 @@ if (isMainModule) {
   });
 }
 
-export { server };
+export { server, renderHtmlWithPartials, loadPartials, renderNav, getFooterPartial };

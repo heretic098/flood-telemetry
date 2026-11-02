@@ -1100,6 +1100,22 @@ svg.micro-sparkline {
   border-color: #38bdf8;
 }
 
+/* Ko-fi Top Navigation Button (Neutral Dark-Mode Tokens) */
+.nav-btn-kofi {
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+  font-weight: 600;
+  margin-left: 0.25rem;
+}
+
+.nav-btn-kofi:hover,
+.nav-btn-kofi:focus-visible {
+  background: var(--bg-card-hover);
+  color: #f1f5f9;
+  border-color: #64748b;
+}
+
 /* Methodology Page Styling */
 .methodology-container {
   display: flex;
@@ -1665,20 +1681,30 @@ svg.micro-sparkline {
 
 /* Ko-fi Support Banner */
 .kofi-support-banner {
-  background: rgba(255, 95, 95, 0.08);
-  border: 1px solid rgba(255, 95, 95, 0.25);
+  background: rgba(30, 41, 59, 0.7);
+  border: 1px solid rgba(148, 163, 184, 0.25);
   border-radius: 0.5rem;
   padding: 0.75rem 1rem;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.75rem;
   color: #f1f5f9;
   font-size: 0.85rem;
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  line-height: 1.5;
 }
 
-.kofi-link:hover {
-  color: #ff8585;
+.kofi-link {
+  color: #38bdf8;
+  text-decoration: underline;
+  font-weight: 600;
+  transition: color 0.2s ease, text-shadow 0.2s ease;
+}
+
+.kofi-link:hover,
+.kofi-link:focus-visible {
+  color: #7dd3fc;
+  text-shadow: 0 0 8px rgba(56, 189, 248, 0.5);
 }
 
 /* ==========================================================================
@@ -3380,6 +3406,10 @@ svg.inspector-sparkline-svg {
     justify-content: center;
   }
 
+  .nav-btn-kofi {
+    display: none !important;
+  }
+
   .time-preset-group {
     width: 100%;
     justify-content: space-between;
@@ -3504,6 +3534,10 @@ svg.inspector-sparkline-svg {
     width: 100%;
     min-height: 44px;
     justify-content: center;
+  }
+
+  .nav-btn-kofi {
+    display: none !important;
   }
 
   .time-preset-group {

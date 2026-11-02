@@ -30,16 +30,17 @@ import {
 import {
   getDashboardCardIdForNode
 } from '../src/js/topology.js';
+import { renderHtmlWithPartials } from '../server.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const ROOT_DIR = path.resolve(__dirname, '..');
 
-// Load source documents
-const indexHtml = fs.readFileSync(path.join(ROOT_DIR, 'src/index.html'), 'utf8');
-const roadsHtml = fs.readFileSync(path.join(ROOT_DIR, 'src/roads.html'), 'utf8');
-const topologyHtml = fs.readFileSync(path.join(ROOT_DIR, 'src/topology.html'), 'utf8');
-const methodologyHtml = fs.readFileSync(path.join(ROOT_DIR, 'src/methodology.html'), 'utf8');
+// Load source documents with layout partial injection
+const indexHtml = renderHtmlWithPartials(fs.readFileSync(path.join(ROOT_DIR, 'src/index.html'), 'utf8'), 'index.html');
+const roadsHtml = renderHtmlWithPartials(fs.readFileSync(path.join(ROOT_DIR, 'src/roads.html'), 'utf8'), 'roads.html');
+const topologyHtml = renderHtmlWithPartials(fs.readFileSync(path.join(ROOT_DIR, 'src/topology.html'), 'utf8'), 'topology.html');
+const methodologyHtml = renderHtmlWithPartials(fs.readFileSync(path.join(ROOT_DIR, 'src/methodology.html'), 'utf8'), 'methodology.html');
 const stylesCss = fs.readFileSync(path.join(ROOT_DIR, 'src/css/styles.css'), 'utf8');
 const captureViewsJs = fs.readFileSync(path.join(ROOT_DIR, 'scripts/capture_views.js'), 'utf8');
 const appJs = fs.readFileSync(path.join(ROOT_DIR, 'src/js/app.js'), 'utf8');

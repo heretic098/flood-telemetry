@@ -20,6 +20,8 @@ import {
 
 import { openCameraGuide } from './camera_guide.js';
 import { initJargonPopovers } from './jargon_popover.js';
+import { createRefreshController } from './modules/refresh_controller.js';
+import { setupOfflineBanner as setupResilienceBanner } from './modules/network_resilience.js';
 
 // Station mappings for deep-linking road corridors to the River Topology Map
 export const ROAD_TOPOLOGY_STATION_MAP = {
@@ -45,21 +47,19 @@ export const ROAD_CAMERA_GUIDE_MAP = {
   beer_wall_a372: 'monksleaze'
 };
 
-let autoRefreshTimer = null;
-let countdownTimer = null;
-let remainingSeconds = 60;
-let refreshIntervalMs = 60000;
-let isRefreshing = false;
 let currentFilter = 'all';
 let lastSuccessfulSyncTime = null;
+let isRefreshing = false;
+
+export const refreshController = createRefreshController({
+  intervalMs: 60000,
+  countdownPillId: 'countdown-pill',
+  refreshBtnId: 'btn-refresh-now',
+  onRefresh: async () => { await refreshRoadsView(); }
+});
 
 export function getAutoRefreshState() {
-  return {
-    isRunning: autoRefreshTimer !== null,
-    remainingSec: remainingSeconds,
-    intervalMs: refreshIntervalMs,
-    isRefreshing
-  };
+  return refreshController.getState();
 }
 
 export async function fetchTelemetryData() {
@@ -77,86 +77,31 @@ export async function fetchTelemetryData() {
 }
 
 export function updateCountdownDisplay() {
-  if (typeof document === 'undefined') return;
-  const pill = document.getElementById('countdown-pill');
-  if (pill) {
-    if (isRefreshing) {
-      pill.textContent = '⏱️ Syncing...';
-      pill.classList.add('syncing');
-    } else {
-      pill.textContent = `⏱️ ${remainingSeconds}s`;
-      pill.classList.remove('syncing');
-    }
-  }
+  refreshController.updateDisplay();
 }
 
 export function startAutoRefresh(intervalMs = 60000) {
-  stopAutoRefresh();
-  refreshIntervalMs = intervalMs;
-  remainingSeconds = Math.round(intervalMs / 1000);
-  updateCountdownDisplay();
-
-  countdownTimer = setInterval(() => {
-    remainingSeconds = Math.max(0, remainingSeconds - 1);
-    updateCountdownDisplay();
-  }, 1000);
-
-  autoRefreshTimer = setInterval(async () => {
-    remainingSeconds = Math.round(refreshIntervalMs / 1000);
-    await refreshRoadsView();
-  }, refreshIntervalMs);
+  refreshController.start(intervalMs);
 }
 
 export function stopAutoRefresh() {
-  if (autoRefreshTimer) {
-    clearInterval(autoRefreshTimer);
-    autoRefreshTimer = null;
-  }
-  if (countdownTimer) {
-    clearInterval(countdownTimer);
-    countdownTimer = null;
-  }
+  refreshController.stop();
 }
 
 export async function triggerManualRefresh() {
-  remainingSeconds = Math.round(refreshIntervalMs / 1000);
-  await refreshRoadsView();
+  await refreshController.triggerManualRefresh();
 }
 
 /**
- * Updates the sticky network offline banner
+ * Updates sticky network offline banner ("Network Disconnected" / "Connection Restored").
+ * Wires window.addEventListener('offline', ...) and window.addEventListener('online', ...) via shared controller.
  */
 export function setupOfflineBanner() {
-  if (typeof window === 'undefined') return;
-
-  const banner = document.getElementById('network-offline-banner');
-  if (!banner) return;
-
-  function handleOffline() {
-    const timeStr = lastSuccessfulSyncTime
-      ? lastSuccessfulSyncTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      : '--:--';
-    banner.textContent = `⚠️ Network Disconnected — Displaying cached data from ${timeStr}`;
-    banner.className = 'network-offline-banner offline';
-    banner.style.display = 'block';
-  }
-
-  async function handleOnline() {
-    banner.textContent = '✅ Connection Restored — Refreshing data...';
-    banner.className = 'network-offline-banner online';
-    banner.style.display = 'block';
-    await refreshRoadsView();
-    setTimeout(() => {
-      banner.style.display = 'none';
-    }, 2500);
-  }
-
-  window.addEventListener('offline', handleOffline);
-  window.addEventListener('online', handleOnline);
-
-  if (!navigator.onLine) {
-    handleOffline();
-  }
+  return setupResilienceBanner({
+    bannerId: 'network-offline-banner',
+    onOnline: async () => { await refreshRoadsView(); },
+    getLastSyncTime: () => lastSuccessfulSyncTime
+  });
 }
 
 /**
@@ -342,6 +287,7 @@ export async function refreshRoadsView() {
   if (typeof document === 'undefined') return;
 
   isRefreshing = true;
+  refreshController.isRefreshing = true;
   updateCountdownDisplay();
   const refreshBtn = document.getElementById('btn-refresh-now');
   if (refreshBtn) refreshBtn.setAttribute('aria-busy', 'true');
@@ -401,6 +347,7 @@ export async function refreshRoadsView() {
     console.error('[Roads View Error]', err);
   } finally {
     isRefreshing = false;
+    refreshController.isRefreshing = false;
     if (refreshBtn) refreshBtn.setAttribute('aria-busy', 'false');
     updateCountdownDisplay();
   }

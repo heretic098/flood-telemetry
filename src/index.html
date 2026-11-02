@@ -3,8 +3,17 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Somerset Levels Flood & Infrastructure Status</title>
-  <link rel="stylesheet" href="css/styles.css?v=2.1">
+  <title>Somerset Levels Flood &amp; Infrastructure Status</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="apple-touch-icon" href="favicon.svg">
+  <link rel="manifest" href="site.webmanifest">
+  <meta name="theme-color" content="#0f172a">
+  <meta name="description" content="Real-time river levels, emergency highway passability, spillways, pumping stations &amp; lowland moors telemetry for the Somerset Levels.">
+  <meta property="og:title" content="Somerset Levels Flood &amp; Infrastructure Status">
+  <meta property="og:description" content="Real-time river levels, highway passability, spillways, pumping stations &amp; lowland moors telemetry for the Somerset Levels.">
+  <meta property="og:type" content="website">
+  <meta property="og:image" content="og-image.svg">
+  <link rel="stylesheet" href="css/styles.css?v=2.2">
 </head>
 <body>
 
@@ -33,12 +42,7 @@
           <span>LIVE STREAM</span>
         </div>
       </div>
-      <nav class="nav-links" aria-label="Main Navigation">
-        <a href="index.html" class="nav-btn nav-link active" aria-current="page">📊 Overview</a>
-        <a href="roads.html" class="nav-btn nav-link">🚗 Roads &amp; Access</a>
-        <a href="topology.html" class="nav-btn nav-link">🗺️ River Topology</a>
-        <a href="methodology.html" class="nav-btn nav-link">📖 Methodology</a>
-      </nav>
+      <!-- INCLUDE: nav -->
       <div class="time-preset-group" id="time-preset-group" title="Select historical lookback window for sparklines and status evaluation">
         <span class="preset-label">Period:</span>
         <button class="preset-btn active" data-range="24h" id="btn-preset-24h">24h</button>
@@ -160,33 +164,7 @@
     </div>
   </dialog>
 
-  <footer class="app-disclaimer-footer" role="contentinfo">
-    <div class="disclaimer-content">
-      <div class="kofi-support-banner">
-        <span>☕ <strong>Independent &amp; Open Source:</strong> Built for Somerset communities under the Apache-2.0 License. View source on <a href="https://github.com/heretic098/flood-telemetry" target="_blank" rel="noopener noreferrer" class="disclaimer-link">GitHub ↗</a>, review our <a href="methodology.html#open-source-licensing" class="disclaimer-link">Licensing &amp; Provenance ↗</a>, or <a href="https://ko-fi.com/heretic098" target="_blank" rel="noopener noreferrer" class="kofi-link">support on Ko-fi ↗</a>.</span>
-      </div>
-      
-      <p>
-        <strong>⚠️ Public Safety &amp; Non-Reliance Notice:</strong> Information displayed on this dashboard is synthesized from Environment Agency (EA) open telemetry APIs and surveyed hydraulic benchmarks. 
-        This is an independent civic tool and <strong>does not constitute official flood warnings, emergency evacuation orders, or road navigation advice</strong>. 
-        Road passability estimates (e.g. Cuts Road, A361) are computational inferences and do not reflect council gate padlocks, localized washouts, or flash ponding. <strong>Never drive into floodwater.</strong>
-      </p>
-      
-      <p>
-        For official UK statutory flood warnings, consult the 
-        <a href="https://check-for-flooding.service.gov.uk" target="_blank" rel="noopener noreferrer" class="disclaimer-link">GOV.UK Flood Warning Service ↗</a> 
-        or call Floodline at <strong>0345 988 1188</strong>. For official road closures, check 
-        <a href="https://www.travelsomerset.co.uk" target="_blank" rel="noopener noreferrer" class="disclaimer-link">Travel Somerset ↗</a>.
-      </p>
-
-      <p class="ogl-attribution">
-        Contains Environment Agency data &copy; Crown copyright and database right 2026, licensed under the 
-        <a href="https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/" target="_blank" rel="noopener noreferrer" class="disclaimer-link">Open Government Licence v3.0 ↗</a>. 
-        Webcam links courtesy of <a href="https://thecfh.org" target="_blank" rel="noopener noreferrer" class="disclaimer-link">thecfh.org ↗</a>. 
-        Provided on an &ldquo;as is&rdquo; basis without warranty of any kind under the Apache 2.0 License.
-      </p>
-    </div>
-  </footer>
+  <!-- INCLUDE: footer -->
 
   <script type="module" src="js/sparkline.js"></script>
   <script type="module" src="js/camera_guide.js"></script>

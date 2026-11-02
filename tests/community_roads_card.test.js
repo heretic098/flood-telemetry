@@ -5,6 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { evaluateRoadNetwork, ASSET_DEFINITIONS } from '../src/js/hydro_engine.js';
 import { renderRoadNetworkCard } from '../src/js/app.js';
+import { renderHtmlWithPartials } from '../server.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -396,8 +397,8 @@ test('Community Roads Card: CLEARING_INSPECTION_PENDING displays elapsed dry tim
 });
 
 test('Global Footers: index.html and topology.html contain legal insulation and OGL v3.0 notice', () => {
-  const indexHtml = fs.readFileSync(path.join(ROOT_DIR, 'src/index.html'), 'utf8');
-  const topologyHtml = fs.readFileSync(path.join(ROOT_DIR, 'src/topology.html'), 'utf8');
+  const indexHtml = renderHtmlWithPartials(fs.readFileSync(path.join(ROOT_DIR, 'src/index.html'), 'utf8'), 'index.html');
+  const topologyHtml = renderHtmlWithPartials(fs.readFileSync(path.join(ROOT_DIR, 'src/topology.html'), 'utf8'), 'topology.html');
 
   for (const [name, content] of [['index.html', indexHtml], ['topology.html', topologyHtml]]) {
     assert.ok(content.includes('Public Safety &amp; Non-Reliance Notice'), `${name} footer must include Public Safety notice`);

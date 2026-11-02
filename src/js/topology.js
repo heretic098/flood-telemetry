@@ -24,6 +24,8 @@ import {
 } from './hydro_engine.js?v=1.2.0';
 
 import { initJargonPopovers, renderJargonTerm } from './jargon_popover.js';
+import { createRefreshController } from './modules/refresh_controller.js';
+import { setupOfflineBanner as setupResilienceBanner } from './modules/network_resilience.js';
 
 import {
   computeSparklineBounds,
@@ -128,35 +130,11 @@ let currentActiveRange = '24h';
 let lastSuccessfulSyncTime = null;
 
 export function setupOfflineBanner() {
-  if (typeof window === 'undefined') return;
-  const banner = document.getElementById('network-offline-banner');
-  if (!banner) return;
-
-  function handleOffline() {
-    const timeStr = lastSuccessfulSyncTime
-      ? lastSuccessfulSyncTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      : '--:--';
-    banner.textContent = `⚠️ Network Disconnected — Displaying cached data from ${timeStr}`;
-    banner.className = 'network-offline-banner offline';
-    banner.style.display = 'block';
-  }
-
-  async function handleOnline() {
-    banner.textContent = '✅ Connection Restored — Refreshing data...';
-    banner.className = 'network-offline-banner online';
-    banner.style.display = 'block';
-    await loadTopologyData(false);
-    setTimeout(() => {
-      banner.style.display = 'none';
-    }, 2500);
-  }
-
-  window.addEventListener('offline', handleOffline);
-  window.addEventListener('online', handleOnline);
-
-  if (!navigator.onLine) {
-    handleOffline();
-  }
+  return setupResilienceBanner({
+    bannerId: 'network-offline-banner',
+    onOnline: async () => { await loadTopologyData(false); },
+    getLastSyncTime: () => lastSuccessfulSyncTime
+  });
 }
 
 function setupPeriodListeners() {
@@ -237,10 +215,13 @@ async function initTopology() {
 
   await loadTopologyData();
   
-  // Set up 60-second auto-refresh
-  setInterval(async () => {
-    await loadTopologyData(true);
-  }, 60000);
+  // Set up 60-second auto-refresh via shared controller
+  const refreshController = createRefreshController({
+    intervalMs: 60000,
+    countdownPillId: 'counter-pill',
+    onRefresh: async () => { await loadTopologyData(true); }
+  });
+  refreshController.start();
 }
 
 function setupAreaFocusListeners() {
@@ -1004,7 +985,7 @@ function renderSVGNetwork() {
     const { line1X, line1Y, line2X, line2Y, stageX, stageY, textAnchor, labelParts } = computeSmartLabelLayout(node, coord, placedLabelBoxes, nodes);
 
     svgContent += `
-      <g class="topology-node-group ${dimmed ? 'dimmed' : ''}" 
+      <g class="topology-node topology-node-group ${dimmed ? 'dimmed' : ''}" 
          data-id="${escapeAttr(node.id)}" 
          tabindex="0" 
          role="button" 

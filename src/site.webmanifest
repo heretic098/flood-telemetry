@@ -1,0 +1,17 @@
+{
+  "name": "Somerset Levels Flood & Infrastructure Status",
+  "short_name": "Somerset Floods",
+  "description": "Real-time river levels, highway passability, spillways, pumping stations & lowland moors telemetry for the Somerset Levels.",
+  "start_url": "/index.html",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "icons": [
+    {
+      "src": "favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

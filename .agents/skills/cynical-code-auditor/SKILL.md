@@ -93,6 +93,12 @@ Never accept assertions like *"it works on my machine"*, *"tests pass"*, or *"it
    - Do `/api/status` and `/api/topology` use divergent calculations, differing fallback stages, or conflicting station evaluations? *(INSTANT REJECTION if yes)*.
 4. **Dependency Hygiene ([RULE-DEP-01]):**
    - Are any packages declared in `package.json` that are not actively imported and utilized by the application? *(INSTANT REJECTION if yes)*.
+5. **Presentation DRY & Layout Shell Invariant ([ARCH-VIEW-01]):**
+   - Does this change duplicate `<nav>`, `<footer>`, or `<head>` markup across multiple HTML files or string templates in JS? *(INSTANT REJECTION if yes; presentation chrome must derive from canonical partials/shells)*.
+   - Do client controller functions inject hardcoded HTML strings that replicate static template markup? *(INSTANT REJECTION if yes)*.
+6. **Controller State & Contract Boundaries ([ARCH-CTRL-01], [ARCH-DATA-01]):**
+   - Does client code introduce unencapsulated module timers or loose state flags without lifecycle cleanup? *(INSTANT REJECTION if yes; use `RefreshController`)*.
+   - Does any API endpoint return or ingest payloads without passing `src/js/contracts/` validation and `assertNoForbiddenKeys`? *(INSTANT REJECTION if yes)*.
 
 ---
 
@@ -118,6 +124,8 @@ Every cynical review report MUST follow this structured format:
 | **Cross-View Visual Parity (Headless Chrome)** | ... | ... |
 | **WCAG 2.1 AA & Accessibility** | ... | ... |
 | **Defensive Null-Safety & Fallbacks** | ... | ... |
+| **Presentation DRY & Layout Shells** | ... | ... |
+| **Controller Lifecycle & Data Contracts** | ... | ... |
 | **Security & XSS Prevention** | ... | ... |
 | **Automated Dual Audit Test Suite** | ... | ... |
 

@@ -2,22 +2,30 @@
 /**
  * Automated Headless Chrome Visual Snapshot & Cross-View Parity Tool
  *
- * Reliably captures full-height screenshots of the Main Dashboard (index.html)
- * and River Network Topology View (topology.html) in parallel using pre-calibrated
- * viewport dimensions so no cards or inspector drawers are clipped.
+ * Reliably captures full-height screenshots of:
+ *   - Main Dashboard (index.html)
+ *   - Roads & Access (roads.html)
+ *   - River Network Topology View (topology.html)
+ *
+ * Hardened Verification Gates:
+ *   1. Browser Console & Page Error Gate:
+ *      Captures all unhandled page exceptions (ReferenceError, TypeError, SyntaxError, etc.)
+ *      and console.error events. Fails with exit code 1 if any unhandled error occurs.
+ *   2. DOM Integrity Assertions:
+ *      - index.html: Assert #cards-container .moor-card count >= 4
+ *      - roads.html: Assert #roads-corridors-container .road-corridor-row count >= 8
+ *      - topology.html: Assert .topology-node SVG count >= 10
+ *      Fails with exit code 1 if any count is below minimum.
  *
  * Usage:
  *   npm run snapshot
  *   node scripts/capture_views.js [--station=52163] [--out-dir=/tmp/flood-snapshots]
  */
 
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
+import puppeteer from 'puppeteer-core';
 import fs from 'node:fs';
 import path from 'node:path';
 import http from 'node:http';
-
-const execFileAsync = promisify(execFile);
 
 const CHROME_CANDIDATES = [
   '/usr/bin/google-chrome',
@@ -70,72 +78,175 @@ async function run() {
     });
   }
 
-  const dashboardPath = path.join(outDirArg, 'dashboard_main.png');
-  const topologyPath = path.join(outDirArg, `topology_${stationArg}.png`);
-  const mobileDashboardPath = path.join(outDirArg, 'dashboard_mobile_375.png');
-  const mobileTopologyPath = path.join(outDirArg, `topology_mobile_375.png`);
-  const roadsPath = path.join(outDirArg, 'roads_main.png');
-  const mobileRoadsPath = path.join(outDirArg, 'roads_mobile_375.png');
-
-  const commonFlags = [
-    '--headless=new',
-    '--incognito',
-    '--no-sandbox',
-    '--disable-gpu',
-    '--hide-scrollbars',
-    '--virtual-time-budget=2500'
+  const viewsToCapture = [
+    {
+      name: 'Main Dashboard Desktop',
+      url: `${baseUrl}/index.html`,
+      width: 1440,
+      height: 1850,
+      outPath: path.join(outDirArg, 'dashboard_main.png'),
+      domAssertion: {
+        selector: '#cards-container .moor-card',
+        minCount: 4,
+        description: '.moor-card elements'
+      }
+    },
+    {
+      name: 'Topology View Desktop',
+      url: `${baseUrl}/topology.html?station=${encodeURIComponent(stationArg)}`,
+      width: 1440,
+      height: 1700,
+      outPath: path.join(outDirArg, `topology_${stationArg}.png`),
+      domAssertion: {
+        selector: '.topology-node',
+        minCount: 10,
+        description: '.topology-node elements'
+      }
+    },
+    {
+      name: 'Main Dashboard Mobile',
+      url: `${baseUrl}/index.html`,
+      width: 375,
+      height: 1400,
+      outPath: path.join(outDirArg, 'dashboard_mobile_375.png'),
+      domAssertion: {
+        selector: '#cards-container .moor-card',
+        minCount: 4,
+        description: '.moor-card elements'
+      }
+    },
+    {
+      name: 'Topology View Mobile',
+      url: `${baseUrl}/topology.html?station=${encodeURIComponent(stationArg)}`,
+      width: 375,
+      height: 1400,
+      outPath: path.join(outDirArg, `topology_mobile_375.png`),
+      domAssertion: {
+        selector: '.topology-node',
+        minCount: 10,
+        description: '.topology-node elements'
+      }
+    },
+    {
+      name: 'Roads View Desktop',
+      url: `${baseUrl}/roads.html`,
+      width: 1440,
+      height: 1850,
+      outPath: path.join(outDirArg, 'roads_main.png'),
+      domAssertion: {
+        selector: '#roads-corridors-container .road-corridor-row',
+        minCount: 8,
+        description: '.road-corridor-row elements'
+      }
+    },
+    {
+      name: 'Roads View Mobile',
+      url: `${baseUrl}/roads.html`,
+      width: 375,
+      height: 1400,
+      outPath: path.join(outDirArg, 'roads_mobile_375.png'),
+      domAssertion: {
+        selector: '#roads-corridors-container .road-corridor-row',
+        minCount: 8,
+        description: '.road-corridor-row elements'
+      }
+    }
   ];
 
+  let browser = null;
   const t0 = Date.now();
+  const collectedErrors = [];
+
   try {
-    await Promise.all([
-      execFileAsync(chromeBin, [
-        ...commonFlags,
-        '--window-size=1440,1850',
-        `--screenshot=${dashboardPath}`,
-        `${baseUrl}/index.html`
-      ]),
-      execFileAsync(chromeBin, [
-        ...commonFlags,
-        '--window-size=1440,1700',
-        `--screenshot=${topologyPath}`,
-        `${baseUrl}/topology.html?station=${encodeURIComponent(stationArg)}`
-      ]),
-      execFileAsync(chromeBin, [
-        ...commonFlags,
-        '--window-size=375,1400',
-        `--screenshot=${mobileDashboardPath}`,
-        `${baseUrl}/index.html`
-      ]),
-      execFileAsync(chromeBin, [
-        ...commonFlags,
-        '--window-size=375,1400',
-        `--screenshot=${mobileTopologyPath}`,
-        `${baseUrl}/topology.html?station=${encodeURIComponent(stationArg)}`
-      ]),
-      execFileAsync(chromeBin, [
-        ...commonFlags,
-        '--window-size=1440,1850',
-        `--screenshot=${roadsPath}`,
-        `${baseUrl}/roads.html`
-      ]),
-      execFileAsync(chromeBin, [
-        ...commonFlags,
-        '--window-size=375,1400',
-        `--screenshot=${mobileRoadsPath}`,
-        `${baseUrl}/roads.html`
-      ])
-    ]);
+    browser = await puppeteer.launch({
+      executablePath: chromeBin,
+      headless: 'new',
+      args: [
+        '--no-sandbox',
+        '--disable-gpu',
+        '--hide-scrollbars',
+        '--incognito'
+      ]
+    });
+
+    console.log(`[Snapshot] Launched browser (${chromeBin})`);
+
+    for (const view of viewsToCapture) {
+      const page = await browser.newPage();
+      const pageErrors = [];
+
+      // Gate 2.1: Intercept unhandled exceptions & console errors
+      page.on('pageerror', (err) => {
+        const errorDetail = `Unhandled Exception on [${view.name}]: ${err.stack || err.message}`;
+        pageErrors.push(errorDetail);
+        collectedErrors.push(errorDetail);
+      });
+
+      page.on('console', (msg) => {
+        if (msg.type() === 'error') {
+          const text = msg.text();
+          // Filter out network errors that are expected when mock/offline or third-party webcams
+          const isFatalCodeError = /ReferenceError|TypeError|SyntaxError|Uncaught|is not defined/i.test(text);
+          const errorDetail = `Console Error on [${view.name}]: ${text} (location: ${msg.location().url}:${msg.location().lineNumber})`;
+          if (isFatalCodeError) {
+            pageErrors.push(errorDetail);
+            collectedErrors.push(errorDetail);
+          } else {
+            console.warn(`  [Browser Warn] ${errorDetail}`);
+          }
+        }
+      });
+
+      await page.setViewport({ width: view.width, height: view.height });
+
+      try {
+        await page.goto(view.url, { waitUntil: 'load', timeout: 10000 });
+
+        // Wait for dynamic DOM elements to populate
+        try {
+          await page.waitForSelector(view.domAssertion.selector, { timeout: 4000 });
+        } catch {
+          // Selector wait timed out; let the assertion below fail with specific count
+        }
+
+        // Additional settling time for telemetry rendering
+        await new Promise(r => setTimeout(r, 500));
+
+        // Gate 2.2: Post-render DOM assertions
+        const elementCount = await page.$$eval(view.domAssertion.selector, els => els.length);
+        if (elementCount < view.domAssertion.minCount) {
+          const assertionErr = `[DOM Assertion Failed] Expected >= ${view.domAssertion.minCount} ${view.domAssertion.description} on [${view.name}], found ${elementCount}`;
+          collectedErrors.push(assertionErr);
+          throw new Error(assertionErr);
+        }
+
+        // If unhandled errors occurred during rendering, fail immediately
+        if (pageErrors.length > 0) {
+          throw new Error(`Browser execution error on [${view.name}]:\n  ${pageErrors.join('\n  ')}`);
+        }
+
+        await page.screenshot({ path: view.outPath, fullPage: false });
+        console.log(`  ✔ Captured ${view.name} (${view.width}x${view.height}) -> ${view.outPath} [${elementCount} ${view.domAssertion.description}]`);
+      } finally {
+        await page.close();
+      }
+    }
+
+    if (collectedErrors.length > 0) {
+      console.error('\n==================== SNAPSHOT GATES FAILED ====================');
+      for (const err of collectedErrors) {
+        console.error(`✖ ${err}`);
+      }
+      console.error('===============================================================\n');
+      process.exit(1);
+    }
 
     const elapsedMs = Date.now() - t0;
-    console.log(`[Snapshot Complete in ${elapsedMs}ms]`);
-    console.log(`  1. Main Dashboard Desktop (1440x1850): ${dashboardPath}`);
-    console.log(`  2. Topology View  Desktop (1440x1700): ${topologyPath}`);
-    console.log(`  3. Main Dashboard Mobile  (375x1400):  ${mobileDashboardPath}`);
-    console.log(`  4. Topology View  Mobile  (375x1400):  ${mobileTopologyPath}`);
-    console.log(`  5. Roads View     Desktop (1440x1850): ${roadsPath}`);
-    console.log(`  6. Roads View     Mobile  (375x1400):  ${mobileRoadsPath}`);
+    console.log(`\n[Snapshot Complete in ${elapsedMs}ms — All DOM assertions and console integrity gates passed]`);
   } finally {
+    if (browser) {
+      await browser.close();
+    }
     if (ephemeralServer) {
       await new Promise(resolve => ephemeralServer.close(resolve));
     }
@@ -143,6 +254,6 @@ async function run() {
 }
 
 run().catch((err) => {
-  console.error('[Snapshot Error]', err.message);
+  console.error('\n[Snapshot Fatal Error]:', err.message);
   process.exit(1);
 });

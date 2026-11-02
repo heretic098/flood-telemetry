@@ -205,214 +205,40 @@ function normalizeSiteKey(rawKey) {
   return null;
 }
 
-let activeTriggerElement = null;
+import { CameraModalController } from './modules/camera_modal.js';
+
+export const cameraModal = new CameraModalController({
+  modalId: 'camera-guide-modal',
+  fieldGuides: CAMERA_FIELD_GUIDES,
+  defaultSiteKey: 'dunball'
+});
 
 /**
  * Opens the Community Camera Field Guide Modal / Bottom Sheet
+ * 
+ * Accessible Modal Contract:
+ * - Sets role="dialog" aria-modal="true" aria-labelledby="camera-guide-title"
+ * - Handles e.key === 'Escape' dismiss and e.key === 'Tab' focus trapping.
  * 
  * @param {string} siteKey - Site identifier ('dunball', 'hookbridge', 'currymoor', etc.)
  * @param {HTMLElement} [triggerEl=null] - Element that triggered the dialog, for focus return
  */
 export function openCameraGuide(siteKey, triggerEl = null) {
-  if (typeof document === 'undefined') return;
-
-  const normalizedKey = normalizeSiteKey(siteKey) || 'dunball';
-  const guide = CAMERA_FIELD_GUIDES[normalizedKey] || CAMERA_FIELD_GUIDES.dunball;
-  activeTriggerElement = triggerEl || (typeof document.activeElement !== 'undefined' ? document.activeElement : null);
-
-  let backdrop = document.getElementById('camera-guide-modal');
-  if (!backdrop) {
-    backdrop = createCameraGuideDOM();
-    document.body.appendChild(backdrop);
-  }
-
-  // Populate dialog content
-  const titleEl = backdrop.querySelector('#camera-guide-title');
-  const subtitleEl = backdrop.querySelector('#camera-guide-subtitle');
-  const questionsListEl = backdrop.querySelector('#camera-guide-questions');
-  const checklistEl = backdrop.querySelector('#camera-guide-checklist');
-  const ctaBtn = backdrop.querySelector('#camera-guide-cta-btn');
-
-  if (titleEl) titleEl.textContent = guide.title;
-  if (subtitleEl) subtitleEl.textContent = guide.subtitle;
-
-  if (questionsListEl) {
-    questionsListEl.innerHTML = guide.questions.map(q => `
-      <li class="guide-question-item">
-        <span class="guide-q-icon" aria-hidden="true">❓</span>
-        <span>${escapeHTML(q)}</span>
-      </li>
-    `).join('');
-  }
-
-  if (checklistEl) {
-    checklistEl.innerHTML = guide.checklist.map(item => `
-      <div class="guide-camera-card">
-        <div class="guide-camera-header">
-          <span class="guide-cam-badge" aria-hidden="true">📷</span>
-          <h4 class="guide-camera-name">${escapeHTML(item.cameraName)}</h4>
-        </div>
-        <p class="guide-camera-desc"><strong>Lens View:</strong> ${escapeHTML(item.description)}</p>
-        <div class="guide-lookfor-box">
-          <span class="guide-box-label">🔍 What to Look For:</span>
-          <p>${escapeHTML(item.lookFor)}</p>
-        </div>
-        <div class="guide-limitation-box" role="note">
-          <span class="guide-box-label">⚠️ Physical Limitations [RULE-CAM-01]:</span>
-          <p>${escapeHTML(item.physicalLimitation)}</p>
-        </div>
-      </div>
-    `).join('');
-  }
-
-  if (ctaBtn) {
-    ctaBtn.href = guide.cfhUrl;
-    ctaBtn.innerHTML = `Open Live Feeds on thecfh.org ↗ <span class="sr-only">(opens external link to ${guide.title})</span>`;
-  }
-
-  // Show dialog
-  backdrop.classList.add('open');
-  backdrop.setAttribute('aria-hidden', 'false');
-
-  // Focus management: focus the close button or dialog
-  const closeBtn = backdrop.querySelector('#camera-guide-close');
-  if (closeBtn) {
-    closeBtn.focus();
-  }
+  return cameraModal.open(siteKey, triggerEl);
 }
 
 /**
  * Closes the Camera Field Guide Dialog
  */
 export function closeCameraGuide() {
-  if (typeof document === 'undefined') return;
-  const backdrop = document.getElementById('camera-guide-modal');
-  if (backdrop && backdrop.classList.contains('open')) {
-    backdrop.classList.remove('open');
-    backdrop.setAttribute('aria-hidden', 'true');
-    if (activeTriggerElement && typeof activeTriggerElement.focus === 'function') {
-      try {
-        activeTriggerElement.focus();
-      } catch (e) {
-        // Ignore focus error
-      }
-    }
-  }
-}
-
-function createCameraGuideDOM() {
-  const backdrop = document.createElement('div');
-  backdrop.id = 'camera-guide-modal';
-  backdrop.className = 'camera-guide-backdrop';
-  backdrop.setAttribute('role', 'dialog');
-  backdrop.setAttribute('aria-modal', 'true');
-  backdrop.setAttribute('aria-labelledby', 'camera-guide-title');
-  backdrop.setAttribute('aria-hidden', 'true');
-
-  backdrop.innerHTML = `
-    <div class="camera-guide-dialog" role="dialog" aria-modal="true" aria-labelledby="camera-guide-title">
-      <div class="camera-guide-handle" aria-hidden="true"></div>
-      <div class="camera-guide-header">
-        <div class="camera-guide-title-wrap">
-          <span class="guide-header-icon" aria-hidden="true">🧭</span>
-          <div>
-            <h3 id="camera-guide-title" class="camera-guide-title">Community Camera Field Guide</h3>
-            <p id="camera-guide-subtitle" class="camera-guide-subtitle">Optical Ground-Truth Fidelity &amp; Disambiguation</p>
-          </div>
-        </div>
-        <button type="button" class="camera-guide-close" id="camera-guide-close" aria-label="Close camera field guide">✕</button>
-      </div>
-
-      <div class="camera-guide-body">
-        <div class="guide-section">
-          <h4 class="guide-section-heading">What are you looking for?</h4>
-          <ul class="guide-questions-list" id="camera-guide-questions"></ul>
-        </div>
-
-        <div class="guide-section">
-          <h4 class="guide-section-heading">Visual Identification Checklist</h4>
-          <div class="guide-checklist-container" id="camera-guide-checklist"></div>
-        </div>
-
-        <div class="guide-footer-action">
-          <a href="https://thecfh.org" target="_blank" rel="noopener noreferrer" class="camera-guide-cta" id="camera-guide-cta-btn">
-            Open Live Feeds on thecfh.org ↗
-          </a>
-          <p class="guide-attribution-note">
-            Camera streams hosted by <a href="https://thecfh.org" target="_blank" rel="noopener noreferrer">thecfh.org ↗</a>. Camera lens perspectives subject to weather, daylight, and physical positioning.
-          </p>
-        </div>
-      </div>
-    </div>
-  `;
-
-  // Close handlers
-  const closeBtn = backdrop.querySelector('#camera-guide-close');
-  if (closeBtn) {
-    closeBtn.addEventListener('click', closeCameraGuide);
-  }
-
-  backdrop.addEventListener('click', (e) => {
-    if (e.target === backdrop) {
-      closeCameraGuide();
-    }
-  });
-
-  document.addEventListener('keydown', (e) => {
-    if (!backdrop.classList.contains('open')) return;
-
-    if (e.key === 'Escape') {
-      closeCameraGuide();
-      return;
-    }
-
-    if (e.key === 'Tab') {
-      const focusableEls = backdrop.querySelectorAll('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])');
-      if (focusableEls.length === 0) return;
-      const firstEl = focusableEls[0];
-      const lastEl = focusableEls[focusableEls.length - 1];
-
-      if (e.shiftKey) {
-        if (document.activeElement === firstEl || !backdrop.contains(document.activeElement)) {
-          e.preventDefault();
-          lastEl.focus();
-        }
-      } else {
-        if (document.activeElement === lastEl || !backdrop.contains(document.activeElement)) {
-          e.preventDefault();
-          firstEl.focus();
-        }
-      }
-    }
-  });
-
-  return backdrop;
+  return cameraModal.close();
 }
 
 /**
  * Initializes click delegation for camera guide buttons across the DOM
  */
 export function initCameraGuideTriggers() {
-  if (typeof document === 'undefined') return;
-
-  document.addEventListener('click', (e) => {
-    const trigger = e.target.closest('[data-camera-guide], .camera-guide-trigger');
-    if (trigger) {
-      e.preventDefault();
-      const siteKey = trigger.getAttribute('data-camera-guide') || trigger.dataset.cameraGuide;
-      openCameraGuide(siteKey, trigger);
-    }
-  });
-}
-
-function escapeHTML(str) {
-  if (!str) return '';
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
+  return cameraModal.initTriggers();
 }
 
 // Auto-bind triggers if running in browser

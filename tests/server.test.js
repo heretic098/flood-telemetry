@@ -224,6 +224,54 @@ test('GET /api/status includes evaluated roads and road_corridors for all 8 corr
   assert.equal(muchelney.cam_url, 'https://thecfh.org/parretttonewsom.php#huish');
 });
 
+test('Server Partials: Injects nav and footer with correct active tabs across all HTML views', async () => {
+  const pages = [
+    { path: '/', activeLabel: '📊 Overview', activeHref: 'index.html' },
+    { path: '/index.html', activeLabel: '📊 Overview', activeHref: 'index.html' },
+    { path: '/roads.html', activeLabel: '🚗 Roads &amp; Access', activeHref: 'roads.html' },
+    { path: '/topology.html', activeLabel: '🗺️ River Topology', activeHref: 'topology.html' },
+    { path: '/methodology.html', activeLabel: '📖 Methodology', activeHref: 'methodology.html' }
+  ];
+
+  for (const page of pages) {
+    const res = await httpGet(page.path);
+    assert.equal(res.status, 200, `${page.path} must return 200`);
+    assert.ok(res.headers['content-type'].includes('text/html'), `${page.path} must be text/html`);
+
+    // Verify partial injection replaced placeholders
+    assert.ok(!res.body.includes('<!-- INCLUDE: nav -->'), `${page.path} must have nav placeholder injected`);
+    assert.ok(!res.body.includes('<!-- INCLUDE: footer -->'), `${page.path} must have footer placeholder injected`);
+
+    // Verify nav structure
+    assert.ok(res.body.includes('aria-label="Main Navigation"'), `${page.path} must have main navigation`);
+    assert.ok(res.body.includes('class="nav-btn nav-link nav-btn-kofi"'), `${page.path} must have Ko-fi link in nav`);
+    assert.ok(res.body.includes('https://ko-fi.com/heretic098'), `${page.path} must link to Ko-fi`);
+
+    // Verify active link highlighting
+    const activePattern = new RegExp(`href="${page.activeHref}"[^>]*class="[^"]*active[^"]*"[^>]*aria-current="page"`);
+    assert.match(res.body, activePattern, `${page.path} must mark ${page.activeHref} active with aria-current="page"`);
+
+    // Verify footer structure
+    assert.ok(res.body.includes('class="app-disclaimer-footer"'), `${page.path} must contain footer partial`);
+    assert.ok(res.body.includes('class="kofi-support-banner"'), `${page.path} must contain kofi banner in footer`);
+    assert.ok(res.body.includes('Public Safety &amp; Non-Reliance Notice'), `${page.path} must include non-reliance notice`);
+    assert.ok(res.body.includes('Open Government Licence v3.0'), `${page.path} must include OGL v3.0 attribution`);
+  }
+});
+
+test('Server Partials: Direct access to /partials/ files returns 403 Forbidden', async () => {
+  const forbiddenPaths = [
+    '/partials/nav.html',
+    '/partials/footer.html',
+    '/partials/'
+  ];
+
+  for (const p of forbiddenPaths) {
+    const res = await httpGet(p);
+    assert.equal(res.status, 403, `${p} must return 403 Forbidden`);
+  }
+});
+
 
 
 
