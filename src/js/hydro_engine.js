@@ -136,10 +136,12 @@ export function evaluateGateState(h_up, h_down, Z_sill) {
 
 export function aggregateGlobalStatus(moorEvaluations, isTideLocked = false) {
   const severe = moorEvaluations.filter(m => m.severity <= 2);
-  const warnings = moorEvaluations.filter(m => m.severity === 3 || m.severity === 4);
-  const secure = moorEvaluations.filter(m => m.severity === 5);
+  const offline = moorEvaluations.filter(m => m.isOffline || m.status === 'OFFLINE');
+  const warnings = moorEvaluations.filter(m => !m.isOffline && m.status !== 'OFFLINE' && (m.severity === 3 || m.severity === 4));
+  const secure = moorEvaluations.filter(m => !m.isOffline && m.status !== 'OFFLINE' && m.severity === 5);
 
-  const counterPill = `[ 🔴 ${severe.length} Overtopping | 🟡 ${warnings.length} Warning | 🟢 ${secure.length} Secure ]`;
+  const totalWarnings = warnings.length + offline.length;
+  const counterPill = `[ 🔴 ${severe.length} Overtopping | 🟡 ${totalWarnings} Warning | 🟢 ${secure.length} Secure ]`;
 
   let bannerText = "";
   if (severe.length >= 2) {
@@ -147,6 +149,9 @@ export function aggregateGlobalStatus(moorEvaluations, isTideLocked = false) {
     bannerText = `CRITICAL: ${names.toUpperCase()} BOTH OVERTOPPING`;
   } else if (severe.length === 1) {
     bannerText = `ACTION REQUIRED: ${severe[0].name.toUpperCase()} OVERTOPPING`;
+  } else if (offline.length > 0) {
+    const names = offline.map(m => m.name || 'STATION').join(' & ');
+    bannerText = `⚠️ DATA DEGRADED: TELEMETRY OFFLINE FOR ${names.toUpperCase()} — STATUS UNCONFIRMED`;
   } else if (warnings.length > 0) {
     bannerText = `WARNING: HIGH WATER IN ${warnings[0].name.toUpperCase()}`;
   } else {
@@ -162,7 +167,7 @@ export function aggregateGlobalStatus(moorEvaluations, isTideLocked = false) {
   return {
     counterPill,
     bannerText,
-    topSeverity: severe.length > 0 ? (severe.length > 1 ? 1 : 2) : (warnings.length > 0 ? 4 : 5)
+    topSeverity: severe.length > 0 ? (severe.length > 1 ? 1 : 2) : (offline.length > 0 || warnings.length > 0 ? 4 : 5)
   };
 }
 

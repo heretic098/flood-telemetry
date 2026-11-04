@@ -639,6 +639,7 @@ export async function refreshLiveDashboard() {
   container.innerHTML = '';
 
   const evals = [];
+  let isTideLocked = dunballSea >= dunballInland;
 
   // Progressive Disclosure: Sourced active event sessions [RULE-ENT-01]
   const activeEventsMap = new Map();
@@ -652,36 +653,37 @@ export async function refreshLiveDashboard() {
   const roadData = dbData?.roads || evaluateRoadNetwork(dbMeasures || {}, activeEventsMap);
   updateRoadStatusSummaryBanner(roadData);
 
-  // Card 1: Curry Moor
-  const hookbridgeConfig = hydroConfig?.moors?.curry_moor?.spillway;
-  const hookbridgeCrest = getActiveCrestHeight(hookbridgeConfig, new Date(), 7.45);
-  const hookbridgeHist = hookbridgeConfig?.crest_history || [];
-  const hookbridgeScheme = hookbridgeHist.length ? hookbridgeHist[hookbridgeHist.length - 1].notes : 'EA Survey Baseline';
-
-  const cmEval = evaluateSpillway(cmRiverLevel, cmMoorLevel, hookbridgeCrest);
-  cmEval.name = "Curry Moor System";
-  if (cmIsStale && (cmEval.badgeClass === 'badge-secure' || cmEval.code === 'SECURE')) {
-    cmEval.badgeClass = cmStaleInfo.badgeClass || 'badge-stale';
-    cmEval.symbol = cmStaleInfo.isOffline ? '⚠️' : '🕒';
-    cmEval.label = `${cmEval.label} (UNCONFIRMED - ${cmStaleInfo.isOffline ? 'OFFLINE' : 'STALE'})`;
-  }
-  evals.push(cmEval);
-
-  const currymoorPump = getPumpEvaluation('currymoor_ps', cmMoorLevel, 'curry_moor', 'Currymoor PS', 2);
-  const stanmoorPump = getPumpEvaluation('stanmoor_ps', cmMoorLevel, 'curry_moor', 'Stanmoor PS', 2);
-
   const athelneyConfig = hydroConfig?.moors?.curry_moor?.athelney_spillway;
   const athelneyCrest = getActiveCrestHeight(athelneyConfig, new Date(), 7.35);
   const athelneySpillway = evaluateAthelneySpillway(cmMoorLevel, athelneyCrest);
-  const cmGravitySluice = evaluateGravityClyse(cmMoorLevel, cmRiverLevel, "Currymoor Sluice");
 
-  // Progressive Disclosure Level 1: Centimetre Rule + 3h Trend Vector + Active Duration
-  const hookbridgeActive = activeEventsMap.get('hookbridge');
-  const cmTrend = computeTrendVector(cmRiverReadings);
-  const cmClearanceFormatted = formatClearanceText(hookbridgeCrest - cmRiverLevel, 'crest');
-  const cmClearanceWithTrend = `${cmClearanceFormatted} (${cmTrend})${hookbridgeActive?.duration_formatted ? ` • ⏱️ ${hookbridgeActive.duration_formatted}` : ''}`;
+  // Card 1: Curry Moor
+  try {
+    const hookbridgeConfig = hydroConfig?.moors?.curry_moor?.spillway;
+    const hookbridgeCrest = getActiveCrestHeight(hookbridgeConfig, new Date(), 7.45);
+    const hookbridgeHist = hookbridgeConfig?.crest_history || [];
+    const hookbridgeScheme = hookbridgeHist.length ? hookbridgeHist[hookbridgeHist.length - 1].notes : 'EA Survey Baseline';
 
-  const cmHeroBanner = renderHeroSpillwayBanner({
+    const cmEval = evaluateSpillway(cmRiverLevel, cmMoorLevel, hookbridgeCrest);
+    cmEval.name = "Curry Moor System";
+    if (cmIsStale && (cmEval.badgeClass === 'badge-secure' || cmEval.code === 'SECURE')) {
+      cmEval.badgeClass = cmStaleInfo.badgeClass || 'badge-stale';
+      cmEval.symbol = cmStaleInfo.isOffline ? '⚠️' : '🕒';
+      cmEval.label = `${cmEval.label} (UNCONFIRMED - ${cmStaleInfo.isOffline ? 'OFFLINE' : 'STALE'})`;
+    }
+    evals.push(cmEval);
+
+    const currymoorPump = getPumpEvaluation('currymoor_ps', cmMoorLevel, 'curry_moor', 'Currymoor PS', 2);
+    const stanmoorPump = getPumpEvaluation('stanmoor_ps', cmMoorLevel, 'curry_moor', 'Stanmoor PS', 2);
+    const cmGravitySluice = evaluateGravityClyse(cmMoorLevel, cmRiverLevel, "Currymoor Sluice");
+
+    // Progressive Disclosure Level 1: Centimetre Rule + 3h Trend Vector + Active Duration
+    const hookbridgeActive = activeEventsMap.get('hookbridge');
+    const cmTrend = computeTrendVector(cmRiverReadings);
+    const cmClearanceFormatted = formatClearanceText(hookbridgeCrest - cmRiverLevel, 'crest');
+    const cmClearanceWithTrend = `${cmClearanceFormatted} (${cmTrend})${hookbridgeActive?.duration_formatted ? ` • ⏱️ ${hookbridgeActive.duration_formatted}` : ''}`;
+
+    const cmHeroBanner = renderHeroSpillwayBanner({
     icon: '⚡',
     title: 'Hookbridge Spillway Status',
     statusBadge: cmEval,
@@ -873,9 +875,20 @@ export async function refreshLiveDashboard() {
       { label: "EA Data (52127) ↗", url: "https://environment.data.gov.uk/flood-monitoring/id/stations/52127.html" }
     ]
   }));
+  } catch (err) {
+    console.error('[Card 1 Error: Curry Moor]', err);
+    evals.push({ name: 'Curry Moor System', severity: 4, status: 'OFFLINE', isOffline: true });
+    container.appendChild(createMoorFallbackCard({
+      title: 'Curry Moor System',
+      cardId: 'card-52118',
+      stationId: '52118',
+      error: err
+    }));
+  }
 
   // Card 2: Northmoor & Saltmoor
-  const baltmoorConfig = hydroConfig?.moors?.northmoor?.spillway;
+  try {
+    const baltmoorConfig = hydroConfig?.moors?.northmoor?.spillway;
   const baltmoorCrest = getActiveCrestHeight(baltmoorConfig, new Date(), 7.80);
   const baltmoorHist = baltmoorConfig?.crest_history || [];
   const baltmoorScheme = baltmoorHist.length ? baltmoorHist[baltmoorHist.length - 1].notes : 'Post-2014 EA Levee Strengthening';
@@ -1003,9 +1016,20 @@ export async function refreshLiveDashboard() {
       { label: "EA Data (52158) ↗", url: "https://environment.data.gov.uk/flood-monitoring/id/stations/52158.html" }
     ]
   }));
+  } catch (err) {
+    console.error('[Card 2 Error: Northmoor & Saltmoor]', err);
+    evals.push({ name: 'Northmoor & Saltmoor', severity: 4, status: 'OFFLINE', isOffline: true });
+    container.appendChild(createMoorFallbackCard({
+      title: 'Northmoor & Saltmoor',
+      cardId: 'card-52158',
+      stationId: '52158',
+      error: err
+    }));
+  }
 
   // Card 3: Sowy Relief Channel
-  const sowyEval = evaluateSowyChannel(monksUpLevel, monksDownLevel, 4.20);
+  try {
+    const sowyEval = evaluateSowyChannel(monksUpLevel, monksDownLevel, 4.20);
   if (sowyIsStale && (sowyEval.badgeClass === 'badge-secure' || sowyEval.badgeClass === 'badge-open' || sowyEval.code === 'CLOSED' || sowyEval.code === 'GRAVITY_OPEN')) {
     sowyEval.badgeClass = sowyStaleInfo.badgeClass || 'badge-stale';
     sowyEval.symbol = sowyStaleInfo.isOffline ? '⚠️' : '🕒';
@@ -1100,10 +1124,21 @@ export async function refreshLiveDashboard() {
       { label: "📊 GOV.UK KSD Stage (9499) ↗", url: "https://check-for-flooding.service.gov.uk/station/9499" }
     ]
   }));
+  } catch (err) {
+    console.error('[Card 3 Error: Sowy Channel]', err);
+    evals.push({ name: 'Sowy Relief Channel', severity: 4, status: 'OFFLINE', isOffline: true });
+    container.appendChild(createMoorFallbackCard({
+      title: 'Sowy Relief Channel & Sedgemoor Drain',
+      cardId: 'card-52233',
+      stationId: '52233',
+      error: err
+    }));
+  }
 
   // Card 4: Dunball Sea Outfall
-  const dunballGate = evaluateGateState(dunballInland, dunballSea, 1.0);
-  const isTideLocked = dunballSea >= dunballInland;
+  try {
+    const dunballGate = evaluateGateState(dunballInland, dunballSea, 1.0);
+    isTideLocked = dunballSea >= dunballInland;
   const dunballEmergencyThreshold = isSummerRegime ? 3.10 : 2.80;
   const dunballEmergencyPump = evaluateDunballEmergencyPumping(dunballInland, isTideLocked, dunballEmergencyThreshold);
   const dunballPumpGaugeEval = getPumpEvaluation('dunball_mobile_ps', dunballInland, 'dunball_outfall', 'Dunball Emergency Pumps', 4);
@@ -1199,9 +1234,20 @@ export async function refreshLiveDashboard() {
       { label: "EA Data (E9094) ↗", url: "https://environment.data.gov.uk/flood-monitoring/id/stations/E9094.html" }
     ]
   }));
+  } catch (err) {
+    console.error('[Card 4 Error: Dunball Sea Outfall]', err);
+    evals.push({ name: 'Dunball Sea Outfall', severity: 4, status: 'OFFLINE', isOffline: true });
+    container.appendChild(createMoorFallbackCard({
+      title: 'Dunball Clyse & Sea Outfall',
+      cardId: 'card-dunball',
+      stationId: 'E9094',
+      error: err
+    }));
+  }
 
   // Card 5: Langport Confluence & Tributaries
-  const huishEval = evaluateHuishEpiscopi(huishLevel, isSummerRegime);
+  try {
+    const huishEval = evaluateHuishEpiscopi(huishLevel, isSummerRegime);
   const midelneyEval = evaluateMidelney(midelneyLevel, monksUpLevel);
   evals.push({ name: "Langport Confluence", severity: Math.min(huishEval.severity, midelneyEval.severity) });
 
@@ -1315,6 +1361,16 @@ export async function refreshLiveDashboard() {
       { label: "📊 GOV.UK Huish Stage (3071) ↗", url: "https://check-for-flooding.service.gov.uk/station/3071" }
     ]
   }));
+  } catch (err) {
+    console.error('[Card 5 Error: Langport Confluence]', err);
+    evals.push({ name: 'Langport Confluence', severity: 4, status: 'OFFLINE', isOffline: true });
+    container.appendChild(createMoorFallbackCard({
+      title: 'Langport Confluence & Tributaries',
+      cardId: 'card-52120',
+      stationId: '52120',
+      error: err
+    }));
+  }
 
   // Global Status Banner Render
   const globalStat = aggregateGlobalStatus(evals, isTideLocked);
@@ -1368,6 +1424,41 @@ export async function refreshLiveDashboard() {
     if (refreshBtn) refreshBtn.setAttribute('aria-busy', 'false');
     updateCountdownDisplay();
   }
+}
+
+/**
+ * Creates an accessible fallback card when moor telemetry is offline or corrupted [WP 1.4]
+ */
+export function createMoorFallbackCard(opts) {
+  const card = document.createElement('article');
+  card.className = 'moor-card card-fallback';
+  card.setAttribute('role', 'alert');
+  card.setAttribute('tabindex', '0');
+  card.setAttribute('aria-label', `${opts.title || 'Moor Station'} Telemetry Offline`);
+  if (opts.cardId) card.id = opts.cardId;
+  else if (opts.stationId) card.id = `card-${opts.stationId}`;
+  card.style.minHeight = '280px';
+
+  card.innerHTML = `
+    <div class="moor-card-header">
+      <div class="moor-title-group">
+        <span class="card-icon" aria-hidden="true">⚠️</span>
+        <h3 class="moor-title">${escapeHTML(opts.title || 'Station Telemetry')}</h3>
+      </div>
+      <div class="status-pill status-alert">⚠️ TELEMETRY OFFLINE</div>
+    </div>
+    <div class="card-fallback-body">
+      <p class="card-fallback-text"><strong>Data Degraded:</strong> Real-time sensor readings for this station could not be processed safely or telemetry is currently offline.</p>
+      <div class="card-fallback-links">
+        <p>For verified flood warnings and travel conditions, please consult:</p>
+        <div class="fallback-links-group">
+          <a href="https://www.travelsomerset.co.uk" target="_blank" rel="noopener noreferrer" class="fallback-link">🚗 Travel Somerset ↗</a>
+          <a href="https://check-for-flooding.service.gov.uk" target="_blank" rel="noopener noreferrer" class="fallback-link">🌊 GOV.UK Flood Warnings ↗</a>
+        </div>
+      </div>
+    </div>
+  `;
+  return card;
 }
 
 function createMoorCard(opts) {

@@ -50,16 +50,22 @@ export const topologyNodeSchema = object({
   river: string({ minLength: 1 }),
   node_type: enumValues(CANONICAL_STRUCTURAL_CLASSES),
   stage_mAOD: number({ min: -5.0, max: 100.0 }),
-  baseline_mAOD: number(),
-  alert_mAOD: number(),
+  alert_level_mAOD: optional(nullable(number())),
+  alert_mAOD: optional(nullable(number())),
+  baseline_mAOD: optional(nullable(number())),
+  crest_elevation_mAOD: optional(nullable(number())),
   crest_mAOD: optional(nullable(number())),
-  status_code: string({ minLength: 1 }),
-  badge_class: string({ minLength: 1 }),
-  badge_label: string({ minLength: 1 }),
-  narrative: string({ minLength: 1 }),
+  sill_elevation_mAOD: optional(nullable(number())),
+  ground_elevation_mAOD: optional(nullable(number())),
+  status: optional(string({ minLength: 1 })),
+  status_code: optional(string({ minLength: 1 })),
+  badge_class: optional(string({ minLength: 1 })),
+  badge_label: optional(string({ minLength: 1 })),
+  narrative: optional(string({ minLength: 1 })),
   has_live_telemetry: optional(boolean()),
+  has_sparkline: optional(boolean()),
   sparkline: optional(array(object({
-    dateTime: isoDate(),
+    dateTime: isoDate({ allowSqlite: true }),
     stage_mAOD: number()
   })))
 });
@@ -70,7 +76,7 @@ export const topologyNodeSchema = object({
 export const apiTopologySchema = object({
   status: string({ pattern: /^ok$/ }),
   catchment_id: string({ minLength: 1 }),
-  updated_at: isoDate(),
+  updated_at: isoDate({ allowSqlite: true }),
   chains: array(topologyChainSchema, { minLength: 1 })
 });
 
@@ -88,7 +94,7 @@ export function validateApiTopologyPayload(payload) {
   const res = validate(apiTopologySchema, payload, 'api_topology');
   const errors = [...res.errors];
 
-  // If payload contains nodes array, validate each node and check gauge crest invariant
+  // If payload contains nodes array, validate each node and check structural taxonomy invariants
   if (Array.isArray(payload.nodes)) {
     for (let i = 0; i < payload.nodes.length; i++) {
       const node = payload.nodes[i];
@@ -96,9 +102,36 @@ export function validateApiTopologyPayload(payload) {
       if (!nodeRes.valid) {
         errors.push(...nodeRes.errors);
       }
-      // Gauge Crest Invariant: pure gauges have no fixed overflow crest
-      if (node.node_type === 'gauge' && node.crest_mAOD !== null && node.crest_mAOD !== undefined) {
-        errors.push(`api_topology.nodes[${i}] (${node.id}): node_type "gauge" must have null or undefined crest_mAOD`);
+
+      // Gauge Invariant [HYDRO-06]: pure gauges have no fixed overflow crest
+      if (node.node_type === 'gauge') {
+        if (node.crest_elevation_mAOD !== null && node.crest_elevation_mAOD !== undefined) {
+          errors.push(`api_topology.nodes[${i}] (${node.id}): node_type "gauge" must have null or undefined crest_elevation_mAOD`);
+        }
+        if (node.crest_mAOD !== null && node.crest_mAOD !== undefined) {
+          errors.push(`api_topology.nodes[${i}] (${node.id}): node_type "gauge" must have null or undefined crest_mAOD`);
+        }
+        const st = node.status || node.status_code;
+        if (['OVERTOPPING', 'SUBMERGED', 'REVERSE_SPILL'].includes(st)) {
+          errors.push(`api_topology.nodes[${i}] (${node.id}): node_type "gauge" cannot have overtopping status "${st}"`);
+        }
+      }
+
+      // Spillway Invariant [HYDRO-07]: must define numerical crest_elevation_mAOD
+      if (node.node_type === 'spillway') {
+        const crest = (node.crest_elevation_mAOD !== undefined && node.crest_elevation_mAOD !== null)
+          ? node.crest_elevation_mAOD
+          : node.crest_mAOD;
+        if (typeof crest !== 'number' || Number.isNaN(crest) || crest <= 0) {
+          errors.push(`api_topology.nodes[${i}] (${node.id}): node_type "spillway" must define a positive numerical crest_elevation_mAOD`);
+        }
+      }
+
+      // Clyse Gate Invariant [HYDRO-08]: must define numerical sill_elevation_mAOD
+      if (node.node_type === 'clyse_gate') {
+        if (typeof node.sill_elevation_mAOD !== 'number' || Number.isNaN(node.sill_elevation_mAOD) || node.sill_elevation_mAOD <= 0) {
+          errors.push(`api_topology.nodes[${i}] (${node.id}): node_type "clyse_gate" must define a positive numerical sill_elevation_mAOD`);
+        }
       }
     }
   }

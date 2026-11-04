@@ -1358,9 +1358,9 @@ svg.micro-sparkline {
 }
 
 .freshness-stale {
-  background: rgba(239, 68, 68, 0.15);
-  border: 1px solid rgba(239, 68, 68, 0.4);
-  color: #f87171;
+  background: rgba(148, 163, 184, 0.15);
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  color: #cbd5e1;
 }
 
 .sys-health-btn {
@@ -4223,6 +4223,66 @@ svg.inspector-sparkline-svg {
   background: #16a34a;
   color: #ffffff;
   border-bottom: 2px solid #15803d;
+}
+
+/* ==========================================================================
+   Accessible Error Boundary Fallback Cards [WP 1.4 / Issue #27]
+   ========================================================================== */
+.card-fallback,
+.corridor-fallback {
+  min-height: 280px;
+  background: var(--bg-card);
+  border: 1px solid rgba(234, 179, 8, 0.4);
+  border-radius: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+}
+
+.card-fallback-body {
+  padding: 1.25rem;
+  color: var(--text-secondary, #94a3b8);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.card-fallback-text {
+  margin-bottom: 1rem;
+}
+
+.card-fallback-links {
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.fallback-links-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.fallback-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0.4rem 0.8rem;
+  background: rgba(56, 189, 248, 0.1);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  border-radius: 0.4rem;
+  color: #38bdf8;
+  text-decoration: none;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.fallback-link:hover,
+.fallback-link:focus-visible {
+  background: rgba(56, 189, 248, 0.2);
+  border-color: #38bdf8;
+  outline: 2px solid #38bdf8;
 }
 
 /* On screen, print situation header is hidden */

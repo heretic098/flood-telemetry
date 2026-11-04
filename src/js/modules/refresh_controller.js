@@ -33,6 +33,8 @@ export class RefreshController {
     this.refreshDeferred = false;
     this.lastRefreshTime = Date.now();
 
+    this._btnBound = false;
+
     // Bind event handlers
     this._handleVisibilityChange = this._handleVisibilityChange.bind(this);
     this._handleManualBtnClick = this._handleManualBtnClick.bind(this);
@@ -40,14 +42,20 @@ export class RefreshController {
     this._bindEvents();
   }
 
-  _bindEvents() {
-    if (typeof document !== 'undefined') {
-      document.addEventListener('visibilitychange', this._handleVisibilityChange);
-
+  _bindButton() {
+    if (typeof document !== 'undefined' && !this._btnBound) {
       const btn = document.getElementById(this.refreshBtnId);
       if (btn) {
         btn.addEventListener('click', this._handleManualBtnClick);
+        this._btnBound = true;
       }
+    }
+  }
+
+  _bindEvents() {
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', this._handleVisibilityChange);
+      this._bindButton();
     }
   }
 
@@ -59,6 +67,7 @@ export class RefreshController {
       if (btn) {
         btn.removeEventListener('click', this._handleManualBtnClick);
       }
+      this._btnBound = false;
     }
   }
 
@@ -124,6 +133,7 @@ export class RefreshController {
    */
   start(intervalMs) {
     this.stop();
+    this._bindButton();
     if (typeof intervalMs === 'number') {
       this.intervalMs = intervalMs;
     }

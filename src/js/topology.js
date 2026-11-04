@@ -46,6 +46,7 @@ let historyData = null;
 let activeFilter = 'all';
 let activeStatusFilter = null;
 let selectedNodeId = '52118'; // Default selection: Hookbridge Spillway
+export let refreshController = null;
 
 // Village & Area Focus Mappings (Issue #5)
 export const AREA_MAPPINGS = {
@@ -216,9 +217,10 @@ async function initTopology() {
   await loadTopologyData();
   
   // Set up 60-second auto-refresh via shared controller
-  const refreshController = createRefreshController({
+  refreshController = createRefreshController({
     intervalMs: 60000,
-    countdownPillId: 'counter-pill',
+    countdownPillId: 'countdown-pill',
+    refreshBtnId: 'btn-refresh-now',
     onRefresh: async () => { await loadTopologyData(true); }
   });
   refreshController.start();
@@ -2157,9 +2159,11 @@ function bindInspectorSparklineEvents(container) {
   const updateCrosshair = (ratio) => {
     if (ratio === null) {
       wrapper.classList.remove('crosshair-active');
+      if (refreshController) refreshController.setScrubbing(false);
       return;
     }
     wrapper.classList.add('crosshair-active');
+    if (refreshController) refreshController.setScrubbing(true);
 
     const index = calculateSparklineScrubIndex(ratio, pointsData.length);
 
