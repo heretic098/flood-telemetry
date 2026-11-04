@@ -13,14 +13,16 @@ import {
   object,
   record,
   nullable,
-  validate
+  validate,
+  assertNoForbiddenKeys
 } from './schema_validator.js';
+import { FORBIDDEN_CALC_KEYS } from './api_status_schema.js';
 
 export const VALID_HISTORY_RANGES = Object.freeze(['24h', '7d', '30d']);
 export const VALID_HISTORY_DAYS = Object.freeze([1, 7, 30]);
 
 export const historicalReadingSchema = object({
-  dateTime: isoDate(),
+  dateTime: isoDate({ allowSqlite: true }),
   value: nullable(number())
 });
 
@@ -28,7 +30,7 @@ export const apiHistorySchema = object({
   status: string({ pattern: /^ok$/ }),
   range: enumValues(VALID_HISTORY_RANGES),
   days: enumValues(VALID_HISTORY_DAYS),
-  since: isoDate(),
+  since: isoDate({ allowSqlite: true }),
   total_records: number({ min: 0, integer: true }),
   measures: record(array(historicalReadingSchema))
 });
@@ -45,8 +47,14 @@ export function validateApiHistoryPayload(payload) {
   }
 
   const res = validate(apiHistorySchema, payload, 'api_history');
+  const errors = [...res.errors];
+
+  // Deep recursive ban on volumetric discharge keys [RULE-CALC-01]
+  const forbiddenErrors = assertNoForbiddenKeys(payload, FORBIDDEN_CALC_KEYS, 'api_history');
+  errors.push(...forbiddenErrors);
+
   return {
-    valid: res.valid,
-    errors: res.errors
+    valid: errors.length === 0,
+    errors
   };
 }

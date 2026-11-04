@@ -134,11 +134,42 @@ export function updateSummaryCards(counts = { impassable: 0, encroaching: 0, pas
 }
 
 /**
+ * Renders fallback row for corrupted or offline corridor telemetry [WP 1.4]
+ */
+export function renderCorridorFallbackRow(corridor, err = null) {
+  const name = corridor?.name || 'Highway Corridor';
+  return `
+    <article class="road-corridor-row corridor-fallback" data-status="impassable" role="alert" tabindex="0" style="min-height: 280px; padding: 1.25rem;">
+      <div class="corridor-main-info">
+        <div class="corridor-title-group">
+          <span class="road-status-badge badge-impassable">⚠️ UNKNOWN / TELEMETRY OFFLINE</span>
+          <h3 class="corridor-name">${escapeHTML(name)}</h3>
+        </div>
+        <p class="corridor-desc" style="color: #cbd5e1; margin-top: 0.5rem;">
+          Telemetry for this highway corridor is currently unavailable or corrupted. Passability unconfirmed. Drive with extreme caution.
+        </p>
+      </div>
+      <div class="card-fallback-links" style="margin-top: 1rem;">
+        <p style="font-size: 0.85rem; color: #94a3b8; margin-bottom: 0.5rem;">Verify road conditions with authoritative services:</p>
+        <div class="fallback-links-group" style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+          <a href="https://www.travelsomerset.co.uk" target="_blank" rel="noopener noreferrer" class="fallback-link" style="min-height: 44px;">🚗 Travel Somerset ↗</a>
+          <a href="https://check-for-flooding.service.gov.uk" target="_blank" rel="noopener noreferrer" class="fallback-link" style="min-height: 44px;">🌊 GOV.UK Flood Warnings ↗</a>
+        </div>
+      </div>
+    </article>
+  `;
+}
+
+/**
  * Renders individual corridor HTML row
  */
 export function renderCorridorRow(corridor) {
-  if (!corridor) return '';
-  const statusLower = (corridor.status || 'passable').toLowerCase();
+  try {
+    if (!corridor) return '';
+    if (corridor.isOffline || corridor.status === 'OFFLINE') {
+      return renderCorridorFallbackRow(corridor);
+    }
+    const statusLower = (corridor.status || 'passable').toLowerCase();
   const isClearing = corridor.phase === 'CLEARING_INSPECTION_PENDING';
 
   const provClass = (corridor.survey_tier === 'TIER_1_SURVEYED' || corridor.survey_tier === 'TIER_1_WEIR_PENDING_SURVEY_CROWN')
@@ -278,6 +309,10 @@ export function renderCorridorRow(corridor) {
       </div>
     </section>
   `;
+  } catch (err) {
+    console.error(`[Roads Corridor Error] Failed to render corridor ${corridor?.asset_id || 'unknown'}:`, err);
+    return renderCorridorFallbackRow(corridor, err);
+  }
 }
 
 /**
@@ -323,25 +358,60 @@ export async function refreshRoadsView() {
     if (btnEnc) btnEnc.textContent = `🟡 Caution / Clearing (${counts.encroaching || 0})`;
     if (btnPass) btnPass.textContent = `🟢 Passable (${counts.passable || 0})`;
 
-    // Render corridor rows
+    // Render corridor rows with individual error boundary
     const container = document.getElementById('roads-corridors-container');
     if (container) {
-      container.innerHTML = corridorsList.map(renderCorridorRow).join('');
+      container.innerHTML = corridorsList.map(c => {
+        try {
+          return renderCorridorRow(c);
+        } catch (rowErr) {
+          console.error('[Corridor Render Error]', rowErr);
+          return renderCorridorFallbackRow(c, rowErr);
+        }
+      }).join('');
       applyFilterToCorridors(currentFilter);
     }
 
-    // Update freshness pill
+    // Update freshness pill with Triple Encoding [WP 1.2]
     const freshnessPill = document.getElementById('ea-freshness-pill');
+    const rawTelemetryTimestamp = statusData?.system_timestamps?.latest_ea_reading_at 
+      || statusData?.generated_at 
+      || null;
+
     if (freshnessPill) {
-      const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      freshnessPill.textContent = `📡 Telemetry: ${nowStr}`;
-      freshnessPill.className = 'telemetry-freshness-pill prov-high';
+      if (rawTelemetryTimestamp) {
+        const eaTime = new Date(rawTelemetryTimestamp);
+        const diffMs = Math.max(0, Date.now() - eaTime.getTime());
+        const diffMins = Math.floor(diffMs / 60000);
+
+        if (diffMins <= 120) {
+          // <= 2h: subtle green/slate pill
+          const ageText = diffMins < 1 ? 'Just now' : (diffMins < 60 ? `${diffMins}m ago` : `${(diffMins / 60).toFixed(1)}h ago`);
+          freshnessPill.textContent = `📡 Telemetry: ${ageText}`;
+          freshnessPill.className = 'telemetry-freshness-pill freshness-fresh';
+        } else if (diffMins <= 360) {
+          // <= 6h: subtle amber pill
+          freshnessPill.textContent = `⚠️ Telemetry: ${(diffMins / 60).toFixed(1)}h ago (Lagging)`;
+          freshnessPill.className = 'telemetry-freshness-pill freshness-warning';
+        } else {
+          // > 6h: subtle slate pill with clock icon (DO NOT use panic red per [UI-COL-03])
+          freshnessPill.textContent = `⏱️ Telemetry: ${(diffMins / 60).toFixed(1)}h ago (Stale)`;
+          freshnessPill.className = 'telemetry-freshness-pill freshness-stale';
+        }
+      } else {
+        freshnessPill.textContent = '⏱️ Telemetry: Offline / Unknown';
+        freshnessPill.className = 'telemetry-freshness-pill freshness-stale';
+      }
     }
 
     // Update print situation header timestamp
     const printTimeEl = document.getElementById('print-time-stamp');
     if (printTimeEl) {
-      printTimeEl.textContent = new Date().toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' });
+      const printedStr = new Date().toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' });
+      const telemetryStr = rawTelemetryTimestamp
+        ? new Date(rawTelemetryTimestamp).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })
+        : 'Unknown / Stale';
+      printTimeEl.textContent = `Telemetry timestamp: ${telemetryStr} | Printed: ${printedStr}. Caution: Passability inferred from EA stage telemetry relative to surveyed road crown. Not visual confirmation.`;
     }
   } catch (err) {
     console.error('[Roads View Error]', err);

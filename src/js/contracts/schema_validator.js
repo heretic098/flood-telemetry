@@ -90,21 +90,35 @@ export function boolean() {
 
 // Strict ISO-8601 calendar date/time regex
 const ISO_8601_REGEX = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?$/;
+// SQLite timestamp regex (e.g., '2026-11-04 23:20:35' or '2026-11-04 23:20:35.123')
+const SQLITE_TIMESTAMP_REGEX = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(?:\.\d+)?$/;
 
 /**
- * Creates a strict ISO-8601 date string validator
+ * Creates an ISO-8601 or SQLite date/time validator
+ * @param {object} [options]
+ * @param {boolean} [options.allowSqlite=false] - Whether to accept space-separated SQLite dates
  */
-export function isoDate() {
+export function isoDate(options = {}) {
+  const allowSqlite = Boolean(options.allowSqlite);
   return {
     type: 'isoDate',
     validate(val, path = '') {
-      if (typeof val !== 'string' || !ISO_8601_REGEX.test(val)) {
+      if (typeof val !== 'string') {
         return {
           valid: false,
-          errors: [`${path || 'value'}: expected ISO-8601 date string, received ${JSON.stringify(val)}`]
+          errors: [`${path || 'value'}: expected string timestamp, received ${typeof val} (${JSON.stringify(val)})`]
         };
       }
-      const parsed = Date.parse(val);
+      const isIso = ISO_8601_REGEX.test(val);
+      const isSqlite = allowSqlite && SQLITE_TIMESTAMP_REGEX.test(val);
+      if (!isIso && !isSqlite) {
+        return {
+          valid: false,
+          errors: [`${path || 'value'}: expected ${allowSqlite ? 'ISO-8601 or SQLite' : 'ISO-8601'} date string, received ${JSON.stringify(val)}`]
+        };
+      }
+      const parseStr = (isSqlite && !val.includes('T')) ? val.replace(' ', 'T') + 'Z' : val;
+      const parsed = Date.parse(parseStr);
       if (!Number.isFinite(parsed) || Number.isNaN(parsed)) {
         return {
           valid: false,

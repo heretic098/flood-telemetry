@@ -18,7 +18,12 @@ import {
   evaluateRoadNetwork
 } from './src/js/hydro_engine.js';
 
-import { validateEAIngestPayload } from './src/js/contracts/index.js';
+import {
+  validateEAIngestPayload,
+  validateApiStatusPayload,
+  validateApiTopologyPayload,
+  validateApiHistoryPayload
+} from './src/js/contracts/index.js';
 
 import {
   fetchWebcamImageSecure,
@@ -43,6 +48,34 @@ const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'telemetry.db');
 
 // In-memory cache for server-side HTML partials
 const partialsCache = new Map();
+
+/**
+ * Normalizes SQLite or heterogeneous timestamps to strict ISO-8601 strings [WP 1.3]
+ * @param {string|Date|number|null} val
+ * @returns {string}
+ */
+function normalizeToIsoString(val) {
+  if (!val) return new Date().toISOString();
+  if (typeof val === 'string') {
+    if (val.includes('T') && (val.endsWith('Z') || /[+-]\d{2}:?\d{2}$/.test(val))) {
+      return val;
+    }
+    const parseStr = !val.includes('T') ? val.replace(' ', 'T') + 'Z' : val;
+    const date = new Date(parseStr);
+    if (!isNaN(date.getTime())) {
+      return date.toISOString();
+    }
+    const fallback = new Date(val);
+    if (!isNaN(fallback.getTime())) {
+      return fallback.toISOString();
+    }
+  } else if (val instanceof Date) {
+    return val.toISOString();
+  } else if (typeof val === 'number') {
+    return new Date(val).toISOString();
+  }
+  return new Date().toISOString();
+}
 
 function loadPartials() {
   partialsCache.clear();
@@ -499,11 +532,7 @@ const server = http.createServer(async (req, res) => {
       return Object.keys(measures).some(k => k.startsWith(stationId) && Array.isArray(measures[k]) && measures[k].length > 0);
     };
 
-    res.writeHead(200, {
-      'Content-Type': 'application/json',
-      'Cache-Control': 'public, max-age=300'
-    });
-    res.end(JSON.stringify({
+    const topologyPayload = {
       status: "ok",
       catchment_id: "somerset",
       updated_at: new Date().toISOString(),
@@ -849,7 +878,23 @@ const server = http.createServer(async (req, res) => {
         { from: "E9531", to: "E9094", type: "diversion_route", flow_active: true },
         { from: "E9094", to: "52163", type: "sea_outfall", flow_active: dunballInlandStage > seaStage }
       ]
-    }));
+    };
+
+    const topologyValidation = validateApiTopologyPayload(topologyPayload);
+    if (!topologyValidation.valid) {
+      console.error('[Contract Violation] /api/topology:', topologyValidation.errors);
+      if (topologyValidation.errors.some(e => e.includes('strictly prohibited'))) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ status: 'error', message: 'Domain contract violation: prohibited keys' }));
+        return;
+      }
+    }
+
+    res.writeHead(200, {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'public, max-age=300'
+    });
+    res.end(JSON.stringify(topologyPayload));
     return;
   }
 
@@ -1000,18 +1045,30 @@ const server = http.createServer(async (req, res) => {
         measures[r.measure_id].push({ dateTime: r.date_time, value: r.value });
       }
 
-      res.writeHead(200, { 
-        'Content-Type': 'application/json',
-        'Cache-Control': 'public, max-age=300, s-maxage=300'
-      });
-      res.end(JSON.stringify({
+      const historyPayload = {
         status: "ok",
         range,
         days,
         since: sinceTime,
         total_records: rows.length,
         measures
-      }));
+      };
+
+      const historyValidation = validateApiHistoryPayload(historyPayload);
+      if (!historyValidation.valid) {
+        console.error('[Contract Violation] /api/history:', historyValidation.errors);
+        if (historyValidation.errors.some(e => e.includes('strictly prohibited'))) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ status: 'error', message: 'Domain contract violation: prohibited keys' }));
+          return;
+        }
+      }
+
+      res.writeHead(200, { 
+        'Content-Type': 'application/json',
+        'Cache-Control': 'public, max-age=300, s-maxage=300'
+      });
+      res.end(JSON.stringify(historyPayload));
     } catch (err) {
       console.error("[API History Error]", err);
       res.writeHead(500, { 'Content-Type': 'application/json' });
@@ -1115,17 +1172,13 @@ const server = http.createServer(async (req, res) => {
       return 'SECURE';
     };
 
-    res.writeHead(200, { 
-      'Content-Type': 'application/json',
-      'Cache-Control': 'public, max-age=60, s-maxage=60, stale-while-revalidate=120'
-    });
-    res.end(JSON.stringify({
+    const statusPayload = {
       status: "ok",
       source: "sqlite",
       system_timestamps: {
         client_poll_at: new Date().toISOString(),
-        db_synced_at: stored.db_synced_at || new Date().toISOString(),
-        latest_ea_reading_at: stored.latest_ea_reading_at || new Date().toISOString()
+        db_synced_at: normalizeToIsoString(stored.db_synced_at),
+        latest_ea_reading_at: normalizeToIsoString(stored.latest_ea_reading_at)
       },
       global_status: {
         counter_pill: globalStat.counterPill,
@@ -1204,7 +1257,23 @@ const server = http.createServer(async (req, res) => {
       },
       measures_summary: stored.measures_summary,
       measures: stored.measures
-    }));
+    };
+
+    const statusValidation = validateApiStatusPayload(statusPayload);
+    if (!statusValidation.valid) {
+      console.error('[Contract Violation] /api/status:', statusValidation.errors);
+      if (statusValidation.errors.some(e => e.includes('strictly prohibited'))) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ status: 'error', message: 'Domain contract violation: prohibited keys' }));
+        return;
+      }
+    }
+
+    res.writeHead(200, { 
+      'Content-Type': 'application/json',
+      'Cache-Control': 'public, max-age=60, s-maxage=60, stale-while-revalidate=120'
+    });
+    res.end(JSON.stringify(statusPayload));
     return;
   }
 
