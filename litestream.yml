@@ -11,8 +11,7 @@ dbs:
       - type: s3
         bucket: ${BUCKET_NAME}
         path: telemetry.db
-        endpoint: ${LITESTREAM_ENDPOINT:-https://fly.storage.tigris.dev}
-        region: ${AWS_REGION:-auto}
+        endpoint: https://fly.storage.tigris.dev
         force-path-style: true
         retention: 168h # 7-day point-in-time recovery window
         snapshot-interval: 6h # Base snapshot every 6 hours
