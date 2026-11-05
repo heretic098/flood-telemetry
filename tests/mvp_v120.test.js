@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
-import { server } from '../server.js';
+import { server, db } from '../server.js';
 import { calculateVillemonteDischarge, sanitizeStageValue, PRE_OVERTOPPING_THRESHOLDS } from '../src/js/hydro_engine.js';
 import { escapeHTML, fetchWebcamImageSecure, computeImageHash, isDaylight, generateLocalFallback } from '../src/js/api/ai_vision_client.js';
 
@@ -9,6 +9,18 @@ let testPort;
 let baseUrl;
 
 test.before(async () => {
+  // Ensure historical_telemetry has test readings if running on a fresh CI runner without pre-populated DB
+  if (db && db.open) {
+    const existing = db.prepare("SELECT COUNT(*) as count FROM historical_telemetry WHERE measure_id LIKE '52108-%'").get();
+    if (existing.count === 0) {
+      const insert = db.prepare("INSERT OR IGNORE INTO historical_telemetry (measure_id, date_time, value) VALUES (?, ?, ?)");
+      const now = new Date().toISOString();
+      insert.run('52108-level-stage-i-15_min-mASD', now, 0.45);
+      insert.run('52109-level-stage-i-15_min-mASD', now, 0.55);
+      insert.run('52111-level-stage-i-15_min-mASD', now, 0.65);
+    }
+  }
+
   await new Promise((resolve) => {
     server.listen(0, () => {
       testPort = server.address().port;

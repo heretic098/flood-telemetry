@@ -1558,4 +1558,4 @@ if (isMainModule) {
   });
 }
 
-export { server, renderHtmlWithPartials, loadPartials, renderNav, getFooterPartial, renderSummaryMarkdown, MIME_TYPES };
+export { server, renderHtmlWithPartials, loadPartials, renderNav, getFooterPartial, renderSummaryMarkdown, MIME_TYPES, db };
