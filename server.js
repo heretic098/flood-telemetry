@@ -14,6 +14,7 @@ import {
   sanitizeStageValue,
   HYDRO_THRESHOLDS,
   STATION_REGISTRY,
+  ASSET_DEFINITIONS,
   extractStationStage,
   evaluateRoadNetwork
 } from './src/js/hydro_engine.js';
@@ -396,7 +397,10 @@ const MIME_TYPES = {
   '.jpg': 'image/jpeg',
   '.svg': 'image/svg+xml',
   '.ico': 'image/x-icon',
-  '.webmanifest': 'application/manifest+json'
+  '.webmanifest': 'application/manifest+json',
+  '.txt': 'text/plain; charset=utf-8',
+  '.xml': 'application/xml; charset=utf-8',
+  '.md': 'text/markdown; charset=utf-8'
 };
 
 // Simple In-Memory Rate Limiting (SEC-04)
@@ -451,6 +455,147 @@ function setSecurityHeaders(res) {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-goog-api-key');
 }
 
+/**
+ * Generates real-time, human- and LLM-parsable Markdown briefing [Issue #32]
+ * Adheres strictly to [RULE-HUM-01], [RULE-CALC-01], and [RULE-ENT-01].
+ *
+ * @param {object} stored - Stored telemetry payload from getStoredTelemetry()
+ * @param {Database} dbInstance - SQLite database instance
+ * @returns {string} Plain-text Markdown briefing
+ */
+function renderSummaryMarkdown(stored = getStoredTelemetry(), dbInstance = db) {
+  const safeStored = (stored && typeof stored === 'object') ? stored : (getStoredTelemetry() || {});
+  const measures = safeStored.measures || {};
+  const hookbridgeStage = extractStationStage(measures, '52118');
+  const curryMoorStage = extractStationStage(measures, '52127');
+  const baltmoorStage = extractStationStage(measures, '52158');
+  const northMoorStage = extractStationStage(measures, '52159');
+  const monksUpStage = extractStationStage(measures, '52233');
+  const monksDownStage = extractStationStage(measures, '52234');
+  const beerwallStage = extractStationStage(measures, '52157');
+  const dunballInlandStage = extractStationStage(measures, 'E9094');
+  const seaStage = extractStationStage(measures, '52163');
+
+  const now = new Date();
+  const nowMs = now.getTime();
+  const nowIso = now.toISOString();
+  const dbSyncedAt = normalizeToIsoString(safeStored.db_synced_at);
+  const latestEaReadingAt = normalizeToIsoString(safeStored.latest_ea_reading_at);
+
+  const isTideLocked = seaStage >= dunballInlandStage;
+  const isMonksDiverting = monksUpStage >= HYDRO_THRESHOLDS.MONKS_LEAZE.SILL_MAOD &&
+    (monksUpStage - monksDownStage) > HYDRO_THRESHOLDS.MONKS_LEAZE.MIN_DELTA_H;
+
+  const regime = getSeasonalRegime(now);
+  let activeEvents = [];
+  if (dbInstance) {
+    try {
+      activeEvents = getActiveTelemetryEvents(dbInstance, nowMs) || [];
+    } catch (dbErr) {
+      console.warn('[Server Warning] getActiveTelemetryEvents failed in renderSummaryMarkdown:', dbErr.message);
+      activeEvents = [];
+    }
+  }
+  const roadNetwork = evaluateRoadNetwork(measures, activeEvents, { nowMs });
+
+  // Evaluate spillways according to canonical tripartite statuses [RULE-ENT-01]
+  const evalSpillwayStatus = (stage, crest) => {
+    if (stage >= crest) return 'OVERTOPPING';
+    if (stage >= (crest - 0.15)) return 'NEAR_CREST';
+    return 'SECURE';
+  };
+
+  const hookbridgeCrest = HYDRO_THRESHOLDS.HOOKBRIDGE.CREST_MAOD;
+  const baltmoorCrest = HYDRO_THRESHOLDS.BALTMOOR.CREST_MAOD;
+  const beerwallCrest = HYDRO_THRESHOLDS.BEERWALL.CREST_MAOD;
+  const athelneyCrest = ASSET_DEFINITIONS.cuts_road?.crown_elevation_mAOD || 7.35;
+
+  const hookbridgeStatus = evalSpillwayStatus(hookbridgeStage, hookbridgeCrest);
+  const baltmoorStatus = evalSpillwayStatus(baltmoorStage, baltmoorCrest);
+  const beerwallStatus = evalSpillwayStatus(beerwallStage, beerwallCrest);
+  const athelneyStatus = evalSpillwayStatus(curryMoorStage, athelneyCrest);
+
+  const formatClearance = (crest, stage) => {
+    if (typeof stage !== 'number' || !Number.isFinite(stage)) return 'N/A';
+    const diff = crest - stage;
+    return diff >= 0 ? `+${diff.toFixed(2)}m clearance` : `+${Math.abs(diff).toFixed(2)}m over crest`;
+  };
+
+  // Evaluate polders according to canonical tripartite statuses [RULE-ENT-01]
+  const curryMoorDuty = regime.isSummer ? 4.45 : 4.30;
+  const curryMoorStatus = curryMoorStage >= 6.50 ? 'CRITICAL'
+    : (curryMoorStage >= 6.10 ? 'MOBILE_ACTIVE'
+      : (curryMoorStage >= 5.80 ? 'MOBILE_ORDERED'
+        : (curryMoorStage >= curryMoorDuty ? 'DUTY_PUMPING' : 'STANDBY')));
+
+  const northMoorStatus = northMoorStage >= 5.60 ? 'CRITICAL'
+    : (northMoorStage >= 5.20 ? 'MOBILE_ACTIVE'
+      : (northMoorStage >= 4.80 ? 'MOBILE_ORDERED'
+        : (northMoorStage >= 4.00 ? 'DUTY_PUMPING' : 'STANDBY')));
+
+  const dunballStatus = isTideLocked ? 'TIDE_LOCKED' : 'DISCHARGING';
+  const monksStatus = isMonksDiverting ? 'DIVERTING'
+    : (monksUpStage >= HYDRO_THRESHOLDS.MONKS_LEAZE.UPSTREAM_ALERT_MAOD ? 'THROTTLED' : 'CLOSED');
+
+  // Road Corridor Lines
+  const roadRows = (roadNetwork.corridors_list || []).map(r => {
+    const crown = (typeof r.crown_elevation_mAOD === 'number' && Number.isFinite(r.crown_elevation_mAOD))
+      ? `${r.crown_elevation_mAOD.toFixed(2)} mAOD` : 'N/A';
+    const stage = (typeof r.stage_mAOD === 'number' && Number.isFinite(r.stage_mAOD))
+      ? `${r.stage_mAOD.toFixed(2)} mAOD` : 'N/A';
+    return `| ${r.name} | **${r.status}** | ${stage} | ${crown} | ${r.clearance_text || 'N/A'} | ${r.momentum_text || 'Steady'} | ${r.driving_station_label || r.primary_station} |`;
+  }).join('\n');
+
+  return `# Somerset Levels & Moors Flood Telemetry — Live Situation Report
+
+> Generated: ${nowIso} | DB Synced: ${dbSyncedAt} | Latest EA Reading: ${latestEaReadingAt}
+
+> [!IMPORTANT]
+> **Non-Reliance & Epistemic Humility Notice ([RULE-HUM-01]):**
+> Highway passability and infrastructure operational statuses are mathematically inferred from UK Environment Agency river and moor stage telemetry relative to surveyed road crowns and weir crests. These metrics DO NOT constitute visual on-the-ground confirmation. Local surface water ponding, road debris, police closures, or council gate actions may exist independently of sensor readings. Never drive through floodwater.
+
+## Catchment Overview
+- **Seasonal Penning Regime:** ${regime.label}
+- **Road Network Status:** ${roadNetwork.summary_badge ? roadNetwork.summary_badge.label : 'Active'}
+- **Tidal Lock Status:** **${dunballStatus}** (${isTideLocked ? 'Sea flap doors closed against Bristol Channel high tide' : 'Gravity outfall actively discharging into Parrett Estuary'})
+- **Active Canonical Event Sessions:** ${activeEvents.length > 0 ? activeEvents.map(e => `${e.asset_id} (${e.to_state})`).join(', ') : 'None (All systems within nominal boundaries)'}
+
+## Highway Corridor Passability (8 Monitored Corridors)
+| Corridor | Status | Current Stage | Crown Elev | Clearance | Trend | Monitoring Station |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+${roadRows}
+
+## Spillway Weirs & Relief Channels
+| Spillway Asset | Status | Current Stage | Crest Elevation | Clearance | Primary Pathway |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| Hookbridge Spillway | **${hookbridgeStatus}** | ${hookbridgeStage.toFixed(2)} mAOD | ${hookbridgeCrest.toFixed(2)} mAOD | ${formatClearance(hookbridgeCrest, hookbridgeStage)} | River Tone → Curry Moor Polder Basin |
+| Athelney Spillway & Cuts Rd | **${athelneyStatus}** | ${curryMoorStage.toFixed(2)} mAOD | ${athelneyCrest.toFixed(2)} mAOD | ${formatClearance(athelneyCrest, curryMoorStage)} | Curry Moor → Cuts Road Carriageway |
+| Baltmoor Wall Spillway | **${baltmoorStatus}** | ${baltmoorStage.toFixed(2)} mAOD | ${baltmoorCrest.toFixed(2)} mAOD | ${formatClearance(baltmoorCrest, baltmoorStage)} | River Parrett → Northmoor Polder Basin |
+| Beer Wall Spillway | **${beerwallStatus}** | ${beerwallStage.toFixed(2)} mAOD | ${beerwallCrest.toFixed(2)} mAOD | ${formatClearance(beerwallCrest, beerwallStage)} | Sowy Relief Channel → King's Sedgemoor Drain |
+| Monk's Leaze Clyse Sluice | **${monksStatus}** | Up: ${monksUpStage.toFixed(2)} mAOD / Down: ${monksDownStage.toFixed(2)} mAOD | Sill: ${HYDRO_THRESHOLDS.MONKS_LEAZE.SILL_MAOD.toFixed(2)} mAOD | Δh: ${(monksUpStage - monksDownStage).toFixed(2)}m | Parrett Relief Diversion into Sowy Channel |
+
+## Lowland Storage Polder Basins
+| Polder Basin | Operational State | Water Stage | Basin Floor | Critical Level | Operational Trigger Context |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| Curry Moor Basin (52127) | **${curryMoorStatus}** | ${curryMoorStage.toFixed(2)} mAOD | 2.10 mAOD | 6.50 mAOD | Inferred from moor water stage relative to the EA Somerset Levels Trigger Point Plan. |
+| Northmoor Basin (52159) | **${northMoorStatus}** | ${northMoorStage.toFixed(2)} mAOD | 1.80 mAOD | 5.60 mAOD | Inferred from moor water stage relative to the EA Somerset Levels Trigger Point Plan. |
+
+## Estuarine Sea Outfall (Dunball Clyse)
+- **Tidal Gate State:** **${dunballStatus}**
+- **Parrett Estuary Stage (52163):** ${seaStage.toFixed(2)} mAOD
+- **Inland King's Sedgemoor Drain Stage (E9094):** ${dunballInlandStage.toFixed(2)} mAOD
+- **Hydrostatic Differential Head:** ${(dunballInlandStage - seaStage).toFixed(2)}m (${isTideLocked ? 'Sea stage higher than drain; gravity flapper closed to prevent estuarine backflow' : 'Inland stage higher than sea; gravity discharge active'})
+
+## Official Authorities & Emergency Information
+- Travel Somerset Road Closures & Live Traffic: https://www.travelsomerset.co.uk
+- UK Environment Agency Flood Warnings: https://check-for-flooding.service.gov.uk
+- Environment Agency Floodline: 0345 988 1188 (24-hour service)
+- Somerset Council Emergency Planning: https://www.somerset.gov.uk
+- Platform Documentation: https://floodtelemetry.uk/llms.txt
+- Full Machine Reference: https://floodtelemetry.uk/llms-full.txt
+`;
+}
+
 const server = http.createServer(async (req, res) => {
   setSecurityHeaders(res);
 
@@ -466,12 +611,12 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  if (req.url.startsWith('/api/') && !checkRateLimit(req, res)) {
-    return;
-  }
-
   const urlObj = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   let pathname = urlObj.pathname;
+
+  if ((pathname.startsWith('/api/') || pathname === '/status.txt') && !checkRateLimit(req, res)) {
+    return;
+  }
 
   const availableCatchments = getAvailableCatchments();
   const knownCatchmentIds = availableCatchments.map(c => c.id.toLowerCase());
@@ -487,6 +632,19 @@ const server = http.createServer(async (req, res) => {
       pathname = pathname.substring(cId.length + 1);
       break;
     }
+  }
+
+  // API Route: Live Plain-Text / Markdown Briefing [Issue #32]
+  if (pathname === '/api/summary.md' || pathname === '/status.txt') {
+    const stored = getStoredTelemetry();
+    const markdown = renderSummaryMarkdown(stored, db);
+    res.writeHead(200, {
+      'Content-Type': 'text/markdown; charset=utf-8',
+      'Access-Control-Allow-Origin': '*',
+      'Cache-Control': 'public, max-age=60, s-maxage=60, stale-while-revalidate=120'
+    });
+    res.end(markdown);
+    return;
   }
 
   // API Route: Health Check (<10ms)
@@ -1329,4 +1487,4 @@ if (isMainModule) {
   });
 }
 
-export { server, renderHtmlWithPartials, loadPartials, renderNav, getFooterPartial };
+export { server, renderHtmlWithPartials, loadPartials, renderNav, getFooterPartial, renderSummaryMarkdown, MIME_TYPES };

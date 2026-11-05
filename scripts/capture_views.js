@@ -28,14 +28,30 @@ import path from 'node:path';
 import http from 'node:http';
 
 const CHROME_CANDIDATES = [
+  process.env.PUPPETEER_EXECUTABLE_PATH,
   '/usr/bin/google-chrome',
   '/usr/bin/chromium',
-  '/usr/bin/chromium-browser'
-];
+  '/usr/bin/chromium-browser',
+  path.join(process.env.HOME || '', '.cache/puppeteer/chrome/linux-131.0.6778.204/chrome-linux64/chrome')
+].filter(Boolean);
 
 function findChromeBinary() {
   for (const bin of CHROME_CANDIDATES) {
     if (fs.existsSync(bin)) return bin;
+  }
+  // Try searching ~/.cache/puppeteer/chrome if any version is installed
+  const home = process.env.HOME || '';
+  const puppeteerCache = path.join(home, '.cache/puppeteer/chrome');
+  if (fs.existsSync(puppeteerCache)) {
+    try {
+      const dirs = fs.readdirSync(puppeteerCache);
+      for (const dir of dirs) {
+        const candidate = path.join(puppeteerCache, dir, 'chrome-linux64/chrome');
+        if (fs.existsSync(candidate)) return candidate;
+      }
+    } catch {
+      // Ignore directory read error
+    }
   }
   throw new Error(`No Chrome/Chromium binary found in ${CHROME_CANDIDATES.join(', ')}`);
 }
@@ -163,6 +179,9 @@ async function run() {
       headless: 'new',
       args: [
         '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-crash-reporter',
         '--disable-gpu',
         '--hide-scrollbars',
         '--incognito'

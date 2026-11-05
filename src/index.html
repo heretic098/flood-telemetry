@@ -14,6 +14,80 @@
   <meta property="og:type" content="website">
   <meta property="og:image" content="og-image.svg">
   <link rel="stylesheet" href="css/styles.css?v=2.2">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebSite",
+        "@id": "https://floodtelemetry.uk/#website",
+        "url": "https://floodtelemetry.uk/",
+        "name": "Somerset Flood Telemetry",
+        "description": "Real-time flood monitoring, river stage telemetry, road passability models, and drainage basin operational tracking across the Somerset Levels and Moors.",
+        "inLanguage": "en-GB"
+      },
+      {
+        "@type": "Dataset",
+        "@id": "https://floodtelemetry.uk/#dataset",
+        "name": "Somerset Levels & Moors Flood Telemetry & Hydrological Sensor Network",
+        "description": "Real-time 15-minute stage readings, surveyed infrastructure datums (mAOD Newlyn), road crown clearance estimates, and operational flood storage basin tracking for the River Tone, River Parrett, and Sowy Relief Channel catchments.",
+        "url": "https://floodtelemetry.uk/",
+        "license": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+        "isAccessibleForFree": true,
+        "creator": {
+          "@type": "Organization",
+          "name": "Somerset Flood Telemetry Community Project",
+          "url": "https://floodtelemetry.uk"
+        },
+        "spatialCoverage": {
+          "@type": "Place",
+          "name": "Somerset Levels and Moors, United Kingdom",
+          "geo": {
+            "@type": "GeoShape",
+            "box": "50.95 -3.25 51.25 -2.75"
+          }
+        },
+        "temporalCoverage": "2024/..",
+        "variableMeasured": [
+          "River Water Level (mAOD)",
+          "Lowland Polder Storage Stage (mAOD)",
+          "Spillway Weir Clearance (m)",
+          "Highway Crown Clearance (m)",
+          "Tidal Outfall Locking Status"
+        ],
+        "distribution": [
+          {
+            "@type": "DataDownload",
+            "encodingFormat": "application/json",
+            "contentUrl": "https://floodtelemetry.uk/api/status"
+          },
+          {
+            "@type": "DataDownload",
+            "encodingFormat": "application/json",
+            "contentUrl": "https://floodtelemetry.uk/api/topology"
+          },
+          {
+            "@type": "DataDownload",
+            "encodingFormat": "text/markdown",
+            "contentUrl": "https://floodtelemetry.uk/api/summary.md"
+          }
+        ]
+      },
+      {
+        "@type": "SpecialAnnouncement",
+        "@id": "https://floodtelemetry.uk/#announcement",
+        "name": "Somerset Levels Flood Telemetry & Public Safety Information",
+        "text": "Real-time telemetry and inferred highway passability across the Somerset Levels. Epistemic humility: all statuses are mathematical inferences from Environment Agency telemetry relative to surveyed geometry. Never drive through floodwater.",
+        "url": "https://floodtelemetry.uk/",
+        "category": "https://schema.org/FloodAlert",
+        "spatialCoverage": {
+          "@type": "Place",
+          "name": "Somerset Levels and Moors"
+        }
+      }
+    ]
+  }
+  </script>
 </head>
 <body>
 
@@ -93,6 +167,26 @@
 
   <main class="grid-container" id="cards-container" role="main" aria-label="Flood Infrastructure Cards Grid" aria-live="polite">
     <!-- Rendered dynamically by app.js using <section> and <article> semantic containers -->
+    <noscript>
+      <div class="noscript-fallback-card" style="grid-column: 1 / -1; padding: 1.5rem; background: #1e293b; border: 1px solid #334155; border-radius: 8px; color: #f8fafc; margin-bottom: 1rem;">
+        <h2 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 0.75rem; color: #38bdf8;">📡 Somerset Levels &amp; Moors Telemetry Overview (Static Briefing)</h2>
+        <p style="margin-bottom: 1rem; line-height: 1.6;">JavaScript is disabled in your client. Live real-time auto-refresh, interactive sparklines, and synchronized crosshair scrubbing require JavaScript. For real-time plain-text briefings, visit <a href="/api/summary.md" style="color: #38bdf8; text-decoration: underline;">/api/summary.md</a>.</p>
+        <h3 style="font-size: 1rem; font-weight: 600; margin-bottom: 0.5rem; color: #94a3b8;">Catchment Infrastructure Monitored:</h3>
+        <ul style="margin-left: 1.5rem; margin-bottom: 1rem; line-height: 1.6;">
+          <li><strong>River Tone:</strong> Greenham (52108), Bishops Hull (52109), Taunton (52111), Bathpool (52162), Hookbridge Spillway (52118, Crest 7.45m AOD).</li>
+          <li><strong>Curry Moor Polder:</strong> Curry Moor Basin (52127, Floor 2.10m AOD, Pumping Station triggers 4.30m–6.50m AOD).</li>
+          <li><strong>River Parrett:</strong> Chiselborough (52116), Gaw Bridge (52119), Monk's Leaze Clyse (52233, Sill 4.20m AOD), Baltmoor Wall Spillway (52158, Crest 7.80m AOD), West Quay (52124), Dunball Sea Outfall (52163).</li>
+          <li><strong>River Yeo &amp; Isle:</strong> Huish Episcopi (52120), Midelney (52153).</li>
+          <li><strong>Sowy &amp; KSD:</strong> Beer Wall Spillway (52157, Crest 7.30m AOD), Bradney (E9531), Dunball Inland Outfall (E9094).</li>
+        </ul>
+        <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+          <a href="roads.html" style="color: #38bdf8; font-weight: 600; text-decoration: underline;">🚗 Monitored Roads &amp; Access Status →</a>
+          <a href="topology.html" style="color: #38bdf8; font-weight: 600; text-decoration: underline;">🗺️ Hydrological Network Topology →</a>
+          <a href="methodology.html" style="color: #38bdf8; font-weight: 600; text-decoration: underline;">📐 Datum &amp; Survey Methodology →</a>
+          <a href="https://check-for-flooding.service.gov.uk" target="_blank" rel="noopener noreferrer" style="color: #38bdf8; font-weight: 600; text-decoration: underline;">UK Environment Agency Flood Warnings ↗</a>
+        </div>
+      </div>
+    </noscript>
   </main>
 
   <!-- System Health & Telemetry Freshness Modal Drawer -->

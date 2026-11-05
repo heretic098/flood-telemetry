@@ -1,0 +1,57 @@
+# Somerset Flood Telemetry
+
+> Real-time flood monitoring, river stage telemetry, road passability models, and drainage basin operational tracking across the Somerset Levels and Moors catchment.
+
+Somerset Flood Telemetry (https://floodtelemetry.uk/) is an independent, community-driven platform providing continuous public access to water level telemetry, surveyed structural clearances, and inferred road passability states across the Somerset Levels and Moors river network (River Tone, River Parrett, River Yeo, River Isle, Sowy Relief Channel, and King's Sedgemoor Drain).
+
+## Primary Web Interfaces
+- [Main Dashboard](https://floodtelemetry.uk/): Live hydrological telemetry cards, spillway overtopping evaluations, lowland polder states, and estuarine tidal locking status.
+- [Roads & Access Corridors](https://floodtelemetry.uk/roads.html): Highway passability assessments, surveyed crown elevations, and clearance margins for 8 monitored Somerset Levels highway corridors.
+- [River Network Topology](https://floodtelemetry.uk/topology.html): Interactive schematic node-and-reach topological map from upland headwaters to the Bristol Channel sea outfall at Dunball.
+- [Methodology & Invariants](https://floodtelemetry.uk/methodology.html): Technical documentation on geodetic benchmarks, vertical datums (mAOD Newlyn), Villemonte weir submergence physics, and epistemic humility standards.
+
+## Monitored Assets Summary
+- **Highway Corridors (8 Monitored Routes):**
+  - Cuts Road (East Lyng ↔ Athelney): Surveyed crown 7.35m AOD (Curry Moor Polder overflow crossing).
+  - Muchelney Spine Road (Huish Episcopi ↔ Muchelney): Surveyed crown 7.86m AOD (Community lifeline route).
+  - New Road (West Lyng ↔ North Curry): Road crown 7.10m AOD (Emergency council flood gates).
+  - A361 Corridor (East Lyng ↔ Burrowbridge): Strategic road crown 7.80m AOD (Baltmoor Wall levee defense).
+  - Bicknell's Bridge & Huish Level: Approach dip 7.30m AOD (River Yeo / Langport confluence).
+  - Moorland New Cut Road: Internal polder road 4.80m AOD (Northmoor polder basin).
+  - Stan Moor Road: River bank road 7.30m AOD (River Tone levee approach).
+  - A372 at Beer Wall / Greylake: Engineered culvert highway 8.00m AOD (Sowy relief crossing).
+- **Major Spillway Weirs:**
+  - Hookbridge Spillway: Crest 7.45m AOD (River Tone overspill into Curry Moor polder).
+  - Baltmoor Wall Spillway: Crest 7.80m AOD (River Parrett overspill into Northmoor polder).
+  - Beer Wall Spillway: Crest 7.30m AOD (Sowy Relief Channel into King's Sedgemoor Drain).
+- **Lowland Storage Polders:**
+  - Curry Moor Polder Basin: Basin floor 2.10m AOD; winter duty pumping 4.30m AOD; mobile pumps ordered 5.80m AOD; mobile active 6.10m AOD; critical 6.50m AOD.
+  - Northmoor Polder Basin: Basin floor 1.80m AOD; duty pumping 4.00m AOD; mobile pumps ordered 4.80m AOD; mobile active 5.20m AOD; critical 5.60m AOD.
+- **Sluices & Tidal Flap Gates:**
+  - Monk's Leaze Clyse: Upstream intake sill 4.20m AOD (Parrett flood relief diversion into Sowy).
+  - Dunball Sea Outfall Clyse: Estuarine tidal flap gates (Parrett Estuary gauge 52163 vs Inland KSD gauge E9094).
+
+## Data Provenance & Open Government Licence
+- All raw water level telemetry is sourced directly from the UK Environment Agency (EA) Real Time flood monitoring API.
+- Data is licensed under the Open Government Licence v3.0 (OGL v3.0). Contains Environment Agency information © Crown copyright and database right.
+- Vertical elevations are tied to Ordnance Datum Newlyn (mAOD ODN).
+
+## Core Domain Invariants & Epistemic Humility
+- **[RULE-HUM-01] Epistemic Humility Invariant:** All highway passability assessments, overtopping states, and operational alerts are mathematical inferences derived from raw river/moor telemetry compared against surveyed road crowns and weir crests. They DO NOT constitute visual on-the-ground human confirmation. Surface flooding, sudden debris, or council gate actions can occur independently of sensor readings. Never drive through floodwater.
+- **[RULE-CALC-01] Ban on Volumetric & Discharge Speculation:** Environment Agency telemetry provides stage (metres). The platform strictly does not calculate, model, or report volumetric flow rates or discharge quantities. All operational triggers and statuses are governed solely by Water Stage (mAOD), Structural Clearance (metres), Duration (hours), and Canonical Finite States.
+- **[RULE-ENT-01] Canonical Entity Status Taxonomy:**
+  - `road`: `PASSABLE`, `ENCROACHING`, `IMPASSABLE`
+  - `spillway`: `SECURE`, `NEAR_CREST`, `OVERTOPPING`
+  - `polder`: `STANDBY`, `DUTY_PUMPING`, `MOBILE_ORDERED`, `MOBILE_ACTIVE`, `CRITICAL`
+  - `tidal_gate`: `DISCHARGING`, `TIDE_LOCKED`
+  - `sluice`: `CLOSED`, `DIVERTING`, `THROTTLED`, `REVERSE_LOCK`
+  - `gauge`: `NORMAL`, `ALERT`
+
+## Machine APIs & Generative Discovery
+- [/api/status](https://floodtelemetry.uk/api/status): Live telemetry evaluations, road network states, and spillway statuses (JSON, updated every 60s).
+- [/api/topology](https://floodtelemetry.uk/api/topology): Hydro-network topological graph connecting gauges, spillways, polders, and reaches (JSON).
+- [/api/events](https://floodtelemetry.uk/api/events): Canonical asset state transition ledger (JSON).
+- [/api/summary.md](https://floodtelemetry.uk/api/summary.md): Real-time plain-text Markdown situation report formatted for LLMs, autonomous agents, and CLI.
+
+## Full Context Documentation
+- [/llms-full.txt](https://floodtelemetry.uk/llms-full.txt): Complete technical reference documentation, including all 19 station datums, full road corridor geometry, operational trigger thresholds, and legal disclaimers.

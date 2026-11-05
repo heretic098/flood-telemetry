@@ -1,0 +1,152 @@
+# Somerset Flood Telemetry — Full Technical Specification & Hydrological Register
+
+> Platform: Somerset Flood Telemetry (https://floodtelemetry.uk/)  
+> Geographic Focus: Somerset Levels & Moors Catchment (Tone, Parrett, Yeo, Isle, Sowy, KSD)  
+> Vertical Datum Reference: Ordnance Datum Newlyn (mAOD ODN)  
+> Data Authority: UK Environment Agency Telemetry Stream (OGL v3.0)  
+
+---
+
+## 1. Catchment Architecture & System Overview
+
+The Somerset Levels and Moors comprise an 800 km² lowland basin in South West England characterized by reclaimed coastal clay levels and peat inland moors lying below mean spring high tide levels. Drainage is primarily managed through two embanked highland river channels—the River Tone and River Parrett—which discharge into the Bristol Channel via the Parrett Estuary at Dunball.
+
+When upland rainfall produces high river stages exceeding channel containment capacity, excess water spills over engineered broad-crested weirs (Hookbridge on the Tone, Baltmoor Wall on the Parrett) into gravity storage basins known as polders (Curry Moor, Northmoor, Salt Moor). When river levels subside, water is evacuated from the polders back into the main river systems via high-capacity land drainage pumping stations (Currymoor PS, Saltmoor PS, Northmoor PS). Additional flood relief is provided by the artificial Sowy Relief Channel, which diverts Parrett floodwaters at Monk's Leaze Clyse into the King's Sedgemoor Drain (KSD) and out to the sea through the Dunball Clyse.
+
+The platform continuously processes 15-minute stage readings from 19 strategic Environment Agency stations, evaluating road passability, spillway overtopping, polder storage states, and tidal lock restrictions.
+
+---
+
+## 2. Complete Hydrological Station Registry (SSOT Parity)
+
+All vertical elevations are referenced strictly to Ordnance Datum Newlyn (mAOD ODN). Station parameters are governed by `STATION_REGISTRY` in `src/js/hydro_engine.js`.
+
+| Station ID | Station Name | River Reach / Basin | Measure ID | Datum Offset (m) | Bed Invert (mAOD) | Alert Level (mAOD) | Structural Threshold (mAOD) | Fallback (mAOD) | Primary Provenance |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **52108** | Greenham (Upper Tone) | River Tone | `52108-level-stage-i-15_min-mASD` | +75.69 | 75.72 | 76.99 | — | 76.14 | Tier 1 EA Geodetic Benchmark (+75.69m ODN) |
+| **52109** | Bishops Hull (Mid Tone) | River Tone | `52109-level-stage-i-15_min-mASD` | +16.58 | 16.60 | 17.48 | — | 16.93 | Tier 1 EA Geodetic Benchmark (+16.58m ODN) |
+| **52111** | Taunton Market | River Tone | `52111-level-stage-i-15_min-mASD` | +12.47 | 12.67 | 14.24 | — | 13.12 | Tier 1 EA Geodetic Benchmark (+12.47m ODN) |
+| **52162** | Bathpool Outfall | River Tone | `52162-level-stage-i-15_min-mAOD` | 0.00 | 7.50 | 9.50 | — | 7.54 | Tier 1 Direct mAOD Sensor |
+| **52118** | Hookbridge Spillway | River Tone | `52118-level-stage-i-15_min-mAOD` | 0.00 | 3.30 | 7.15 | Crest: 7.45 | 4.50 | Tier 1 Surveyed Concrete Spillway Crest (7.45m ODN) |
+| **52127** | Curry Moor Basin | Curry Moor Polder | `52127-level-stage-i-15_min-mAOD` | 0.00 | 2.10 | 6.50 | Floor: 2.10 | 4.47 | Tier 1 Basin Floor Survey / EA Trigger Point Plan |
+| **52116** | Chiselborough (Upper Parrett) | River Parrett | `52116-level-stage-i-15_min-m` | +20.70 | 20.70 | 22.50 | — | 20.75 | Tier 1 EA Geodetic Benchmark (+20.70m ODN) |
+| **52119** | Gaw Bridge (Mid Parrett) | River Parrett | `52119-level-stage-i-15_min-mASD` | +10.00 | 10.16 | 12.80 | — | 10.42 | Tier 1 EA Geodetic Benchmark (+10.00m ODN) |
+| **52120** | Huish Episcopi PS (River Yeo) | River Yeo | `52120-level-stage-i-15_min-mASD` | +5.00 | 5.80 | 8.48 | Cut-off: 8.20 | 6.68 | Tier 1 EA Benchmark (+5.00m ODN) / River Cut-off 8.20m |
+| **52153** | Midelney (River Isle) | River Isle | `52153-level-stage-i-15_min-mASD` | +5.185 | 5.50 | 8.20 | Reverse Head: 8.20 | 6.63 | Tier 1 EA Benchmark (+5.185m ODN) / FSA Duty 6.70m |
+| **52233** | Monk's Leaze Clyse (Upstream) | River Parrett | `52233-level-stage-i-15_min-mAOD` | 0.00 | 4.20 | 7.90 | Sill: 4.20 | 6.73 | Tier 1 Surveyed Intake Clyse Sill (4.20m ODN) |
+| **52234** | Monk's Leaze Clyse (Downstream) | Sowy Relief Channel | `52234-level-downstage-i-15_min-mAOD` | 0.00 | 4.20 | 7.60 | — | 6.72 | Tier 1 Direct mAOD Sensor / Sowy Tailwater Invert |
+| **52158** | Baltmoor Wall Spillway | River Parrett | `52158-level-stage-i-15_min-mAOD` | 0.00 | 3.50 | 7.50 | Crest: 7.80 | 3.78 | Tier 1 Surveyed Armored Clay Embankment (7.80m ODN) |
+| **52159** | Northmoor Basin | Northmoor Polder | `52159-level-stage-i-15_min-mAOD` | 0.00 | 1.80 | 3.80 | Floor: 1.80 | 3.17 | Tier 1 Basin Floor Survey / EA Trigger Point Plan |
+| **52124** | West Quay Bridgwater | River Parrett | `52124-level-tidal_level-i-15_min-mAOD`| 0.00 | 0.50 | 6.10 | — | 3.10 | Tier 1 Direct Tidal mAOD Sensor |
+| **52163** | Dunball Tidal Outfall | Parrett Estuary | `52163-level-tidal_level-i-15_min-mAOD`| 0.00 | -1.50 | 6.50 | Apron: -1.50 | 0.84 | Tier 1 Sea Outfall Survey (-1.50m ODN) / Storm Alert |
+| **52157** | Beerwall Upstream (Greylake) | Sowy Relief Channel | `52157-level-stage-i-15_min-mAOD` | 0.00 | 2.30 | 4.20 | Crest: 7.30 | 3.92 | Tier 1 Surveyed Relief Weir / Culverts (7.30m ODN) |
+| **E9531** | Bradney | King's Sedgemoor Drain | `E9531-level-stage-i-15_min-mAOD` | 0.00 | 1.00 | 3.50 | — | 3.20 | Tier 1 Direct mAOD Sensor |
+| **E9094** | Dunball Inland KSD Outfall | King's Sedgemoor Drain | `E9094-level-stage-i-15_min-mAOD` | 0.00 | 0.50 | 3.50 | Apron: 0.50 | 2.62 | Tier 1 Inland Clyse Apron Survey (0.50m ODN) |
+
+---
+
+## 3. Monitored Highway Corridors & Road Crown Elevations
+
+Road corridor passability is evaluated by comparing real-time water levels from driving stations against surveyed crown elevations. All definitions derive from `ASSET_DEFINITIONS` in `src/js/hydro_engine.js`.
+
+| Asset ID | Corridor Name | Parishes / Route | Primary Station | Crown Elev (mAOD) | Caution Elev (mAOD) | Target Area / EA Flood Warning | Confidence Tier | Survey Context |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| `cuts_road` | Cuts Road | East Lyng ↔ Athelney | 52127 (Curry Moor) | 7.35 | 7.00 | `112FWFCUR10A` (Curry Moor & Hay Moor) | Tier 1 Surveyed | Concrete spillway relief crest surveyed at 7.35m ODN. Submerged during Curry Moor overtopping. |
+| `muchelney_access` | Muchelney Spine Road | Huish Episcopi ↔ Muchelney | 52120 (River Yeo) | 7.86 | 7.30 | `112WAFYPM` (River Yeo & Parrett Moors) | Tier 1 Surveyed | SRA raised road crown surveyed at 7.86m ODN; low approach breach at 7.30m ODN. |
+| `beer_wall_a372` | A372 at Beer Wall | Aller ↔ Othery | 52157 (River Sowy) | 8.00 | 7.30 | `SOWY_KSD` (River Sowy / KSD Catchment) | Tier 1 Weir / Tier 2 Road | Weir surveyed at 7.30m ODN; raised carriageway crown pending as-built survey (>8.00m ODN). |
+| `new_road_curry` | New Road | West Lyng ↔ North Curry | 52127 (Curry Moor) | 7.10 | 6.20 | `112FWFCUR10A` (Curry Moor & Hay Moor) | Tier 2 Trigger Plan | Correlated to moor water levels and council emergency flood gate closure stages. Topographic survey pending. |
+| `a361_burrowbridge` | A361 Strategic Arterial | East Lyng ↔ Burrowbridge | 52158 (Baltmoor) / 52127 | 7.80 | 7.35 | `112FWFEAS10A` (A361 East Lyng to Burrowbridge) | Tier 2 Trigger Plan | Correlated to Baltmoor levee overtopping and Curry Moor cascade. Highways survey pending. |
+| `bicknells_bridge_access`| Bicknell's Bridge & Huish Level | Langport ↔ Muchelney | 52120 (River Yeo) | 7.30 | 7.00 | `112WAFYPM` (River Yeo & Parrett Moors) | Tier 3 Empirical | Low-lying approach dip vulnerable to Yeo/Parrett backwater. Approach survey pending. |
+| `moorland_new_cut_road` | Moorland New Cut Road | Northmoor Polder Interior | 52159 (Northmoor) | 4.80 | 3.80 | `112FWFSAL10A` (Salt Moor & North Moor) | Tier 2 Trigger Plan | Internal polder road network behind Baltmoor Wall embankment. Topographic survey pending. |
+| `stan_moor_road` | Stan Moor Road | Curload ↔ Athelney | 52118 (Tone) / 52127 | 7.30 | 7.15 | `112FWFSTA10A` (Stan Moor Curload/Athelney) | Tier 2 Trigger Plan | River Tone embankment bank road subject to wave action and levee seepage at elevated stages. |
+
+---
+
+## 4. Spillway Weirs, Overtopping Physics & Geometry
+
+1. **Hookbridge Spillway (River Tone → Curry Moor Polder):**
+   - Surveyed Concrete Weir Crest: `7.45m AOD`
+   - Pre-spill Warning Band: `7.30m AOD` (within 15cm of overtopping)
+   - Behavior: When the River Tone stage at Hookbridge (52118) exceeds 7.45m AOD, water spills uncontrolled across the 200m broad-crested weir into the Curry Moor polder basin.
+   - Tailwater Submergence: Evaluated via the Villemonte submergence equation. If moor tailwater at 52127 rises to within 70% of the upstream head over crest, the weir is classified as `SUBMERGED` (drowned discharge).
+   - Invariant: Reverse flow (`REVERSE_SPILL`) triggers if Curry Moor stage exceeds Tone river stage during extreme storage events.
+
+2. **Baltmoor Wall Spillway (River Parrett → Northmoor Polder):**
+   - Surveyed Armored Clay Embankment Crest: `7.80m AOD`
+   - Pre-spill Warning Band: `7.65m AOD`
+   - Behavior: When the River Parrett at Burrowbridge (52158) exceeds 7.80m AOD, water spills over the reinforced embankment into the Northmoor and Salt Moor storage basin.
+
+3. **Beer Wall Spillway & Culverts (Sowy Relief Channel → King's Sedgemoor Drain):**
+   - Surveyed Relief Weir Crest: `7.30m AOD`
+   - Structure: 4 large concrete box culverts beneath the A372 installed during the 2015 Flood Action Plan scheme to convey flood diversions without overtopping the A372 carriageway.
+
+---
+
+## 5. Lowland Storage Polders & EA Operational Trigger Point Plan
+
+The Environment Agency and Somerset Drainage Boards Consortium operate high-capacity pumping stations according to strict stage triggers:
+
+### Curry Moor Polder Basin (52127)
+- **Basin Bed Floor:** `2.10m AOD` (Normal agricultural drainage floor)
+- **Winter Duty Pumping:** `4.30m AOD` (Currymoor Pumping Station electric duty pumps active)
+- **Summer Duty Pumping:** `4.45m AOD` (Summer penning level)
+- **Mobile Pumps Ordered:** `5.80m AOD` (EA mobilizes contractor high-volume tractor and diesel pumps to site)
+- **Mobile Pumps Active:** `6.10m AOD` (Multi-pump deployment running to protect New Road and community infrastructure)
+- **Critical Risk Stage:** `6.50m AOD` (Imminent inundation of New Road and Cuts Road overflow)
+
+### Northmoor Polder Basin (52159)
+- **Basin Bed Floor:** `1.80m AOD`
+- **Duty Pumping:** `4.00m AOD` (Saltmoor PS and Northmoor PS electric pumps online)
+- **Mobile Pumps Ordered:** `4.80m AOD` (EA mobilizes mobile high-volume pumps to Saltmoor/Northmoor platforms)
+- **Mobile Pumps Active:** `5.20m AOD` (Emergency pumping operational)
+- **Critical Risk Stage:** `5.60m AOD` (Internal road submergence across Moorland and Fordgate)
+
+---
+
+## 6. Sluice Diversions & Estuarine Tidal Locking
+
+### Monk's Leaze Clyse Sluice (52233 Upstream ↔ 52234 Downstream)
+- **Surveyed Clyse Sill Elevation:** `4.20m AOD`
+- **Diversion Trigger Elevation:** `7.20m AOD` (River Parrett stage)
+- **Diversion Logic:** The penstock gates are opened by the Environment Agency to divert Parrett floodwaters into the Sowy Relief Channel if:
+  1. River Parrett stage at 52233 >= 7.20m AOD.
+  2. Upstream head exceeds downstream head (Δh = `h_up - h_down` >= `0.05m`).
+- **Throttling / Lock:** If downstream Sowy stage approaches `7.60m AOD`, diversion is throttled to prevent bank breaches along the Sowy channel.
+
+### Dunball Sea Outfall Clyse & Flap Gates (52163 Tidal ↔ E9094 Inland KSD)
+- **Outfall Apron Invert:** `-1.50m AOD` (Seaward apron) / `+0.50m AOD` (Inland apron)
+- **Hydrostatic Balance & Flap Gate Physics:**
+  - High Tide: Sea stage at 52163 >= Inland stage at E9094. Hydrostatic pressure forces the counterbalanced sea doors shut.
+  - State: `TIDE_LOCKED` (Slack restricted). Gravity evacuation from the King's Sedgemoor Drain and River Parrett halts until the Bristol Channel tide ebbs.
+  - Low Tide: Sea stage at 52163 < Inland stage at E9094. Gravity flow resumes; outfall is `DISCHARGING`.
+
+---
+
+## 7. Strict Domain Governance & Prohibitions
+
+1. **[RULE-HUM-01] Epistemic Humility:**
+   All road passability classifications, overtopping assertions, and pumping states are mathematical deductions from upstream telemetry. The platform does NOT assert visual ground truth. Non-reliance legal insulation applies under the UK *Hedley Byrne* doctrine. Always verify road conditions with Somerset Council / Travel Somerset. Never drive through floodwater.
+
+2. **[RULE-CALC-01] Prohibited Discharge Modeling:**
+   The platform strictly prohibits estimating, computing, or displaying volumetric discharge flow rates or volume quantities. Environment Agency telemetry provides stage ($m$), not open-channel rating curves, gate apertures, or pump telemetry. Asserting volumetric quantities without telemetry violates platform safety policy.
+
+3. **[RULE-ENT-01] Canonical Entity Status Dictionary:**
+   All records, database rows, APIs, and UI cards must adhere to the 19 finite status tokens:
+   - `road`: `PASSABLE`, `ENCROACHING`, `IMPASSABLE`
+   - `spillway`: `SECURE`, `NEAR_CREST`, `OVERTOPPING`
+   - `polder`: `STANDBY`, `DUTY_PUMPING`, `MOBILE_ORDERED`, `MOBILE_ACTIVE`, `CRITICAL`
+   - `tidal_gate`: `DISCHARGING`, `TIDE_LOCKED`
+   - `sluice`: `CLOSED`, `DIVERTING`, `THROTTLED`, `REVERSE_LOCK`
+   - `gauge`: `NORMAL`, `ALERT`
+
+---
+
+## 8. Open Source & Licensing
+
+- Upstream Hydrological Data: UK Environment Agency under the Open Government Licence v3.0 (OGL v3.0). Contains Environment Agency information © Crown copyright and database right.
+- Platform Code & Schemas: Released under the Apache License 2.0.
+- Machine Endpoints:
+  - JSON Status: https://floodtelemetry.uk/api/status
+  - JSON Topology: https://floodtelemetry.uk/api/topology
+  - JSON Events: https://floodtelemetry.uk/api/events
+  - Markdown Summary: https://floodtelemetry.uk/api/summary.md
