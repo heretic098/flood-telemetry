@@ -11,6 +11,7 @@
     "lint": "eslint src/js server.js",
     "test": "npm run lint && node --test",
     "snapshot": "node scripts/capture_views.js",
+    "audit": "npm audit --omit=dev --audit-level=high",
     "audit:links": "node scripts/audit_external_links.js"
   },
   "dependencies": {
@@ -18,6 +19,7 @@
   },
   "devDependencies": {
     "eslint": "^9.39.5",
+    "js-yaml": "^4.1.0",
     "puppeteer-core": "^24.43.1"
   }
 }

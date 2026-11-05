@@ -59,9 +59,13 @@ somerset-flood-dashboard/
 npm install
 ```
 
-### 2. Run Test Suite
+### 2. Run Test Suite & Security Audit
 ```bash
+# Run unit tests and static linters (operates fully offline)
 npm test
+
+# Run production dependency vulnerability audit (requires internet egress to contact npm registry)
+npm run audit
 ```
 
 ### 3. Start Local Server
