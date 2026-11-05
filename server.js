@@ -647,13 +647,37 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // API Route: Health Check (<10ms)
+  // API Route: Health Check (<10ms) - Validates synchronous SQLite liveness
   if (pathname === '/api/health') {
-    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' });
+    let dbHealthy = false;
+    let journalMode = 'unknown';
+
+    try {
+      if (db && db.open && !isShuttingDown) {
+        const row = db.prepare('SELECT 1 as alive').get();
+        dbHealthy = row && row.alive === 1;
+        journalMode = db.pragma('journal_mode', { simple: true });
+      }
+    } catch (e) {
+      dbHealthy = false;
+    }
+
+    const statusCode = dbHealthy ? 200 : 503;
+    res.writeHead(statusCode, {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'no-store, no-cache, must-revalidate'
+    });
     res.end(JSON.stringify({
-      status: "ok",
+      status: dbHealthy ? "ok" : "degraded",
       uptime: process.uptime(),
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      database: {
+        connected: dbHealthy,
+        journal_mode: journalMode
+      },
+      replication: {
+        provider: Boolean(process.env.AWS_ACCESS_KEY_ID && process.env.BUCKET_NAME) ? "litestream_tigris" : "local_standalone"
+      }
     }));
     return;
   }
@@ -1478,7 +1502,54 @@ const server = http.createServer(async (req, res) => {
   });
 });
 
+let isShuttingDown = false;
+
+/**
+ * Executes a zero-downtime, graceful shutdown with passive WAL checkpointing for Litestream.
+ * Drains in-flight async telemetry ingestion before closing the database handle.
+ * 
+ * @param {string} signal - The triggering OS signal (e.g. 'SIGTERM', 'SIGINT')
+ */
+export async function gracefulShutdown(signal) {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+  console.log(`[Lifecycle] Received ${signal}. Initiating graceful shutdown...`);
+
+  // Stop accepting incoming HTTP traffic and wait up to 500ms for in-flight requests to complete
+  await new Promise((resolve) => {
+    const timeout = setTimeout(resolve, 500);
+    server.close(() => {
+      clearTimeout(timeout);
+      console.log('[Lifecycle] HTTP server stopped accepting connections.');
+      resolve();
+    });
+  });
+
+  // Drain pending async sync tasks (up to 2500ms)
+  const drainStart = Date.now();
+  while (isSyncRunning && Date.now() - drainStart < 2500) {
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+
+  // Checkpoint WAL and close SQLite handle cleanly
+  try {
+    if (db && db.open) {
+      console.log('[Lifecycle] Checkpointing SQLite WAL (PASSIVE)...');
+      db.pragma('wal_checkpoint(PASSIVE)');
+      db.close();
+      console.log('[Lifecycle] Database closed cleanly.');
+    }
+  } catch (err) {
+    console.error('[Lifecycle Error] Error during SQLite shutdown checkpoint:', err.message);
+  }
+
+  process.exit(0);
+}
+
 if (isMainModule) {
+  process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+  process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
   server.listen(PORT, () => {
     console.log(`===================================================`);
     console.log(`Flood Telemetry Dashboard Server (SQLite Embedded WAL)`);
@@ -1487,4 +1558,4 @@ if (isMainModule) {
   });
 }
 
-export { server, renderHtmlWithPartials, loadPartials, renderNav, getFooterPartial, renderSummaryMarkdown, MIME_TYPES };
+export { server, renderHtmlWithPartials, loadPartials, renderNav, getFooterPartial, renderSummaryMarkdown, MIME_TYPES, db };

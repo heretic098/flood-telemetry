@@ -9,9 +9,15 @@ primary_region = 'lhr'
 [build]
   dockerfile = 'Dockerfile'
 
+[deploy]
+  strategy = 'immediate' # Enforces single-writer deployment to prevent split-brain WAL replication
+
+# NOTE: Single-writer SQLite architecture. Do NOT scale beyond 1 machine (min_machines_running = 1).
 [env]
   PORT = '8080'
   DB_PATH = '/data/telemetry.db'
+  LITESTREAM_ENDPOINT = 'https://fly.storage.tigris.dev'
+  AWS_REGION = 'auto'
 
 [mounts]
   source = 'somerset_telemetry_data'

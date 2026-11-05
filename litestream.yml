@@ -1,0 +1,18 @@
+# /etc/litestream.yml
+# Continuous SQLite WAL Replication to Fly Tigris S3 Storage
+# Somerset Flood Telemetry Platform (Issue #26)
+
+compaction-interval: 1h
+validation-interval: 12h
+
+dbs:
+  - path: /data/telemetry.db
+    replicas:
+      - type: s3
+        bucket: ${BUCKET_NAME}
+        path: telemetry.db
+        endpoint: ${LITESTREAM_ENDPOINT:-https://fly.storage.tigris.dev}
+        region: ${AWS_REGION:-auto}
+        force-path-style: true
+        retention: 168h # 7-day point-in-time recovery window
+        snapshot-interval: 6h # Base snapshot every 6 hours
