@@ -156,7 +156,10 @@ test('GitHub Actions: CI Workflow Configuration', () => {
   const stepRuns = steps.map(s => s.run).filter(Boolean);
   assert.ok(stepRuns.some(cmd => cmd.includes('npm ci')), 'Workflow must run npm ci');
   assert.ok(stepRuns.some(cmd => cmd.includes('npm run lint')), 'Workflow must run npm run lint');
-  assert.ok(stepRuns.some(cmd => cmd.includes('npm test')), 'Workflow must run npm test');
+  assert.ok(
+    stepRuns.some(cmd => cmd.includes('npm run test:clean')),
+    'Workflow must run hermetic clean-room test suite (npm run test:clean)'
+  );
   assert.ok(
     stepRuns.some(cmd => cmd.includes('npm audit --omit=dev --audit-level=high') || cmd.includes('npm run audit')),
     'Workflow must run production vulnerability audit'

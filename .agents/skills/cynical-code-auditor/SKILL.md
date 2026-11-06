@@ -70,18 +70,27 @@ Never accept assertions like *"it works on my machine"*, *"tests pass"*, or *"it
    - Are ARIA live regions (`aria-live="polite"`) configured for real-time telemetry updates without annoying screen reader stutter?
    - Are touch targets strictly $\ge 44 \times 44\text{px}$?
 
-### Rubric D: Security & Defensive Programming
+### Rubric D: Security, Infrastructure & Configuration Hygiene
 1. **XSS Injection:**
    - Are any station names, status strings, or API-returned descriptions injected into the DOM via raw `innerHTML` without passing through `escapeHTML()` or `escapeAttr()`?
 2. **SSRF & Camera Protection:**
    - Are webcam image fetches strictly restricted to allowlisted host domains?
-3. **Credential Isolation:**
-   - Is `GEMINI_API_KEY` or any server secret exposed to browser clients?
+3. **Credential & Cloud Resource Identifier Isolation ([RULE-SEC-02]):**
+   - Is `GEMINI_API_KEY`, `AWS_SECRET_ACCESS_KEY`, or any server secret exposed to browser clients or logs?
+   - Is any S3/Tigris bucket name (`BUCKET_NAME`), storage target, or tenant identifier hardcoded in `fly.toml`, `litestream.yml`, tests, or documentation instead of injected via encrypted runtime secrets? *(INSTANT REJECTION if yes; prevents globally unique S3 namespace enumeration)*.
+4. **Declarative Configuration Syntax Hygiene ([RULE-CONF-01]):**
+   - Do YAML, TOML, or JSON files contain unverified POSIX shell parameter expansions (e.g., `${VAR:-default}` in `litestream.yml` where Go `os.ExpandEnv` evaluates to `""`)? *(INSTANT REJECTION if yes)*.
+5. **Container Volume Writeability & Single-Writer Safety ([RULE-INFRA-01]):**
+   - Does `scripts/docker-entrypoint.sh` execute a pre-flight writeability check on the target database directory before launching Litestream or Node.js as `USER node`?
+   - Does `fly.toml` enforce `strategy = 'immediate'` to prevent concurrent multi-writer WAL corruption during deployments? *(INSTANT REJECTION if no)*.
 
-### Rubric E: Test Suite Authenticity
+### Rubric E: Test Suite Authenticity & Hermeticity
 1. **No Synthetic Complacency:**
    - Are tests asserting physical inequalities against surveyed station data, or are they asserting hardcoded trivialities?
    - Did any test get commented out, skipped, or weakened to make a build pass?
+2. **Hermetic Clean-Room Execution ([RULE-TEST-02]):**
+   - Does any test pass solely because of pre-existing ambient rows in a developer's local `telemetry.db`?
+   - Does the entire suite pass `npm run test:clean` against a fresh, unpopulated temporary database (`DB_PATH`)? *(INSTANT REJECTION if no)*.
 
 ### Rubric F: Architectural Single Source of Truth & Prototyping Lifecycle
 1. **Mandatory Post-Spike Consolidation Gate ([RULE-PROC-01]):**
@@ -126,8 +135,8 @@ Every cynical review report MUST follow this structured format:
 | **Defensive Null-Safety & Fallbacks** | ... | ... |
 | **Presentation DRY & Layout Shells** | ... | ... |
 | **Controller Lifecycle & Data Contracts** | ... | ... |
-| **Security & XSS Prevention** | ... | ... |
-| **Automated Dual Audit Test Suite** | ... | ... |
+| **Security, Bucket Isolation & Config Syntax** | ... | ... |
+| **Hermetic Clean-Room Audit (`npm run test:clean`)** | ... | ... |
 
 ## 3. Cynical Scrutiny: Edge Cases & Potential Hazards
 - [Specific code smell, potential race condition, or edge case identified]

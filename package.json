@@ -10,6 +10,7 @@
     "dev": "node server.js",
     "lint": "eslint src/js server.js",
     "test": "npm run lint && node --test",
+    "test:clean": "sh -c 'TMP_DB=/tmp/flood_clean_$$.db; trap \"rm -f \\\"$TMP_DB\\\" \\\"$TMP_DB-wal\\\" \\\"$TMP_DB-shm\\\"\" EXIT INT TERM; DB_PATH=$TMP_DB npm test'",
     "snapshot": "node scripts/capture_views.js",
     "audit": "npm audit --omit=dev --audit-level=high",
     "audit:links": "node scripts/audit_external_links.js"

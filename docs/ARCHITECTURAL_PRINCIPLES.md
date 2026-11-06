@@ -1,8 +1,8 @@
 # Somerset Flood Telemetry: Systemic Software Architectural Principles
 
 **Status:** Authoritative Architectural Standard  
-**Governing Rules:** `AGENTS.md` (`[RULE-HUM-01]`, `[RULE-CALC-01]`, `[RULE-ENT-01]`, `[RULE-SSOT-01]`, `[UI-VIS-01]`)  
-**Scope:** Frontend views, Node.js endpoints, SQLite caching, state controllers, and data contracts.
+**Governing Rules:** `AGENTS.md` (`[RULE-HUM-01]`, `[RULE-CALC-01]`, `[RULE-ENT-01]`, `[RULE-SSOT-01]`, `[UI-VIS-01]`, `[RULE-TEST-02]`, `[RULE-SEC-02]`, `[RULE-CONF-01]`, `[RULE-INFRA-01]`)  
+**Scope:** Frontend views, Node.js endpoints, SQLite WAL caching, Litestream replication, state controllers, and data contracts.
 
 ---
 
@@ -22,8 +22,12 @@ The review failed to flag this because of **Domain-Specific Tunnel Vision**: the
 | **`[ARCH-DATA-01]`** | Contracts | $\forall D_{\text{in}}, D_{\text{out}}, \; \text{Validate}(D, \text{Schema}) = \text{true} \land \text{Keys}(D) \cap \text{Forbidden} = \emptyset$. | **Instant Rejection** |
 | **`[ARCH-CTRL-01]`** | State Lifecycle | Single-instance controllers; zero unguarded timers or leaked global state flags. | **Instant Rejection** |
 | **`[ARCH-RESI-01]`** | Degradation | Card-level error boundaries; offline detection; explicit stale telemetry age. | **Instant Rejection** |
-| **`[ARCH-GATE-01]`** | Verification | Build pipeline requires: `eslint` (`no-undef`) $\to$ unit/contract tests $\to$ headless Chrome snapshot. | **Build Blocked** |
+| **`[ARCH-GATE-01]`** | Verification | Build pipeline requires: `eslint` (`no-undef`) $\to$ hermetic `test:clean` $\to$ headless Chrome snapshot. | **Build Blocked** |
 | **`[ARCH-SSOT-01]`** | Global SSOT | Universal SSOT: numeric datums, CSS design tokens, route topologies, and legal notices. | **Instant Rejection** |
+| **`[RULE-SEC-02]`** | Cloud Isolation | Zero hardcoded S3/Tigris bucket names or resource identifiers in Git; runtime secret injection only. | **Instant Rejection** |
+| **`[RULE-CONF-01]`** | Config Grammar | Zero unverified shell expansions (`${VAR:-default}`) in YAML/TOML/JSON configs. | **Instant Rejection** |
+| **`[RULE-INFRA-01]`** | Persistence | Single-writer WAL replication (`strategy = 'immediate'`); pre-flight volume writeability probe. | **Instant Rejection** |
+| **`[RULE-TEST-02]`** | Hermeticity | Tests must pass against an empty database (`npm run test:clean`) without ambient local state. | **Build Blocked** |
 
 ---
 
@@ -101,22 +105,46 @@ stateDiagram-v2
 
 ---
 
-## 6. Resilience, Degradation & Verification (`[ARCH-RESI-01]`, `[ARCH-GATE-01]`)
+## 6. Pillar IV: Storage Persistence, Continuous Replication & Cloud Security (`[RULE-INFRA-01]`, `[RULE-SEC-02]`, `[RULE-CONF-01]`)
+
+### 6.1 Relational Data vs. Binary Media Separation
+- **SQLite WAL (`/data/telemetry.db`):** Strictly stores structured relational time-series stages, tripartite event transitions (`asset_type -> asset_name -> status`), and optical metadata/hashes. Binary webcam images are strictly barred from SQLite BLOB storage to prevent WAL bloat and replication lag.
+- **Continuous WAL Replication (`litestream`):** Litestream wraps the Node.js process (`litestream replicate -exec "node server.js"`) and continuously streams WAL frames to Fly Tigris S3-compatible object storage with a 7-day (`168h`) retention window.
+
+### 6.2 Single-Writer & Volume Shadowing Invariants (`[RULE-INFRA-01]`)
+1. **Single-Writer Deployment (`strategy = 'immediate'`):** Rolling or canary deployments with multiple concurrent writers against a replicated SQLite WAL stream cause split-brain generation divergence. `fly.toml` must enforce `strategy = 'immediate'`.
+2. **Pre-Flight Volume Writeability Probe:** Persistent NVMe mounts (`/data`) shadow build-time image directory permissions and can retain `root:root` ownership from historical containers. `scripts/docker-entrypoint.sh` executes a pre-flight write probe as `USER node` before starting Litestream or Node.js, failing fast with an explicit diagnostic if `/data` or `/data/telemetry.db` is read-only.
+3. **Graceful Checkpointing:** On `SIGTERM`/`SIGINT`, `server.js` drains HTTP connections, executes `db.pragma('wal_checkpoint(PASSIVE)')`, and closes the SQLite handle cleanly so Litestream can flush final WAL frames before container exit.
+
+### 6.3 Cloud Resource Isolation & Config Syntax Hygiene (`[RULE-SEC-02]`, `[RULE-CONF-01]`)
+1. **Bucket Namespace Privacy:** Because S3/Tigris bucket names share a global namespace, bucket names must use high-entropy random suffixes and be injected exclusively via encrypted runtime secrets (`BUCKET_NAME`), never committed to `fly.toml` or `litestream.yml`.
+2. **Parser-Verified Config Syntax:** Third-party Go binaries (`litestream`) parse YAML variables via `os.ExpandEnv`, which supports `${VAR}` but evaluates POSIX fallback syntax (`${VAR:-default}`) to an empty string `""`. Declarative configs must only use syntax verified against the target binary's parser.
+
+### 6.4 Disaster Recovery Runbook
+- **Automated Recovery on Volume Loss:** When a machine boots with an empty `/data` volume, `scripts/docker-entrypoint.sh` runs `litestream restore -if-replica-exists -if-db-not-exists -config /etc/litestream.yml /data/telemetry.db` before launching the application.
+- **Manual Credential Rotation:** Rotate Tigris credentials via `fly storage` and update encrypted app secrets (`fly secrets set AWS_ACCESS_KEY_ID=... AWS_SECRET_ACCESS_KEY=...`), which automatically triggers a single-writer restart.
+
+---
+
+## 7. Resilience, Degradation & Verification (`[ARCH-RESI-01]`, `[ARCH-GATE-01]`, `[RULE-TEST-02]`)
 
 1. **Card-Level Error Boundaries:** Failure to parse or render telemetry for one station (e.g. sensor dropout at Gaw Bridge) must catch locally, render a fallback card with `⚠️ Sensor Offline`, and allow the remaining 18 stations to render unimpeded.
 2. **Network Resilience:** Detect connection loss (`window.offline`); surface a non-modal sticky cached-data banner; automatically trigger background re-sync on reconnection (`window.online`).
-3. **Static & Visual Gate Pipeline:**
+3. **Static, Hermetic & Visual Gate Pipeline:**
    - **Linting:** ESLint enforces `"no-undef": "error"` across ES modules and Node services.
+   - **Hermetic Clean-Room Tests (`[RULE-TEST-02]`):** `npm run test:clean` executes the entire test suite against an ephemeral, unpopulated temporary `DB_PATH` to guarantee tests never pass due to ambient local developer database state.
    - **Contract Tests:** `node --test tests/data_contracts.test.js` guarantees schema enforcement.
    - **Headless Chrome Verification (`[UI-VIS-01]`):** `npm run snapshot` renders all views in headless Chromium to verify layout integrity, zero badge collisions, and responsive styling.
 
 ---
 
-## 7. Cynical Review Rubric: Architectural Checklist
+## 8. Cynical Review Rubric: Architectural Checklist
 
-When evaluating pull requests, the Cynical Reviewer must verify:
+When evaluating pull requests, the Cynical Reviewer and Security Auditor must verify:
 - [ ] **DRY Presentation:** Zero duplicated `<nav>`, `<footer>`, or `<head>` markup.
 - [ ] **Contract Coverage:** New API fields or ingested parameters are registered in `src/js/contracts/` schemas.
 - [ ] **Discharge Ban:** Zero occurrences of banned volumetric terms (`cumecs`, `discharge`, `flow_rate`) in schemas, contracts, or UI labels (`[RULE-CALC-01]`).
 - [ ] **Controller Hygiene:** Timers, intervals, and event listeners are wrapped in lifecycle-managed controllers with explicit teardown (`removeEventListener`, `clearInterval`).
 - [ ] **Graceful Degradation:** Malformed or missing sensor payloads result in clean offline badges, never unhandled JavaScript exceptions.
+- [ ] **Hermetic Clean-Room Suite:** `npm run test:clean` passes 100% with an empty initial `DB_PATH` (`[RULE-TEST-02]`).
+- [ ] **Cloud Secret & Syntax Hygiene:** Zero hardcoded S3/Tigris bucket identifiers in Git (`[RULE-SEC-02]`) and zero unverified `${VAR:-default}` expansions in YAML/TOML configs (`[RULE-CONF-01]`).

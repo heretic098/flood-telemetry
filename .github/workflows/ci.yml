@@ -32,8 +32,8 @@ jobs:
       - name: Lint codebase
         run: npm run lint
 
-      - name: Run test suite
-        run: npm test
+      - name: Run hermetic clean-room test suite
+        run: npm run test:clean
 
       - name: Production dependency vulnerability audit
         run: npm audit --omit=dev --audit-level=high
