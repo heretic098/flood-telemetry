@@ -11,7 +11,7 @@ The platform is a community-driven flood telemetry tool coded by autonomous AI a
 0. **[RULE-MOD-01] Mandatory Pro Model Tier for Subagents:**
    - Whenever invoking subagents (`invoke_subagent`), you **MUST explicitly set `Model: 'pro'`**.
    - **NEVER** default to `'inherit'`, `'flash'`, or `'flash_lite'`.
-   - All collaborative roles (`fullstack_developer`, `climate_hydrology_scientist`, `ui_ux_designer`, `code_reviewer`, `legal_eagle`) require the high-depth reasoning of the Pro tier.
+   - All collaborative roles (`fullstack_developer`, `climate_hydrology_scientist`, `ui_ux_designer`, `code_reviewer`, `security_auditor`, `legal_eagle`, `qa_test_engineer`) require the high-depth reasoning of the Pro tier.
 
 1. **[RULE-HUM-01] Epistemic Humility & Ban on Simulated Authority:**
    - Do **NOT** posture as an authoritative civil engineering consultant, SCADA operator, or certified hydrologist.
@@ -61,6 +61,22 @@ The platform is a community-driven flood telemetry tool coded by autonomous AI a
 9. **[UI-VIS-01] Mandatory Headless Chrome Visual Inspection:**
    - After any frontend, CSS, SVG, or status evaluation change, run `npm run snapshot` (`node scripts/capture_views.js`) and visually inspect generated `/tmp/flood-snapshots/*.png` screenshots via `read_file` to verify zero overlapping badges, matching CSS selectors, and 100% cross-view visual parity before committing.
 
+10. **[RULE-TEST-02] Hermetic Clean-Room Test Execution:**
+    - All test suites MUST be hermetic and self-seeding. Tests are strictly forbidden from relying on pre-existing ambient SQLite data on developer machines or state mutated by earlier test suites.
+    - Every test suite querying the database MUST either instantiate an isolated database (`DB_PATH`) or idempotently seed its required fixtures in setup hooks (`test.before()`), and pass `npm run test:clean`.
+
+11. **[RULE-SEC-02] Cloud Resource Identifier & Bucket Isolation:**
+    - Cloud storage bucket names (S3/Tigris), internal resource identifiers, and tenant URIs MUST NEVER be hardcoded or committed in source-controlled files (`fly.toml`, `litestream.yml`, tests, or documentation).
+    - All cloud resource identifiers must be injected dynamically at runtime via encrypted secret stores (`fly secrets` / environment variables), using high-entropy random suffixes to prevent public namespace enumeration.
+
+12. **[RULE-CONF-01] Declarative Configuration Syntax Hygiene:**
+    - Unverified POSIX shell parameter expansions (such as `${VAR:-default}`) are strictly prohibited in non-shell declarative configuration files (YAML, TOML, JSON) unless explicitly verified against the target binary's parser specification (e.g., Go `os.ExpandEnv` only supports `${VAR}`).
+    - Default fallback logic must be handled in the wrapping shell entrypoint or specified as tested literal values.
+
+13. **[RULE-INFRA-01] Container Volume Writeability & Single-Writer Replication:**
+    - Persistent volume mounts (such as `/data`) shadow build-time image directory permissions. Entrypoint scripts (`scripts/docker-entrypoint.sh`) MUST execute a pre-flight writeability probe as the runtime non-root user (`USER node`) and fail fast with an explicit diagnostic if root-shadowing occurs.
+    - Replicated SQLite WAL deployments (`litestream`) MUST enforce a single-writer deployment strategy (`strategy = 'immediate'` in `fly.toml`) to prevent split-brain WAL generation divergence.
+
 ---
 
 ### Team Roles & On-Demand Skills Directory
@@ -82,11 +98,16 @@ Detailed domain guidelines, mathematical models, visual rules, and audit checkli
    - **Active Skill:** `.agents/skills/cynical-code-auditor/SKILL.md`
    - **Sign-Off Protocol:** Formal Cynical Review Report with PASS/FAIL/WARN verdict.
 
-4. **Legal & Compliance Specialist (`legal_eagle`):**
+4. **Security & Infrastructure Auditor (`security_auditor`):**
+   - **Mandate:** Cloud secret and bucket name isolation (`[RULE-SEC-02]`), SSRF/XSS/CSP enforcement, non-root container privilege boundaries (`[RULE-INFRA-01]`), declarative configuration parser validation (`[RULE-CONF-01]`), and dependency vulnerability auditing (`npm audit`).
+   - **Active Skill:** `.agents/skills/cynical-code-auditor/SKILL.md` (Rubric D & Infrastructure Security Gates)
+   - **Sign-Off Protocol:** Formal Security & Infrastructure Audit Report with PASS/FAIL/WARN verdict.
+
+5. **Legal & Compliance Specialist (`legal_eagle`):**
    - **Mandate:** Open Government Licence v3.0 attribution, Crown copyright, Apache 2.0 open-source compliance, and UK common law non-reliance legal insulation (*Hedley Byrne* doctrine).
 
-5. **QA Test Engineer (`qa_test_engineer`):**
-   - **Mandate:** Automated regression testing, physical invariant assertions, dual audit execution (`npm test`), and edge-case verification (sensor dropouts, flatlines, extreme floods).
+6. **QA Test Engineer (`qa_test_engineer`):**
+   - **Mandate:** Automated regression testing, hermetic clean-room test verification (`npm run test:clean`, `[RULE-TEST-02]`), physical invariant assertions, dual audit execution (`npm test`), and edge-case verification (sensor dropouts, flatlines, extreme floods).
 
-6. **Full Stack Developer (`fullstack_developer`):**
+7. **Full Stack Developer (`fullstack_developer`):**
    - **Mandate:** Modular HTML5/CSS/JavaScript components, Express endpoints, SQLite WAL cache integration, and real-time auto-refresh loops.

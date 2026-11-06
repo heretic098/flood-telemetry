@@ -34,6 +34,13 @@ test('Litestream Configuration: litestream.yml is valid YAML and matches Tigris 
   assert.ok(replica.endpoint.includes('fly.storage.tigris.dev'), 'Replica endpoint must target Fly Tigris');
   assert.equal(replica['force-path-style'], true, 'Replica must enforce path-style addressing');
   assert.equal(replica.retention, '168h', 'Replica must retain 7-day point-in-time recovery window');
+
+  // [RULE-CONF-01] Declarative Configuration Syntax Hygiene:
+  // Go os.ExpandEnv used by Litestream does NOT support POSIX ${VAR:-default} expansion.
+  assert.ok(
+    !raw.includes(':-'),
+    'litestream.yml must not use POSIX ${VAR:-default} parameter expansion (unsupported by Go os.ExpandEnv)'
+  );
 });
 
 test('Docker Entrypoint: scripts/docker-entrypoint.sh exists, is executable, and contains safeguards', () => {
@@ -79,13 +86,130 @@ test('Docker Entrypoint: scripts/docker-entrypoint.sh exists, is executable, and
 
 test('Docker Entrypoint: executes standalone fallback cleanly when credentials absent', () => {
   const scriptPath = path.join(ROOT_DIR, 'scripts/docker-entrypoint.sh');
-  const result = execSync(`${scriptPath} echo "STANDALONE_SUCCESS"`, {
-    env: { PATH: process.env.PATH },
-    encoding: 'utf8'
-  });
+  const tmpDir = fs.mkdtempSync('/tmp/flood-entrypoint-ok-');
+  try {
+    const result = execSync(`${scriptPath} echo "STANDALONE_SUCCESS"`, {
+      env: { PATH: process.env.PATH, DB_PATH: path.join(tmpDir, 'telemetry.db') },
+      encoding: 'utf8'
+    });
 
-  assert.ok(result.includes('Starting Node.js in standalone local mode'), 'Entrypoint logs standalone mode');
-  assert.ok(result.includes('STANDALONE_SUCCESS'), 'Child process executed cleanly');
+    assert.ok(result.includes('Starting Node.js in standalone local mode'), 'Entrypoint logs standalone mode');
+    assert.ok(result.includes('STANDALONE_SUCCESS'), 'Child process executed cleanly');
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test('Docker Entrypoint ([RULE-INFRA-01]): fails fast when volume directory or DB file is read-only', () => {
+  const scriptPath = path.join(ROOT_DIR, 'scripts/docker-entrypoint.sh');
+  // Skip if running tests as root (root bypasses 0555 directory permissions)
+  if (typeof process.getuid === 'function' && process.getuid() === 0) {
+    return;
+  }
+
+  // Case 1: Read-only volume directory (simulating root-shadowed /data mount)
+  const roDir = fs.mkdtempSync('/tmp/flood-ro-dir-');
+  fs.chmodSync(roDir, 0o555);
+  try {
+    assert.throws(
+      () => {
+        execSync(`${scriptPath} echo "SHOULD_NOT_RUN"`, {
+          env: { PATH: process.env.PATH, DB_PATH: path.join(roDir, 'telemetry.db') },
+          encoding: 'utf8',
+          stdio: 'pipe'
+        });
+      },
+      (err) => {
+        assert.ok(err.stderr.includes('FATAL: Volume directory'), 'Must emit FATAL volume directory diagnostic');
+        return true;
+      }
+    );
+  } finally {
+    fs.chmodSync(roDir, 0o755);
+    fs.rmSync(roDir, { recursive: true, force: true });
+  }
+
+  // Case 2: Writeable directory, but read-only existing database file
+  const rwDir = fs.mkdtempSync('/tmp/flood-ro-file-');
+  const roDbFile = path.join(rwDir, 'telemetry.db');
+  fs.writeFileSync(roDbFile, '');
+  fs.chmodSync(roDbFile, 0o444);
+  try {
+    assert.throws(
+      () => {
+        execSync(`${scriptPath} echo "SHOULD_NOT_RUN"`, {
+          env: { PATH: process.env.PATH, DB_PATH: roDbFile },
+          encoding: 'utf8',
+          stdio: 'pipe'
+        });
+      },
+      (err) => {
+        assert.ok(err.stderr.includes('FATAL: Existing database file'), 'Must emit FATAL database file diagnostic');
+        return true;
+      }
+    );
+  } finally {
+    fs.chmodSync(roDbFile, 0o644);
+    fs.rmSync(rwDir, { recursive: true, force: true });
+  }
+
+  // Case 3: Writeable DB file, but read-only WAL journal file (root-shadowed WAL)
+  const walDir = fs.mkdtempSync('/tmp/flood-ro-wal-');
+  const rwDbFile = path.join(walDir, 'telemetry.db');
+  const roWalFile = path.join(walDir, 'telemetry.db-wal');
+  fs.writeFileSync(rwDbFile, '');
+  fs.writeFileSync(roWalFile, '');
+  fs.chmodSync(roWalFile, 0o444);
+  try {
+    assert.throws(
+      () => {
+        execSync(`${scriptPath} echo "SHOULD_NOT_RUN"`, {
+          env: { PATH: process.env.PATH, DB_PATH: rwDbFile },
+          encoding: 'utf8',
+          stdio: 'pipe'
+        });
+      },
+      (err) => {
+        assert.ok(err.stderr.includes('FATAL: Existing database file'), 'Must emit FATAL database file diagnostic for WAL');
+        assert.ok(err.stderr.includes('telemetry.db-wal'), 'Diagnostic must pinpoint the unwriteable WAL journal');
+        return true;
+      }
+    );
+  } finally {
+    fs.chmodSync(roWalFile, 0o644);
+    fs.rmSync(walDir, { recursive: true, force: true });
+  }
+});
+
+test('Cloud Resource Isolation ([RULE-SEC-02]): zero hardcoded bucket names or Tigris secrets in repository files', () => {
+  const filesToScan = [
+    'fly.toml',
+    'litestream.yml',
+    'Dockerfile',
+    'package.json',
+    'server.js',
+    'scripts/docker-entrypoint.sh',
+    'docs/ARCHITECTURAL_PRINCIPLES.md',
+    '.agents/AGENTS.md'
+  ];
+
+  const forbiddenPatterns = [
+    { pattern: /flood-telemetry-backup-[a-z0-9]+/i, reason: 'Hardcoded Tigris bucket identifier' },
+    { pattern: /tid_[A-Za-z0-9]{10,}/, reason: 'Tigris Access Key ID leak' },
+    { pattern: /tsec_[A-Za-z0-9]{10,}/, reason: 'Tigris Secret Access Key leak' }
+  ];
+
+  for (const relPath of filesToScan) {
+    const fullPath = path.join(ROOT_DIR, relPath);
+    if (!fs.existsSync(fullPath)) continue;
+    const content = fs.readFileSync(fullPath, 'utf8');
+    for (const { pattern, reason } of forbiddenPatterns) {
+      assert.ok(
+        !pattern.test(content),
+        `[RULE-SEC-02] Violation in ${relPath}: detected ${reason}`
+      );
+    }
+  }
 });
 
 test('Deployment Invariant: fly.toml enforces immediate deployment strategy and Tigris env vars', () => {
