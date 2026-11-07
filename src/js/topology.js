@@ -1504,7 +1504,7 @@ function inspectNode(nodeId, restoreFocus = false) {
       const huishEval = evaluateHuishEpiscopi(stage, regime.isSummer);
       const isCutoff = huishEval.isPumpsCutoff;
       const isAlert = huishEval.code === 'ALERT';
-      const pumpText = isCutoff ? '🔒 PUMPS LOCKED (RIVER FULL)' : (huishEval.pumpStatus === 'DUTY_PUMPING' ? '⚡ DUTY PUMPS ACTIVE' : (huishEval.pumpStatus === 'LEAD_PUMPING' ? '⚡ LEAD PUMP ACTIVE' : '🟢 STANDBY (GRAVITY DRAIN)'));
+      const pumpText = isCutoff ? '🔒 PUMPS LOCKED (RIVER FULL - ≥8.20m Cut-off)' : (huishEval.pumpStatus === 'DUTY_PUMPING' ? '⚡ ABOVE DUTY TRIGGER (Inferred from EA Plan)' : (huishEval.pumpStatus === 'LEAD_PUMPING' ? '⚡ ABOVE LEAD TRIGGER (Inferred from EA Plan)' : '🟢 STANDBY (GRAVITY DRAIN)'));
       statsGrid.innerHTML = `
         ${activeEventCardHTML}
         <div class="stat-card">
@@ -1516,7 +1516,7 @@ function inspectNode(nodeId, restoreFocus = false) {
           <strong class="stat-val" style="color: ${isAlert ? '#ef4444' : '#10b981'}">${stage !== null ? (8.48 - stage >= 0 ? `+${(8.48 - stage).toFixed(2)}m margin` : `▲ FLOOD ALERT`) : '--'}</strong>
         </div>
         <div class="stat-card" style="grid-column: span 2;">
-          <span class="stat-title">Huish Episcopi Pumping Station</span>
+          <span class="stat-title">Huish Episcopi Pumping Station (Inferred Regime)</span>
           <strong class="stat-val" style="font-size:0.8rem; font-family:monospace;">${pumpText}</strong>
         </div>
       `;
@@ -1531,8 +1531,8 @@ function inspectNode(nodeId, restoreFocus = false) {
           <strong class="stat-val" style="color:${midelneyEval.isAlert ? '#ef4444' : (midelneyEval.isHeadLocked ? '#f59e0b' : '#10b981')}">${midelneyEval.isAlert ? '🚨 FSA Overflow / Alert' : (midelneyEval.isHeadLocked ? '🔒 Head-Locked (Pumping)' : '🟢 Gravity Flap Sluice')}</strong>
         </div>
         <div class="stat-card">
-          <span class="stat-title">West Moor FSA Pumping</span>
-          <strong class="stat-val" style="font-size:0.8rem; font-family:monospace;">${midelneyEval.isPumping ? '⚡ PUMPS ACTIVE (≥6.40m)' : 'Lead: 6.40m | Duty: 6.70m'}</strong>
+          <span class="stat-title">West Moor FSA Pumping (Inferred)</span>
+          <strong class="stat-val" style="font-size:0.8rem; font-family:monospace;">${midelneyEval.isPumping ? '⚡ PUMP TRIGGER MET (≥6.40m, Inferred)' : 'Lead: 6.40m | Duty: 6.70m'}</strong>
         </div>
       `;
     } else if (node.id === '52163' || node.id === 'E9094') {
@@ -1570,13 +1570,13 @@ function inspectNode(nodeId, restoreFocus = false) {
         let pumpText = '🟢 Standby (Lead 4.00m, Duty 4.30m)';
         if (stage !== null) {
           if (pumpEval.mode === 'CRITICAL_OVERSPILL' || pumpEval.mode === 'EMERGENCY_MOBILE_ACTIVE') {
-            pumpText = '⚡ EA MOBILE PUMPS ACTIVE (≥6.10m)';
+            pumpText = '⚡ EA MOBILE TRIGGER MET (≥6.10m, Inferred)';
           } else if (pumpEval.mode === 'MOBILE_ORDERED') {
-            pumpText = '⚠️ EA MOBILE PUMPS ORDERED (≥5.80m)';
+            pumpText = '⚠️ EA MOBILE ORDER TRIGGER MET (≥5.80m, Inferred)';
           } else if (pumpEval.mode === 'FULL_CAPACITY') {
-            pumpText = '⚡ FIXED DUTY PUMPS ACTIVE (≥4.30m)';
+            pumpText = '⚡ ABOVE DUTY TRIGGER (≥4.30m, Inferred)';
           } else if (pumpEval.mode === 'PARTIAL_DUTY') {
-            pumpText = '⚡ FIXED LEAD PUMP ACTIVE (≥4.00m)';
+            pumpText = '⚡ ABOVE LEAD TRIGGER (≥4.00m, Inferred)';
           }
         }
 
@@ -1591,7 +1591,7 @@ function inspectNode(nodeId, restoreFocus = false) {
         statsGrid.innerHTML = `
           ${activeEventCardHTML}
           <div class="stat-card">
-            <span class="stat-title">Currymoor Pumping Station</span>
+            <span class="stat-title">Currymoor Pumping Station (Inferred)</span>
             <strong class="stat-val" style="font-size:0.8rem; font-family:monospace;">${pumpText}</strong>
           </div>
           <div class="stat-card">
@@ -1611,20 +1611,20 @@ function inspectNode(nodeId, restoreFocus = false) {
         let pumpText = '🟢 Standby (Lead 3.40m, Duty 3.70m)';
         if (stage !== null) {
           if (pumpEval.mode === 'CRITICAL_OVERSPILL' || pumpEval.mode === 'EMERGENCY_MOBILE_ACTIVE') {
-            pumpText = '⚡ EA MOBILE PUMPS ACTIVE (≥5.20m)';
+            pumpText = '⚡ EA MOBILE TRIGGER MET (≥5.20m, Inferred)';
           } else if (pumpEval.mode === 'MOBILE_ORDERED') {
-            pumpText = '⚠️ EA MOBILE PUMPS ORDERED (≥4.80m)';
+            pumpText = '⚠️ EA MOBILE ORDER TRIGGER MET (≥4.80m, Inferred)';
           } else if (pumpEval.mode === 'FULL_CAPACITY') {
-            pumpText = '⚡ DUTY PUMPS ACTIVE (≥3.70m)';
+            pumpText = '⚡ ABOVE DUTY TRIGGER (≥3.70m, Inferred)';
           } else if (pumpEval.mode === 'PARTIAL_DUTY') {
-            pumpText = '⚡ LEAD PUMP ACTIVE (≥3.40m)';
+            pumpText = '⚡ ABOVE LEAD TRIGGER (≥3.40m, Inferred)';
           }
         }
 
         statsGrid.innerHTML = `
           ${activeEventCardHTML}
           <div class="stat-card">
-            <span class="stat-title">Saltmoor &amp; Northmoor PS</span>
+            <span class="stat-title">Saltmoor &amp; Northmoor PS (Inferred)</span>
             <strong class="stat-val" style="font-size:0.8rem; font-family:monospace;">${pumpText}</strong>
           </div>
           <div class="stat-card">

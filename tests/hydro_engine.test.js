@@ -121,21 +121,26 @@ test('evaluatePumpStatus infers STANDBY, PARTIAL, FULL, and MOBILE stages correc
   const lead = evaluatePumpStatus(4.15, 'Currymoor PS', 2, 4.00, 4.30, 4.40, 4.60, 4.85);
   assert.equal(lead.stage, 1);
   assert.equal(lead.mode, 'PARTIAL_DUTY');
-  assert.equal(lead.statusText, '🟢 1/2 PERMANENT ACTIVE');
+  assert.equal(lead.statusText, '⚡ ABOVE LEAD TRIGGER (Inferred from EA Plan)');
+  assert.ok(lead.stageLabel.includes('Inferred'));
+  assert.ok(lead.narrative.includes('Status inferred from moor water stage'));
 
   const full = evaluatePumpStatus(4.35, 'Currymoor PS', 2, 4.00, 4.30, 4.40, 4.60, 4.85);
   assert.equal(full.stage, 1);
   assert.equal(full.mode, 'FULL_CAPACITY');
-  assert.equal(full.statusText, '🟢 2/2 PERMANENT ACTIVE');
+  assert.equal(full.statusText, '⚡ ABOVE DUTY TRIGGER (Inferred from EA Plan)');
+  assert.ok(full.stageLabel.includes('Inferred'));
 
   const mobileOrdered = evaluatePumpStatus(4.46, 'Currymoor PS', 2, 4.00, 4.30, 4.40, 4.60, 4.85);
   assert.equal(mobileOrdered.stage, 2);
   assert.equal(mobileOrdered.mode, 'MOBILE_ORDERED');
+  assert.equal(mobileOrdered.statusText, '🟡 ABOVE MOBILE ORDER TRIGGER (Inferred from EA Plan)');
   assert.equal(mobileOrdered.mobileStatus, 'MOBILIZING');
 
   const mobileActive = evaluatePumpStatus(4.65, 'Currymoor PS', 2, 4.00, 4.30, 4.40, 4.60, 4.85);
   assert.equal(mobileActive.stage, 3);
   assert.equal(mobileActive.mode, 'EMERGENCY_MOBILE_ACTIVE');
+  assert.equal(mobileActive.statusText, '🔴 ABOVE MOBILE ACTIVE TRIGGER (Inferred from EA Plan)');
   assert.equal(mobileActive.mobileStatus, 'OPERATING');
 });
 
@@ -168,7 +173,7 @@ test('new infrastructure pill evaluation functions return expected status string
   assert.ok(evaluateOathLock(6.80, 6.40).statusText.includes('PENNING'));
   assert.ok(evaluateOathLock(6.80, 6.70).statusText.includes('GRAVITY PASSING'));
 
-  assert.ok(evaluateDunballEmergencyPumping(2.90, true, 2.80).statusText.includes('HIGH-VOLUME PUMPING ACTIVE'));
+  assert.ok(evaluateDunballEmergencyPumping(2.90, true, 2.80).statusText.includes('HIGH-VOLUME PUMP TRIGGER MET'));
   assert.ok(evaluateDunballEmergencyPumping(2.40, false, 2.80).statusText.includes('GRAVITY OK'));
 });
 

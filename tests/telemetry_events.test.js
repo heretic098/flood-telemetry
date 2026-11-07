@@ -333,6 +333,7 @@ test('Telemetry Events: Polder transitions evaluate DUTY_PUMPING, MOBILE_ORDERED
   assert.equal(p2.action, 'OPEN');
   assert.equal(p2.to_state, 'DUTY_PUMPING');
   assert.equal(p2.severity_tier, 2);
+  assert.ok(p2.narrative.startsWith('Inferred from moor stage relative to EA Trigger Plan:'));
 
   // 3. Mobile Ordered (5.85m)
   const activeDuty = { status: 'ACTIVE', to_state: 'DUTY_PUMPING', severity_tier: 2, start_time: '2026-11-01T12:15:00Z', trigger_stage_mAOD: 4.35, peak_stage_mAOD: 4.35 };
@@ -340,6 +341,7 @@ test('Telemetry Events: Polder transitions evaluate DUTY_PUMPING, MOBILE_ORDERED
   assert.equal(p3.action, 'UPDATE');
   assert.equal(p3.to_state, 'MOBILE_ORDERED');
   assert.equal(p3.severity_tier, 3);
+  assert.ok(p3.narrative.startsWith('Inferred from moor stage relative to EA Trigger Plan:'));
 
   // 4. Mobile Active (6.15m)
   const activeOrdered = { ...activeDuty, to_state: 'MOBILE_ORDERED', severity_tier: 3, peak_stage_mAOD: 5.85 };
@@ -347,6 +349,7 @@ test('Telemetry Events: Polder transitions evaluate DUTY_PUMPING, MOBILE_ORDERED
   assert.equal(p4.action, 'UPDATE');
   assert.equal(p4.to_state, 'MOBILE_ACTIVE');
   assert.equal(p4.severity_tier, 3);
+  assert.ok(p4.narrative.startsWith('Inferred from moor stage relative to EA Trigger Plan:'));
 
   // 5. Critical (6.55m)
   const activeMobile = { ...activeOrdered, to_state: 'MOBILE_ACTIVE', peak_stage_mAOD: 6.15 };
