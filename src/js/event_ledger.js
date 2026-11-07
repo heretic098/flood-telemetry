@@ -25,9 +25,11 @@ import {
 import {
   rehydrateActiveSessions,
   getActiveSessions,
+  getLastProcessedTimestamps,
   resetActiveSessions,
   buildStationReadingsMap,
-  processTelemetryEvents
+  processTelemetryEvents,
+  MAX_REPLAY_BATCH_SIZE
 } from './event_manager.js';
 
 // Re-export core definitions and lifecycle helpers
@@ -40,9 +42,11 @@ export {
   evaluateAssetTransition,
   rehydrateActiveSessions,
   getActiveSessions,
+  getLastProcessedTimestamps,
   resetActiveSessions,
   buildStationReadingsMap,
-  processTelemetryEvents
+  processTelemetryEvents,
+  MAX_REPLAY_BATCH_SIZE
 };
 
 /**

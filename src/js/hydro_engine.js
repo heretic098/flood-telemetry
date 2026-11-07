@@ -1861,7 +1861,7 @@ export const ASSET_DEFINITIONS = Object.freeze({
           asset_id: id,
           name: reg?.name || id,
           station_id: id,
-          alert_elevation_mAOD: reg?.thresholds?.alert?.value ?? null,
+          alert_elevation_mAOD: reg?.alert_level_mAOD ?? reg?.thresholds?.alert?.value ?? null,
           deadband_alert: HYDRO_DEADBANDS.river_gauge
         })
       ];
@@ -2467,7 +2467,7 @@ export function evaluateAssetTransition(assetDef, activeSession = null, readings
     case 'gauge':
     default: {
       const reg = STATION_REGISTRY[assetDef.station_id || assetDef.asset_id];
-      const Z_alert = assetDef.alert_elevation_mAOD ?? reg?.thresholds?.alert?.value ?? null;
+      const Z_alert = assetDef.alert_elevation_mAOD ?? reg?.alert_level_mAOD ?? reg?.thresholds?.alert?.value ?? null;
       const dbAlert = assetDef.deadband_alert ?? HYDRO_DEADBANDS.river_gauge;
 
       if (Z_alert !== null && Z_alert !== undefined) {
@@ -2507,7 +2507,7 @@ export function evaluateAssetTransition(assetDef, activeSession = null, readings
 
   // State Transition & Debounce Window logic
   let action = 'NONE';
-  let from_state = activeSession?.to_state || null;
+  let from_state = activeSession?.to_state || getNominalStateForAssetType(assetDef.asset_type);
   let to_state = evaluatedState;
   let severity_tier = evaluatedSeverity;
   let start_time = activeSession?.start_time || null;
@@ -2525,6 +2525,7 @@ export function evaluateAssetTransition(assetDef, activeSession = null, readings
       start_time = readingTime;
       trigger_stage_mAOD = stage;
       peak_stage_mAOD = stage;
+      severity_tier = evaluatedSeverity;
       consecutiveNominalCount = 0;
       firstNominalReading = null;
     } else {
@@ -2546,12 +2547,15 @@ export function evaluateAssetTransition(assetDef, activeSession = null, readings
         consecutiveNominalCount = 1;
         firstNominalReading = { dateTime: readingTime, value: stage };
         to_state = activeSession.to_state; // Keep elevated badge during debounce window
+        severity_tier = activeSession.severity_tier; // Latch peak severity during recovery debounce
+        peak_stage_mAOD = activeSession.peak_stage_mAOD; // Latch peak stage during recovery debounce
         narrative = `${assetDef.name} level receding below threshold; confirming 30-min debounce recovery (1/2 confirmed)...`;
       } else {
         // Second consecutive nominal reading! Close event.
         action = 'CLOSE';
         to_state = evaluatedState;
         severity_tier = 1;
+        peak_stage_mAOD = activeSession.peak_stage_mAOD; // Retain peak stage on close
         end_time = firstNominalReading?.dateTime || readingTime;
         duration_seconds = Math.max(0, Math.floor((new Date(end_time).getTime() - new Date(start_time).getTime()) / 1000));
         narrative = `${assetDef.name} incident concluded after confirmed nominal recovery window.`;
