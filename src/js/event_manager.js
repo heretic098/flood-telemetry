@@ -55,6 +55,11 @@ export function rehydrateActiveSessions(db) {
         start_time: row.start_time,
         trigger_stage_mAOD: row.trigger_stage_mAOD,
         peak_stage_mAOD: row.peak_stage_mAOD,
+        peak_time: row.peak_time || row.start_time,
+        trigger_rate_15m_m_per_hr: row.trigger_rate_15m_m_per_hr ?? null,
+        trigger_rate_1h_m_per_hr: row.trigger_rate_1h_m_per_hr ?? null,
+        trigger_rate_3h_m_per_hr: row.trigger_rate_3h_m_per_hr ?? null,
+        max_rate_1h_m_per_hr: row.max_rate_1h_m_per_hr ?? null,
         clearance_m: row.clearance_m,
         camera_id: row.camera_id,
         image_hash: row.image_hash,
@@ -163,11 +168,15 @@ export function processTelemetryEvents(db, storedTelemetry, options = {}) {
     INSERT INTO telemetry_events (
       asset_type, asset_id, from_state, to_state, severity_tier,
       start_time, end_time, duration_seconds, trigger_stage_mAOD,
-      peak_stage_mAOD, clearance_m, camera_id, image_hash,
+      peak_stage_mAOD, peak_time, trigger_rate_15m_m_per_hr,
+      trigger_rate_1h_m_per_hr, trigger_rate_3h_m_per_hr,
+      max_rate_1h_m_per_hr, clearance_m, camera_id, image_hash,
       camera_snapshot_id, narrative, status
     ) VALUES (
       ?, ?, ?, ?, ?,
       ?, NULL, NULL, ?,
+      ?, ?, ?,
+      ?, ?,
       ?, ?, ?, ?,
       ?, ?, 'ACTIVE'
     )
@@ -175,13 +184,13 @@ export function processTelemetryEvents(db, storedTelemetry, options = {}) {
 
   const updateStmt = db.prepare(`
     UPDATE telemetry_events
-    SET to_state = ?, severity_tier = ?, peak_stage_mAOD = ?, clearance_m = ?, narrative = ?
+    SET to_state = ?, severity_tier = ?, peak_stage_mAOD = ?, peak_time = ?, max_rate_1h_m_per_hr = ?, clearance_m = ?, narrative = ?
     WHERE id = ?
   `);
 
   const closeStmt = db.prepare(`
     UPDATE telemetry_events
-    SET severity_tier = ?, peak_stage_mAOD = ?, end_time = ?, duration_seconds = ?, status = 'CLOSED', narrative = ?
+    SET severity_tier = ?, peak_stage_mAOD = ?, peak_time = ?, max_rate_1h_m_per_hr = ?, end_time = ?, duration_seconds = ?, status = 'CLOSED', narrative = ?
     WHERE id = ?
   `);
 
@@ -317,6 +326,11 @@ export function processTelemetryEvents(db, storedTelemetry, options = {}) {
             decision.start_time,
             decision.trigger_stage_mAOD,
             decision.peak_stage_mAOD,
+            decision.peak_time,
+            decision.trigger_rate_15m_m_per_hr,
+            decision.trigger_rate_1h_m_per_hr,
+            decision.trigger_rate_3h_m_per_hr,
+            decision.max_rate_1h_m_per_hr,
             decision.clearance_m,
             options.camera_id || null,
             options.image_hash || null,
@@ -334,6 +348,11 @@ export function processTelemetryEvents(db, storedTelemetry, options = {}) {
             start_time: decision.start_time,
             trigger_stage_mAOD: decision.trigger_stage_mAOD,
             peak_stage_mAOD: decision.peak_stage_mAOD,
+            peak_time: decision.peak_time,
+            trigger_rate_15m_m_per_hr: decision.trigger_rate_15m_m_per_hr,
+            trigger_rate_1h_m_per_hr: decision.trigger_rate_1h_m_per_hr,
+            trigger_rate_3h_m_per_hr: decision.trigger_rate_3h_m_per_hr,
+            max_rate_1h_m_per_hr: decision.max_rate_1h_m_per_hr,
             clearance_m: decision.clearance_m,
             camera_id: options.camera_id || null,
             image_hash: options.image_hash || null,
@@ -349,6 +368,8 @@ export function processTelemetryEvents(db, storedTelemetry, options = {}) {
             decision.to_state,
             peakSeverity,
             decision.peak_stage_mAOD,
+            decision.peak_time,
+            decision.max_rate_1h_m_per_hr,
             decision.clearance_m,
             decision.narrative,
             currentActive.id
@@ -357,6 +378,8 @@ export function processTelemetryEvents(db, storedTelemetry, options = {}) {
           currentActive.to_state = decision.to_state;
           currentActive.severity_tier = peakSeverity;
           currentActive.peak_stage_mAOD = decision.peak_stage_mAOD;
+          currentActive.peak_time = decision.peak_time;
+          currentActive.max_rate_1h_m_per_hr = decision.max_rate_1h_m_per_hr;
           currentActive.clearance_m = decision.clearance_m;
           currentActive.narrative = decision.narrative;
           currentActive.consecutiveNominalCount = decision.session_updates?.consecutiveNominalCount || 0;
@@ -366,6 +389,8 @@ export function processTelemetryEvents(db, storedTelemetry, options = {}) {
           closeStmt.run(
             peakSeverity,
             decision.peak_stage_mAOD,
+            decision.peak_time,
+            decision.max_rate_1h_m_per_hr,
             decision.end_time,
             decision.duration_seconds,
             decision.narrative,

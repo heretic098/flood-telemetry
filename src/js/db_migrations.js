@@ -166,6 +166,48 @@ export const MIGRATIONS = [
           AND trigger_stage_mAOD < 7.15
       `).run();
     }
+  },
+  {
+    version: 5,
+    name: 'add_rates_and_peak_time_to_telemetry_and_events',
+    up: (db) => {
+      // 1. Add rate columns to historical_telemetry (defensive idempotency [RULE-TEST-02])
+      const histCols = db.prepare("PRAGMA table_info(historical_telemetry)").all().map(c => c.name);
+      if (!histCols.includes('delta_15m_m')) {
+        db.exec("ALTER TABLE historical_telemetry ADD COLUMN delta_15m_m REAL;");
+      }
+      if (!histCols.includes('rate_1h_m_per_hr')) {
+        db.exec("ALTER TABLE historical_telemetry ADD COLUMN rate_1h_m_per_hr REAL;");
+      }
+      if (!histCols.includes('rate_3h_m_per_hr')) {
+        db.exec("ALTER TABLE historical_telemetry ADD COLUMN rate_3h_m_per_hr REAL;");
+      }
+
+      // 2. Add rate columns and peak_time to telemetry_events
+      const eventCols = db.prepare("PRAGMA table_info(telemetry_events)").all().map(c => c.name);
+      if (!eventCols.includes('peak_time')) {
+        db.exec("ALTER TABLE telemetry_events ADD COLUMN peak_time TEXT;");
+      }
+      if (!eventCols.includes('trigger_rate_15m_m_per_hr')) {
+        db.exec("ALTER TABLE telemetry_events ADD COLUMN trigger_rate_15m_m_per_hr REAL;");
+      }
+      if (!eventCols.includes('trigger_rate_1h_m_per_hr')) {
+        db.exec("ALTER TABLE telemetry_events ADD COLUMN trigger_rate_1h_m_per_hr REAL;");
+      }
+      if (!eventCols.includes('trigger_rate_3h_m_per_hr')) {
+        db.exec("ALTER TABLE telemetry_events ADD COLUMN trigger_rate_3h_m_per_hr REAL;");
+      }
+      if (!eventCols.includes('max_rate_1h_m_per_hr')) {
+        db.exec("ALTER TABLE telemetry_events ADD COLUMN max_rate_1h_m_per_hr REAL;");
+      }
+
+      // 3. Backfill peak_time on existing telemetry_events rows (safe because telemetry_events is small)
+      db.prepare(`
+        UPDATE telemetry_events 
+        SET peak_time = start_time 
+        WHERE peak_time IS NULL
+      `).run();
+    }
   }
 ];
 

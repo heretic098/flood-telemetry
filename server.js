@@ -16,7 +16,8 @@ import {
   STATION_REGISTRY,
   ASSET_DEFINITIONS,
   extractStationStage,
-  evaluateRoadNetwork
+  evaluateRoadNetwork,
+  computeBatchStageRates
 } from './src/js/hydro_engine.js';
 
 import {
@@ -205,15 +206,26 @@ export async function syncBackfillTelemetry(dbInstance = db, measures = MEASURE_
   console.log(`[Backfill Worker] Starting 28-day telemetry backfill for ${measures.length} measures (since ${sinceDate})...`);
 
   const stmt = dbInstance.prepare(`
-    INSERT OR IGNORE INTO historical_telemetry (measure_id, date_time, value)
-    VALUES (?, ?, ?)
+    INSERT INTO historical_telemetry (measure_id, date_time, value, delta_15m_m, rate_1h_m_per_hr, rate_3h_m_per_hr)
+    VALUES (?, ?, ?, ?, ?, ?)
+    ON CONFLICT(measure_id, date_time) DO UPDATE SET
+      delta_15m_m = COALESCE(historical_telemetry.delta_15m_m, excluded.delta_15m_m),
+      rate_1h_m_per_hr = COALESCE(historical_telemetry.rate_1h_m_per_hr, excluded.rate_1h_m_per_hr),
+      rate_3h_m_per_hr = COALESCE(historical_telemetry.rate_3h_m_per_hr, excluded.rate_3h_m_per_hr)
   `);
 
   const transaction = dbInstance.transaction((readings) => {
     let count = 0;
     for (const r of readings) {
       const cleanVal = sanitizeStageValue(r.value);
-      const info = stmt.run(r.measure_id, r.dateTime, cleanVal);
+      const info = stmt.run(
+        r.measure_id,
+        r.dateTime,
+        cleanVal,
+        r.delta_15m_m ?? null,
+        r.rate_1h_m_per_hr ?? null,
+        r.rate_3h_m_per_hr ?? null
+      );
       if (info.changes > 0) count++;
     }
     return count;
@@ -238,10 +250,14 @@ export async function syncBackfillTelemetry(dbInstance = db, measures = MEASURE_
       }
 
       if (data.items && Array.isArray(data.items)) {
-        const items = data.items.map(item => ({
+        const enrichedItems = computeBatchStageRates(data.items);
+        const items = enrichedItems.map(item => ({
           measure_id: id,
           dateTime: item.dateTime,
-          value: item.value
+          value: item.value,
+          delta_15m_m: item.delta_15m_m ?? null,
+          rate_1h_m_per_hr: item.rate_1h_m_per_hr ?? null,
+          rate_3h_m_per_hr: item.rate_3h_m_per_hr ?? null
         }));
 
         const inserted = transaction(items);
@@ -277,14 +293,29 @@ async function syncMeasure(measureId, limit = 96, fetchFn = globalThis.fetch) {
       const stmt = db.prepare("INSERT OR REPLACE INTO telemetry (measure_id, readings_json, updated_at) VALUES (?, ?, datetime('now'))");
       stmt.run(measureId, JSON.stringify(data.items));
 
-      const histStmt = db.prepare("INSERT OR IGNORE INTO historical_telemetry (measure_id, date_time, value) VALUES (?, ?, ?)");
+      const enrichedItems = computeBatchStageRates(data.items);
+      const histStmt = db.prepare(`
+        INSERT INTO historical_telemetry (measure_id, date_time, value, delta_15m_m, rate_1h_m_per_hr, rate_3h_m_per_hr)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(measure_id, date_time) DO UPDATE SET
+          delta_15m_m = COALESCE(historical_telemetry.delta_15m_m, excluded.delta_15m_m),
+          rate_1h_m_per_hr = COALESCE(historical_telemetry.rate_1h_m_per_hr, excluded.rate_1h_m_per_hr),
+          rate_3h_m_per_hr = COALESCE(historical_telemetry.rate_3h_m_per_hr, excluded.rate_3h_m_per_hr)
+      `);
       const histTx = db.transaction((items) => {
         for (const item of items) {
           const cleanVal = sanitizeStageValue(item.value);
-          histStmt.run(measureId, item.dateTime, cleanVal);
+          histStmt.run(
+            measureId,
+            item.dateTime,
+            cleanVal,
+            item.delta_15m_m ?? null,
+            item.rate_1h_m_per_hr ?? null,
+            item.rate_3h_m_per_hr ?? null
+          );
         }
       });
-      histTx(data.items);
+      histTx(enrichedItems);
 
       return data.items;
     }
