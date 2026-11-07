@@ -152,6 +152,20 @@ export const MIGRATIONS = [
         DROP TABLE IF EXISTS spill_events;
       `);
     }
+  },
+  {
+    version: 4,
+    name: 'purge_spurious_monks_clyse_reverse_lock_events',
+    up: (db) => {
+      // Purge false-positive REVERSE_LOCK events logged on monks_leaze_clyse during normal baseflow (Issue #36)
+      // Upstream flood diversion trigger is 7.20 mAOD; any REVERSE_LOCK event triggered while stage < 7.15 mAOD is spurious
+      db.prepare(`
+        DELETE FROM telemetry_events 
+        WHERE asset_id = 'monks_leaze_clyse' 
+          AND to_state = 'REVERSE_LOCK'
+          AND trigger_stage_mAOD < 7.15
+      `).run();
+    }
   }
 ];
 
