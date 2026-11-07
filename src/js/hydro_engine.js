@@ -199,42 +199,42 @@ export function evaluatePumpStatus(
 
   if (moorLevel >= criticalSpillTrigger) {
     stage = 4;
-    stageLabel = "STAGE 4: CRITICAL OVERSPILL RISK";
+    stageLabel = "STAGE 4: CRITICAL OVERSPILL RISK (Inferred)";
     badgeClass = "stage-4";
-    statusText = `🚨 CRITICAL OVERSPILL (${totalPumps}/${totalPumps} + MOBILE ACTIVE)`;
+    statusText = `🚨 CRITICAL OVERSPILL RISK (Inferred from EA Plan)`;
     runningCount = totalPumps;
     mode = "CRITICAL_OVERSPILL";
     mobileStatus = "OPERATING";
   } else if (moorLevel >= mobileActiveTrigger) {
     stage = 3;
-    stageLabel = "STAGE 3: EMERGENCY MOBILE PUMPS ACTIVE";
+    stageLabel = "STAGE 3: EMERGENCY MOBILE ACTIVE (Inferred)";
     badgeClass = "stage-3";
-    statusText = `🔴 EMERGENCY MAX PUMPING (${totalPumps}/${totalPumps} + MOBILE ACTIVE)`;
+    statusText = `🔴 ABOVE MOBILE ACTIVE TRIGGER (Inferred from EA Plan)`;
     runningCount = totalPumps;
     mode = "EMERGENCY_MOBILE_ACTIVE";
     mobileStatus = "OPERATING";
   } else if (moorLevel >= mobileOrderTrigger) {
     stage = 2;
-    stageLabel = "STAGE 2: MOBILE PUMPS ORDERED / MOBILIZING";
+    stageLabel = "STAGE 2: MOBILE ORDER TRIGGER MET (Inferred)";
     badgeClass = "stage-2";
-    statusText = `🟡 MOBILE PUMPS MOBILIZING (${totalPumps}/${totalPumps} PERMANENT ACTIVE)`;
+    statusText = `🟡 ABOVE MOBILE ORDER TRIGGER (Inferred from EA Plan)`;
     runningCount = totalPumps;
     mode = "MOBILE_ORDERED";
     mobileStatus = "MOBILIZING";
   } else if (moorLevel >= fullTrigger) {
     stage = 1;
-    stageLabel = "STAGE 1: FULL PERMANENT DUTY";
+    stageLabel = "STAGE 1: FULL DUTY REGIME (Inferred)";
     badgeClass = "stage-1";
-    statusText = `🟢 ${totalPumps}/${totalPumps} PERMANENT ACTIVE`;
+    statusText = `⚡ ABOVE DUTY TRIGGER (Inferred from EA Plan)`;
     runningCount = totalPumps;
     mode = "FULL_CAPACITY";
     mobileStatus = "STANDBY";
   } else if (moorLevel >= startTrigger) {
     stage = 1;
-    stageLabel = "STAGE 1: LEAD PERMANENT DUTY";
+    stageLabel = "STAGE 1: LEAD DUTY REGIME (Inferred)";
     badgeClass = "stage-1";
     const running = Math.max(1, Math.floor(totalPumps / 2));
-    statusText = `🟢 ${running}/${totalPumps} PERMANENT ACTIVE`;
+    statusText = `⚡ ABOVE LEAD TRIGGER (Inferred from EA Plan)`;
     runningCount = running;
     mode = "PARTIAL_DUTY";
     mobileStatus = "STANDBY";
@@ -262,7 +262,7 @@ export function evaluatePumpStatus(
     regimeTag: isSummer ? "☀️ Summer Triggers" : "❄️ Winter Triggers",
     confidence: "HIGH_SOP_5STAGE",
     confidenceTag: "⚡ 5-STAGE OPERATIONAL SOP",
-    narrative: `${stationName}: ${stageLabel} (${isSummer ? '☀️ Summer Penning Regime' : '❄️ Winter Flood Regime'}). Current level ${moorLevel.toFixed(2)}m AOD relative to triggers (Lead ${startTrigger.toFixed(2)}m, Duty ${fullTrigger.toFixed(2)}m, Mobile Order ${mobileOrderTrigger.toFixed(2)}m, Mobile Active ${mobileActiveTrigger.toFixed(2)}m).`
+    narrative: `${stationName}: ${stageLabel} (${isSummer ? '☀️ Summer Penning Regime' : '❄️ Winter Flood Regime'}). Current level ${moorLevel.toFixed(2)}m AOD relative to triggers (Lead ${startTrigger.toFixed(2)}m, Duty ${fullTrigger.toFixed(2)}m, Mobile Order ${mobileOrderTrigger.toFixed(2)}m, Mobile Active ${mobileActiveTrigger.toFixed(2)}m). Status inferred from moor water stage relative to EA Trigger Point Plan.`
   };
 }
 
@@ -383,7 +383,7 @@ export function evaluateOathLock(h_up, h_down) {
 
 export function evaluateDunballEmergencyPumping(h_ksd, isTideLocked, threshold = 2.80) {
   if (isTideLocked && h_ksd >= threshold) {
-    return { statusText: `⚡ HIGH-VOLUME PUMPING ACTIVE` };
+    return { statusText: `⚡ HIGH-VOLUME PUMP TRIGGER MET (Inferred from KSD Level)` };
   } else if (isTideLocked) {
     return { statusText: `⚪ PUMPS STANDBY (MONITORING KSD)` };
   } else {
@@ -1503,13 +1503,13 @@ export function evaluateHuishEpiscopi(stage_mAOD, isSummer = false) {
   let pumpLabel = "STANDBY (GRAVITY DRAINAGE)";
   if (cleanStage >= riverCutoff) {
     pumpStatus = "CUT_OFF";
-    pumpLabel = "PUMPS LOCKED (RIVER FULL)";
+    pumpLabel = "PUMPS LOCKED (RIVER FULL - ≥8.20m Cut-off)";
   } else if (cleanStage >= dutyPump) {
     pumpStatus = "DUTY_PUMPING";
-    pumpLabel = "DUTY PUMPS ACTIVE";
+    pumpLabel = "ABOVE DUTY TRIGGER (Inferred from EA Plan)";
   } else if (cleanStage >= leadPump) {
     pumpStatus = "LEAD_PUMPING";
-    pumpLabel = "LEAD PUMP ACTIVE";
+    pumpLabel = "ABOVE LEAD TRIGGER (Inferred from EA Plan)";
   }
 
   let code = "SECURE";
@@ -2367,7 +2367,7 @@ export function evaluateAssetTransition(assetDef, activeSession = null, readings
       } else if (evaluatedState === 'MOBILE_ORDERED') {
         narrative = `Inferred from moor stage relative to EA Trigger Plan: contractor mobile pumps ordered for ${assetDef.name}.`;
       } else if (evaluatedState === 'DUTY_PUMPING') {
-        narrative = `Permanent duty pumps active at ${assetDef.name} (${stage.toFixed(2)}m AOD). Evacuating water.`;
+        narrative = `Inferred from moor stage relative to EA Trigger Plan: water level above duty pumping threshold at ${assetDef.name} (${stage.toFixed(2)}m AOD).`;
       } else {
         narrative = `${assetDef.name} in standby/penning mode. Water levels normal.`;
       }

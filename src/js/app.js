@@ -734,9 +734,12 @@ export async function refreshLiveDashboard() {
       `<strong>Currymoor Gravity ${renderJargonTerm('Clyse')}:</strong> ${cmGravitySluice.statusText}`,
       {
         html: `<strong>Currymoor PS:</strong> ${currymoorPump.statusText}`,
-        tooltip: `📍 Currymoor Pumping Station`
+        tooltip: `📍 Currymoor Pumping Station: Inferred from moor water stage relative to EA Trigger Point Plan`
       },
-      `<strong>Stanmoor PS:</strong> ${stanmoorPump.statusText}`
+      {
+        html: `<strong>Stanmoor PS:</strong> ${stanmoorPump.statusText}`,
+        tooltip: `📍 Stanmoor Pumping Station: Inferred from moor water stage relative to EA Trigger Point Plan`
+      }
     ],
     camLinks: [
       { label: "Hookbridge Spillway", url: "https://thecfh.org/parretttonewsom.php#hook", title: "View 3-min EA Snapshot Camera at Hookbridge" },
@@ -971,11 +974,11 @@ export async function refreshLiveDashboard() {
       `<strong>Northmoor Gravity ${renderJargonTerm('Clyse')}:</strong> ${nmGravitySluice.statusText}`,
       {
         html: `<strong>Saltmoor PS:</strong> ${saltmoorPump.statusText}`,
-        tooltip: `📍 Saltmoor Pumping Station`
+        tooltip: `📍 Saltmoor Pumping Station: Inferred from moor water stage relative to EA Trigger Point Plan`
       },
       {
         html: `<strong>Northmoor PS:</strong> ${northmoorPump.statusText}`,
-        tooltip: `📍 Northmoor Pumping Station`
+        tooltip: `📍 Northmoor Pumping Station: Inferred from moor water stage relative to EA Trigger Point Plan`
       }
     ],
     camLinks: [
@@ -1282,7 +1285,7 @@ export async function refreshLiveDashboard() {
     staleInfo: confluenceStaleInfo,
     stats: [
       { label: 'Cut-off Clearance', value: huishClearanceWithTrend },
-      { label: 'Huish PS Status', htmlValue: huishEval.isPumpsCutoff ? '🔒 PUMPS LOCKED OUT' : (huishPump.stage >= 1 ? '🟢 PUMPS ACTIVE' : '⚪ GRAVITY DISCHARGE') },
+      { label: 'Huish PS Status', htmlValue: huishEval.isPumpsCutoff ? '🔒 PUMPS LOCKED OUT' : (huishPump.stage >= 1 ? '🟢 ABOVE PUMP TRIGGER (Inferred)' : '⚪ GRAVITY DISCHARGE') },
       { label: 'River Isle (Midelney)', htmlValue: `${midelneyLevel.toFixed(2)}m AOD (${midelneyEval.isHeadLocked ? '🕒 HEAD-LOCKED' : '🟢 GRAVITY'})` }
     ],
     camLink: {
@@ -1308,8 +1311,8 @@ export async function refreshLiveDashboard() {
     narrative: `${huishEval.narrative} Midelney (River Isle at ${midelneyLevel.toFixed(2)}m AOD): ${midelneyEval.isHeadLocked ? 'Head-locked by high Parrett stage.' : 'Free gravity discharge to Parrett.'}`,
     pills: [
       {
-        html: `<strong>Huish Episcopi Pumping Station:</strong> ${huishEval.isPumpsCutoff ? '🔒 LOCKED OUT (Yeo ≥ 8.20m AOD)' : (huishPump.stage >= 1 ? '🟢 PUMPING TO PARRETT' : '⚪ GRAVITY DISCHARGE / STANDBY')}`,
-        tooltip: `📍 Huish Episcopi PS: Cut-off at 8.20m AOD to prevent Parrett levee breach`
+        html: `<strong>Huish Episcopi Pumping Station:</strong> ${huishEval.isPumpsCutoff ? '🔒 LOCKED OUT (Yeo ≥ 8.20m AOD)' : (huishPump.stage >= 1 ? '🟢 ABOVE PUMP TRIGGER (Inferred from EA Plan)' : '⚪ GRAVITY DISCHARGE / STANDBY')}`,
+        tooltip: `📍 Huish Episcopi PS: Cut-off at 8.20m AOD to prevent Parrett levee breach (Inferred from EA Plan)`
       },
       {
         html: `<strong>Yeo Bankfull Cut-off:</strong> ${huishEval.clearanceText} (Limit: 8.20m AOD)`,
