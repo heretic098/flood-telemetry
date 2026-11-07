@@ -1046,7 +1046,8 @@ export function getValidStageOrFallback(readings, fallbackValue) {
 }
 
 /**
- * Evaluates the freshness of station telemetry readings against a 2-hour latency threshold.
+ * Evaluates the freshness of station telemetry readings against latency and flatline thresholds.
+ * Detects both latency staleness (>2h age) and zero-variance frozen sensor failure (>=12h/24h static).
  * Prevents "zombie gauges" from silently presenting stale readings as fresh/nominal.
  *
  * @param {Array|null|undefined} readings - Array of reading items sorted descending by time (latest first)
@@ -1054,18 +1055,24 @@ export function getValidStageOrFallback(readings, fallbackValue) {
  * @param {number} [options.maxAgeHours=2.0] - Age in hours after which data is classified as STALE
  * @param {number} [options.nowMs=Date.now()] - Current epoch timestamp
  * @param {string} [options.fallbackLabel='Fallback Baseline'] - Label when no readings are available
- * @returns {object} { isFresh: boolean, isStale: boolean, isOffline: boolean, ageHours: number|null, ageMinutes: number|null, latestTimestamp: string|null, badgeText: string|null, badgeClass: string }
+ * @param {number} [options.minFlatlineReadings=48] - Minimum readings to evaluate flatline (48 = 12h @ 15m)
+ * @param {number} [options.flatlineThresholdM=0.001] - Max variance span to qualify as zero-variance flatline (<1mm)
+ * @returns {object} { isFresh: boolean, isStale: boolean, isOffline: boolean, isFlatlined: boolean, flatlineHours: number|null, ageHours: number|null, ageMinutes: number|null, latestTimestamp: string|null, badgeText: string|null, badgeClass: string }
  */
 export function evaluateStationFreshness(readings, options = {}) {
   const maxAgeHours = options.maxAgeHours ?? 2.0;
   const nowMs = options.nowMs ?? Date.now();
   const fallbackLabel = options.fallbackLabel || 'Fallback Baseline';
+  const minFlatlineReadings = options.minFlatlineReadings ?? 48;
+  const flatlineThresholdM = options.flatlineThresholdM ?? 0.001;
 
   if (!readings || !Array.isArray(readings) || readings.length === 0) {
     return {
       isFresh: false,
       isStale: true,
       isOffline: true,
+      isFlatlined: false,
+      flatlineHours: null,
       ageHours: null,
       ageMinutes: null,
       latestTimestamp: null,
@@ -1083,6 +1090,8 @@ export function evaluateStationFreshness(readings, options = {}) {
       isFresh: false,
       isStale: true,
       isOffline: true,
+      isFlatlined: false,
+      flatlineHours: null,
       ageHours: null,
       ageMinutes: null,
       latestTimestamp: null,
@@ -1097,6 +1106,8 @@ export function evaluateStationFreshness(readings, options = {}) {
       isFresh: false,
       isStale: true,
       isOffline: true,
+      isFlatlined: false,
+      flatlineHours: null,
       ageHours: null,
       ageMinutes: null,
       latestTimestamp: null,
@@ -1109,11 +1120,51 @@ export function evaluateStationFreshness(readings, options = {}) {
   const ageMinutes = Math.floor(ageMs / 60000);
   const ageHours = Number((ageMs / (1000 * 60 * 60)).toFixed(1));
 
+  // Extract all valid numeric readings for variance analysis
+  const validValues = [];
+  for (const r of readings) {
+    const v = (typeof r === 'object' && r !== null) ? r.value : r;
+    if (v !== null && v !== undefined && Number.isFinite(Number(v))) {
+      validValues.push(Number(v));
+    }
+  }
+
+  // Zero-Variance Sensor Flatline Detection
+  if (validValues.length >= minFlatlineReadings) {
+    let minVal = Infinity;
+    let maxVal = -Infinity;
+    for (let i = 0; i < validValues.length; i++) {
+      const v = validValues[i];
+      if (v < minVal) minVal = v;
+      if (v > maxVal) maxVal = v;
+    }
+    const span = maxVal - minVal;
+
+    if (span < flatlineThresholdM) {
+      const is24h = validValues.length >= 96;
+      const flatlineLabel = is24h ? '24h+' : '12h+';
+      return {
+        isFresh: false,
+        isStale: true,
+        isOffline: false,
+        isFlatlined: true,
+        flatlineHours: is24h ? 24 : 12,
+        ageHours,
+        ageMinutes,
+        latestTimestamp: dateStr,
+        badgeText: `⚠️ SENSOR FLATLINED (Static reading for ${flatlineLabel})`,
+        badgeClass: 'badge-flatlined'
+      };
+    }
+  }
+
   if (ageHours > maxAgeHours) {
     return {
       isFresh: false,
       isStale: true,
       isOffline: false,
+      isFlatlined: false,
+      flatlineHours: null,
       ageHours,
       ageMinutes,
       latestTimestamp: dateStr,
@@ -1126,6 +1177,8 @@ export function evaluateStationFreshness(readings, options = {}) {
     isFresh: true,
     isStale: false,
     isOffline: false,
+    isFlatlined: false,
+    flatlineHours: null,
     ageHours,
     ageMinutes,
     latestTimestamp: dateStr,
@@ -1329,6 +1382,7 @@ export const HYDRO_DEADBANDS = {
   road_caution: 0.05,  // 5cm road caution margin exit
   inter_moor: 0.03,    // 3cm Cuts Road cascade cessation
   clyse_head: 0.05,    // 5cm dual-gauge differential head (exceeds 2-sigma combined sensor noise)
+  reverse_lock: 0.10,  // 10cm reverse head deadband preventing baseflow flapping
   tidal_flap: 0.05,    // 5cm sea flap cracking head differential
   river_gauge: 0.05    // 5cm in-channel flood alert clearance
 };
@@ -1792,7 +1846,8 @@ export const ASSET_DEFINITIONS = Object.freeze({
     trigger_elevation_mAOD: 7.20,
     sowy_capacity_mAOD: 7.60,
     min_delta_h: 0.05,
-    deadband_clyse: HYDRO_DEADBANDS.clyse_head
+    deadband_clyse: HYDRO_DEADBANDS.clyse_head,
+    reverse_lock_deadband: HYDRO_DEADBANDS.reverse_lock
   }),
 
   // --- 6. GAUGES ---
@@ -1883,6 +1938,16 @@ export function computeTrendVector(readings) {
 export function formatClearanceText(clearanceMeters, descriptor = 'crest') {
   if (clearanceMeters === null || clearanceMeters === undefined || isNaN(clearanceMeters)) {
     return 'Clearance N/A';
+  }
+
+  if (descriptor === 'differential head' || descriptor === 'reverse head') {
+    const absHead = Math.abs(clearanceMeters);
+    const cm = Math.round(absHead * 100);
+    const formatted = absHead < 1.0 ? `${cm}cm` : `${absHead.toFixed(2)}m`;
+    if (clearanceMeters < 0) {
+      return `-${formatted} reverse head`;
+    }
+    return `+${formatted} differential head`;
   }
 
   if (clearanceMeters < 0) {
@@ -2353,13 +2418,21 @@ export function evaluateAssetTransition(assetDef, activeSession = null, readings
       const Z_cap = assetDef.sowy_capacity_mAOD ?? 7.60;
       const minDelta = assetDef.min_delta_h ?? 0.05;
       const dbClyse = assetDef.deadband_clyse ?? HYDRO_DEADBANDS.clyse_head;
+      const revDeadband = assetDef.reverse_lock_deadband ?? HYDRO_DEADBANDS.reverse_lock ?? 0.10;
+
+      // Downstream Sensor Health & Flatline Inspection
+      const secDateStr = (typeof secLatest === 'object' && secLatest !== null) ? (secLatest.dateTime || secLatest.date) : null;
+      const secReadingMs = secDateStr ? new Date(secDateStr).getTime() : NaN;
+      const secFreshness = evaluateStationFreshness(secReadings, { nowMs: !isNaN(secReadingMs) ? secReadingMs : Date.now() });
+      const isDownstreamHealthy = downstreamStage !== null && !secFreshness.isFlatlined;
 
       const deltaH = downstreamStage !== null ? (stage - downstreamStage) : 0;
+      const isUpstreamElevated = (stage >= Z_trig - dbClyse) || currentSt === 'DIVERTING' || currentSt === 'REVERSE_LOCK';
 
-      if (downstreamStage !== null && downstreamStage > stage) {
+      if (isDownstreamHealthy && isUpstreamElevated && (downstreamStage - stage >= revDeadband)) {
         evaluatedState = 'REVERSE_LOCK';
         evaluatedSeverity = 3;
-      } else if (stage >= Z_trig && (downstreamStage !== null && downstreamStage >= Z_cap || deltaH < minDelta)) {
+      } else if (isDownstreamHealthy && stage >= Z_trig && (downstreamStage >= Z_cap || deltaH < minDelta)) {
         evaluatedState = 'THROTTLED';
         evaluatedSeverity = 3;
       } else if (stage >= Z_trig || (currentSt === 'DIVERTING' && stage >= Z_trig - dbClyse)) {
@@ -2370,15 +2443,22 @@ export function evaluateAssetTransition(assetDef, activeSession = null, readings
         evaluatedSeverity = 1;
       }
 
-      clearanceM = Number((Z_trig - stage).toFixed(3));
-      clearanceDescriptor = 'diversion trigger';
       if (evaluatedState === 'REVERSE_LOCK') {
-        narrative = `Downstream tailwater higher than river. Monk's Leaze Clyse sealed to prevent reverse flooding.`;
+        clearanceM = Number((stage - downstreamStage).toFixed(3));
+        clearanceDescriptor = 'differential head';
+        const revCm = Math.round(Math.abs(deltaH) * 100);
+        narrative = `Downstream tailwater higher than river (-${revCm}cm differential head). Monk's Leaze Clyse sealed to prevent reverse flooding.`;
       } else if (evaluatedState === 'THROTTLED') {
+        clearanceM = downstreamStage !== null ? Number((stage - downstreamStage).toFixed(3)) : Number((Z_trig - stage).toFixed(3));
+        clearanceDescriptor = downstreamStage !== null ? 'differential head' : 'diversion trigger';
         narrative = `Sowy Relief Channel downstream full (${downstreamStage?.toFixed(2)}m AOD). Diversion throttled.`;
       } else if (evaluatedState === 'DIVERTING') {
+        clearanceM = downstreamStage !== null ? Number((stage - downstreamStage).toFixed(3)) : Number((Z_trig - stage).toFixed(3));
+        clearanceDescriptor = downstreamStage !== null ? 'differential head' : 'diversion trigger';
         narrative = `Penstock gates open: actively diverting excess floodwaters into Sowy Relief Channel.`;
       } else {
+        clearanceM = Number((Z_trig - stage).toFixed(3));
+        clearanceDescriptor = 'diversion trigger';
         narrative = `Monk's Leaze Clyse gates closed in routine agricultural penning/river conveyance mode.`;
       }
       break;

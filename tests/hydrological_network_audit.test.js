@@ -477,3 +477,88 @@ test('HYDRO-15: Road passability model strictly applies surveyed geodetic datum 
   assert.equal(resImpassable.corridors.muchelney_access.status, 'IMPASSABLE');
 });
 
+test('HYDRO-16: Monk\'s Leaze Clyse baseflow tailwater impoundment does not trigger false REVERSE_LOCK', async () => {
+  const { ASSET_DEFINITIONS, evaluateAssetTransition } = await import('../src/js/hydro_engine.js');
+  const sluice = ASSET_DEFINITIONS.monks_leaze_clyse;
+
+  // Parrett baseflow (6.70m) < 7.20m diversion trigger. Sowy ponded tailwater (6.73m).
+  const readings = {
+    upstream: [{ dateTime: '2026-11-07T12:00:00Z', value: 6.70 }],
+    downstream: [{ dateTime: '2026-11-07T12:00:00Z', value: 6.73 }]
+  };
+
+  const res = evaluateAssetTransition(sluice, null, readings);
+  assert.equal(res.to_state, 'CLOSED', 'Must evaluate to CLOSED during baseflow when upstream is below diversion trigger');
+  assert.equal(res.severity_tier, 1, 'Severity must be nominal (Tier 1)');
+  assert.equal(res.clearance_m, 0.50, 'Clearance must report distance to 7.20m trigger (7.20 - 6.70 = 0.50m)');
+  assert.equal(res.clearance_text, '50cm below diversion trigger');
+  assert.ok(res.narrative.includes('routine agricultural penning'), 'Narrative must indicate penning mode');
+});
+
+test('HYDRO-17: Monk\'s Leaze Clyse evaluates true REVERSE_LOCK during high flood stage when downstream exceeds upstream by >=10cm', async () => {
+  const { ASSET_DEFINITIONS, evaluateAssetTransition } = await import('../src/js/hydro_engine.js');
+  const sluice = ASSET_DEFINITIONS.monks_leaze_clyse;
+
+  // Real flood scenario: Parrett 7.30m (elevated above 7.20m trigger), Sowy 7.45m (backpressure delta >= 0.10m)
+  const readings = {
+    upstream: [{ dateTime: '2026-11-07T12:15:00Z', value: 7.30 }],
+    downstream: [{ dateTime: '2026-11-07T12:15:00Z', value: 7.45 }]
+  };
+
+  const res = evaluateAssetTransition(sluice, null, readings);
+  assert.equal(res.to_state, 'REVERSE_LOCK', 'Must evaluate to REVERSE_LOCK when elevated Parrett is reverse-locked by Sowy tailwater');
+  assert.equal(res.severity_tier, 3, 'Severity must be elevated alert (Tier 3)');
+  assert.equal(res.clearance_m, -0.15, 'Clearance must reflect reverse head delta (7.30 - 7.45 = -0.15m)');
+  assert.equal(res.clearance_text, '-15cm reverse head');
+});
+
+test('HYDRO-18: Zero-variance sensor flatline detector flags static readings (>=24h / 12h) and suppresses dual-gauge alerts', async () => {
+  const { evaluateStationFreshness, ASSET_DEFINITIONS, evaluateAssetTransition } = await import('../src/js/hydro_engine.js');
+
+  const baseTime = new Date('2026-11-07T12:00:00Z').getTime();
+
+  // Create 96 consecutive readings of identical 6.729m (24h flatline)
+  const flatlineReadings = Array.from({ length: 96 }, (_, i) => ({
+    value: 6.729,
+    dateTime: new Date(baseTime - i * 15 * 60 * 1000).toISOString()
+  }));
+
+  const freshness = evaluateStationFreshness(flatlineReadings);
+  assert.equal(freshness.isFlatlined, true, 'Must detect flatline on 96 identical readings');
+  assert.equal(freshness.isFresh, false, 'Flatlined sensor must NOT be considered fresh');
+  assert.equal(freshness.isStale, true, 'Flatlined sensor must be marked stale');
+  assert.equal(freshness.badgeClass, 'badge-flatlined');
+  assert.ok(freshness.badgeText.includes('SENSOR FLATLINED'), 'Badge text must warn of sensor flatline');
+
+  // Verify suppression on Monk's Leaze Clyse
+  const sluice = ASSET_DEFINITIONS.monks_leaze_clyse;
+  const readings = {
+    upstream: [{ dateTime: '2026-11-07T12:00:00Z', value: 7.25 }],
+    downstream: flatlineReadings // flatlined downstream gauge
+  };
+
+  const res = evaluateAssetTransition(sluice, null, readings);
+  // Upstream 7.25m is >= 7.20m trigger, but downstream is flatlined: reverse lock / throttled suppressed!
+  assert.equal(res.to_state, 'DIVERTING', 'Must divert normally when downstream sensor is flatlined, suppressing false REVERSE_LOCK');
+  assert.equal(res.severity_tier, 2);
+});
+
+test('HYDRO-19: Dynamic sensor readings pass freshness evaluation without flatline false alarms', async () => {
+  const { evaluateStationFreshness } = await import('../src/js/hydro_engine.js');
+
+  const nowMs = Date.now();
+
+  // Create 96 dynamic readings spanning 9cm (6.65m to 6.74m)
+  const dynamicReadings = Array.from({ length: 96 }, (_, i) => ({
+    value: Number((6.65 + 0.09 * Math.sin(i / 5)).toFixed(3)),
+    dateTime: new Date(nowMs - i * 15 * 60 * 1000).toISOString()
+  }));
+
+  const freshness = evaluateStationFreshness(dynamicReadings, { nowMs });
+  assert.equal(freshness.isFlatlined, false, 'Dynamic readings must not trigger flatline detector');
+  assert.equal(freshness.isFresh, true, 'Recent dynamic readings must be fresh');
+  assert.equal(freshness.isStale, false);
+  assert.equal(freshness.badgeClass, 'badge-fresh');
+});
+
+
