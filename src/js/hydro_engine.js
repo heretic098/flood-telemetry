@@ -2110,6 +2110,11 @@ export function evaluateAssetTransition(assetDef, activeSession = null, readings
         severity_tier: activeSession.severity_tier,
         trigger_stage_mAOD: activeSession.trigger_stage_mAOD,
         peak_stage_mAOD: activeSession.peak_stage_mAOD,
+        peak_time: activeSession.peak_time || activeSession.start_time || readingTime,
+        trigger_rate_15m_m_per_hr: activeSession.trigger_rate_15m_m_per_hr ?? null,
+        trigger_rate_1h_m_per_hr: activeSession.trigger_rate_1h_m_per_hr ?? null,
+        trigger_rate_3h_m_per_hr: activeSession.trigger_rate_3h_m_per_hr ?? null,
+        max_rate_1h_m_per_hr: activeSession.max_rate_1h_m_per_hr ?? null,
         clearance_m: activeSession.clearance_m ?? null,
         clearance_text: 'Telemetry interrupted',
         trend_vector: '— Steady',
@@ -2121,6 +2126,11 @@ export function evaluateAssetTransition(assetDef, activeSession = null, readings
           consecutiveNominalCount: activeSession.consecutiveNominalCount || 0,
           firstNominalReading: activeSession.firstNominalReading || null,
           peak_stage_mAOD: activeSession.peak_stage_mAOD,
+          peak_time: activeSession.peak_time || activeSession.start_time,
+          trigger_rate_15m_m_per_hr: activeSession.trigger_rate_15m_m_per_hr ?? null,
+          trigger_rate_1h_m_per_hr: activeSession.trigger_rate_1h_m_per_hr ?? null,
+          trigger_rate_3h_m_per_hr: activeSession.trigger_rate_3h_m_per_hr ?? null,
+          max_rate_1h_m_per_hr: activeSession.max_rate_1h_m_per_hr ?? null,
           is_interrupted: true
         }
       };
@@ -2134,6 +2144,11 @@ export function evaluateAssetTransition(assetDef, activeSession = null, readings
       severity_tier: 1,
       trigger_stage_mAOD: 0,
       peak_stage_mAOD: 0,
+      peak_time: null,
+      trigger_rate_15m_m_per_hr: null,
+      trigger_rate_1h_m_per_hr: null,
+      trigger_rate_3h_m_per_hr: null,
+      max_rate_1h_m_per_hr: null,
       clearance_m: null,
       clearance_text: 'Sensor offline',
       trend_vector: '— Steady',
@@ -2144,7 +2159,12 @@ export function evaluateAssetTransition(assetDef, activeSession = null, readings
       session_updates: {
         consecutiveNominalCount: 0,
         firstNominalReading: null,
-        peak_stage_mAOD: 0
+        peak_stage_mAOD: 0,
+        peak_time: null,
+        trigger_rate_15m_m_per_hr: null,
+        trigger_rate_1h_m_per_hr: null,
+        trigger_rate_3h_m_per_hr: null,
+        max_rate_1h_m_per_hr: null
       }
     };
   }
@@ -2502,6 +2522,11 @@ export function evaluateAssetTransition(assetDef, activeSession = null, readings
     }
   }
 
+  const stageRates = computeStageRates(readings);
+  const currentRate15m = stageRates.rate_15m_m_per_hr;
+  const currentRate1h = stageRates.rate_1h_m_per_hr;
+  const currentRate3h = stageRates.rate_3h_m_per_hr;
+
   const trend_vector = computeTrendVector(readings);
   const clearance_text = clearanceM !== null ? formatClearanceText(clearanceM, clearanceDescriptor) : 'Clearance N/A';
 
@@ -2514,7 +2539,12 @@ export function evaluateAssetTransition(assetDef, activeSession = null, readings
   let end_time = null;
   let duration_seconds = null;
   let trigger_stage_mAOD = activeSession?.trigger_stage_mAOD ?? stage;
-  let peak_stage_mAOD = activeSession?.peak_stage_mAOD ? Math.max(activeSession.peak_stage_mAOD, stage) : stage;
+  let peak_stage_mAOD = activeSession?.peak_stage_mAOD ?? stage;
+  let peak_time = activeSession?.peak_time || activeSession?.start_time || readingTime;
+  let trigger_rate_15m_m_per_hr = activeSession?.trigger_rate_15m_m_per_hr ?? null;
+  let trigger_rate_1h_m_per_hr = activeSession?.trigger_rate_1h_m_per_hr ?? null;
+  let trigger_rate_3h_m_per_hr = activeSession?.trigger_rate_3h_m_per_hr ?? null;
+  let max_rate_1h_m_per_hr = activeSession?.max_rate_1h_m_per_hr ?? null;
   let consecutiveNominalCount = activeSession?.consecutiveNominalCount || 0;
   let firstNominalReading = activeSession?.firstNominalReading || null;
 
@@ -2525,12 +2555,32 @@ export function evaluateAssetTransition(assetDef, activeSession = null, readings
       start_time = readingTime;
       trigger_stage_mAOD = stage;
       peak_stage_mAOD = stage;
+      peak_time = readingTime;
+      trigger_rate_15m_m_per_hr = currentRate15m;
+      trigger_rate_1h_m_per_hr = currentRate1h;
+      trigger_rate_3h_m_per_hr = currentRate3h;
+      max_rate_1h_m_per_hr = currentRate1h;
       severity_tier = evaluatedSeverity;
       consecutiveNominalCount = 0;
       firstNominalReading = null;
     } else {
       action = 'UPDATE';
-      peak_stage_mAOD = Math.max(activeSession.peak_stage_mAOD, stage);
+      // Plateau invariant [RULE-HUM-01]: Only advance peak_time and peak_stage_mAOD on strict increase (> +0.001m)
+      if (stage !== null && stage > (activeSession.peak_stage_mAOD ?? stage) + 0.001) {
+        peak_stage_mAOD = stage;
+        peak_time = readingTime;
+      } else {
+        peak_stage_mAOD = activeSession.peak_stage_mAOD ?? stage;
+        peak_time = activeSession.peak_time || activeSession.start_time || readingTime;
+      }
+
+      // Max 1-hour rate tracking
+      if (currentRate1h !== null) {
+        if (max_rate_1h_m_per_hr === null || currentRate1h > max_rate_1h_m_per_hr) {
+          max_rate_1h_m_per_hr = currentRate1h;
+        }
+      }
+
       consecutiveNominalCount = 0;
       firstNominalReading = null;
     }
@@ -2549,6 +2599,8 @@ export function evaluateAssetTransition(assetDef, activeSession = null, readings
         to_state = activeSession.to_state; // Keep elevated badge during debounce window
         severity_tier = activeSession.severity_tier; // Latch peak severity during recovery debounce
         peak_stage_mAOD = activeSession.peak_stage_mAOD; // Latch peak stage during recovery debounce
+        peak_time = activeSession.peak_time || activeSession.start_time || readingTime;
+        max_rate_1h_m_per_hr = activeSession.max_rate_1h_m_per_hr;
         narrative = `${assetDef.name} level receding below threshold; confirming 30-min debounce recovery (1/2 confirmed)...`;
       } else {
         // Second consecutive nominal reading! Close event.
@@ -2556,6 +2608,8 @@ export function evaluateAssetTransition(assetDef, activeSession = null, readings
         to_state = evaluatedState;
         severity_tier = 1;
         peak_stage_mAOD = activeSession.peak_stage_mAOD; // Retain peak stage on close
+        peak_time = activeSession.peak_time || activeSession.start_time || readingTime;
+        max_rate_1h_m_per_hr = activeSession.max_rate_1h_m_per_hr;
         end_time = firstNominalReading?.dateTime || readingTime;
         duration_seconds = Math.max(0, Math.floor((new Date(end_time).getTime() - new Date(start_time).getTime()) / 1000));
         narrative = `${assetDef.name} incident concluded after confirmed nominal recovery window.`;
@@ -2572,9 +2626,15 @@ export function evaluateAssetTransition(assetDef, activeSession = null, readings
     severity_tier,
     trigger_stage_mAOD,
     peak_stage_mAOD,
+    peak_time,
+    trigger_rate_15m_m_per_hr,
+    trigger_rate_1h_m_per_hr,
+    trigger_rate_3h_m_per_hr,
+    max_rate_1h_m_per_hr,
     clearance_m: clearanceM,
     clearance_text,
     trend_vector,
+    stage_rates: stageRates,
     narrative,
     start_time,
     end_time,
@@ -2582,67 +2642,302 @@ export function evaluateAssetTransition(assetDef, activeSession = null, readings
     session_updates: {
       consecutiveNominalCount,
       firstNominalReading,
-      peak_stage_mAOD
+      peak_stage_mAOD,
+      peak_time,
+      trigger_rate_15m_m_per_hr,
+      trigger_rate_1h_m_per_hr,
+      trigger_rate_3h_m_per_hr,
+      max_rate_1h_m_per_hr
     }
   };
 }
 
 /**
- * Calculates rate of change in stage over 3 hours (dh/dt in m/h)
- * @param {Array} readings 
- * @returns {number} rate in m/h rounded to 3 decimal places
+ * Strict physical search windows and guardrails for rate-of-change calculations [RULE-SUB-01, RULE-HUM-01]
+ * - 15m window: [10m, 25m] lookback, min 5m elapsed
+ * - 1h window:  [45m, 75m] lookback, min 30m elapsed
+ * - 3h window:  [150m, 210m] lookback, min 120m elapsed
  */
-export function computeRateOfChange3h(readings) {
-  if (!readings || !Array.isArray(readings) || readings.length < 2) return 0;
-  const latestItem = readings[0];
-  const latestVal = (typeof latestItem === 'object' && latestItem !== null) ? latestItem.value : latestItem;
-  if (latestVal === null || latestVal === undefined || isNaN(latestVal)) return 0;
+export const RATE_TOLERANCE_WINDOWS = Object.freeze({
+  window_15m: Object.freeze({
+    targetMs: 15 * 60 * 1000,
+    minMs: 10 * 60 * 1000,
+    maxMs: 25 * 60 * 1000,
+    minElapsedMs: 5 * 60 * 1000
+  }),
+  window_1h: Object.freeze({
+    targetMs: 60 * 60 * 1000,
+    minMs: 45 * 60 * 1000,
+    maxMs: 75 * 60 * 1000,
+    minElapsedMs: 30 * 60 * 1000
+  }),
+  window_3h: Object.freeze({
+    targetMs: 180 * 60 * 1000,
+    minMs: 150 * 60 * 1000,
+    maxMs: 210 * 60 * 1000,
+    minElapsedMs: 120 * 60 * 1000
+  })
+});
 
-  const nowMs = (typeof latestItem === 'object' && latestItem?.dateTime)
-    ? new Date(latestItem.dateTime).getTime()
-    : Date.now();
-  const threeHoursMs = 3 * 60 * 60 * 1000;
+/**
+ * Extracts numeric value and millisecond timestamp from a reading object or primitive.
+ * @param {any} item
+ * @returns {{ value: number, dateTime: string|null, ms: number|null }|null}
+ */
+export function extractReadingMeta(item) {
+  if (item === null || item === undefined) return null;
+  const rawVal = (typeof item === 'object' && item !== null) ? item.value : item;
+  if (rawVal === null || rawVal === undefined || isNaN(rawVal)) return null;
+  const numVal = Number(rawVal);
+  if (!Number.isFinite(numVal)) return null;
 
-  let refReading = null;
-  let minDiff = Infinity;
-  let refMs = null;
+  const dt = (typeof item === 'object' && item?.dateTime) ? item.dateTime : null;
+  let ms = null;
+  if (dt) {
+    const parsed = new Date(dt).getTime();
+    if (!isNaN(parsed)) ms = parsed;
+  }
 
-  for (let i = 1; i < readings.length; i++) {
-    const r = readings[i];
-    const val = (typeof r === 'object' && r !== null) ? r.value : r;
-    if (val !== null && val !== undefined && !isNaN(val)) {
-      if (typeof r === 'object' && r?.dateTime) {
-        const itemMs = new Date(r.dateTime).getTime();
-        const age = Math.abs(nowMs - itemMs);
-        const diff = Math.abs(age - threeHoursMs);
-        if (diff < minDiff) {
-          minDiff = diff;
-          refReading = val;
-          refMs = itemMs;
-        }
+  return {
+    value: numVal,
+    dateTime: dt,
+    ms
+  };
+}
+
+/**
+ * Computes exact gap-safe stage rates for a single target reading relative to historical readings.
+ * Returns null for any scale where no valid reference reading exists within the physical tolerance window [RULE-SUB-01].
+ * 
+ * @param {Array} readings - Array of readings (defaults to index 0 as target)
+ * @param {number} [targetIndex=0] - Index of reading to compute rates for
+ * @returns {{ delta_15m_m: number|null, rate_15m_m_per_hr: number|null, rate_1h_m_per_hr: number|null, rate_3h_m_per_hr: number|null }}
+ */
+export function computeStageRates(readings, targetIndex = 0) {
+  const result = {
+    delta_15m_m: null,
+    rate_15m_m_per_hr: null,
+    rate_1h_m_per_hr: null,
+    rate_3h_m_per_hr: null
+  };
+
+  if (!Array.isArray(readings) || readings.length === 0 || targetIndex < 0 || targetIndex >= readings.length) {
+    return result;
+  }
+
+  const target = extractReadingMeta(readings[targetIndex]);
+  if (!target || target.ms === null) {
+    return result;
+  }
+
+  const { window_15m, window_1h, window_3h } = RATE_TOLERANCE_WINDOWS;
+
+  let best15 = null;
+  let minDiff15 = Infinity;
+  let best1h = null;
+  let minDiff1h = Infinity;
+  let best3h = null;
+  let minDiff3h = Infinity;
+
+  for (let i = 0; i < readings.length; i++) {
+    if (i === targetIndex) continue;
+    const ref = extractReadingMeta(readings[i]);
+    if (!ref || ref.ms === null) continue;
+
+    // Strictly backward in time
+    const elapsedMs = target.ms - ref.ms;
+    if (elapsedMs <= 0) continue;
+
+    // 15-minute window
+    if (elapsedMs >= window_15m.minMs && elapsedMs <= window_15m.maxMs) {
+      const diff = Math.abs(elapsedMs - window_15m.targetMs);
+      if (diff < minDiff15) {
+        minDiff15 = diff;
+        best15 = { ref, elapsedMs };
+      }
+    }
+
+    // 1-hour window
+    if (elapsedMs >= window_1h.minMs && elapsedMs <= window_1h.maxMs) {
+      const diff = Math.abs(elapsedMs - window_1h.targetMs);
+      if (diff < minDiff1h) {
+        minDiff1h = diff;
+        best1h = { ref, elapsedMs };
+      }
+    }
+
+    // 3-hour window
+    if (elapsedMs >= window_3h.minMs && elapsedMs <= window_3h.maxMs) {
+      const diff = Math.abs(elapsedMs - window_3h.targetMs);
+      if (diff < minDiff3h) {
+        minDiff3h = diff;
+        best3h = { ref, elapsedMs };
       }
     }
   }
 
-  if (refReading === null && readings.length >= 2) {
-    const idx = Math.min(12, readings.length - 1);
-    const item = readings[idx];
-    refReading = (typeof item === 'object' && item !== null) ? item.value : item;
-    if (typeof item === 'object' && item?.dateTime) {
-      refMs = new Date(item.dateTime).getTime();
+  if (best15 && best15.elapsedMs >= window_15m.minElapsedMs) {
+    const delta = Number((target.value - best15.ref.value).toFixed(3));
+    const hours = best15.elapsedMs / 3600000;
+    result.delta_15m_m = delta;
+    result.rate_15m_m_per_hr = Number((delta / hours).toFixed(3));
+  }
+
+  if (best1h && best1h.elapsedMs >= window_1h.minElapsedMs) {
+    const delta = target.value - best1h.ref.value;
+    const hours = best1h.elapsedMs / 3600000;
+    result.rate_1h_m_per_hr = Number((delta / hours).toFixed(3));
+  }
+
+  if (best3h && best3h.elapsedMs >= window_3h.minElapsedMs) {
+    const delta = target.value - best3h.ref.value;
+    const hours = best3h.elapsedMs / 3600000;
+    result.rate_3h_m_per_hr = Number((delta / hours).toFixed(3));
+  }
+
+  return result;
+}
+
+/**
+ * Computes stage rates across a batch of readings in strictly O(N) linear time using monotonic pointers.
+ * Suitable for high-volume backfills (up to 10,000 readings) without blocking the Node.js event loop.
+ * 
+ * @param {Array} readings - Array of reading items
+ * @returns {Array<object>} Array of items decorated with rate fields
+ */
+export function computeBatchStageRates(readings) {
+  if (!Array.isArray(readings) || readings.length === 0) {
+    return [];
+  }
+
+  const items = readings.map((r, idx) => ({
+    original: r,
+    originalIndex: idx,
+    meta: extractReadingMeta(r)
+  }));
+
+  // Valid items sorted ascending by timestamp
+  const valid = items.filter(it => it.meta && it.meta.ms !== null);
+  valid.sort((a, b) => a.meta.ms - b.meta.ms);
+
+  const { window_15m, window_1h, window_3h } = RATE_TOLERANCE_WINDOWS;
+
+  let p15 = 0;
+  let p1h = 0;
+  let p3h = 0;
+
+  const ratesMap = new Map();
+
+  for (let i = 0; i < valid.length; i++) {
+    const target = valid[i].meta;
+
+    while (p15 < i && (target.ms - valid[p15].meta.ms) > window_15m.maxMs) p15++;
+    while (p1h < i && (target.ms - valid[p1h].meta.ms) > window_1h.maxMs) p1h++;
+    while (p3h < i && (target.ms - valid[p3h].meta.ms) > window_3h.maxMs) p3h++;
+
+    let best15 = null;
+    let minDiff15 = Infinity;
+    for (let k = p15; k < i; k++) {
+      const elapsedMs = target.ms - valid[k].meta.ms;
+      if (elapsedMs >= window_15m.minMs && elapsedMs <= window_15m.maxMs) {
+        const diff = Math.abs(elapsedMs - window_15m.targetMs);
+        if (diff < minDiff15) {
+          minDiff15 = diff;
+          best15 = { ref: valid[k].meta, elapsedMs };
+        }
+      }
     }
+
+    let best1h = null;
+    let minDiff1h = Infinity;
+    for (let k = p1h; k < i; k++) {
+      const elapsedMs = target.ms - valid[k].meta.ms;
+      if (elapsedMs >= window_1h.minMs && elapsedMs <= window_1h.maxMs) {
+        const diff = Math.abs(elapsedMs - window_1h.targetMs);
+        if (diff < minDiff1h) {
+          minDiff1h = diff;
+          best1h = { ref: valid[k].meta, elapsedMs };
+        }
+      }
+    }
+
+    let best3h = null;
+    let minDiff3h = Infinity;
+    for (let k = p3h; k < i; k++) {
+      const elapsedMs = target.ms - valid[k].meta.ms;
+      if (elapsedMs >= window_3h.minMs && elapsedMs <= window_3h.maxMs) {
+        const diff = Math.abs(elapsedMs - window_3h.targetMs);
+        if (diff < minDiff3h) {
+          minDiff3h = diff;
+          best3h = { ref: valid[k].meta, elapsedMs };
+        }
+      }
+    }
+
+    let delta_15m_m = null;
+    let rate_15m_m_per_hr = null;
+    if (best15 && best15.elapsedMs >= window_15m.minElapsedMs) {
+      delta_15m_m = Number((target.value - best15.ref.value).toFixed(3));
+      const hours = best15.elapsedMs / 3600000;
+      rate_15m_m_per_hr = Number((delta_15m_m / hours).toFixed(3));
+    }
+
+    let rate_1h_m_per_hr = null;
+    if (best1h && best1h.elapsedMs >= window_1h.minElapsedMs) {
+      const delta = target.value - best1h.ref.value;
+      const hours = best1h.elapsedMs / 3600000;
+      rate_1h_m_per_hr = Number((delta / hours).toFixed(3));
+    }
+
+    let rate_3h_m_per_hr = null;
+    if (best3h && best3h.elapsedMs >= window_3h.minElapsedMs) {
+      const delta = target.value - best3h.ref.value;
+      const hours = best3h.elapsedMs / 3600000;
+      rate_3h_m_per_hr = Number((delta / hours).toFixed(3));
+    }
+
+    ratesMap.set(valid[i].originalIndex, {
+      delta_15m_m,
+      rate_15m_m_per_hr,
+      rate_1h_m_per_hr,
+      rate_3h_m_per_hr
+    });
   }
 
-  if (refReading === null || isNaN(refReading)) return 0;
+  return items.map((it, idx) => {
+    const rates = ratesMap.get(idx) || {
+      delta_15m_m: null,
+      rate_15m_m_per_hr: null,
+      rate_1h_m_per_hr: null,
+      rate_3h_m_per_hr: null
+    };
 
-  let deltaHours = 3.0;
-  if (refMs && nowMs > refMs) {
-    deltaHours = (nowMs - refMs) / (1000 * 60 * 60);
-    if (deltaHours < 0.25) deltaHours = 0.25;
-  }
+    if (typeof it.original === 'object' && it.original !== null) {
+      return {
+        ...it.original,
+        delta_15m_m: rates.delta_15m_m,
+        rate_15m_m_per_hr: rates.rate_15m_m_per_hr,
+        rate_1h_m_per_hr: rates.rate_1h_m_per_hr,
+        rate_3h_m_per_hr: rates.rate_3h_m_per_hr
+      };
+    }
+    return {
+      value: it.original,
+      ...rates
+    };
+  });
+}
 
-  const rate = (latestVal - refReading) / deltaHours;
-  return Number(rate.toFixed(3));
+/**
+ * Calculates rate of change in stage over 3 hours (dh/dt in m/h)
+ * Preserved for backward compatibility, delegates to computeStageRates.
+ * 
+ * @param {Array} readings 
+ * @returns {number} rate in m/h rounded to 3 decimal places
+ */
+export function computeRateOfChange3h(readings) {
+  const rates = computeStageRates(readings, 0);
+  return rates.rate_3h_m_per_hr ?? 0;
 }
 
 /**

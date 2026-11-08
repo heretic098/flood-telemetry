@@ -55,6 +55,11 @@ export function rehydrateActiveSessions(db) {
         start_time: row.start_time,
         trigger_stage_mAOD: row.trigger_stage_mAOD,
         peak_stage_mAOD: row.peak_stage_mAOD,
+        peak_time: row.peak_time || row.start_time,
+        trigger_rate_15m_m_per_hr: row.trigger_rate_15m_m_per_hr ?? null,
+        trigger_rate_1h_m_per_hr: row.trigger_rate_1h_m_per_hr ?? null,
+        trigger_rate_3h_m_per_hr: row.trigger_rate_3h_m_per_hr ?? null,
+        max_rate_1h_m_per_hr: row.max_rate_1h_m_per_hr ?? null,
         clearance_m: row.clearance_m,
         camera_id: row.camera_id,
         image_hash: row.image_hash,
@@ -163,11 +168,15 @@ export function processTelemetryEvents(db, storedTelemetry, options = {}) {
     INSERT INTO telemetry_events (
       asset_type, asset_id, from_state, to_state, severity_tier,
       start_time, end_time, duration_seconds, trigger_stage_mAOD,
-      peak_stage_mAOD, clearance_m, camera_id, image_hash,
+      peak_stage_mAOD, peak_time, trigger_rate_15m_m_per_hr,
+      trigger_rate_1h_m_per_hr, trigger_rate_3h_m_per_hr,
+      max_rate_1h_m_per_hr, clearance_m, camera_id, image_hash,
       camera_snapshot_id, narrative, status
     ) VALUES (
       ?, ?, ?, ?, ?,
       ?, NULL, NULL, ?,
+      ?, ?, ?,
+      ?, ?,
       ?, ?, ?, ?,
       ?, ?, 'ACTIVE'
     )
@@ -175,13 +184,13 @@ export function processTelemetryEvents(db, storedTelemetry, options = {}) {
 
   const updateStmt = db.prepare(`
     UPDATE telemetry_events
-    SET to_state = ?, severity_tier = ?, peak_stage_mAOD = ?, clearance_m = ?, narrative = ?
+    SET to_state = ?, severity_tier = ?, peak_stage_mAOD = ?, peak_time = ?, max_rate_1h_m_per_hr = ?, clearance_m = ?, narrative = ?
     WHERE id = ?
   `);
 
   const closeStmt = db.prepare(`
     UPDATE telemetry_events
-    SET severity_tier = ?, peak_stage_mAOD = ?, end_time = ?, duration_seconds = ?, status = 'CLOSED', narrative = ?
+    SET severity_tier = ?, peak_stage_mAOD = ?, peak_time = ?, max_rate_1h_m_per_hr = ?, end_time = ?, duration_seconds = ?, status = 'CLOSED', narrative = ?
     WHERE id = ?
   `);
 
@@ -308,6 +317,12 @@ export function processTelemetryEvents(db, storedTelemetry, options = {}) {
         decisions.push(decision);
 
         if (decision.action === 'OPEN') {
+          const resolvedPeakTime = decision.peak_time ?? decision.start_time ?? null;
+          const resolvedTrigger15m = decision.trigger_rate_15m_m_per_hr ?? null;
+          const resolvedTrigger1h = decision.trigger_rate_1h_m_per_hr ?? null;
+          const resolvedTrigger3h = decision.trigger_rate_3h_m_per_hr ?? null;
+          const resolvedMaxRate = decision.max_rate_1h_m_per_hr ?? resolvedTrigger1h;
+
           const info = insertStmt.run(
             decision.asset_type,
             decision.asset_id,
@@ -317,6 +332,11 @@ export function processTelemetryEvents(db, storedTelemetry, options = {}) {
             decision.start_time,
             decision.trigger_stage_mAOD,
             decision.peak_stage_mAOD,
+            resolvedPeakTime,
+            resolvedTrigger15m,
+            resolvedTrigger1h,
+            resolvedTrigger3h,
+            resolvedMaxRate,
             decision.clearance_m,
             options.camera_id || null,
             options.image_hash || null,
@@ -334,6 +354,11 @@ export function processTelemetryEvents(db, storedTelemetry, options = {}) {
             start_time: decision.start_time,
             trigger_stage_mAOD: decision.trigger_stage_mAOD,
             peak_stage_mAOD: decision.peak_stage_mAOD,
+            peak_time: resolvedPeakTime,
+            trigger_rate_15m_m_per_hr: resolvedTrigger15m,
+            trigger_rate_1h_m_per_hr: resolvedTrigger1h,
+            trigger_rate_3h_m_per_hr: resolvedTrigger3h,
+            max_rate_1h_m_per_hr: resolvedMaxRate,
             clearance_m: decision.clearance_m,
             camera_id: options.camera_id || null,
             image_hash: options.image_hash || null,
@@ -345,10 +370,15 @@ export function processTelemetryEvents(db, storedTelemetry, options = {}) {
           });
         } else if (decision.action === 'UPDATE' && currentActive) {
           const peakSeverity = Math.max(currentActive.severity_tier || 1, decision.severity_tier);
+          const resolvedPeakTime = decision.peak_time ?? currentActive.peak_time ?? null;
+          const resolvedMaxRate = decision.max_rate_1h_m_per_hr ?? currentActive.max_rate_1h_m_per_hr ?? null;
+
           updateStmt.run(
             decision.to_state,
             peakSeverity,
             decision.peak_stage_mAOD,
+            resolvedPeakTime,
+            resolvedMaxRate,
             decision.clearance_m,
             decision.narrative,
             currentActive.id
@@ -357,15 +387,22 @@ export function processTelemetryEvents(db, storedTelemetry, options = {}) {
           currentActive.to_state = decision.to_state;
           currentActive.severity_tier = peakSeverity;
           currentActive.peak_stage_mAOD = decision.peak_stage_mAOD;
+          currentActive.peak_time = resolvedPeakTime;
+          currentActive.max_rate_1h_m_per_hr = resolvedMaxRate;
           currentActive.clearance_m = decision.clearance_m;
           currentActive.narrative = decision.narrative;
           currentActive.consecutiveNominalCount = decision.session_updates?.consecutiveNominalCount || 0;
           currentActive.firstNominalReading = decision.session_updates?.firstNominalReading || null;
         } else if (decision.action === 'CLOSE' && currentActive) {
           const peakSeverity = Math.max(currentActive.severity_tier || 1, decision.severity_tier);
+          const resolvedPeakTime = decision.peak_time ?? currentActive.peak_time ?? null;
+          const resolvedMaxRate = decision.max_rate_1h_m_per_hr ?? currentActive.max_rate_1h_m_per_hr ?? null;
+
           closeStmt.run(
             peakSeverity,
             decision.peak_stage_mAOD,
+            resolvedPeakTime,
+            resolvedMaxRate,
             decision.end_time,
             decision.duration_seconds,
             decision.narrative,

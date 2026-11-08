@@ -48,6 +48,11 @@ export const activeEventSchema = object({
   from_state: optional(nullable(enumValues(CANONICAL_STATES))),
   end_time: optional(nullable(isoDate({ allowSqlite: true }))),
   peak_stage_mAOD: optional(nullable(number())),
+  peak_time: optional(nullable(isoDate({ allowSqlite: true }))),
+  trigger_rate_15m_m_per_hr: optional(nullable(number())),
+  trigger_rate_1h_m_per_hr: optional(nullable(number())),
+  trigger_rate_3h_m_per_hr: optional(nullable(number())),
+  max_rate_1h_m_per_hr: optional(nullable(number())),
   narrative: optional(nullable(string()))
 });
 
