@@ -40,7 +40,7 @@ $$\text{minOnRecord} \le Z_{\text{invert}} < \text{typicalRangeLow} < \text{aler
 | **52111** | Taunton Market | `gauge` | $+12.47\text{ m}$ | $13.29\text{ m}$ | **$14.24\text{ m}$** | $14.31\text{ m}$ | Urban Tone in-channel river gauge |
 | **52162** | Bathpool Outfall | `gauge` | $0.00\text{ m}$ | $8.50\text{ m}$ | **$9.50\text{ m}$** | $11.03\text{ m}$ | Lower Tone in-channel river gauge |
 | **52118** | Hookbridge Spillway | `spillway` | $0.00\text{ m}$ | $4.71\text{ m}$ | **$7.15\text{ m}$** | $8.10\text{ m}$ | Crest: $7.45\text{ m}$ (Alert: $30\text{cm}$ pre-spill) |
-| **52127** | Curry Moor Basin | `polder_basin` | $0.00\text{ m}$ | $3.92\text{ m}$ | **$6.50\text{ m}$** | $8.05\text{ m}$ | Ground: $2.10\text{ m}$; Lead $4.00\text{m}$, Duty $4.30\text{m}$ |
+| **52127** | Curry Moor Basin | `polder_basin` | $0.00\text{ m}$ | $3.92\text{ m}$ | **$6.50\text{ m}$** | $8.05\text{ m}$ | Ground: $2.10\text{ m}$; Lead $4.00\text{m}$, Duty $4.55\text{m}$ |
 | **52116** | Chiselborough | `gauge` | $+20.70\text{ m}$ | $20.75\text{ m}$ | **$22.50\text{ m}$** | $23.63\text{ m}$ | Upper Parrett in-channel river gauge |
 | **52119** | Gaw Bridge | `gauge` | $+10.00\text{ m}$ | $10.23\text{ m}$ | **$12.80\text{ m}$** | $13.84\text{ m}$ | Mid Parrett in-channel river gauge |
 | **52233** | Monk's Leaze Clyse Upstream | `clyse_gate` | $0.00\text{ m}$ | $6.01\text{ m}$ | **$7.90\text{ m}$** | $8.50\text{ m}$ | Sluice sill: $4.20\text{ m}$; Diverts to 52234 |
@@ -101,7 +101,7 @@ $$\forall \text{ river station } s \notin \{\text{polder\_basins}\}, \quad \exis
 1. **EA Trigger Point Plan Calibrations:**
    - **Curry Moor (`52127` — Currymoor PS & Stanmoor PS):**
      - Ground invert: $2.10\text{m AOD}$
-     - Winter Fixed Pumps: Lead $4.00\text{m}$, Duty $4.30\text{m}$ | Summer Penning Fixed Pumps: Lead $4.30\text{m}$, Duty $4.60\text{m}$
+     - Winter Fixed Pumps: Lead $4.00\text{m}$, Duty $4.55\text{m}$ | Summer Penning Fixed Pumps: Lead $4.60\text{m}$, Duty $4.80\text{m}$
      - EA Temporary Mobile Pumps: **Ordered at $5.80\text{m AOD}$**, **Active at $6.10\text{m AOD}$**, **Critical Storage at $6.50\text{m AOD}$**
    - **Northmoor (`52159` — Saltmoor PS & Northmoor PS):**
      - Ground invert: $1.80\text{m AOD}$

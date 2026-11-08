@@ -208,6 +208,28 @@ export const MIGRATIONS = [
         WHERE peak_time IS NULL
       `).run();
     }
+  },
+  {
+    version: 6,
+    name: 'purge_spurious_curry_moor_duty_pumping_events',
+    up: (db) => {
+      // 1. Purge closed false-positive DUTY_PUMPING events recorded during dry-weather baseline float-cycling (Issue #42)
+      // Normal dry-weather float-switch cycles oscillate between 4.40m and 4.51m AOD.
+      db.prepare(`
+        DELETE FROM telemetry_events 
+        WHERE asset_id = 'curry_moor' 
+          AND to_state = 'DUTY_PUMPING'
+          AND trigger_stage_mAOD < 4.55
+      `).run();
+
+      // 2. Unblock unique index: purge active sessions on curry_moor that never reached 4.55m peak
+      db.prepare(`
+        DELETE FROM telemetry_events 
+        WHERE asset_id = 'curry_moor' 
+          AND status = 'ACTIVE'
+          AND peak_stage_mAOD < 4.55
+      `).run();
+    }
   }
 ];
 

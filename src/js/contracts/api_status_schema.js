@@ -53,7 +53,14 @@ export const activeEventSchema = object({
   trigger_rate_1h_m_per_hr: optional(nullable(number())),
   trigger_rate_3h_m_per_hr: optional(nullable(number())),
   max_rate_1h_m_per_hr: optional(nullable(number())),
-  narrative: optional(nullable(string()))
+  narrative: optional(nullable(string())),
+  regime_signature: optional(nullable(object({
+    anomaly_type: optional(string()),
+    confidence: optional(string()),
+    rate_1h_mh: optional(number()),
+    rate_3h_mh: optional(number()),
+    duration_hours: optional(number())
+  })))
 });
 
 /**

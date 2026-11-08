@@ -1773,6 +1773,8 @@ export const ASSET_DEFINITIONS = Object.freeze({
     primary_station: '52118',
     crest_elevation_mAOD: 7.45,
     pre_spill_elevation_mAOD: 7.30,
+    spring_backwater_mAOD: 5.50,
+    compound_fluvial_warning_mAOD: 6.40,
     deadband_crest: HYDRO_DEADBANDS.weir_crest,
     deadband_pre_spill: HYDRO_DEADBANDS.pre_spill
   }),
@@ -1804,12 +1806,16 @@ export const ASSET_DEFINITIONS = Object.freeze({
     name: 'Curry Moor Polder Basin',
     primary_station: '52127',
     floor_elevation_mAOD: 2.10,
-    duty_pump_winter_mAOD: 4.30,
-    duty_pump_summer_mAOD: 4.45,
+    lead_pump_winter_mAOD: 4.00,
+    lead_pump_summer_mAOD: 4.60,
+    duty_pump_winter_mAOD: 4.55,
+    duty_pump_summer_mAOD: 4.80,
     mobile_ordered_mAOD: 5.80,
     mobile_active_mAOD: 6.10,
     critical_mAOD: 6.50,
-    deadband_pump: HYDRO_DEADBANDS.polder_pump
+    sump_ceiling_mAOD: 4.52,
+    rapid_inrush_threshold_mh: 0.10,
+    deadband_pump: 0.10
   }),
   northmoor: Object.freeze({
     asset_type: 'polder',
@@ -1817,11 +1823,15 @@ export const ASSET_DEFINITIONS = Object.freeze({
     name: 'Northmoor Polder Basin',
     primary_station: '52159',
     floor_elevation_mAOD: 1.80,
-    duty_pump_winter_mAOD: 4.00,
-    duty_pump_summer_mAOD: 4.00,
+    lead_pump_winter_mAOD: 3.40,
+    lead_pump_summer_mAOD: 4.00,
+    duty_pump_winter_mAOD: 3.70,
+    duty_pump_summer_mAOD: 4.20,
     mobile_ordered_mAOD: 4.80,
     mobile_active_mAOD: 5.20,
     critical_mAOD: 5.60,
+    sump_ceiling_mAOD: 3.35,
+    rapid_inrush_threshold_mh: 0.10,
     deadband_pump: HYDRO_DEADBANDS.polder_pump
   }),
 
@@ -1832,6 +1842,8 @@ export const ASSET_DEFINITIONS = Object.freeze({
     name: 'Dunball Sea Outfall Clyse',
     sea_station: '52163',
     inland_station: 'E9094',
+    extended_tide_lock_seconds: 14 * 3600,
+    elevated_inland_mAOD: 2.65,
     deadband_flap: HYDRO_DEADBANDS.tidal_flap
   }),
 
@@ -1926,6 +1938,43 @@ export function computeTrendVector(readings) {
     return '▼ Receding';
   }
   return '— Steady';
+}
+
+/**
+ * Disambiguates Hookbridge River Tone trend vector between astronomical tidal backwater and upland fluvial pulses [RULE-ENT-01, RULE-HUM-01]
+ * 
+ * @param {Array<{ dateTime?: string, value?: number }|number>} hookbridgeReadings 
+ * @param {number|{ value?: number }|null} [bathpoolStage] 
+ * @param {number|{ value?: number }|null} [estuaryStage] 
+ * @returns {'▲ Rising' | '▼ Receding' | '— Steady' | '▲ Tidal Pulse' | '▲ Rising on Ebb (Fluvial)'}
+ */
+export function disambiguateRiverTrend(hookbridgeReadings, bathpoolStage = null, estuaryStage = null) {
+  const baseTrend = computeTrendVector(hookbridgeReadings);
+  if (baseTrend !== '▲ Rising') return baseTrend;
+
+  if (!Array.isArray(hookbridgeReadings) || hookbridgeReadings.length === 0) return baseTrend;
+  const latest = hookbridgeReadings[0];
+  const currentHookbridge = sanitizeStageValue((typeof latest === 'object' && latest !== null) ? latest.value : latest);
+  if (currentHookbridge === null) return baseTrend;
+
+  const bpVal = (typeof bathpoolStage === 'object' && bathpoolStage !== null) ? bathpoolStage.value : bathpoolStage;
+  const estVal = (typeof estuaryStage === 'object' && estuaryStage !== null) ? estuaryStage.value : estuaryStage;
+  const bpStage = sanitizeStageValue(bpVal);
+  const estStage = sanitizeStageValue(estVal);
+
+  // Tier 3: Fluvial Rise during Ebb or high upland head
+  if (currentHookbridge >= 6.40) {
+    if ((bpStage !== null && bpStage >= 8.50) || (estStage !== null && estStage < 2.00)) {
+      return '▲ Rising on Ebb (Fluvial)';
+    }
+  }
+
+  // Tier 2: Astronomical Spring Tide Backwater Pulse
+  if (currentHookbridge >= 5.50 && bpStage !== null && bpStage < 8.50) {
+    return '▲ Tidal Pulse';
+  }
+
+  return baseTrend;
 }
 
 /**
@@ -2175,6 +2224,12 @@ export function evaluateAssetTransition(assetDef, activeSession = null, readings
   let clearanceDescriptor = 'threshold';
   let narrative = '';
 
+  const stageRates = computeStageRates(readings);
+  const currentRate15m = stageRates.rate_15m_m_per_hr;
+  const currentRate1h = stageRates.rate_1h_m_per_hr;
+  const currentRate3h = stageRates.rate_3h_m_per_hr;
+  let regime_signature = null;
+
   const currentSt = activeSession?.to_state || null;
 
   switch (assetDef.asset_type) {
@@ -2391,6 +2446,28 @@ export function evaluateAssetTransition(assetDef, activeSession = null, readings
       } else {
         narrative = `${assetDef.name} in standby/penning mode. Water levels normal.`;
       }
+
+      // Polder Diagnostic Signatures: Sump Ceiling Breach & Rapid Inrush [Issue #42]
+      const rapidThreshold = assetDef.rapid_inrush_threshold_mh ?? 0.10;
+      const isRapidInrush = (currentRate1h !== null && currentRate1h >= rapidThreshold && currentRate15m !== null && currentRate15m > 0);
+      const sumpCeiling = assetDef.sump_ceiling_mAOD;
+      const isCeilingBreach = (sumpCeiling !== undefined && stage > sumpCeiling && currentRate3h !== null && currentRate3h >= 0.02);
+
+      if (isRapidInrush) {
+        evaluatedSeverity = Math.max(evaluatedSeverity, 3);
+        regime_signature = {
+          anomaly_type: 'POLDER_INRUSH',
+          confidence: 'HIGH_STAGE_RATE',
+          rate_1h_mh: currentRate1h
+        };
+        narrative = `Rapid Inflow Warning: Moor stage surging at +${Math.round(currentRate1h * 100)}cm/h (potential spillway inrush or major storm pulse). Inferred from moor water stage relative to EA Trigger Point Plan.`;
+      } else if (isCeilingBreach) {
+        regime_signature = {
+          anomaly_type: 'SUMP_CEILING_BREACH',
+          rate_3h_mh: currentRate3h
+        };
+        narrative = `Polder Sump Ceiling Breached: Water rising above rhyne bankfull into moor storage (+${Math.round(currentRate3h * 100)}cm/h over 3h). Inferred from moor stage relative to EA Trigger Plan.`;
+      }
       break;
     }
 
@@ -2401,8 +2478,19 @@ export function evaluateAssetTransition(assetDef, activeSession = null, readings
       const dbFlap = assetDef.deadband_flap ?? HYDRO_DEADBANDS.tidal_flap;
 
       if (inlandStage === null) {
-        evaluatedState = 'DISCHARGING';
-        evaluatedSeverity = 1;
+        if (currentSt === 'TIDE_LOCKED') {
+          evaluatedState = 'TIDE_LOCKED';
+          evaluatedSeverity = 2;
+          narrative = `${assetDef.name}: inland sensor offline; retaining active TIDE_LOCKED state.`;
+        } else if (stage >= 2.65) {
+          evaluatedState = 'TIDE_LOCKED';
+          evaluatedSeverity = 2;
+          narrative = `${assetDef.name}: inland sensor offline; estuary elevated (≥2.65m AOD). Evaluating TIDE_LOCKED fail-safe.`;
+        } else {
+          evaluatedState = 'DISCHARGING';
+          evaluatedSeverity = 1;
+          narrative = `${assetDef.name}: inland sensor offline; estuary low (<2.65m AOD).`;
+        }
       } else if (currentSt === 'TIDE_LOCKED') {
         if (stage >= inlandStage - dbFlap) {
           evaluatedState = 'TIDE_LOCKED';
@@ -2421,12 +2509,38 @@ export function evaluateAssetTransition(assetDef, activeSession = null, readings
         }
       }
 
-      const headDelta = inlandStage !== null ? Number((inlandStage - stage).toFixed(3)) : 0;
+      const headDelta = inlandStage !== null ? Number((inlandStage - stage).toFixed(3)) : null;
       clearanceM = headDelta;
       clearanceDescriptor = 'tide-lock boundary';
-      narrative = evaluatedState === 'TIDE_LOCKED'
-        ? `Parrett Estuary tide (${stage.toFixed(2)}m) exceeds inland drain (${inlandStage?.toFixed(2)}m). Gravity flap doors closed.`
-        : `Low tide in Parrett Estuary: safe gravity discharge to sea (${headDelta >= 0 ? '+' : ''}${headDelta.toFixed(2)}m head).`;
+      if (inlandStage !== null) {
+        narrative = evaluatedState === 'TIDE_LOCKED'
+          ? `Parrett Estuary tide (${stage.toFixed(2)}m) exceeds inland drain (${inlandStage.toFixed(2)}m). Gravity flap doors closed.`
+          : `Low tide in Parrett Estuary: safe gravity discharge to sea (${headDelta >= 0 ? '+' : ''}${headDelta.toFixed(2)}m head).`;
+      }
+
+      // Extended Tide-Lock / Skipped Ebb Diagnostic [Issue #42]
+      if (evaluatedState === 'TIDE_LOCKED' && inlandStage !== null) {
+        const extDurationSec = assetDef.extended_tide_lock_seconds ?? (14 * 3600);
+        const inlandElevatedThresh = assetDef.elevated_inland_mAOD ?? 2.65;
+        const currentDuration = activeSession?.start_time
+          ? Math.max(0, Math.floor((new Date(readingTime).getTime() - new Date(activeSession.start_time).getTime()) / 1000))
+          : 0;
+
+        const inlandRates = computeStageRates(secReadings);
+        const inlandRate1h = inlandRates.rate_1h_m_per_hr;
+        const failedToDrain = (inlandRate1h === null || inlandRate1h >= -0.02);
+
+        if (currentDuration >= extDurationSec && inlandStage > inlandElevatedThresh && failedToDrain) {
+          evaluatedSeverity = 3; // Escalate Tier 2 -> Tier 3 Warning
+          const hours = (currentDuration / 3600).toFixed(1);
+          regime_signature = {
+            anomaly_type: 'EXTENDED_TIDE_LOCK',
+            confidence: 'HIGH_DURATION',
+            duration_hours: Number(hours)
+          };
+          narrative = `Extended Tide-Lock Alert: Dunball outfall has remained tide-locked for ${hours}h (>14h tidal cycle threshold) with inland KSD elevated at ${inlandStage.toFixed(2)}m AOD. Gravity discharge skipped full ebb window.`;
+        }
+      }
       break;
     }
 
@@ -2521,11 +2635,6 @@ export function evaluateAssetTransition(assetDef, activeSession = null, readings
       break;
     }
   }
-
-  const stageRates = computeStageRates(readings);
-  const currentRate15m = stageRates.rate_15m_m_per_hr;
-  const currentRate1h = stageRates.rate_1h_m_per_hr;
-  const currentRate3h = stageRates.rate_3h_m_per_hr;
 
   const trend_vector = computeTrendVector(readings);
   const clearance_text = clearanceM !== null ? formatClearanceText(clearanceM, clearanceDescriptor) : 'Clearance N/A';
@@ -2635,6 +2744,7 @@ export function evaluateAssetTransition(assetDef, activeSession = null, readings
     clearance_text,
     trend_vector,
     stage_rates: stageRates,
+    regime_signature,
     narrative,
     start_time,
     end_time,

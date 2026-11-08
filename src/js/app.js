@@ -1,4 +1,4 @@
-import { evaluateSpillway, evaluateGateState, aggregateGlobalStatus, evaluatePumpStatus, evaluateSowyChannel, evaluateAthelneySpillway, evaluateGravityClyse, evaluateBeerWall, evaluateOathLock, evaluateDunballEmergencyPumping, getSeasonalRegime, getActiveCrestHeight, getActiveCatchmentId, loadCatchmentConfig, evaluateHuishEpiscopi, evaluateMidelney, STATION_REGISTRY, GAUGE_DATUMS, formatClearanceText, computeTrendVector, evaluateRoadNetwork, evaluateStationFreshness, getValidStageOrFallback } from './hydro_engine.js';
+import { evaluateSpillway, evaluateGateState, aggregateGlobalStatus, evaluatePumpStatus, evaluateSowyChannel, evaluateAthelneySpillway, evaluateGravityClyse, evaluateBeerWall, evaluateOathLock, evaluateDunballEmergencyPumping, getSeasonalRegime, getActiveCrestHeight, getActiveCatchmentId, loadCatchmentConfig, evaluateHuishEpiscopi, evaluateMidelney, STATION_REGISTRY, GAUGE_DATUMS, formatClearanceText, computeTrendVector, disambiguateRiverTrend, evaluateRoadNetwork, evaluateStationFreshness, getValidStageOrFallback } from './hydro_engine.js';
 import { initJargonPopovers, renderJargonTerm } from './jargon_popover.js';
 import { createRefreshController } from './modules/refresh_controller.js';
 import { setupOfflineBanner as setupResilienceBanner } from './modules/network_resilience.js';
@@ -679,7 +679,9 @@ export async function refreshLiveDashboard() {
 
     // Progressive Disclosure Level 1: Centimetre Rule + 3h Trend Vector + Active Duration
     const hookbridgeActive = activeEventsMap.get('hookbridge');
-    const cmTrend = computeTrendVector(cmRiverReadings);
+    const bpReadings = dbMeasures?.["52162-level-stage-i-15_min-mAOD"];
+    const bpStage = bpReadings?.[0]?.value ?? bpReadings?.[0] ?? null;
+    const cmTrend = disambiguateRiverTrend(cmRiverReadings, bpStage, dunballSea);
     const cmClearanceFormatted = formatClearanceText(hookbridgeCrest - cmRiverLevel, 'crest');
     const cmClearanceWithTrend = `${cmClearanceFormatted} (${cmTrend})${hookbridgeActive?.duration_formatted ? ` • ⏱️ ${hookbridgeActive.duration_formatted}` : ''}`;
 
@@ -721,7 +723,7 @@ export async function refreshLiveDashboard() {
     provenanceClass: "prov-medium",
     metricText: `${cmRiverLevel.toFixed(2)}m AOD`,
     clearanceText: cmClearanceWithTrend,
-    narrative: `Curry Moor Basin level is ${cmMoorLevel.toFixed(2)}m AOD (${isSummerRegime ? 'normal summer target 4.30-4.45m' : 'winter target 3.40-3.80m'}). ${cmEval.narrative}`,
+    narrative: `Curry Moor Basin level is ${cmMoorLevel.toFixed(2)}m AOD (${isSummerRegime ? 'normal summer target 4.30-4.45m' : 'winter target 3.40-4.50m'}). ${cmEval.narrative}`,
     pills: [
       {
         html: `<strong>Hookbridge Spillway:</strong> ${cmEval.symbol} ${cmEval.label} (${cmClearanceWithTrend})`,
@@ -1884,7 +1886,7 @@ function getPumpEvaluation(stationId, moorLevel, moorConfigId, stationFallbackNa
   const fallbacks = {
     currymoor_ps: {
       summer: { lead: 4.60, duty: 4.80, mobile_order: 5.80, mobile_active: 6.10, critical_spill: 7.35 },
-      winter: { lead: 4.00, duty: 4.30, mobile_order: 5.80, mobile_active: 6.10, critical_spill: 7.35 }
+      winter: { lead: 4.00, duty: 4.55, mobile_order: 5.80, mobile_active: 6.10, critical_spill: 7.35 }
     },
     stanmoor_ps: {
       summer: { lead: 4.70, duty: 4.90, mobile_order: 5.80, mobile_active: 6.10, critical_spill: 7.35 },

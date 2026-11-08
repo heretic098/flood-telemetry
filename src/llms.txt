@@ -25,8 +25,8 @@ Somerset Flood Telemetry (https://floodtelemetry.uk/) is an independent, communi
   - Baltmoor Wall Spillway: Crest 7.80m AOD (River Parrett overspill into Northmoor polder).
   - Beer Wall Spillway: Crest 7.30m AOD (Sowy Relief Channel into King's Sedgemoor Drain).
 - **Lowland Storage Polders:**
-  - Curry Moor Polder Basin: Basin floor 2.10m AOD; winter duty pumping 4.30m AOD; mobile pumps ordered 5.80m AOD; mobile active 6.10m AOD; critical 6.50m AOD.
-  - Northmoor Polder Basin: Basin floor 1.80m AOD; duty pumping 4.00m AOD; mobile pumps ordered 4.80m AOD; mobile active 5.20m AOD; critical 5.60m AOD.
+  - Curry Moor Polder Basin: Basin floor 2.10m AOD; winter duty pumping 4.55m AOD; mobile pumps ordered 5.80m AOD; mobile active 6.10m AOD; critical 6.50m AOD.
+  - Northmoor Polder Basin: Basin floor 1.80m AOD; winter duty pumping 3.70m AOD (summer 4.20m AOD); mobile pumps ordered 4.80m AOD; mobile active 5.20m AOD; critical 5.60m AOD.
 - **Sluices & Tidal Flap Gates:**
   - Monk's Leaze Clyse: Upstream intake sill 4.20m AOD (Parrett flood relief diversion into Sowy).
   - Dunball Sea Outfall Clyse: Estuarine tidal flap gates (Parrett Estuary gauge 52163 vs Inland KSD gauge E9094).

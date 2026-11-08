@@ -88,15 +88,15 @@ The Environment Agency and Somerset Drainage Boards Consortium operate high-capa
 
 ### Curry Moor Polder Basin (52127)
 - **Basin Bed Floor:** `2.10m AOD` (Normal agricultural drainage floor)
-- **Winter Duty Pumping:** `4.30m AOD` (Currymoor Pumping Station electric duty pumps active)
-- **Summer Duty Pumping:** `4.45m AOD` (Summer penning level)
+- **Winter Duty Pumping:** `4.55m AOD` (Currymoor Pumping Station electric duty pumps active)
+- **Summer Duty Pumping:** `4.80m AOD` (Summer penning level)
 - **Mobile Pumps Ordered:** `5.80m AOD` (EA mobilizes contractor high-volume tractor and diesel pumps to site)
 - **Mobile Pumps Active:** `6.10m AOD` (Multi-pump deployment running to protect New Road and community infrastructure)
 - **Critical Risk Stage:** `6.50m AOD` (Imminent inundation of New Road and Cuts Road overflow)
 
 ### Northmoor Polder Basin (52159)
 - **Basin Bed Floor:** `1.80m AOD`
-- **Duty Pumping:** `4.00m AOD` (Saltmoor PS and Northmoor PS electric pumps online)
+- **Duty Pumping:** `3.70m AOD` (Winter) / `4.20m AOD` (Summer) (Saltmoor PS and Northmoor PS electric pumps online)
 - **Mobile Pumps Ordered:** `4.80m AOD` (EA mobilizes mobile high-volume pumps to Saltmoor/Northmoor platforms)
 - **Mobile Pumps Active:** `5.20m AOD` (Emergency pumping operational)
 - **Critical Risk Stage:** `5.60m AOD` (Internal road submergence across Moorland and Fordgate)
