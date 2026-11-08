@@ -66,8 +66,8 @@ export function resetWarningManagerState() {
  */
 export function sanitizeEANarrative(raw) {
   if (typeof raw !== 'string') return '';
-  const clean = raw.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '').trim();
-  return escapeHTML(clean).slice(0, 2048);
+  const clean = raw.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '').trim().slice(0, 2048);
+  return escapeHTML(clean);
 }
 
 /**
@@ -333,10 +333,10 @@ export async function pollAndProcessEAWarnings(
         if (shouldClose) {
           consecutiveAbsenceCounts.delete(notation);
           const timeCleared = feedItem?.timeSeverityChanged || new Date(nowMs).toISOString();
-          const durationSec = Math.max(
-            0,
-            Math.floor((new Date(timeCleared).getTime() - new Date(activeDb.time_raised).getTime()) / 1000)
-          );
+          const clearedMs = new Date(timeCleared).getTime();
+          const raisedMs = new Date(activeDb.time_raised).getTime();
+          const diffSec = Math.floor((clearedMs - raisedMs) / 1000);
+          const durationSec = Number.isFinite(diffSec) ? Math.max(0, diffSec) : null;
 
           // CLOSE active warning: active severity_level is permanently preserved
           db.prepare(`

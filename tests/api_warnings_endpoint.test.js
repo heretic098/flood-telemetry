@@ -21,23 +21,6 @@ import {
 import { evaluateRoadCorridor, ASSET_DEFINITIONS } from '../src/js/hydro_engine.js';
 import { getActiveEAWarningStatesMap } from '../src/js/ea_warning_manager.js';
 
-function requestJson(urlPath) {
-  return new Promise((resolve, reject) => {
-    http.get(`http://localhost:3000${urlPath}`, (res) => {
-      let body = '';
-      res.on('data', chunk => { body += chunk; });
-      res.on('end', () => {
-        try {
-          const json = JSON.parse(body);
-          resolve({ status: res.statusCode, headers: res.headers, data: json });
-        } catch (e) {
-          reject(new Error(`Failed to parse response: ${body}`));
-        }
-      });
-    }).on('error', reject);
-  });
-}
-
 test('Integration: /api/warnings endpoint serves structured warnings and links associated roads', async () => {
   // Start server on ephemeral port or use existing if active
   const testServer = http.createServer((req, res) => {
