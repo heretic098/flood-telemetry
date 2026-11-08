@@ -3,13 +3,13 @@ import assert from 'node:assert/strict';
 import Database from 'better-sqlite3';
 import { runMigrations, CANONICAL_ASSET_TYPES, CANONICAL_STATES, MIGRATIONS } from '../src/js/db_migrations.js';
 
-test('Database Migrations: runMigrations cleanly upgrades fresh database from 0 to 6', () => {
+test('Database Migrations: runMigrations cleanly upgrades fresh database from 0 to 7', () => {
   const db = new Database(':memory:');
   assert.equal(db.pragma('user_version', { simple: true }), 0);
 
   const finalVersion = runMigrations(db);
-  assert.equal(finalVersion, 6);
-  assert.equal(db.pragma('user_version', { simple: true }), 6);
+  assert.equal(finalVersion, 7);
+  assert.equal(db.pragma('user_version', { simple: true }), 7);
 
   // Verify all expected tables exist
   const tables = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all().map(r => r.name);
@@ -17,16 +17,17 @@ test('Database Migrations: runMigrations cleanly upgrades fresh database from 0 
   assert.ok(tables.includes('historical_telemetry'));
   assert.ok(tables.includes('camera_analysis'));
   assert.ok(tables.includes('telemetry_events'));
+  assert.ok(tables.includes('ea_warning_events'));
 
   // Verify legacy spill_events has been dropped [RULE-CALC-01, RULE-ENT-01]
   assert.ok(!tables.includes('spill_events'), 'spill_events must be dropped in migration 3');
 
   // Calling runMigrations again is idempotent
   const secondRun = runMigrations(db);
-  assert.equal(secondRun, 6);
+  assert.equal(secondRun, 7);
 });
 
-test('Database Migrations: upgrades cleanly from version 1 to version 6', () => {
+test('Database Migrations: upgrades cleanly from version 1 to version 7', () => {
   const db = new Database(':memory:');
   
   // Apply only migration 1
@@ -39,17 +40,18 @@ test('Database Migrations: upgrades cleanly from version 1 to version 6', () => 
   assert.ok(tablesV1.includes('spill_events'));
   assert.ok(!tablesV1.includes('telemetry_events'));
 
-  // Now runMigrations - should upgrade to 6
+  // Now runMigrations - should upgrade to 7
   const upgradedVersion = runMigrations(db);
-  assert.equal(upgradedVersion, 6);
-  assert.equal(db.pragma('user_version', { simple: true }), 6);
+  assert.equal(upgradedVersion, 7);
+  assert.equal(db.pragma('user_version', { simple: true }), 7);
 
   const tablesV3 = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all().map(r => r.name);
   assert.ok(tablesV3.includes('telemetry_events'));
+  assert.ok(tablesV3.includes('ea_warning_events'));
   assert.ok(!tablesV3.includes('spill_events'), 'spill_events must be dropped after migration 3');
 });
 
-test('Database Migrations: upgrades cleanly from version 2 to version 6', () => {
+test('Database Migrations: upgrades cleanly from version 2 to version 7', () => {
   const db = new Database(':memory:');
   
   // Apply migrations 1 and 2
@@ -63,29 +65,30 @@ test('Database Migrations: upgrades cleanly from version 2 to version 6', () => 
   assert.ok(tablesV2.includes('spill_events'));
   assert.ok(tablesV2.includes('telemetry_events'));
 
-  // Now runMigrations - should upgrade to 6 and drop spill_events
+  // Now runMigrations - should upgrade to 7 and drop spill_events
   const upgradedVersion = runMigrations(db);
-  assert.equal(upgradedVersion, 6);
-  assert.equal(db.pragma('user_version', { simple: true }), 6);
+  assert.equal(upgradedVersion, 7);
+  assert.equal(db.pragma('user_version', { simple: true }), 7);
 
   const tablesV3 = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all().map(r => r.name);
   assert.ok(tablesV3.includes('telemetry_events'));
+  assert.ok(tablesV3.includes('ea_warning_events'));
   assert.ok(!tablesV3.includes('spill_events'), 'spill_events must be dropped after migration 3');
 });
 
 test('Database Migrations: migration 3 drop table is idempotent', () => {
   const db = new Database(':memory:');
   runMigrations(db);
-  assert.equal(db.pragma('user_version', { simple: true }), 6);
+  assert.equal(db.pragma('user_version', { simple: true }), 7);
 
   // Directly running migration 3 up function again must not throw
   assert.doesNotThrow(() => {
     MIGRATIONS[2].up(db);
   });
 
-  // Calling runMigrations again on v6 must remain 6
+  // Calling runMigrations again on v7 must remain 7
   const rerun = runMigrations(db);
-  assert.equal(rerun, 6);
+  assert.equal(rerun, 7);
 });
 
 test('Database Migrations: migration 4 purges spurious monks_leaze_clyse baseflow REVERSE_LOCK events', () => {
@@ -113,10 +116,10 @@ test('Database Migrations: migration 4 purges spurious monks_leaze_clyse baseflo
 
   assert.equal(db.prepare("SELECT count(*) as c FROM telemetry_events").get().c, 3);
 
-  // Run migrations up to 6
+  // Run migrations up to 7
   const finalVersion = runMigrations(db);
-  assert.equal(finalVersion, 6);
-  assert.equal(db.pragma('user_version', { simple: true }), 6);
+  assert.equal(finalVersion, 7);
+  assert.equal(db.pragma('user_version', { simple: true }), 7);
 
   const remaining = db.prepare("SELECT * FROM telemetry_events ORDER BY id ASC").all();
   assert.equal(remaining.length, 2, 'Spurious baseflow event must be deleted; valid flood & other events preserved');
@@ -153,10 +156,10 @@ test('Database Migrations: migration 6 purges spurious curry_moor dry-weather du
 
   assert.equal(db.prepare("SELECT count(*) as c FROM telemetry_events").get().c, 4);
 
-  // Run migration 6
+  // Run migration 6 and 7
   const finalVersion = runMigrations(db);
-  assert.equal(finalVersion, 6);
-  assert.equal(db.pragma('user_version', { simple: true }), 6);
+  assert.equal(finalVersion, 7);
+  assert.equal(db.pragma('user_version', { simple: true }), 7);
 
   const remaining = db.prepare("SELECT * FROM telemetry_events ORDER BY id ASC").all();
   assert.equal(remaining.length, 2, 'Both spurious events (< 4.55m) must be deleted; legitimate event & other asset preserved');
@@ -185,9 +188,9 @@ test('Database Migrations: migration 5 adds rate columns to historical_telemetry
     ) VALUES ('road', 'cuts_road', 'IMPASSABLE', 4, '2026-11-06T08:30:00Z', 6.20, 6.45, 'Inundated', 'ACTIVE')
   `).run();
 
-  // Run migration 5 and 6
+  // Run migration 5, 6, and 7
   const finalVersion = runMigrations(db);
-  assert.equal(finalVersion, 6);
+  assert.equal(finalVersion, 7);
 
   // Verify historical_telemetry columns
   const histCols = db.prepare("PRAGMA table_info(historical_telemetry)").all().map(c => c.name);

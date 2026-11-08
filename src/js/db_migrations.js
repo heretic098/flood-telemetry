@@ -230,6 +230,48 @@ export const MIGRATIONS = [
           AND peak_stage_mAOD < 4.55
       `).run();
     }
+  },
+  {
+    version: 7,
+    name: 'provision_ea_warning_events_ledger',
+    up: (db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS ea_warning_events (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          warning_id TEXT NOT NULL,
+          target_area_notation TEXT NOT NULL,
+          area_name TEXT NOT NULL,
+          severity_level INTEGER NOT NULL CHECK(severity_level BETWEEN 1 AND 3),
+          severity_label TEXT NOT NULL CHECK(severity_label IN (
+            'Severe Flood Warning',
+            'Flood Warning',
+            'Flood Alert'
+          )),
+          time_raised TEXT NOT NULL,
+          time_severity_changed TEXT,
+          time_message_changed TEXT,
+          time_cleared TEXT,
+          duration_seconds INTEGER,
+          narrative TEXT NOT NULL,
+          trigger_snapshot_json TEXT NOT NULL,
+          latest_snapshot_json TEXT,
+          associated_roads_json TEXT NOT NULL DEFAULT '[]',
+          status TEXT NOT NULL CHECK(status IN ('ACTIVE', 'CLOSED'))
+        );
+
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_active_ea_warning 
+          ON ea_warning_events(target_area_notation) WHERE status = 'ACTIVE';
+
+        CREATE INDEX IF NOT EXISTS idx_ea_warning_area_status 
+          ON ea_warning_events(target_area_notation, status);
+
+        CREATE INDEX IF NOT EXISTS idx_ea_warning_raised 
+          ON ea_warning_events(time_raised DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_ea_warning_severity 
+          ON ea_warning_events(severity_level, status);
+      `);
+    }
   }
 ];
 

@@ -85,6 +85,17 @@ export const roadSummarySchema = object({
 });
 
 /**
+ * EA Warnings Summary Schema
+ */
+export const eaWarningsSummarySchema = object({
+  active_count: number({ min: 0, integer: true }),
+  has_severe_warning: boolean(),
+  has_flood_warning: boolean(),
+  has_flood_alert: boolean(),
+  target_areas_active: array(string({ minLength: 1 }))
+});
+
+/**
  * /api/status Payload Schema
  */
 export const apiStatusSchema = object({
@@ -100,6 +111,7 @@ export const apiStatusSchema = object({
     top_severity: number({ min: 1, max: 5, integer: true }),
     is_tide_locked: boolean()
   }),
+  ea_warnings: optional(eaWarningsSummarySchema),
   active_events: array(activeEventSchema),
   roads: object({
     counts: optional(roadCountsSchema),
