@@ -1,11 +1,10 @@
 FROM node:20-slim AS build
 WORKDIR /app
-RUN apt-get update && apt-get install -y python3 make g++ && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y python3 make g++ curl ca-certificates && rm -rf /var/lib/apt/lists/*
 COPY package*.json ./
 RUN npm ci --omit=dev
 
-ADD https://github.com/benbjohnson/litestream/releases/download/v0.3.13/litestream-v0.3.13-linux-amd64.tar.gz /tmp/litestream.tar.gz
-RUN tar -C /usr/local/bin -xzf /tmp/litestream.tar.gz && rm -f /tmp/litestream.tar.gz
+RUN curl -fsSL --retry 3 --retry-connrefused https://github.com/benbjohnson/litestream/releases/download/v0.3.13/litestream-v0.3.13-linux-amd64.tar.gz | tar -C /usr/local/bin -xzf -
 
 FROM node:20-slim
 WORKDIR /app
