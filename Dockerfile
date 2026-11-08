@@ -4,7 +4,9 @@ RUN apt-get update && apt-get install -y python3 make g++ curl ca-certificates &
 COPY package*.json ./
 RUN npm ci --omit=dev
 
-RUN curl -fSL --connect-timeout 15 --max-time 120 --retry 5 --retry-delay 3 -o /tmp/litestream.tar.gz https://github.com/benbjohnson/litestream/releases/download/v0.3.13/litestream-v0.3.13-linux-amd64.tar.gz \
+RUN for i in 1 2 3 4 5; do \
+      curl -fSL --connect-timeout 15 -C - -o /tmp/litestream.tar.gz https://github.com/benbjohnson/litestream/releases/download/v0.3.13/litestream-v0.3.13-linux-amd64.tar.gz && break || sleep 2; \
+    done \
   && tar -C /usr/local/bin -xzf /tmp/litestream.tar.gz \
   && rm -f /tmp/litestream.tar.gz
 
