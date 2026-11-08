@@ -231,6 +231,15 @@ async function run() {
         // Additional settling time for telemetry rendering
         await new Promise(r => setTimeout(r, 500));
 
+        // Issue #41: Toggle open Curry Moor card technical telemetry drawer to visually capture the redesigned pump scale bar
+        if (view.name === 'Main Dashboard Desktop') {
+          await page.evaluate(() => {
+            const drawerToggle = document.querySelector('#card-52118 .drawer-toggle');
+            if (drawerToggle) drawerToggle.click();
+          });
+          await new Promise(r => setTimeout(r, 400));
+        }
+
         // Gate 2.2: Post-render DOM assertions
         const elementCount = await page.$$eval(view.domAssertion.selector, els => els.length);
         if (elementCount < view.domAssertion.minCount) {

@@ -12,6 +12,8 @@ import {
   calculateSparklineScrubIndex,
   calculateRatioFromEvent,
   formatRelativeAge,
+  normalizePoints,
+  renderDualSparkline as renderDualSparklineCore,
   renderGridLines,
   renderYAxisLabels
 } from './sparkline.js';
@@ -149,10 +151,10 @@ export function formatSpanUnit(deltaInMeters) {
   if (absDelta >= 1.0) {
     return `${deltaInMeters.toFixed(2)}m`;
   } else if (absDelta >= 0.01) {
-    const cm = deltaInMeters * 100;
+    const cm = Number((deltaInMeters * 100).toFixed(1));
     return `${Number.isInteger(cm) || cm >= 10 ? cm.toFixed(0) : cm.toFixed(1)}cm`;
   } else {
-    const mm = deltaInMeters * 1000;
+    const mm = Math.round(deltaInMeters * 1000);
     return `${mm.toFixed(0)}mm`;
   }
 }
@@ -514,7 +516,7 @@ export async function refreshLiveDashboard() {
       const SPILLWAY_ROWS = [
         { name: "Hookbridge Spillway (River Tone ➔ Curry Moor)", config: hydroConfig.moors.curry_moor?.spillway, fallback: 7.45 },
         { name: "Athelney Spillway (Curry Moor ➔ Northmoor Cascade)", config: hydroConfig.moors.curry_moor?.athelney_spillway, fallback: 7.35 },
-        { name: "Baltmoor Wall Defense (River Parrett ➔ Northmoor Overtopping)", config: hydroConfig.moors.northmoor?.spillway, fallback: 7.80 },
+        { name: "Baltmoor Wall Defence (River Parrett ➔ Northmoor Overtopping)", config: hydroConfig.moors.northmoor?.spillway, fallback: 7.80 },
         { name: "Beer Wall / Allens Spillway (Greylake ➔ Sowy Relief)", config: hydroConfig.moors.northmoor?.beer_wall, fallback: 7.30 }
       ];
       infraBody.innerHTML = SPILLWAY_ROWS.map(item => {
@@ -677,6 +679,16 @@ export async function refreshLiveDashboard() {
     const stanmoorPump = getPumpEvaluation('stanmoor_ps', cmMoorLevel, 'curry_moor', 'Stanmoor PS', 2);
     const cmGravitySluice = evaluateGravityClyse(cmMoorLevel, cmRiverLevel, "Currymoor Sluice");
 
+    const cmRiverColor = cmEval.code === 'OVERTOPPING' ? '#f87171' : (cmRiverFreshness.isStale ? '#f59e0b' : '#4ade80');
+    const cmMoorColor = cmMoorFreshness.isStale ? '#f59e0b' : '#38bdf8';
+    const cmTriggerDelta = getPumpTriggerDelta(currymoorPump, cmMoorLevel);
+
+    const currymoorPillMode = currymoorPump.stage === 0 ? '⚪ STANDBY' :
+      (currymoorPump.mode === 'PARTIAL_DUTY' ? '🟢 LEAD DUTY' :
+      (currymoorPump.mode === 'FULL_CAPACITY' ? '🟢 FULL DUTY' :
+      (currymoorPump.mode === 'MOBILE_ORDERED' ? '🟡 MOBILE ORDERED' :
+      (currymoorPump.mode === 'EMERGENCY_MOBILE_ACTIVE' ? '🔴 MOBILE ACTIVE' : '🚨 CRITICAL'))));
+
     // Progressive Disclosure Level 1: Centimetre Rule + 3h Trend Vector + Active Duration
     const hookbridgeActive = activeEventsMap.get('hookbridge');
     const bpReadings = dbMeasures?.["52162-level-stage-i-15_min-mAOD"];
@@ -735,12 +747,12 @@ export async function refreshLiveDashboard() {
       },
       `<strong>Currymoor Gravity ${renderJargonTerm('Clyse')}:</strong> ${cmGravitySluice.statusText}`,
       {
-        html: `<strong>Currymoor PS:</strong> ${currymoorPump.statusText}`,
-        tooltip: `📍 Currymoor Pumping Station: Inferred from moor water stage relative to EA Trigger Point Plan`
+        html: `<strong>Currymoor PS:</strong> ${currymoorPillMode} (Curry Moor ${cmMoorLevel.toFixed(2)}m • ${cmTriggerDelta.statusText})`,
+        tooltip: `📍 Currymoor Pumping Station: Driven by water stage in Curry Moor Basin (Station 52127), NOT the River Tone. Inferred from EA Trigger Point Plan.`
       },
       {
         html: `<strong>Stanmoor PS:</strong> ${stanmoorPump.statusText}`,
-        tooltip: `📍 Stanmoor Pumping Station: Inferred from moor water stage relative to EA Trigger Point Plan`
+        tooltip: `📍 Stanmoor Pumping Station: Driven by water stage in Curry Moor Basin (Station 52127). Inferred from EA Trigger Point Plan.`
       }
     ],
     camLinks: [
@@ -749,8 +761,24 @@ export async function refreshLiveDashboard() {
       { label: "Currymoor PS", url: "https://thecfh.org/parretttonewsom.php#currymoor", title: "View 3-min EA Snapshot Camera at Currymoor PS" }
     ],
     spillwayMeta: { crest: hookbridgeCrest.toFixed(2), scheme: hookbridgeScheme },
-    sparkline: renderSingleSparkline(cmRiverHistory, cmEval.code === 'OVERTOPPING' ? '#f87171' : (cmIsStale ? '#f59e0b' : '#4ade80'), { streamLabel: 'River Tone @ Currymoor PS', stationId: '52118', unit: 'mAOD' }),
-    pumpGauge: renderPumpTriggerGauge(currymoorPump),
+    sparkline: renderDualSparkline(cmRiverHistory, cmMoorHistory, false, {
+      secondaryName: 'River Tone',
+      primaryName: 'Curry Moor',
+      secondaryColor: cmRiverColor,
+      primaryColor: cmMoorColor,
+      showTideLock: false,
+      statusPill: `Moor ${cmMoorLevel.toFixed(2)}m • ${cmTriggerDelta.statusText}`,
+      streamLabel: `<span class="stream-dot" style="background:${cmRiverColor}; color:${cmRiverColor}"></span><span class="sparkline-title">River Tone (52118) [Receiving River]</span> <span style="color:#64748b; font-size:0.65rem;">vs</span> <span class="stream-dot" style="background:#38bdf8; color:#38bdf8"></span><span class="sparkline-title">Moor Drain (52127) [🎯 Drives Pumps]</span>`
+    }),
+    pumpGauge: renderPumpTriggerGauge(currymoorPump, {
+      stationId: '52127',
+      stationName: 'Curry Moor Basin',
+      riverName: 'River Tone',
+      currentLevel: cmMoorLevel,
+      color: '#38bdf8',
+      isStale: cmMoorFreshness.isStale,
+      roleTag: 'Internal Moor Drain'
+    }),
     gauges: [
       {
         name: "River Tone (Currymoor PS)",
@@ -798,6 +826,8 @@ export async function refreshLiveDashboard() {
   const athelneyClearanceDelta = Number(Math.abs(cmMoorLevel - athelneyCrest).toFixed(2));
   const athelneyClearanceFormatted = formatClearanceText(athelneyCrest - cmMoorLevel, 'spillway crest');
   const athelneyClearanceWithTrend = `${athelneyClearanceFormatted} (${athelneyTrend})${cutsRoadActive?.duration_formatted ? ` • ⏱️ ${cutsRoadActive.duration_formatted}` : ''}`;
+  const athelneyCurryColor = athelneyEval.code === 'OVERTOPPING' ? '#f87171' : (cmMoorFreshness.isStale ? '#f59e0b' : '#38bdf8');
+  const athelneyNorthmoorColor = nmMoorFreshness.isStale ? '#f59e0b' : '#a78bfa';
 
   const athelneyHeroBanner = renderHeroSpillwayBanner({
     icon: '🌊',
@@ -851,7 +881,15 @@ export async function refreshLiveDashboard() {
       { label: "Athelney Spillway", url: "https://thecfh.org/parretttonewsom.php#athelneyspillway", title: "View 3-min EA Snapshot Camera at Athelney" }
     ],
     spillwayMeta: { crest: athelneyCrest.toFixed(2), scheme: athelneyScheme },
-    sparkline: renderSingleSparkline(cmMoorHistory, athelneyEval.code === 'OVERTOPPING' ? '#f87171' : (athelneyIsStale ? '#f59e0b' : '#38bdf8'), { streamLabel: 'Curry Moor Basin @ Athelney', stationId: '52127', unit: 'mAOD' }),
+    sparkline: renderDualSparkline(cmMoorHistory, nmMoorHistory, false, {
+      secondaryName: 'Curry Moor',
+      primaryName: 'Northmoor',
+      secondaryColor: athelneyCurryColor,
+      primaryColor: athelneyNorthmoorColor,
+      showTideLock: false,
+      statusPill: `Crest: ${athelneyCrest.toFixed(2)}mAOD (${athelneyClearanceDelta.toFixed(2)}m margin)`,
+      streamLabel: `<span class="stream-dot" style="background:${athelneyCurryColor}; color:${athelneyCurryColor}"></span><span class="sparkline-title">Curry Moor Basin (52127) [Upstream]</span> <span style="color:#64748b; font-size:0.65rem;">vs</span> <span class="stream-dot" style="background:#a78bfa; color:#a78bfa"></span><span class="sparkline-title">Northmoor Drain (52159) [Cascade Relief]</span>`
+    }),
     gauges: [
       {
         name: "Curry Moor Basin",
@@ -909,6 +947,21 @@ export async function refreshLiveDashboard() {
   const saltmoorPump = getPumpEvaluation('saltmoor_ps', nmMoorLevel, 'northmoor', 'Saltmoor PS', 2);
   const northmoorPump = getPumpEvaluation('northmoor_ps', nmMoorLevel, 'northmoor', 'Northmoor PS', 2);
 
+  const nmRiverColor = nmEval.code === 'OVERTOPPING' ? '#f87171' : (nmRiverFreshness.isStale ? '#f59e0b' : '#4ade80');
+  const nmMoorColor = nmMoorFreshness.isStale ? '#f59e0b' : '#38bdf8';
+  const nmTriggerDelta = getPumpTriggerDelta(saltmoorPump, nmMoorLevel);
+
+  const saltmoorPillMode = saltmoorPump.stage === 0 ? '⚪ STANDBY' :
+    (saltmoorPump.mode === 'PARTIAL_DUTY' ? '🟢 LEAD DUTY' :
+    (saltmoorPump.mode === 'FULL_CAPACITY' ? '🟢 FULL DUTY' :
+    (saltmoorPump.mode === 'MOBILE_ORDERED' ? '🟡 MOBILE ORDERED' :
+    (saltmoorPump.mode === 'EMERGENCY_MOBILE_ACTIVE' ? '🔴 MOBILE ACTIVE' : '🚨 CRITICAL'))));
+  const northmoorPillMode = northmoorPump.stage === 0 ? '⚪ STANDBY' :
+    (northmoorPump.mode === 'PARTIAL_DUTY' ? '🟢 LEAD DUTY' :
+    (northmoorPump.mode === 'FULL_CAPACITY' ? '🟢 FULL DUTY' :
+    (northmoorPump.mode === 'MOBILE_ORDERED' ? '🟡 MOBILE ORDERED' :
+    (northmoorPump.mode === 'EMERGENCY_MOBILE_ACTIVE' ? '🔴 MOBILE ACTIVE' : '🚨 CRITICAL'))));
+
   const nmGravitySluice = evaluateGravityClyse(nmMoorLevel, nmRiverLevel, "Northmoor Sluice");
   const beerWallConfig = hydroConfig?.moors?.northmoor?.beer_wall;
   const beerWallCrest = getActiveCrestHeight(beerWallConfig, new Date(), 7.30);
@@ -918,7 +971,7 @@ export async function refreshLiveDashboard() {
 
   const baltmoorActive = activeEventsMap.get('baltmoor_wall');
   const nmTrend = computeTrendVector(nmRiverReadings);
-  const nmClearanceFormatted = formatClearanceText(baltmoorCrest - nmRiverLevel, 'defense crest');
+  const nmClearanceFormatted = formatClearanceText(baltmoorCrest - nmRiverLevel, 'defence crest');
   const nmClearanceWithTrend = `${nmClearanceFormatted} (${nmTrend})${baltmoorActive?.duration_formatted ? ` • ⏱️ ${baltmoorActive.duration_formatted}` : ''}`;
 
   const nmHeroBanner = renderHeroSpillwayBanner({
@@ -932,12 +985,12 @@ export async function refreshLiveDashboard() {
     maxLevel: baltmoorCrest,
     currentLevel: nmRiverLevel,
     minLabel: 'Normal Stage: 5.50m',
-    maxLabel: `Defense Crest: ${baltmoorCrest.toFixed(2)}m AOD`,
+    maxLabel: `Defence Crest: ${baltmoorCrest.toFixed(2)}m AOD`,
     isAlert: nmEval.code === 'OVERTOPPING' || nmEval.code === 'NEAR_CREST',
     staleInfo: nmStaleInfo,
     stats: [
-      { label: 'Defense Crest', value: `${baltmoorCrest.toFixed(2)}m AOD` },
-      { label: 'Defense Clearance', value: nmClearanceWithTrend }
+      { label: 'Defence Crest', value: `${baltmoorCrest.toFixed(2)}m AOD` },
+      { label: 'Defence Clearance', value: nmClearanceWithTrend }
     ],
     camLink: {
       url: 'https://thecfh.org/parretttonewsom.php#saltmoor',
@@ -959,11 +1012,11 @@ export async function refreshLiveDashboard() {
     provenanceClass: "prov-medium",
     metricText: `${nmRiverLevel.toFixed(2)}m AOD`,
     clearanceText: `Baltmoor Wall: ${nmClearanceWithTrend}`,
-    narrative: `Baltmoor Wall Saltmoor Barrier sensor live. River levels monitored relative to 7.80m defense overtopping crest.`,
+    narrative: `Baltmoor Wall Saltmoor Barrier sensor live. River levels monitored relative to 7.80m defence overtopping crest.`,
     pills: [
       {
         html: `<strong>Baltmoor Wall Overtopping:</strong> ${nmEval.symbol} ${nmEval.label} (${nmClearanceWithTrend})`,
-        tooltip: `📍 Baltmoor Wall Defense Crest: ${baltmoorCrest.toFixed(2)}m AOD (${baltmoorScheme})`
+        tooltip: `📍 Baltmoor Wall Defence Crest: ${baltmoorCrest.toFixed(2)}m AOD (${baltmoorScheme})`
       },
       {
         html: `<strong>Athelney Spillway Inflow:</strong> ${athelneySpillway.statusText}`,
@@ -975,12 +1028,12 @@ export async function refreshLiveDashboard() {
       },
       `<strong>Northmoor Gravity ${renderJargonTerm('Clyse')}:</strong> ${nmGravitySluice.statusText}`,
       {
-        html: `<strong>Saltmoor PS:</strong> ${saltmoorPump.statusText}`,
-        tooltip: `📍 Saltmoor Pumping Station: Inferred from moor water stage relative to EA Trigger Point Plan`
+        html: `<strong>Saltmoor PS:</strong> ${saltmoorPillMode} (Northmoor ${nmMoorLevel.toFixed(2)}m • ${nmTriggerDelta.statusText})`,
+        tooltip: `📍 Saltmoor Pumping Station: Driven by water stage in Northmoor Main Drain (Station 52159), NOT the River Parrett. Inferred from EA Trigger Point Plan.`
       },
       {
-        html: `<strong>Northmoor PS:</strong> ${northmoorPump.statusText}`,
-        tooltip: `📍 Northmoor Pumping Station: Inferred from moor water stage relative to EA Trigger Point Plan`
+        html: `<strong>Northmoor PS:</strong> ${northmoorPillMode} (Northmoor ${nmMoorLevel.toFixed(2)}m • ${nmTriggerDelta.statusText})`,
+        tooltip: `📍 Northmoor Pumping Station: Driven by water stage in Northmoor Main Drain (Station 52159), NOT the River Parrett. Inferred from EA Trigger Point Plan.`
       }
     ],
     camLinks: [
@@ -991,8 +1044,24 @@ export async function refreshLiveDashboard() {
       { label: "Northmoor PS", url: "https://thecfh.org/parretttonewsom.php#northmoor", title: "View 3-min EA Snapshot Camera at Northmoor PS" }
     ],
     spillwayMeta: { crest: baltmoorCrest.toFixed(2), scheme: baltmoorScheme },
-    sparkline: renderSingleSparkline(nmRiverHistory, nmEval.code === 'OVERTOPPING' ? '#f87171' : (nmIsStale ? '#f59e0b' : '#4ade80'), { streamLabel: 'Baltmoor Wall Barrier', stationId: '52158', unit: 'mAOD' }),
-    pumpGauge: renderPumpTriggerGauge(saltmoorPump),
+    sparkline: renderDualSparkline(nmRiverHistory, nmMoorHistory, false, {
+      secondaryName: 'Parrett',
+      primaryName: 'Northmoor',
+      secondaryColor: nmRiverColor,
+      primaryColor: nmMoorColor,
+      showTideLock: false,
+      statusPill: `Moor ${nmMoorLevel.toFixed(2)}m • ${nmTriggerDelta.statusText}`,
+      streamLabel: `<span class="stream-dot" style="background:${nmRiverColor}; color:${nmRiverColor}"></span><span class="sparkline-title">Parrett @ Baltmoor (52158) [Barrier]</span> <span style="color:#64748b; font-size:0.65rem;">vs</span> <span class="stream-dot" style="background:#38bdf8; color:#38bdf8"></span><span class="sparkline-title">Northmoor Drain (52159) [🎯 Drives Pumps]</span>`
+    }),
+    pumpGauge: renderPumpTriggerGauge(saltmoorPump, {
+      stationId: '52159',
+      stationName: 'Northmoor Main Drain',
+      riverName: 'River Parrett',
+      currentLevel: nmMoorLevel,
+      color: '#38bdf8',
+      isStale: nmMoorFreshness.isStale,
+      roleTag: 'Internal Moor Drain'
+    }),
     gauges: [
       {
         name: "Baltmoor Wall Saltmoor Barrier",
@@ -1147,6 +1216,12 @@ export async function refreshLiveDashboard() {
   const dunballEmergencyThreshold = isSummerRegime ? 3.10 : 2.80;
   const dunballEmergencyPump = evaluateDunballEmergencyPumping(dunballInland, isTideLocked, dunballEmergencyThreshold);
   const dunballPumpGaugeEval = getPumpEvaluation('dunball_mobile_ps', dunballInland, 'dunball_outfall', 'Dunball Emergency Pumps', 4);
+  const dunballTriggerDelta = getPumpTriggerDelta(dunballPumpGaugeEval, dunballInland);
+  const dunballPumpPillMode = dunballPumpGaugeEval.stage === 0 ? '⚪ STANDBY' :
+    (dunballPumpGaugeEval.mode === 'PARTIAL_DUTY' ? '🟢 LEAD DUTY' :
+    (dunballPumpGaugeEval.mode === 'FULL_CAPACITY' ? '🟢 FULL DUTY' :
+    (dunballPumpGaugeEval.mode === 'MOBILE_ORDERED' ? '🟡 MOBILE ORDERED' :
+    (dunballPumpGaugeEval.mode === 'EMERGENCY_MOBILE_ACTIVE' ? '🔴 MOBILE ACTIVE' : '🚨 CRITICAL'))));
 
   const dunballStatusBadge = isTideLocked ? 
     { label: "TIDE-LOCKED", badgeClass: "badge-tide-locked", symbol: "🕒" } :
@@ -1204,13 +1279,32 @@ export async function refreshLiveDashboard() {
         tooltip: `📍 Dunball Primary ${renderJargonTerm('Clyse')} Outfall`
       },
       `<strong>Dunball ${renderJargonTerm('Penning')} Barrier:</strong> ${isTideLocked ? '🔒 PENNING / SURGE SEALED' : '🟢 OPEN FOR DISCHARGE'}`,
-      `<strong>Emergency High-Volume Pumps:</strong> ${dunballEmergencyPump.statusText}`
+      {
+        html: `<strong>Emergency High-Volume Pumps:</strong> ${dunballPumpPillMode} (KSD ${dunballInland.toFixed(2)}m • ${dunballTriggerDelta.statusText})`,
+        tooltip: `📍 Dunball Mobile Pumps: Driven by inland King's Sedgemoor Drain stage (E9094) during tide-lock.`
+      }
     ],
     camLinks: [
       { label: "Dunball Clyse Outfall", url: "https://thecfh.org/parretttonewsom.php#dunball", title: "View 3-min EA Snapshot Camera at Dunball Outfall" }
     ],
-    sparkline: renderDualSparkline(seaHistory, inlandHistory, isTideLocked),
-    pumpGauge: renderPumpTriggerGauge(dunballPumpGaugeEval),
+    sparkline: renderDualSparkline(seaHistory, inlandHistory, isTideLocked, {
+      secondaryName: 'Sea',
+      primaryName: 'Inland',
+      secondaryColor: '#0284c7',
+      primaryColor: '#38bdf8',
+      showTideLock: true,
+      statusPill: isTideLocked ? '🔒 Tide-Locked Window' : '✓ Gravity Discharge',
+      streamLabel: `<span class="stream-dot" style="background:#38bdf8; color:#38bdf8"></span><span class="sparkline-title">Inland KSD (E9094) [Gravity Drain]</span> <span style="color:#64748b; font-size:0.65rem;">vs</span> <span class="stream-dot" style="background:#0284c7; color:#0284c7"></span><span class="sparkline-title">Sea Tide (52163) [Parrett Estuary]</span>`
+    }),
+    pumpGauge: renderPumpTriggerGauge(dunballPumpGaugeEval, {
+      stationId: 'E9094',
+      stationName: "King's Sedgemoor Drain",
+      riverName: 'Parrett Estuary',
+      currentLevel: dunballInland,
+      color: '#38bdf8',
+      isStale: dunballInlandFreshness.isStale,
+      roleTag: 'Internal Gravity Drain'
+    }),
     gauges: [
       {
         name: "Dunball Tidal Parrett",
@@ -1318,7 +1412,7 @@ export async function refreshLiveDashboard() {
       },
       {
         html: `<strong>Yeo Bankfull Cut-off:</strong> ${huishEval.clearanceText} (Limit: 8.20m AOD)`,
-        tooltip: `📍 8.20m AOD bankfull interlock: Huish permanent pumps lock out to protect Parrett defenses`
+        tooltip: `📍 8.20m AOD bankfull interlock: Huish permanent pumps lock out to protect Parrett defences`
       },
       {
         html: `<strong>Midelney PS & Sluice (River Isle):</strong> ${midelneyEval.isHeadLocked ? '🕒 HEAD-LOCKED BY PARRETT' : '🟢 GRAVITY DISCHARGE'}`,
@@ -1329,16 +1423,24 @@ export async function refreshLiveDashboard() {
     camLinks: [
       { label: "Huish Episcopi PS", url: "https://thecfh.org/parretttonewsom.php#huish", title: "View EA Snapshot Camera at Huish Episcopi" }
     ],
-    sparkline: renderDualSparkline(huishHistory, midelneyHistory, false, {
-      primaryName: 'Yeo',
+    sparkline: renderDualSparkline(midelneyHistory, huishHistory, false, {
       secondaryName: 'Isle',
-      primaryColor: huishFreshness.isStale ? '#f59e0b' : '#4ade80',
+      primaryName: 'Yeo',
       secondaryColor: midelneyFreshness.isStale ? '#f59e0b' : '#38bdf8',
+      primaryColor: huishFreshness.isStale ? '#f59e0b' : '#4ade80',
       streamLabel: '<span class="stream-dot" style="background:#4ade80; color:#4ade80"></span><span class="sparkline-title">River Yeo (52120)</span> <span style="color:#64748b; font-size:0.65rem;">vs</span> <span class="stream-dot" style="background:#38bdf8; color:#38bdf8"></span><span class="sparkline-title">River Isle (52153)</span>',
       showTideLock: false,
       statusPill: midelneyEval.isHeadLocked ? '🕒 Head-Locked by Parrett' : (confluenceIsStale ? '⚠️ Unconfirmed Conveyance' : '✓ Confluence Conveying')
     }),
-    pumpGauge: renderPumpTriggerGauge(huishPump),
+    pumpGauge: renderPumpTriggerGauge(huishPump, {
+      stationId: '52120',
+      stationName: 'River Yeo @ Huish Episcopi',
+      riverName: 'River Parrett',
+      currentLevel: huishLevel,
+      color: '#4ade80',
+      isStale: huishFreshness.isStale,
+      roleTag: 'Confluence Tributary'
+    }),
     gauges: [
       {
         name: "Huish Episcopi PS (River Yeo)",
@@ -1924,8 +2026,111 @@ function getPumpEvaluation(stationId, moorLevel, moorConfigId, stationFallbackNa
   );
 }
 
-export function renderPumpTriggerGauge(pumpEval) {
+/**
+ * Resolves the operational pump regime and calculates signed delta to the next trigger.
+ *
+ * @param {Object} pumpEval - Output of evaluatePumpStatus
+ * @param {number} currentLevel - Active driving sensor water level in mAOD
+ * @returns {Object}
+ */
+export function getPumpTriggerDelta(pumpEval, currentLevel) {
+  if (!pumpEval || !pumpEval.thresholds || pumpEval.thresholds.length === 0 || typeof currentLevel !== 'number' || isNaN(currentLevel)) {
+    return {
+      regime: 'STANDBY',
+      statusText: '--',
+      deltaText: '--',
+      activeTrigger: null,
+      nextTrigger: null,
+      nextDelta: null,
+      aboveDelta: null
+    };
+  }
+
+  const thresholds = pumpEval.thresholds;
+  const leadTrigger = thresholds[0];
+  const dutyTrigger = thresholds[1] || thresholds[0];
+  const mobileOrderTrigger = thresholds[2];
+  const mobileActiveTrigger = thresholds[3];
+
+  let regime = 'STANDBY';
+  let activeTrigger = null;
+  let nextTrigger = thresholds[0];
+
+  if (mobileActiveTrigger && currentLevel >= mobileActiveTrigger.level) {
+    regime = 'MOBILE_ACTIVE';
+    activeTrigger = mobileActiveTrigger;
+    nextTrigger = null;
+  } else if (mobileOrderTrigger && currentLevel >= mobileOrderTrigger.level) {
+    regime = 'MOBILE_ORDERED';
+    activeTrigger = mobileOrderTrigger;
+    nextTrigger = mobileActiveTrigger || null;
+  } else if (dutyTrigger && currentLevel >= dutyTrigger.level) {
+    regime = 'FULL_DUTY';
+    activeTrigger = dutyTrigger;
+    nextTrigger = mobileOrderTrigger || mobileActiveTrigger || null;
+  } else if (leadTrigger && currentLevel >= leadTrigger.level) {
+    regime = 'LEAD_DUTY';
+    activeTrigger = leadTrigger;
+    nextTrigger = dutyTrigger || mobileOrderTrigger || null;
+  } else {
+    regime = 'STANDBY';
+    activeTrigger = null;
+    nextTrigger = leadTrigger;
+  }
+
+  let deltaText = '';
+  let statusText = '';
+  let nextDelta = null;
+  let aboveDelta = null;
+
+  if (nextTrigger) {
+    nextDelta = Number((nextTrigger.level - currentLevel).toFixed(2));
+  }
+  if (activeTrigger) {
+    aboveDelta = Number((currentLevel - activeTrigger.level).toFixed(2));
+  }
+
+  if (!activeTrigger) {
+    const formattedNext = nextDelta !== null ? formatSpanUnit(Math.abs(nextDelta)) : '--';
+    deltaText = `${formattedNext} to ${nextTrigger.label} (@ ${nextTrigger.level.toFixed(2)}m)`;
+    statusText = deltaText;
+  } else if (nextTrigger) {
+    const formattedAbove = aboveDelta !== null ? formatSpanUnit(Math.abs(aboveDelta)) : '0cm';
+    const formattedNext = nextDelta !== null ? formatSpanUnit(Math.abs(nextDelta)) : '--';
+    deltaText = `Active (+${formattedAbove} above ${activeTrigger.label}) • ${formattedNext} to ${nextTrigger.label} (@ ${nextTrigger.level.toFixed(2)}m)`;
+    statusText = `${formattedNext} to ${nextTrigger.label} (@ ${nextTrigger.level.toFixed(2)}m)`;
+  } else {
+    const formattedAbove = aboveDelta !== null ? formatSpanUnit(Math.abs(aboveDelta)) : '0cm';
+    deltaText = `Active (+${formattedAbove} above ${activeTrigger.label}) • At/Above Maximum Trigger (@ ${activeTrigger.level.toFixed(2)}m)`;
+    statusText = `Active (+${formattedAbove} above ${activeTrigger.label})`;
+  }
+
+  return {
+    regime,
+    statusText,
+    deltaText,
+    activeTrigger,
+    nextTrigger,
+    nextDelta,
+    aboveDelta
+  };
+}
+
+export function renderPumpTriggerGauge(pumpEval, drivingInfo) {
   if (!pumpEval || !pumpEval.thresholds) return '';
+
+  const info = drivingInfo || {
+    stationId: '52127',
+    stationName: 'Curry Moor Basin',
+    riverName: 'River Tone',
+    currentLevel: 4.00,
+    color: '#38bdf8',
+    isStale: false,
+    roleTag: 'Internal Moor Drain'
+  };
+
+  const currentLevel = (typeof info.currentLevel === 'number' && !isNaN(info.currentLevel)) ? info.currentLevel : 0;
+  const deltaResult = getPumpTriggerDelta(pumpEval, currentLevel);
 
   const STAGE_FILL_COLORS = {
     0: '#38bdf8', // Standby / Calm Hydro Blue
@@ -1937,33 +2142,54 @@ export function renderPumpTriggerGauge(pumpEval) {
 
   const fillColor = STAGE_FILL_COLORS[pumpEval.stage] || '#38bdf8';
   const regimeBadge = pumpEval.regimeTag || (pumpEval.isSummer ? '☀️ Summer Triggers' : '❄️ Winter Triggers');
+  const progressPct = pumpEval.progressPct !== undefined ? pumpEval.progressPct : 0;
 
   const thresholdsHTML = pumpEval.thresholds.map((t, idx) => {
     const isTop = idx % 2 === 0;
+    const isNext = deltaResult.nextTrigger && deltaResult.nextTrigger.label === t.label;
+    const nextTargetClass = isNext ? ' tick-next-target' : '';
     return `
-      <div class="gauge-tick ${isTop ? 'tick-top' : 'tick-bottom'}" style="left: ${t.pct}%" title="${t.label}: ${t.level.toFixed(2)}m AOD">
+      <div class="gauge-tick ${isTop ? 'tick-top' : 'tick-bottom'}${nextTargetClass}" style="left: ${t.pct}%" title="${escapeAttr(t.label)}: ${t.level.toFixed(2)}m AOD">
         <span class="tick-line"></span>
-        <span class="tick-label">${t.label}<br><strong>${t.level.toFixed(2)}m</strong></span>
+        <span class="tick-label">${escapeHTML(t.label)}<br><strong>${t.level.toFixed(2)}m</strong></span>
       </div>
     `;
   }).join('');
+
+  const drivingStageMarkup = info.isStale
+    ? `<span class="stage-stale-tag" style="color: #f59e0b; font-weight: 600;">⚠️ Telemetry Offline (Baseline Fallback)</span>`
+    : `<code style="color: #38bdf8; font-weight: 700; font-size: 0.82rem;">${currentLevel.toFixed(2)}m AOD</code>`;
 
   return `
     <div class="pump-trigger-gauge-box">
       <div class="gauge-header">
         <div>
-          <span class="gauge-title">⚙️ Pumping Operational Scale Bar</span>
+          <span class="gauge-title">⚙️ ${escapeHTML(pumpEval.stationName || 'Pumping Operational Scale')}</span>
           <span class="gauge-subtitle-pill">${regimeBadge}</span>
+          <span class="next-pill" title="Next operational trigger delta">${escapeHTML(deltaResult.deltaText)}</span>
         </div>
         <span class="stage-badge ${pumpEval.badgeClass}">${pumpEval.stageLabel}</span>
       </div>
+
+      <div class="gauge-driving-attribution">
+        <span>📡 Driven by: <strong>${escapeHTML(info.stationName)} (Station ${escapeHTML(info.stationId)})</strong> [${escapeHTML(info.roleTag || 'Internal Moor Drain')}]</span>
+        <span class="driving-stage-display">${drivingStageMarkup}</span>
+      </div>
+
+      <div class="gauge-explainer-callout">
+        <p>ℹ️ <strong>How this works:</strong> Pumping is triggered by water levels inside the moor drain (${escapeHTML(info.stationName)} – Station ${escapeHTML(info.stationId)}), not the river. When water rises in the moor, the pumps lift it over the bank into the ${escapeHTML(info.riverName || 'river')}.</p>
+        <p class="gauge-explainer-sub">Operational triggers are inferred from the EA Somerset Levels Trigger Point Plan; live mechanical pump motor run-states are not broadcast.</p>
+      </div>
+
       <div class="gauge-track-container">
-        <div class="gauge-track-fill" style="width: ${pumpEval.progressPct}%; background: ${fillColor};"></div>
-        <div class="gauge-pin" style="left: ${pumpEval.progressPct}%" title="Current Water Level: ${pumpEval.progressPct}% of scale window">
-          <span class="pin-head">▲</span>
+        <div class="gauge-track-fill" style="width: ${progressPct}%; background: ${fillColor};"></div>
+        <div class="gauge-pin" style="left: ${progressPct}%" title="Current Water Level: ${currentLevel.toFixed(2)}m AOD (${progressPct}% of scale window)">
+          <span class="pin-bubble">${currentLevel.toFixed(2)}m</span>
+          <span class="pin-head">▼</span>
         </div>
         ${thresholdsHTML}
       </div>
+
       <div class="gauge-legend">
         <span>⚪ Standby</span>
         <span>🟢 Lead Duty</span>
@@ -2080,104 +2306,12 @@ export function renderSingleSparkline(pointsInput, strokeColor = '#4ade80', opti
 }
 
 export function renderDualSparkline(seaInput, inlandInput, isTideLocked, options = {}) {
-  const seaValues = seaInput.map(p => typeof p === 'object' ? p.value : p);
-  const inlandValues = inlandInput.map(p => typeof p === 'object' ? p.value : p);
-  const timestamps = inlandInput.map(p => typeof p === 'object' ? p.time : '');
-
-  const latestSea = seaValues[seaValues.length - 1];
-  const latestInland = inlandValues[inlandValues.length - 1];
-
-  const width = options.width || 300;
-  const height = options.height || 75;
-
-  const allPoints = [...seaValues, ...inlandValues];
-  const minSpan = options.minSpan !== undefined ? options.minSpan : 1.0;
-  const bounds = computeSparklineBounds(allPoints, { minSpan });
-  const { rawMin, rawMax, yMin, yMax, effectiveRange } = bounds;
-
-  const marginTop = 16;
-  const marginBottom = 16;
-  const marginLeft = 8;
-  const marginRight = 68;
-  const drawWidth = width - marginLeft - marginRight;
-  const drawHeight = height - marginTop - marginBottom;
-  const dims = { width, height, marginTop, marginBottom, marginLeft, marginRight, drawWidth, drawHeight };
-
-  const seaProjected = projectCoordinates(seaValues, bounds, dims);
-  const inlandProjected = projectCoordinates(inlandValues, bounds, dims);
-  const seaPts = buildSvgPoints(seaProjected);
-  const inlandPts = buildSvgPoints(inlandProjected);
-
-  // Calculate exact historical tide-lock intervals (sea level >= inland level)
-  const intervals = computeTideLockIntervals(seaValues, inlandValues);
-  const n = Math.min(seaValues.length, inlandValues.length);
-
-  const tideLockHighlights = intervals.map(inv => {
-    const x1 = marginLeft + (inv.start / (n - 1)) * drawWidth;
-    const x2 = marginLeft + (inv.end / (n - 1)) * drawWidth;
-    const w = Math.max(x2 - x1, 2);
-
-    if (currentActiveRange === '7d' || currentActiveRange === '30d') {
-      return `<rect x="${x1.toFixed(1)}" y="${marginTop}" width="${w.toFixed(1)}" height="4" fill="rgba(230, 97, 1, 0.85)" rx="1"><title>Tide-Locked Period (Estuary Sea Level >= Inland Drain)</title></rect>`;
-    } else {
-      return `<rect x="${x1.toFixed(1)}" y="${marginTop}" width="${w.toFixed(1)}" height="${height - marginTop - marginBottom}" fill="rgba(230, 97, 1, 0.25)" stroke="rgba(230, 97, 1, 0.4)" stroke-width="0.5"><title>Tide-Locked Window: Sea Head Seals Passive Flap Gates</title></rect>`;
-    }
-  }).join('');
-
-  const primaryName = options.primaryName || 'Inland';
-  const secondaryName = options.secondaryName || 'Sea';
-  const primaryColor = options.primaryColor || '#38bdf8';
-  const secondaryColor = options.secondaryColor || '#0284c7';
-  const statusPillText = options.statusPill !== undefined ? options.statusPill : (isTideLocked ? '🔒 Tide-Locked Window' : '✓ Gravity Discharge');
-  const showTideLock = options.showTideLock !== undefined ? options.showTideLock : true;
-
-  const streamHeader = options.streamLabel || 
-    `<span class="stream-dot" style="background:#38bdf8; color:#38bdf8"></span><span class="sparkline-title">Inland KSD (E9094)</span> <span style="color:#64748b; font-size:0.65rem;">vs</span> <span class="stream-dot" style="background:#0284c7; color:#0284c7"></span><span class="sparkline-title">Sea Tide (52163)</span>`;
-
-  return `
-    <div class="sparkline-wrapper">
-      <div class="sparkline-header">
-        <div class="sparkline-title-group">${streamHeader}</div>
-        <div class="sparkline-stats-bar">
-          <span class="sparkline-stat-pill" style="color:${primaryColor}" title="${primaryName} stage">${primaryName}: <strong>${typeof latestInland === 'number' ? latestInland.toFixed(2) : '--'}mAOD</strong></span>
-          <span class="sparkline-stat-pill" style="color:${secondaryColor}" title="${secondaryName} stage">${secondaryName}: <strong>${typeof latestSea === 'number' ? latestSea.toFixed(2) : '--'}mAOD</strong></span>
-          <span class="sparkline-span-pill ${isTideLocked ? 'pill-warning' : ''}">
-            ${statusPillText}
-          </span>
-        </div>
-      </div>
-      <svg class="sparkline" 
-           viewBox="0 0 ${width} ${height}" 
-           preserveAspectRatio="none"
-           data-points='${JSON.stringify(inlandValues)}'
-           data-secondary-points='${JSON.stringify(seaValues)}'
-           data-timestamps='${JSON.stringify(timestamps)}'
-           data-primary-name="${escapeAttr(primaryName)}"
-           data-secondary-name="${escapeAttr(secondaryName)}"
-           data-ymin="${yMin}"
-           data-ymax="${yMax}">
-        ${showTideLock ? tideLockHighlights : ''}
-        <line x1="${marginLeft}" y1="${marginTop}" x2="${width - marginRight + 5}" y2="${marginTop}" stroke="rgba(255, 255, 255, 0.15)" stroke-dasharray="3,3" />
-        <line x1="${marginLeft}" y1="${height - marginBottom}" x2="${width - marginRight + 5}" y2="${height - marginBottom}" stroke="rgba(255, 255, 255, 0.15)" stroke-dasharray="3,3" />
-        <polyline fill="none" stroke="${primaryColor}" stroke-width="2.2" points="${inlandPts}" />
-        <polyline fill="none" stroke="${secondaryColor}" stroke-width="2.2" stroke-dasharray="4,4" points="${seaPts}" />
-        <line class="sparkline-crosshair" x1="${marginLeft}" y1="${marginTop}" x2="${marginLeft}" y2="${height - marginBottom}" />
-        <circle class="sparkline-dot-halo" cx="0" cy="0" r="7" />
-        <circle class="sparkline-dot-highlight" cx="0" cy="0" r="4.5" />
-        <circle class="sparkline-dot-highlight-secondary" cx="0" cy="0" r="4.5" />
-        <rect class="sparkline-touch-overlay" x="${marginLeft}" y="0" width="${drawWidth}" height="${height}" fill="transparent" />
-        <g transform="translate(${width - 4}, ${marginTop + 3})">
-          <rect x="-60" y="-10" width="60" height="13" rx="2" fill="rgba(15, 23, 42, 0.75)" />
-          <text x="0" y="0" text-anchor="end" class="sparkline-y-label">Max ${rawMax.toFixed(2)}m</text>
-        </g>
-        <g transform="translate(${width - 4}, ${height - marginBottom + 3})">
-          <rect x="-60" y="-10" width="60" height="13" rx="2" fill="rgba(15, 23, 42, 0.75)" />
-          <text x="0" y="0" text-anchor="end" class="sparkline-y-label">Min ${rawMin.toFixed(2)}m</text>
-        </g>
-      </svg>
-      <div class="sparkline-tooltip"></div>
-    </div>
-  `;
+  // Uses Estuarine Deep Blue #0284c7 for sea tide stream, preventing warning orange collisions (UI-COL-02)
+  return renderDualSparklineCore(seaInput, inlandInput, isTideLocked, {
+    secondaryColor: options.secondaryColor || '#0284c7',
+    currentRange: options.currentRange || (typeof currentActiveRange !== 'undefined' ? currentActiveRange : '24h'),
+    ...options
+  });
 }
 
 let hoverStickyTimer = null;

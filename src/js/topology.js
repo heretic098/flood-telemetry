@@ -860,7 +860,7 @@ function renderSVGNetwork() {
     if (edge.from === '52118' && edge.to === '52127') {
       edgeTitle = `Hookbridge Spillway: Controlled relief overflow from River Tone into Curry Moor when stage ≥ 7.45m AOD (Status: ${isFlowActive ? 'ACTIVE OVERFLOW' : 'STANDBY / DRY'})`;
     } else if (edge.from === '52158' && edge.to === '52159') {
-      edgeTitle = `Baltmoor Wall Levee Defense: Overtopping from River Parrett/Tone Confluence into Northmoor when stage ≥ 7.80m AOD (Status: ${isFlowActive ? 'ACTIVE OVERTOPPING' : 'SECURE'})`;
+      edgeTitle = `Baltmoor Wall Levee Defence: Overtopping from River Parrett/Tone Confluence into Northmoor when stage ≥ 7.80m AOD (Status: ${isFlowActive ? 'ACTIVE OVERTOPPING' : 'SECURE'})`;
     } else if (edge.type === 'polder_overflow' || (edge.from === '52127' && edge.to === '52159')) {
       edgeTitle = `Athelney Spillway (Curry Moor ➔ Northmoor Cascade): Overtopping from Curry Moor into Northmoor when stage ≥ 7.35m AOD (Status: ${isFlowActive ? 'ACTIVE OVERFLOW' : 'STANDBY / DRY'})`;
     } else if (edge.from === '52233' && edge.to === '52234') {
@@ -915,7 +915,7 @@ function renderSVGNetwork() {
       const bStroke = isFlowActive ? '#ef4444' : '#475569';
       const bTextFill = isFlowActive ? '#fca5a5' : '#cbd5e1';
       edgeBadgesHTML += `
-        <g class="topology-edge-badge ${dimmed ? 'dimmed' : ''}" data-target-node="52158" tabindex="0" role="button" aria-label="Baltmoor Wall Levee Defense at 7.80m AOD">
+        <g class="topology-edge-badge ${dimmed ? 'dimmed' : ''}" data-target-node="52158" tabindex="0" role="button" aria-label="Baltmoor Wall Levee Defence at 7.80m AOD">
           <rect x="${bX - bW/2}" y="${bY - 9}" width="${bW}" height="18" rx="4" fill="${bBg}" stroke="${bStroke}" stroke-width="1.2" />
           <text x="${bX}" y="${bY}" fill="${bTextFill}" font-size="8.2" font-weight="600" text-anchor="middle" dominant-baseline="central" letter-spacing="0.02em">${bLabel}</text>
           <rect x="${bX - bW/2 - 8}" y="${bY - 18}" width="${bW + 16}" height="36" fill="transparent" pointer-events="all" />
@@ -1646,8 +1646,8 @@ function inspectNode(nodeId, restoreFocus = false) {
             <strong class="stat-val" style="font-size:0.8rem; font-family:monospace;">${pumpText}</strong>
           </div>
           <div class="stat-card">
-            <span class="stat-title">Baltmoor Wall Defense</span>
-            <strong class="stat-val" style="font-size:0.8rem; font-family:monospace;">Crest: 7.80mAOD (Levee Defense)</strong>
+            <span class="stat-title">Baltmoor Wall Defence</span>
+            <strong class="stat-val" style="font-size:0.8rem; font-family:monospace;">Crest: 7.80mAOD (Levee Defence)</strong>
           </div>
           <div class="stat-card" style="grid-column: span 2;">
             <span class="stat-title">Dual Inflow Pathways</span>
@@ -1697,7 +1697,7 @@ function inspectNode(nodeId, restoreFocus = false) {
             <strong class="stat-val" style="font-size:0.8rem; color:#38bdf8;">Tone + Parrett at Burrowbridge</strong>
           </div>
           <div class="stat-card" style="grid-column: span 2;">
-            <span class="stat-title">Levee Defense Function</span>
+            <span class="stat-title">Levee Defence Function</span>
             <strong class="stat-val" style="font-size:0.8rem; font-weight:normal; color:#cbd5e1;">
               Protects Northmoor against river overtopping up to 7.80mAOD. Inter-moor floodwaters from Curry Moor enter Northmoor via Athelney Spillway (7.35m).
             </strong>

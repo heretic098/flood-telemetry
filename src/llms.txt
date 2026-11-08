@@ -15,7 +15,7 @@ Somerset Flood Telemetry (https://floodtelemetry.uk/) is an independent, communi
   - Cuts Road (East Lyng ↔ Athelney): Surveyed crown 7.35m AOD (Curry Moor Polder overflow crossing).
   - Muchelney Spine Road (Huish Episcopi ↔ Muchelney): Surveyed crown 7.86m AOD (Community lifeline route).
   - New Road (West Lyng ↔ North Curry): Road crown 7.10m AOD (Emergency council flood gates).
-  - A361 Corridor (East Lyng ↔ Burrowbridge): Strategic road crown 7.80m AOD (Baltmoor Wall levee defense).
+  - A361 Corridor (East Lyng ↔ Burrowbridge): Strategic road crown 7.80m AOD (Baltmoor Wall levee defence).
   - Bicknell's Bridge & Huish Level: Approach dip 7.30m AOD (River Yeo / Langport confluence).
   - Moorland New Cut Road: Internal polder road 4.80m AOD (Northmoor polder basin).
   - Stan Moor Road: River bank road 7.30m AOD (River Tone levee approach).

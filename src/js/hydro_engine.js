@@ -799,7 +799,7 @@ export const STATION_REGISTRY = {
     has_sparkline: true,
     govuk_link: 'https://check-for-flooding.service.gov.uk/station/3065',
     provenance: {
-      crest: { tier: 1, label: 'Surveyed Levee Defense', authority: 'EA Surveyed Armored Clay Embankment (7.80m ODN)' },
+      crest: { tier: 1, label: 'Surveyed Levee Defence', authority: 'EA Surveyed Armoured Clay Embankment (7.80m ODN)' },
       alert: { tier: 3, label: 'EA Statistical Envelope', authority: 'EA stageScale typical envelope' },
       invert: { tier: 1, label: 'Surveyed Bed Invert', authority: 'EA Parrett Channel Invert at Burrowbridge' },
       near_crest: { tier: 4, label: 'Platform 15cm Buffer', authority: 'Platform Heuristic (15cm Pre-Warning)' }
@@ -823,7 +823,7 @@ export const STATION_REGISTRY = {
     has_sparkline: true,
     govuk_link: 'https://check-for-flooding.service.gov.uk/station/3415',
     provenance: {
-      crest: { tier: 1, label: 'Baltmoor Levee Defense', authority: 'EA Surveyed Armored Clay Embankment (7.80m ODN)' },
+      crest: { tier: 1, label: 'Baltmoor Levee Defence', authority: 'EA Surveyed Armoured Clay Embankment (7.80m ODN)' },
       alert: { tier: 3, label: 'EA Flood Alert Stage', authority: 'EA High Storage Warning' },
       ground: { tier: 1, label: 'Surveyed Basin Floor', authority: 'EA Moor Topography Survey (1.80m ODN)' },
       operational: { tier: 2, label: 'EA Trigger Point Plan', authority: 'EA Somerset Levels Trigger Point Plan (Northmoor/Saltmoor PS 4.80m/5.20m)' }
