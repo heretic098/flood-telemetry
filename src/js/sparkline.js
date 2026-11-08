@@ -410,11 +410,11 @@ export function formatSpanUnit(deltaInMeters) {
   if (absDelta >= 1.0) {
     return `${deltaInMeters.toFixed(2)}m`;
   } else if (absDelta >= 0.01) {
-    const cm = deltaInMeters * 100;
+    const cm = Number((deltaInMeters * 100).toFixed(1));
     return `${Number.isInteger(cm) || cm >= 10 ? cm.toFixed(0) : cm.toFixed(1)}cm`;
   } else {
-    const mm = deltaInMeters * 1000;
-    return `${mm.toFixed(0)}mm`;
+    const mm = Math.round(deltaInMeters * 1000);
+    return `${mm}mm`;
   }
 }
 
@@ -697,14 +697,35 @@ export function renderSingleSparkline(pointsInput, strokeColor = '#4ade80', opti
  * @returns {string}
  */
 export function renderDualSparkline(seaInput, inlandInput, isTideLocked, options = {}) {
-  const { values: seaValues } = normalizePoints(seaInput);
-  const { values: inlandValues, timestamps } = normalizePoints(inlandInput);
+  const { values: rawSeaValues } = normalizePoints(seaInput);
+  const { values: rawInlandValues, timestamps: rawTimestamps } = normalizePoints(inlandInput);
+
+  // Synchronize arrays: clamp to Math.min(rawSeaValues.length, rawInlandValues.length) from latest point backwards
+  const n = Math.min(rawSeaValues.length, rawInlandValues.length);
+  const seaValues = n > 0 ? rawSeaValues.slice(-n) : [];
+  const inlandValues = n > 0 ? rawInlandValues.slice(-n) : [];
+  const timestamps = (rawTimestamps && rawTimestamps.length > 0) ? rawTimestamps.slice(-n) : [];
 
   const latestSea = seaValues[seaValues.length - 1];
   const latestInland = inlandValues[inlandValues.length - 1];
 
   const width = options.width || 300;
   const height = options.height || 75;
+
+  if (n === 0) {
+    const streamHeader = options.streamLabel || 
+      `<span class="stream-dot" style="background:#38bdf8; color:#38bdf8"></span><span class="sparkline-title">Inland KSD (E9094)</span> <span style="color:#64748b; font-size:0.65rem;">vs</span> <span class="stream-dot" style="background:#0284c7; color:#0284c7"></span><span class="sparkline-title">Sea Tide (52163)</span>`;
+    return `
+      <div class="sparkline-wrapper">
+        <div class="sparkline-header">
+          <div class="sparkline-title-group">${streamHeader}</div>
+        </div>
+        <div class="sparkline-empty" style="height:${height}px; display:flex; align-items:center; justify-content:center; color:#64748b; font-size:0.75rem;">
+          No Telemetry Data
+        </div>
+      </div>
+    `;
+  }
 
   const allPoints = [...seaValues, ...inlandValues];
   const minSpan = options.minSpan !== undefined ? options.minSpan : 1.0;
@@ -726,12 +747,12 @@ export function renderDualSparkline(seaInput, inlandInput, isTideLocked, options
 
   // Calculate exact historical tide-lock intervals (sea level >= inland level)
   const intervals = computeTideLockIntervals(seaValues, inlandValues);
-  const n = Math.min(seaValues.length, inlandValues.length);
+  const denom = Math.max(1, n - 1);
 
   const currentRange = options.currentRange || '24h';
   const tideLockHighlights = intervals.map(inv => {
-    const x1 = marginLeft + (inv.start / (n - 1)) * drawWidth;
-    const x2 = marginLeft + (inv.end / (n - 1)) * drawWidth;
+    const x1 = marginLeft + (inv.start / denom) * drawWidth;
+    const x2 = marginLeft + (inv.end / denom) * drawWidth;
     const w = Math.max(x2 - x1, 2);
 
     if (currentRange === '7d' || currentRange === '30d') {
@@ -777,7 +798,7 @@ export function renderDualSparkline(seaInput, inlandInput, isTideLocked, options
         <line x1="${marginLeft}" y1="${marginTop}" x2="${width - marginRight + 5}" y2="${marginTop}" stroke="rgba(255, 255, 255, 0.15)" stroke-dasharray="3,3" />
         <line x1="${marginLeft}" y1="${height - marginBottom}" x2="${width - marginRight + 5}" y2="${height - marginBottom}" stroke="rgba(255, 255, 255, 0.15)" stroke-dasharray="3,3" />
         <polyline fill="none" stroke="${primaryColor}" stroke-width="2.2" points="${inlandPts}" />
-        <polyline fill="none" stroke="${secondaryColor}" stroke-width="2.2" stroke-dasharray="4,4" points="${seaPts}" />
+        <polyline fill="none" stroke="${secondaryColor}" stroke-width="2.2" points="${seaPts}" />
         <line class="sparkline-crosshair" x1="${marginLeft}" y1="${marginTop}" x2="${marginLeft}" y2="${height - marginBottom}" />
         <circle class="sparkline-dot-halo" cx="0" cy="0" r="7" />
         <circle class="sparkline-dot-highlight" cx="0" cy="0" r="4.5" />

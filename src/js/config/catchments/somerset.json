@@ -63,7 +63,7 @@
         "moor": "52159-level-stage-i-15_min-mAOD"
       },
       "spillway": {
-        "name": "Baltmoor Wall Overtopping Defense",
+        "name": "Baltmoor Wall Overtopping Defence",
         "baseline_crest_mAOD": 7.80,
         "pre_overtopping_alert_mAOD": 7.50,
         "sill_elevation_mAOD": 4.00,

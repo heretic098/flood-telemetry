@@ -35,7 +35,7 @@ All vertical elevations are referenced strictly to Ordnance Datum Newlyn (mAOD O
 | **52153** | Midelney (River Isle) | River Isle | `52153-level-stage-i-15_min-mASD` | +5.185 | 5.50 | 8.20 | Reverse Head: 8.20 | 6.63 | Tier 1 EA Benchmark (+5.185m ODN) / FSA Duty 6.70m |
 | **52233** | Monk's Leaze Clyse (Upstream) | River Parrett | `52233-level-stage-i-15_min-mAOD` | 0.00 | 4.20 | 7.90 | Sill: 4.20 | 6.73 | Tier 1 Surveyed Intake Clyse Sill (4.20m ODN) |
 | **52234** | Monk's Leaze Clyse (Downstream) | Sowy Relief Channel | `52234-level-downstage-i-15_min-mAOD` | 0.00 | 4.20 | 7.60 | — | 6.72 | Tier 1 Direct mAOD Sensor / Sowy Tailwater Invert |
-| **52158** | Baltmoor Wall Spillway | River Parrett | `52158-level-stage-i-15_min-mAOD` | 0.00 | 3.50 | 7.50 | Crest: 7.80 | 3.78 | Tier 1 Surveyed Armored Clay Embankment (7.80m ODN) |
+| **52158** | Baltmoor Wall Spillway | River Parrett | `52158-level-stage-i-15_min-mAOD` | 0.00 | 3.50 | 7.50 | Crest: 7.80 | 3.78 | Tier 1 Surveyed Armoured Clay Embankment (7.80m ODN) |
 | **52159** | Northmoor Basin | Northmoor Polder | `52159-level-stage-i-15_min-mAOD` | 0.00 | 1.80 | 3.80 | Floor: 1.80 | 3.17 | Tier 1 Basin Floor Survey / EA Trigger Point Plan |
 | **52124** | West Quay Bridgwater | River Parrett | `52124-level-tidal_level-i-15_min-mAOD`| 0.00 | 0.50 | 6.10 | — | 3.10 | Tier 1 Direct Tidal mAOD Sensor |
 | **52163** | Dunball Tidal Outfall | Parrett Estuary | `52163-level-tidal_level-i-15_min-mAOD`| 0.00 | -1.50 | 6.50 | Apron: -1.50 | 0.84 | Tier 1 Sea Outfall Survey (-1.50m ODN) / Storm Alert |
@@ -72,7 +72,7 @@ Road corridor passability is evaluated by comparing real-time water levels from 
    - Invariant: Reverse flow (`REVERSE_SPILL`) triggers if Curry Moor stage exceeds Tone river stage during extreme storage events.
 
 2. **Baltmoor Wall Spillway (River Parrett → Northmoor Polder):**
-   - Surveyed Armored Clay Embankment Crest: `7.80m AOD`
+   - Surveyed Armoured Clay Embankment Crest: `7.80m AOD`
    - Pre-spill Warning Band: `7.65m AOD`
    - Behavior: When the River Parrett at Burrowbridge (52158) exceeds 7.80m AOD, water spills over the reinforced embankment into the Northmoor and Salt Moor storage basin.
 
