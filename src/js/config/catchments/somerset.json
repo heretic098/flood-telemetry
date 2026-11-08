@@ -38,7 +38,7 @@
           "total_pumps": 2,
           "thresholds": {
             "summer": { "lead": 4.60, "duty": 4.80, "mobile_order": 5.80, "mobile_active": 6.10, "critical_spill": 7.35 },
-            "winter": { "lead": 4.00, "duty": 4.30, "mobile_order": 5.80, "mobile_active": 6.10, "critical_spill": 7.35 }
+            "winter": { "lead": 4.00, "duty": 4.55, "mobile_order": 5.80, "mobile_active": 6.10, "critical_spill": 7.35 }
           }
         },
         {

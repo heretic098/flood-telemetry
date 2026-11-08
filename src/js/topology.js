@@ -19,6 +19,7 @@ import {
   GAUGE_DATUMS,
   STATION_BASELINES,
   computeTrendVector,
+  disambiguateRiverTrend,
   formatClearanceText,
   ASSET_DEFINITIONS
 } from './hydro_engine.js?v=1.2.0';
@@ -1383,7 +1384,18 @@ function inspectNode(nodeId, restoreFocus = false) {
                      Object.keys(statusMeasures).find(k => k.startsWith(`${node.id}-`)) ||
                      `${node.id}-level-stage-i-15_min-mAOD`;
   const readings = historyMeasures[measureKey] || statusMeasures[measureKey] || [];
-  const trendVector = computeTrendVector(readings);
+  let trendVector = computeTrendVector(readings);
+  if (node.id === '52118') {
+    const bpKey = Object.keys(historyMeasures).find(k => k.startsWith('52162-')) ||
+                  Object.keys(statusMeasures).find(k => k.startsWith('52162-')) ||
+                  '52162-level-stage-i-15_min-mAOD';
+    const bpReadings = historyMeasures[bpKey] || statusMeasures[bpKey] || [];
+    const estKey = Object.keys(historyMeasures).find(k => k.startsWith('52163-')) ||
+                   Object.keys(statusMeasures).find(k => k.startsWith('52163-')) ||
+                   '52163-level-tidal_level-i-15_min-mAOD';
+    const estReadings = historyMeasures[estKey] || statusMeasures[estKey] || [];
+    trendVector = disambiguateRiverTrend(readings, bpReadings?.[0], estReadings?.[0]);
+  }
 
   // Active event session lookup [Progressive Disclosure Level 1 & 2]
   const activeEvents = statusData?.active_events || [];
@@ -1566,17 +1578,20 @@ function inspectNode(nodeId, restoreFocus = false) {
     } else if (isPolder) {
       if (node.id === '52127') {
         const regime = getSeasonalRegime();
-        const pumpEval = evaluatePumpStatus(stage ?? 0, 'Currymoor PS', 2, 4.00, 4.30, 5.80, 6.10, 6.50, regime.isSummer);
-        let pumpText = '🟢 Standby (Lead 4.00m, Duty 4.30m)';
+        const cmDef = ASSET_DEFINITIONS.curry_moor;
+        const leadThresh = regime.isSummer ? cmDef.lead_pump_summer_mAOD : cmDef.lead_pump_winter_mAOD;
+        const dutyThresh = regime.isSummer ? cmDef.duty_pump_summer_mAOD : cmDef.duty_pump_winter_mAOD;
+        const pumpEval = evaluatePumpStatus(stage ?? 0, 'Currymoor PS', 2, leadThresh, dutyThresh, cmDef.mobile_ordered_mAOD, cmDef.mobile_active_mAOD, cmDef.critical_mAOD, regime.isSummer);
+        let pumpText = `🟢 Standby (Lead ${leadThresh.toFixed(2)}m, Duty ${dutyThresh.toFixed(2)}m)`;
         if (stage !== null) {
           if (pumpEval.mode === 'CRITICAL_OVERSPILL' || pumpEval.mode === 'EMERGENCY_MOBILE_ACTIVE') {
-            pumpText = '⚡ EA MOBILE TRIGGER MET (≥6.10m, Inferred)';
+            pumpText = `⚡ EA MOBILE TRIGGER MET (≥${cmDef.mobile_active_mAOD.toFixed(2)}m, Inferred)`;
           } else if (pumpEval.mode === 'MOBILE_ORDERED') {
-            pumpText = '⚠️ EA MOBILE ORDER TRIGGER MET (≥5.80m, Inferred)';
+            pumpText = `⚠️ EA MOBILE ORDER TRIGGER MET (≥${cmDef.mobile_ordered_mAOD.toFixed(2)}m, Inferred)`;
           } else if (pumpEval.mode === 'FULL_CAPACITY') {
-            pumpText = '⚡ ABOVE DUTY TRIGGER (≥4.30m, Inferred)';
+            pumpText = `⚡ ABOVE DUTY TRIGGER (≥${dutyThresh.toFixed(2)}m, Inferred)`;
           } else if (pumpEval.mode === 'PARTIAL_DUTY') {
-            pumpText = '⚡ ABOVE LEAD TRIGGER (≥4.00m, Inferred)';
+            pumpText = `⚡ ABOVE LEAD TRIGGER (≥${leadThresh.toFixed(2)}m, Inferred)`;
           }
         }
 
@@ -1607,17 +1622,20 @@ function inspectNode(nodeId, restoreFocus = false) {
         `;
       } else {
         const regime = getSeasonalRegime();
-        const pumpEval = evaluatePumpStatus(stage ?? 0, 'Saltmoor & Northmoor PS', 4, 3.40, 3.70, 4.80, 5.20, 5.60, regime.isSummer);
-        let pumpText = '🟢 Standby (Lead 3.40m, Duty 3.70m)';
+        const nmDef = ASSET_DEFINITIONS.northmoor;
+        const leadThresh = regime.isSummer ? nmDef.lead_pump_summer_mAOD : nmDef.lead_pump_winter_mAOD;
+        const dutyThresh = regime.isSummer ? nmDef.duty_pump_summer_mAOD : nmDef.duty_pump_winter_mAOD;
+        const pumpEval = evaluatePumpStatus(stage ?? 0, 'Saltmoor & Northmoor PS', 4, leadThresh, dutyThresh, nmDef.mobile_ordered_mAOD, nmDef.mobile_active_mAOD, nmDef.critical_mAOD, regime.isSummer);
+        let pumpText = `🟢 Standby (Lead ${leadThresh.toFixed(2)}m, Duty ${dutyThresh.toFixed(2)}m)`;
         if (stage !== null) {
           if (pumpEval.mode === 'CRITICAL_OVERSPILL' || pumpEval.mode === 'EMERGENCY_MOBILE_ACTIVE') {
-            pumpText = '⚡ EA MOBILE TRIGGER MET (≥5.20m, Inferred)';
+            pumpText = `⚡ EA MOBILE TRIGGER MET (≥${nmDef.mobile_active_mAOD.toFixed(2)}m, Inferred)`;
           } else if (pumpEval.mode === 'MOBILE_ORDERED') {
-            pumpText = '⚠️ EA MOBILE ORDER TRIGGER MET (≥4.80m, Inferred)';
+            pumpText = `⚠️ EA MOBILE ORDER TRIGGER MET (≥${nmDef.mobile_ordered_mAOD.toFixed(2)}m, Inferred)`;
           } else if (pumpEval.mode === 'FULL_CAPACITY') {
-            pumpText = '⚡ ABOVE DUTY TRIGGER (≥3.70m, Inferred)';
+            pumpText = `⚡ ABOVE DUTY TRIGGER (≥${dutyThresh.toFixed(2)}m, Inferred)`;
           } else if (pumpEval.mode === 'PARTIAL_DUTY') {
-            pumpText = '⚡ ABOVE LEAD TRIGGER (≥3.40m, Inferred)';
+            pumpText = `⚡ ABOVE LEAD TRIGGER (≥${leadThresh.toFixed(2)}m, Inferred)`;
           }
         }
 

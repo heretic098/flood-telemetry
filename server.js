@@ -553,16 +553,19 @@ function renderSummaryMarkdown(stored = getStoredTelemetry(), dbInstance = db) {
   };
 
   // Evaluate polders according to canonical tripartite statuses [RULE-ENT-01]
-  const curryMoorDuty = regime.isSummer ? 4.45 : 4.30;
-  const curryMoorStatus = curryMoorStage >= 6.50 ? 'CRITICAL'
-    : (curryMoorStage >= 6.10 ? 'MOBILE_ACTIVE'
-      : (curryMoorStage >= 5.80 ? 'MOBILE_ORDERED'
+  const cmDef = ASSET_DEFINITIONS.curry_moor;
+  const curryMoorDuty = regime.isSummer ? cmDef.duty_pump_summer_mAOD : cmDef.duty_pump_winter_mAOD;
+  const curryMoorStatus = curryMoorStage >= cmDef.critical_mAOD ? 'CRITICAL'
+    : (curryMoorStage >= cmDef.mobile_active_mAOD ? 'MOBILE_ACTIVE'
+      : (curryMoorStage >= cmDef.mobile_ordered_mAOD ? 'MOBILE_ORDERED'
         : (curryMoorStage >= curryMoorDuty ? 'DUTY_PUMPING' : 'STANDBY')));
 
-  const northMoorStatus = northMoorStage >= 5.60 ? 'CRITICAL'
-    : (northMoorStage >= 5.20 ? 'MOBILE_ACTIVE'
-      : (northMoorStage >= 4.80 ? 'MOBILE_ORDERED'
-        : (northMoorStage >= 4.00 ? 'DUTY_PUMPING' : 'STANDBY')));
+  const nmDef = ASSET_DEFINITIONS.northmoor;
+  const northMoorDuty = regime.isSummer ? nmDef.duty_pump_summer_mAOD : nmDef.duty_pump_winter_mAOD;
+  const northMoorStatus = northMoorStage >= nmDef.critical_mAOD ? 'CRITICAL'
+    : (northMoorStage >= nmDef.mobile_active_mAOD ? 'MOBILE_ACTIVE'
+      : (northMoorStage >= nmDef.mobile_ordered_mAOD ? 'MOBILE_ORDERED'
+        : (northMoorStage >= northMoorDuty ? 'DUTY_PUMPING' : 'STANDBY')));
 
   const dunballStatus = isTideLocked ? 'TIDE_LOCKED' : 'DISCHARGING';
   const monksStatus = isMonksDiverting ? 'DIVERTING'

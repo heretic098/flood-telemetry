@@ -320,7 +320,7 @@ test('Telemetry Events: Road transitions evaluate PASSABLE, ENCROACHING, IMPASSA
 });
 
 test('Telemetry Events: Polder transitions evaluate DUTY_PUMPING, MOBILE_ORDERED, MOBILE_ACTIVE, CRITICAL', () => {
-  const polder = ASSET_DEFINITIONS.curry_moor; // Winter duty 4.30m, Ordered 5.80m, Active 6.10m, Critical 6.50m
+  const polder = ASSET_DEFINITIONS.curry_moor; // Winter duty 4.55m, Ordered 5.80m, Active 6.10m, Critical 6.50m
   const winterRegime = { isSummer: false, label: 'Winter' };
 
   // 1. Standby
@@ -328,15 +328,15 @@ test('Telemetry Events: Polder transitions evaluate DUTY_PUMPING, MOBILE_ORDERED
   assert.equal(p1.to_state, 'STANDBY');
   assert.equal(p1.severity_tier, 1);
 
-  // 2. Duty Pumping (4.35m)
-  const p2 = evaluateAssetTransition(polder, null, [{ dateTime: '2026-11-01T12:15:00Z', value: 4.35 }], winterRegime);
+  // 2. Duty Pumping (4.58m)
+  const p2 = evaluateAssetTransition(polder, null, [{ dateTime: '2026-11-01T12:15:00Z', value: 4.58 }], winterRegime);
   assert.equal(p2.action, 'OPEN');
   assert.equal(p2.to_state, 'DUTY_PUMPING');
   assert.equal(p2.severity_tier, 2);
   assert.ok(p2.narrative.startsWith('Inferred from moor stage relative to EA Trigger Plan:'));
 
   // 3. Mobile Ordered (5.85m)
-  const activeDuty = { status: 'ACTIVE', to_state: 'DUTY_PUMPING', severity_tier: 2, start_time: '2026-11-01T12:15:00Z', trigger_stage_mAOD: 4.35, peak_stage_mAOD: 4.35 };
+  const activeDuty = { status: 'ACTIVE', to_state: 'DUTY_PUMPING', severity_tier: 2, start_time: '2026-11-01T12:15:00Z', trigger_stage_mAOD: 4.58, peak_stage_mAOD: 4.58 };
   const p3 = evaluateAssetTransition(polder, activeDuty, [{ dateTime: '2026-11-01T12:30:00Z', value: 5.85 }], winterRegime);
   assert.equal(p3.action, 'UPDATE');
   assert.equal(p3.to_state, 'MOBILE_ORDERED');

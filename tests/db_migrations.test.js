@@ -3,13 +3,13 @@ import assert from 'node:assert/strict';
 import Database from 'better-sqlite3';
 import { runMigrations, CANONICAL_ASSET_TYPES, CANONICAL_STATES, MIGRATIONS } from '../src/js/db_migrations.js';
 
-test('Database Migrations: runMigrations cleanly upgrades fresh database from 0 to 5', () => {
+test('Database Migrations: runMigrations cleanly upgrades fresh database from 0 to 6', () => {
   const db = new Database(':memory:');
   assert.equal(db.pragma('user_version', { simple: true }), 0);
 
   const finalVersion = runMigrations(db);
-  assert.equal(finalVersion, 5);
-  assert.equal(db.pragma('user_version', { simple: true }), 5);
+  assert.equal(finalVersion, 6);
+  assert.equal(db.pragma('user_version', { simple: true }), 6);
 
   // Verify all expected tables exist
   const tables = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all().map(r => r.name);
@@ -23,10 +23,10 @@ test('Database Migrations: runMigrations cleanly upgrades fresh database from 0 
 
   // Calling runMigrations again is idempotent
   const secondRun = runMigrations(db);
-  assert.equal(secondRun, 5);
+  assert.equal(secondRun, 6);
 });
 
-test('Database Migrations: upgrades cleanly from version 1 to version 5', () => {
+test('Database Migrations: upgrades cleanly from version 1 to version 6', () => {
   const db = new Database(':memory:');
   
   // Apply only migration 1
@@ -39,17 +39,17 @@ test('Database Migrations: upgrades cleanly from version 1 to version 5', () => 
   assert.ok(tablesV1.includes('spill_events'));
   assert.ok(!tablesV1.includes('telemetry_events'));
 
-  // Now runMigrations - should upgrade to 5
+  // Now runMigrations - should upgrade to 6
   const upgradedVersion = runMigrations(db);
-  assert.equal(upgradedVersion, 5);
-  assert.equal(db.pragma('user_version', { simple: true }), 5);
+  assert.equal(upgradedVersion, 6);
+  assert.equal(db.pragma('user_version', { simple: true }), 6);
 
   const tablesV3 = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all().map(r => r.name);
   assert.ok(tablesV3.includes('telemetry_events'));
   assert.ok(!tablesV3.includes('spill_events'), 'spill_events must be dropped after migration 3');
 });
 
-test('Database Migrations: upgrades cleanly from version 2 to version 5', () => {
+test('Database Migrations: upgrades cleanly from version 2 to version 6', () => {
   const db = new Database(':memory:');
   
   // Apply migrations 1 and 2
@@ -63,10 +63,10 @@ test('Database Migrations: upgrades cleanly from version 2 to version 5', () => 
   assert.ok(tablesV2.includes('spill_events'));
   assert.ok(tablesV2.includes('telemetry_events'));
 
-  // Now runMigrations - should upgrade to 5 and drop spill_events
+  // Now runMigrations - should upgrade to 6 and drop spill_events
   const upgradedVersion = runMigrations(db);
-  assert.equal(upgradedVersion, 5);
-  assert.equal(db.pragma('user_version', { simple: true }), 5);
+  assert.equal(upgradedVersion, 6);
+  assert.equal(db.pragma('user_version', { simple: true }), 6);
 
   const tablesV3 = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all().map(r => r.name);
   assert.ok(tablesV3.includes('telemetry_events'));
@@ -76,16 +76,16 @@ test('Database Migrations: upgrades cleanly from version 2 to version 5', () => 
 test('Database Migrations: migration 3 drop table is idempotent', () => {
   const db = new Database(':memory:');
   runMigrations(db);
-  assert.equal(db.pragma('user_version', { simple: true }), 5);
+  assert.equal(db.pragma('user_version', { simple: true }), 6);
 
   // Directly running migration 3 up function again must not throw
   assert.doesNotThrow(() => {
     MIGRATIONS[2].up(db);
   });
 
-  // Calling runMigrations again on v5 must remain 5
+  // Calling runMigrations again on v6 must remain 6
   const rerun = runMigrations(db);
-  assert.equal(rerun, 5);
+  assert.equal(rerun, 6);
 });
 
 test('Database Migrations: migration 4 purges spurious monks_leaze_clyse baseflow REVERSE_LOCK events', () => {
@@ -113,15 +113,60 @@ test('Database Migrations: migration 4 purges spurious monks_leaze_clyse baseflo
 
   assert.equal(db.prepare("SELECT count(*) as c FROM telemetry_events").get().c, 3);
 
-  // Run migration 4 & 5
+  // Run migrations up to 6
   const finalVersion = runMigrations(db);
-  assert.equal(finalVersion, 5);
-  assert.equal(db.pragma('user_version', { simple: true }), 5);
+  assert.equal(finalVersion, 6);
+  assert.equal(db.pragma('user_version', { simple: true }), 6);
 
   const remaining = db.prepare("SELECT * FROM telemetry_events ORDER BY id ASC").all();
   assert.equal(remaining.length, 2, 'Spurious baseflow event must be deleted; valid flood & other events preserved');
   assert.equal(remaining[0].trigger_stage_mAOD, 7.30, 'Real flood event preserved');
   assert.equal(remaining[1].asset_id, 'dunball_outfall', 'Other asset event preserved');
+});
+
+test('Database Migrations: migration 6 purges spurious curry_moor dry-weather duty pumping events and unblocks unique active index', () => {
+  const db = new Database(':memory:');
+  // Run up to version 5
+  for (let i = 0; i < 5; i++) {
+    MIGRATIONS[i].up(db);
+  }
+  db.pragma('user_version = 5');
+
+  const insertStmt = db.prepare(`
+    INSERT INTO telemetry_events (
+      asset_type, asset_id, to_state, severity_tier, start_time,
+      trigger_stage_mAOD, peak_stage_mAOD, narrative, status
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  // 1. Spurious active session on curry_moor recorded at 4.47m (under old 4.30m threshold during normal float cycling)
+  insertStmt.run('polder', 'curry_moor', 'DUTY_PUMPING', 2, '2026-11-06T00:00:00Z', 4.35, 4.47, 'False duty pumping', 'ACTIVE');
+
+  // 2. Closed spurious event on curry_moor at 4.42m
+  insertStmt.run('polder', 'curry_moor', 'DUTY_PUMPING', 2, '2026-11-05T00:00:00Z', 4.32, 4.42, 'Closed false duty pumping', 'CLOSED');
+
+  // 3. Legitimate flood event on curry_moor at 4.75m (> 4.55m)
+  insertStmt.run('polder', 'curry_moor', 'DUTY_PUMPING', 2, '2026-11-07T00:00:00Z', 4.60, 4.75, 'Real flood duty pumping', 'CLOSED');
+
+  // 4. Other asset event
+  insertStmt.run('road', 'cuts_road', 'IMPASSABLE', 4, '2026-11-07T02:00:00Z', 7.40, 7.55, 'Flooded', 'CLOSED');
+
+  assert.equal(db.prepare("SELECT count(*) as c FROM telemetry_events").get().c, 4);
+
+  // Run migration 6
+  const finalVersion = runMigrations(db);
+  assert.equal(finalVersion, 6);
+  assert.equal(db.pragma('user_version', { simple: true }), 6);
+
+  const remaining = db.prepare("SELECT * FROM telemetry_events ORDER BY id ASC").all();
+  assert.equal(remaining.length, 2, 'Both spurious events (< 4.55m) must be deleted; legitimate event & other asset preserved');
+  assert.equal(remaining[0].trigger_stage_mAOD, 4.60, 'Legitimate flood event preserved');
+  assert.equal(remaining[1].asset_id, 'cuts_road', 'Cuts road event preserved');
+
+  // Verify unique active index is unblocked: inserting a new active event on curry_moor must succeed
+  assert.doesNotThrow(() => {
+    insertStmt.run('polder', 'curry_moor', 'DUTY_PUMPING', 2, '2026-11-08T00:00:00Z', 4.58, 4.62, 'New flood event', 'ACTIVE');
+  });
 });
 
 test('Database Migrations: migration 5 adds rate columns to historical_telemetry and telemetry_events and backfills peak_time', () => {
@@ -140,9 +185,9 @@ test('Database Migrations: migration 5 adds rate columns to historical_telemetry
     ) VALUES ('road', 'cuts_road', 'IMPASSABLE', 4, '2026-11-06T08:30:00Z', 6.20, 6.45, 'Inundated', 'ACTIVE')
   `).run();
 
-  // Run migration 5
+  // Run migration 5 and 6
   const finalVersion = runMigrations(db);
-  assert.equal(finalVersion, 5);
+  assert.equal(finalVersion, 6);
 
   // Verify historical_telemetry columns
   const histCols = db.prepare("PRAGMA table_info(historical_telemetry)").all().map(c => c.name);
