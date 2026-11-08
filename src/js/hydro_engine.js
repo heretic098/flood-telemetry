@@ -2110,6 +2110,11 @@ export function evaluateAssetTransition(assetDef, activeSession = null, readings
         severity_tier: activeSession.severity_tier,
         trigger_stage_mAOD: activeSession.trigger_stage_mAOD,
         peak_stage_mAOD: activeSession.peak_stage_mAOD,
+        peak_time: activeSession.peak_time || activeSession.start_time || readingTime,
+        trigger_rate_15m_m_per_hr: activeSession.trigger_rate_15m_m_per_hr ?? null,
+        trigger_rate_1h_m_per_hr: activeSession.trigger_rate_1h_m_per_hr ?? null,
+        trigger_rate_3h_m_per_hr: activeSession.trigger_rate_3h_m_per_hr ?? null,
+        max_rate_1h_m_per_hr: activeSession.max_rate_1h_m_per_hr ?? null,
         clearance_m: activeSession.clearance_m ?? null,
         clearance_text: 'Telemetry interrupted',
         trend_vector: '— Steady',
@@ -2121,6 +2126,11 @@ export function evaluateAssetTransition(assetDef, activeSession = null, readings
           consecutiveNominalCount: activeSession.consecutiveNominalCount || 0,
           firstNominalReading: activeSession.firstNominalReading || null,
           peak_stage_mAOD: activeSession.peak_stage_mAOD,
+          peak_time: activeSession.peak_time || activeSession.start_time,
+          trigger_rate_15m_m_per_hr: activeSession.trigger_rate_15m_m_per_hr ?? null,
+          trigger_rate_1h_m_per_hr: activeSession.trigger_rate_1h_m_per_hr ?? null,
+          trigger_rate_3h_m_per_hr: activeSession.trigger_rate_3h_m_per_hr ?? null,
+          max_rate_1h_m_per_hr: activeSession.max_rate_1h_m_per_hr ?? null,
           is_interrupted: true
         }
       };
@@ -2134,6 +2144,11 @@ export function evaluateAssetTransition(assetDef, activeSession = null, readings
       severity_tier: 1,
       trigger_stage_mAOD: 0,
       peak_stage_mAOD: 0,
+      peak_time: null,
+      trigger_rate_15m_m_per_hr: null,
+      trigger_rate_1h_m_per_hr: null,
+      trigger_rate_3h_m_per_hr: null,
+      max_rate_1h_m_per_hr: null,
       clearance_m: null,
       clearance_text: 'Sensor offline',
       trend_vector: '— Steady',
@@ -2144,7 +2159,12 @@ export function evaluateAssetTransition(assetDef, activeSession = null, readings
       session_updates: {
         consecutiveNominalCount: 0,
         firstNominalReading: null,
-        peak_stage_mAOD: 0
+        peak_stage_mAOD: 0,
+        peak_time: null,
+        trigger_rate_15m_m_per_hr: null,
+        trigger_rate_1h_m_per_hr: null,
+        trigger_rate_3h_m_per_hr: null,
+        max_rate_1h_m_per_hr: null
       }
     };
   }

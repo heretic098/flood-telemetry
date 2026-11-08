@@ -231,3 +231,46 @@ test('Event Manager Lifecycle & Rehydration: persists rates and peak_time and su
   assert.equal(rehydrated.trigger_rate_1h_m_per_hr, row.trigger_rate_1h_m_per_hr);
   assert.equal(rehydrated.max_rate_1h_m_per_hr, row.max_rate_1h_m_per_hr);
 });
+
+test('Event Manager Lifecycle: sensor dropout during active session does not throw SQLite bind error and preserves peak_time', () => {
+  const db = new Database(':memory:');
+  runMigrations(db);
+  resetActiveSessions();
+
+  const t0 = '2026-11-01T10:00:00Z';
+  const t1 = '2026-11-01T10:15:00Z';
+
+  // 1. Open event on Cuts Road
+  processTelemetryEvents(db, {
+    measures: {
+      '52127-level-stage-i-15_min-mAOD': [
+        { dateTime: t0, value: 7.45 }
+      ]
+    }
+  });
+
+  const session = getActiveSessions().find(s => s.asset_id === 'cuts_road');
+  assert.ok(session, 'Event must be opened');
+  assert.equal(session.peak_stage_mAOD, 7.45);
+  assert.equal(session.peak_time, t0);
+
+  // 2. Next reading is NULL (sensor dropout / transmission loss)
+  assert.doesNotThrow(() => {
+    processTelemetryEvents(db, {
+      measures: {
+        '52127-level-stage-i-15_min-mAOD': [
+          { dateTime: t1, value: null },
+          { dateTime: t0, value: 7.45 }
+        ]
+      }
+    });
+  }, 'Sensor dropout must not throw SQLite bind error');
+
+  // Verify session in memory and DB retained peak_time and did not throw
+  const updatedSession = getActiveSessions().find(s => s.asset_id === 'cuts_road');
+  assert.equal(updatedSession.peak_stage_mAOD, 7.45);
+  assert.equal(updatedSession.peak_time, t0, 'peak_time must be preserved during sensor dropout');
+
+  const dbRow = db.prepare("SELECT * FROM telemetry_events WHERE asset_id = 'cuts_road' AND status = 'ACTIVE'").get();
+  assert.equal(dbRow.peak_time, t0);
+});
