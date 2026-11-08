@@ -1607,6 +1607,165 @@ export function evaluateMidelney(stage_mAOD, parrettStage_mAOD = null) {
 }
 
 /**
+ * Canonical Environment Agency Flood Alert & Warning Areas Catalog [RULE-SSOT-01]
+ * Authoritative Single Source of Truth for Somerset Catchment Target Areas
+ * Source: UK Environment Agency Flood Monitoring Service (Open Government Licence v3.0)
+ */
+export const EA_FLOOD_AREA_CATALOG = Object.freeze({
+  // ==========================================
+  // Broad Flood Alert Areas (Severity Level 3)
+  // ==========================================
+  '112WAFTPM': Object.freeze({
+    notation: '112WAFTPM',
+    type: 'FLOOD_ALERT_AREA',
+    name: 'Lower Tone and Parrett Moors',
+    description: 'Lower Tone and Parrett Moors including Curry Moor, Hay Moor, North Moor, Salt Moor, Stan Moor and West Moor.',
+    catchment: 'tone_parrett',
+    primary_gauges: Object.freeze(['52118', '52127', '52158', '52159']),
+    associated_roads: Object.freeze(['cuts_road', 'new_road_curry', 'stan_moor_road', 'moorland_new_cut_road'])
+  }),
+  '112WAFYPM': Object.freeze({
+    notation: '112WAFYPM',
+    type: 'FLOOD_ALERT_AREA',
+    name: 'River Yeo and River Parrett Moors around Muchelney and Thorney',
+    description: 'River Yeo and River Parrett Moors including Muchelney, Thorney and surrounding agricultural lowlands.',
+    catchment: 'yeo_parrett',
+    primary_gauges: Object.freeze(['52120', '52153', '52119']),
+    associated_roads: Object.freeze(['muchelney_access', 'bicknells_bridge_access'])
+  }),
+  '112WAFYPL': Object.freeze({
+    notation: '112WAFYPL',
+    type: 'FLOOD_ALERT_AREA',
+    name: 'Somerset Levels and Moors (The Levels)',
+    description: 'Somerset Levels and Moors agricultural moors and drainage rhynes.',
+    catchment: 'levels_general',
+    primary_gauges: Object.freeze(['52127', '52159', 'E9531']),
+    associated_roads: Object.freeze(['cuts_road', 'new_road_curry'])
+  }),
+  '112WAFYPY': Object.freeze({
+    notation: '112WAFYPY',
+    type: 'FLOOD_ALERT_AREA',
+    name: 'River Yeo from Yeovilton to Huish Episcopi',
+    description: 'River Yeo valley corridor from Yeovilton downstream to Huish Episcopi.',
+    catchment: 'yeo',
+    primary_gauges: Object.freeze(['52120']),
+    associated_roads: Object.freeze(['muchelney_access'])
+  }),
+  '112WAFTESR': Object.freeze({
+    notation: '112WAFTESR',
+    type: 'FLOOD_ALERT_AREA',
+    name: "East Somerset Rivers (River Sowy and King's Sedgemoor Drain)",
+    description: "East Somerset Rivers including the Sowy Relief Channel and King's Sedgemoor Drain from Monk's Leaze Clyse to Dunball.",
+    catchment: 'sowy_ksd',
+    primary_gauges: Object.freeze(['52233', '52234', '52157', 'E9531', 'E9094']),
+    associated_roads: Object.freeze(['beer_wall_a372'])
+  }),
+  '112WAFBCR': Object.freeze({
+    notation: '112WAFBCR',
+    type: 'FLOOD_ALERT_AREA',
+    name: 'Bridgwater, Somerset Coast at Dunball and Combwich',
+    description: 'Coastal and estuarine areas along the Parrett Estuary at Dunball and Combwich.',
+    catchment: 'parrett_estuary',
+    primary_gauges: Object.freeze(['52124', '52163']),
+    associated_roads: Object.freeze([])
+  }),
+
+  // ============================================
+  // Specific Flood Warning Areas (Severity 2 / 1)
+  // ============================================
+  '112FWFCUR10A': Object.freeze({
+    notation: '112FWFCUR10A',
+    type: 'FLOOD_WARNING_AREA',
+    name: 'Curry Moor and Hay Moor',
+    description: 'Curry Moor and Hay Moor including Cuts Road and New Road.',
+    catchment: 'tone',
+    primary_gauges: Object.freeze(['52118', '52127']),
+    associated_roads: Object.freeze(['cuts_road', 'new_road_curry'])
+  }),
+  '112FWFEAS10A': Object.freeze({
+    notation: '112FWFEAS10A',
+    type: 'FLOOD_WARNING_AREA',
+    name: 'A361 East Lyng to Burrowbridge',
+    description: 'A361 regional corridor between East Lyng and Burrowbridge.',
+    catchment: 'tone_parrett',
+    primary_gauges: Object.freeze(['52158', '52127']),
+    associated_roads: Object.freeze(['a361_burrowbridge'])
+  }),
+  '112FWFSAL10A': Object.freeze({
+    notation: '112FWFSAL10A',
+    type: 'FLOOD_WARNING_AREA',
+    name: 'Salt Moor and North Moor',
+    description: 'Salt Moor and North Moor including Moorland and Fordgate.',
+    catchment: 'parrett',
+    primary_gauges: Object.freeze(['52158', '52159']),
+    associated_roads: Object.freeze(['moorland_new_cut_road'])
+  }),
+  '112FWFSTA10A': Object.freeze({
+    notation: '112FWFSTA10A',
+    type: 'FLOOD_WARNING_AREA',
+    name: 'Stan Moor (Athelney and Curload)',
+    description: 'Stan Moor including Stan Moor Road near Curload and Athelney.',
+    catchment: 'tone',
+    primary_gauges: Object.freeze(['52118', '52127']),
+    associated_roads: Object.freeze(['stan_moor_road'])
+  }),
+  '112FWFMTM10A': Object.freeze({
+    notation: '112FWFMTM10A',
+    type: 'FLOOD_WARNING_AREA',
+    name: 'Muchelney, Thorney and surrounding properties',
+    description: 'Properties and roads in Muchelney and Thorney.',
+    catchment: 'yeo_parrett',
+    primary_gauges: Object.freeze(['52120', '52119']),
+    associated_roads: Object.freeze(['muchelney_access', 'bicknells_bridge_access'])
+  }),
+  '112FWTBRI03': Object.freeze({
+    notation: '112FWTBRI03',
+    type: 'FLOOD_WARNING_AREA',
+    name: 'Tidal Parrett at Burrowbridge, Stathe and Moorland',
+    description: 'Tidal River Parrett downstream from Oath Lock through Burrowbridge to Moorland.',
+    catchment: 'parrett',
+    primary_gauges: Object.freeze(['52158', '52124']),
+    associated_roads: Object.freeze(['a361_burrowbridge'])
+  }),
+  '112FWTCOM02': Object.freeze({
+    notation: '112FWTCOM02',
+    type: 'FLOOD_WARNING_AREA',
+    name: 'Dunball Reach and Combwich on Parrett Estuary',
+    description: 'Tidal flood warning zone around Dunball Sluice and Combwich wharf.',
+    catchment: 'parrett_estuary',
+    primary_gauges: Object.freeze(['52163', 'E9094']),
+    associated_roads: Object.freeze([])
+  }),
+  '112FWFPAR20A': Object.freeze({
+    notation: '112FWFPAR20A',
+    type: 'FLOOD_WARNING_AREA',
+    name: 'Upper River Parrett from South Petherton to Langport',
+    description: "Upper River Parrett corridor upstream of Monk's Leaze Clyse.",
+    catchment: 'parrett',
+    primary_gauges: Object.freeze(['52116', '52119']),
+    associated_roads: Object.freeze([])
+  }),
+  '112FWFPAR30A': Object.freeze({
+    notation: '112FWFPAR30A',
+    type: 'FLOOD_WARNING_AREA',
+    name: 'River Parrett at Langport and Westover Trading Estate',
+    description: 'Langport town bridge and Westover commercial area.',
+    catchment: 'parrett',
+    primary_gauges: Object.freeze(['52119', '52233']),
+    associated_roads: Object.freeze([])
+  }),
+  '112FWFTON30A': Object.freeze({
+    notation: '112FWFTON30A',
+    type: 'FLOOD_WARNING_AREA',
+    name: 'River Tone from Taunton to Ham (Bathpool, Ham)',
+    description: 'River Tone downstream of Taunton including Bathpool outfall.',
+    catchment: 'tone',
+    primary_gauges: Object.freeze(['52111', '52162', '52118']),
+    associated_roads: Object.freeze([])
+  })
+});
+
+/**
  * Canonical Network Asset Definitions [RULE-ENT-01] [RULE-TAX-06]
  * Structured canonical definitions covering all 6 physical asset classes.
  */
@@ -1644,8 +1803,8 @@ export const ASSET_DEFINITIONS = Object.freeze({
     deadband_caution: HYDRO_DEADBANDS.road_caution,
     corridor_type: 'Community Lifeline Spine',
     driving_station_label: 'River Yeo @ Huish (52120)',
-    ea_warning_target_area: '112WAFYPM',
-    ea_target_area_name: 'River Yeo & Parrett Moors',
+    ea_warning_target_area: '112FWFMTM10A',
+    ea_target_area_name: 'Muchelney, Thorney and surrounding properties',
     survey_tier: 'TIER_1_SURVEYED',
     survey_label: '📐 SURVEYED CIVIL GEOMETRY',
     survey_tooltip: 'SRA raised road crown surveyed at 7.86m AOD; low breach 7.30m.',
@@ -1665,8 +1824,8 @@ export const ASSET_DEFINITIONS = Object.freeze({
     deadband_caution: HYDRO_DEADBANDS.road_caution,
     corridor_type: 'Engineered Culvert Crossing',
     driving_station_label: 'River Sowy @ Beerwall (52157)',
-    ea_warning_target_area: 'SOWY_KSD',
-    ea_target_area_name: 'River Sowy / KSD Catchment',
+    ea_warning_target_area: '112WAFTESR',
+    ea_target_area_name: "East Somerset Rivers (River Sowy & KSD)",
     survey_tier: 'TIER_1_WEIR_PENDING_SURVEY_CROWN',
     survey_label: '⚠️ PENDING AS-BUILT SURVEY',
     survey_tooltip: 'Weir surveyed 7.30m; Carriageway Crown Pending As-Built Survey (>8.00m AOD).',
@@ -1720,8 +1879,8 @@ export const ASSET_DEFINITIONS = Object.freeze({
     deadband_caution: HYDRO_DEADBANDS.road_caution,
     corridor_type: 'Lowland Rural Connector',
     driving_station_label: 'River Yeo @ Huish (52120)',
-    ea_warning_target_area: '112WAFYPM',
-    ea_target_area_name: 'River Yeo & Parrett Moors',
+    ea_warning_target_area: '112FWFMTM10A',
+    ea_target_area_name: 'Muchelney, Thorney and surrounding properties',
     survey_tier: 'TIER_3_EMPIRICAL',
     survey_label: '⚠️ TRIGGER PROTOCOL (PENDING SURVEY)',
     survey_tooltip: 'Approaches Pending Topographic Survey.',
@@ -3244,7 +3403,9 @@ export function evaluateRoadCorridor(assetDef, readingsSource = [], activeSessio
 
       const isCrownDry = stage < (Z_crown - dbCrown);
       const isRhyneDrained = stage < (Z_caution - dbCaution);
-      const isWarningCleared = eaWarningState === 'INACTIVE';
+      // Exit Pathway A requires official Flood Warning (Severity 1 or 2) to be cleared;
+      // ambient agricultural Flood Alerts (Severity 3) do not block daylight inspection reopening.
+      const isWarningCleared = eaWarningState !== 'RED_WARNING' && eaWarningState !== 'WARNING';
 
       // Exit Pathway A: 6 daylight hours + drained + warning cleared
       const pathwayAMet = isCrownDry && isRhyneDrained && isWarningCleared && (daylightDryHours >= 6.0);

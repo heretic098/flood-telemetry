@@ -39,6 +39,14 @@ import {
 import { runMigrations } from './src/js/db_migrations.js';
 import { rehydrateActiveSessions, processTelemetryEvents } from './src/js/event_manager.js';
 import { getTelemetryEvents, getActiveTelemetryEvents } from './src/js/event_ledger.js';
+import {
+  pollAndProcessEAWarnings,
+  getEAWarnings,
+  getEAWarningsSummary,
+  getActiveEAWarningStatesMap,
+  isWarningSyncActive
+} from './src/js/ea_warning_manager.js';
+import { validateApiWarningsPayload } from './src/js/contracts/ea_warnings_schema.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -156,6 +164,7 @@ fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
 const db = new Database(DB_PATH);
 db.pragma('journal_mode = WAL');
 db.pragma('synchronous = NORMAL');
+db.pragma('busy_timeout = 5000');
 
 // Ensure database tables exist via versioned migrations
 runMigrations(db);
@@ -345,6 +354,13 @@ export async function syncAllTelemetry(overrideLimit = null, fetchFn = globalThi
     } catch (evtErr) {
       console.warn('[Event Manager Warning] Failed to process telemetry events:', evtErr.message);
     }
+
+    // Process EA Flood Alerts & Warnings (Issue #39)
+    try {
+      await pollAndProcessEAWarnings(db, fetchFn);
+    } catch (warnErr) {
+      console.warn('[EA Warning Manager Warning] Failed to sync warnings:', warnErr.message);
+    }
   } finally {
     isSyncRunning = false;
   }
@@ -389,6 +405,13 @@ if (isMainModule) {
   syncAllTelemetry();
   const syncTimer = setInterval(syncAllTelemetry, 15 * 60 * 1000); // 15-minute sync loop
   if (syncTimer && syncTimer.unref) syncTimer.unref();
+
+  const warningSyncTimer = setInterval(() => {
+    pollAndProcessEAWarnings(db).catch(err => {
+      console.warn('[EA Warning Poller Warning]', err.message);
+    });
+  }, 10 * 60 * 1000); // 10-minute warning sync loop
+  if (warningSyncTimer && warningSyncTimer.unref) warningSyncTimer.unref();
 
   if (shouldTriggerBackfill()) {
     console.log('[SQLite Ingest] BACKFILL_TELEMETRY flag active. Triggering non-blocking background worker...');
@@ -527,7 +550,8 @@ function renderSummaryMarkdown(stored = getStoredTelemetry(), dbInstance = db) {
       activeEvents = [];
     }
   }
-  const roadNetwork = evaluateRoadNetwork(measures, activeEvents, { nowMs });
+  const eaWarningStates = dbInstance ? getActiveEAWarningStatesMap(dbInstance) : {};
+  const roadNetwork = evaluateRoadNetwork(measures, activeEvents, { nowMs, eaWarnings: eaWarningStates });
 
   // Evaluate spillways according to canonical tripartite statuses [RULE-ENT-01]
   const evalSpillwayStatus = (stage, crest) => {
@@ -1328,6 +1352,71 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // API Route: Environment Agency Flood Alerts & Warnings (Issue #39)
+  if (pathname === '/api/warnings' || pathname === '/api/warnings/') {
+    try {
+      const urlObj = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+      const statusParam = urlObj.searchParams.get('status')?.trim()?.toUpperCase() || 'ACTIVE';
+      const areaParam = urlObj.searchParams.get('area')?.trim() || null;
+      const rawLimit = parseInt(urlObj.searchParams.get('limit'), 10);
+      const limit = Math.min(100, Math.max(1, isNaN(rawLimit) ? 20 : rawLimit));
+
+      const validStatuses = ['ACTIVE', 'CLOSED', 'ALL'];
+      const status = validStatuses.includes(statusParam) ? statusParam : 'ACTIVE';
+
+      const warnings = getEAWarnings(db, { status, area: areaParam, limit });
+
+      // Link active road status to each warning's associated_roads
+      const stored = getStoredTelemetry();
+      const nowMs = Date.now();
+      const activeEvents = getActiveTelemetryEvents(db, nowMs);
+      const eaWarningStates = getActiveEAWarningStatesMap(db);
+      const roadNetwork = evaluateRoadNetwork(stored.measures, activeEvents, { nowMs, eaWarnings: eaWarningStates });
+
+      const enrichedWarnings = warnings.map(w => {
+        const associated = Array.isArray(w.associated_roads) ? w.associated_roads : [];
+        const correlatedRoads = associated.map(roadKey => {
+          const corridor = roadNetwork?.corridors?.[roadKey];
+          if (!corridor) return null;
+          return {
+            asset_id: corridor.asset_id,
+            name: corridor.name,
+            current_status: corridor.status,
+            crown_elevation_mAOD: corridor.crown_elevation_mAOD,
+            clearance_m: corridor.clearance_m
+          };
+        }).filter(Boolean);
+
+        return {
+          ...w,
+          correlated_roads: correlatedRoads
+        };
+      });
+
+      const payload = {
+        status: 'ok',
+        count: enrichedWarnings.length,
+        warnings: enrichedWarnings
+      };
+
+      const validation = validateApiWarningsPayload(payload);
+      if (!validation.valid) {
+        console.warn('[Contract Warning] /api/warnings:', validation.errors.join('; '));
+      }
+
+      res.writeHead(200, {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'public, max-age=60, s-maxage=60, stale-while-revalidate=120'
+      });
+      res.end(JSON.stringify(payload));
+    } catch (err) {
+      console.error('[API Warnings Error]', err);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ status: 'error', message: 'Failed to retrieve flood warnings' }));
+    }
+    return;
+  }
+
   // API Route: Status with all 7 UI/UX Status Tokens & Weir Math
   if (pathname.startsWith('/api/status')) {
     let stored = getStoredTelemetry();
@@ -1369,8 +1458,10 @@ const server = http.createServer(async (req, res) => {
     const nowMs = Date.now();
     const activeEvents = getActiveTelemetryEvents(db, nowMs);
 
-    // Evaluate highway passability across 8 Somerset Levels corridors [Issue #12]
-    const roadNetwork = evaluateRoadNetwork(measures, activeEvents, { nowMs });
+    // Evaluate highway passability across 8 Somerset Levels corridors [Issue #12, Issue #39]
+    const eaWarningStates = getActiveEAWarningStatesMap(db);
+    const roadNetwork = evaluateRoadNetwork(measures, activeEvents, { nowMs, eaWarnings: eaWarningStates });
+    const eaWarningsSummary = getEAWarningsSummary(db);
 
     const hookbridgeEvent = db.prepare("SELECT * FROM telemetry_events WHERE asset_id = 'hookbridge' AND status = 'ACTIVE'").get();
     const baltmoorEvent = db.prepare("SELECT * FROM telemetry_events WHERE asset_id = 'baltmoor_wall' AND status = 'ACTIVE'").get();
@@ -1403,6 +1494,7 @@ const server = http.createServer(async (req, res) => {
         is_tide_locked: isTideLocked
       },
       active_events: activeEvents,
+      ea_warnings: eaWarningsSummary,
       roads: roadNetwork,
       road_corridors: roadNetwork.corridors_list,
       cards: {
@@ -1559,9 +1651,9 @@ export async function gracefulShutdown(signal) {
     });
   });
 
-  // Drain pending async sync tasks (up to 2500ms)
+  // Drain pending async sync tasks (up to 2500ms) [COND-SEC-04]
   const drainStart = Date.now();
-  while (isSyncRunning && Date.now() - drainStart < 2500) {
+  while ((isSyncRunning || isWarningSyncActive()) && Date.now() - drainStart < 2500) {
     await new Promise(resolve => setTimeout(resolve, 100));
   }
 
