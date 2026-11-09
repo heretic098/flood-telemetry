@@ -27,14 +27,7 @@ import {
   validateApiHistoryPayload
 } from './src/js/contracts/index.js';
 
-import {
-  fetchWebcamImageSecure,
-  computeImageHash,
-  isDaylight,
-  callGeminiVision,
-  generateLocalFallback,
-  escapeHTML
-} from './src/js/api/ai_vision_client.js';
+import { CameraBufferWorker } from './src/js/api/camera_buffer.js';
 
 import { runMigrations } from './src/js/db_migrations.js';
 import { rehydrateActiveSessions, processTelemetryEvents } from './src/js/event_manager.js';
@@ -401,6 +394,8 @@ function getStoredTelemetry() {
 
 const isMainModule = process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url));
 
+let cameraBufferWorker = null;
+
 if (isMainModule) {
   syncAllTelemetry();
   const syncTimer = setInterval(syncAllTelemetry, 15 * 60 * 1000); // 15-minute sync loop
@@ -412,6 +407,13 @@ if (isMainModule) {
     });
   }, 10 * 60 * 1000); // 10-minute warning sync loop
   if (warningSyncTimer && warningSyncTimer.unref) warningSyncTimer.unref();
+
+  const cameraBufferDir = process.env.CAMERA_BUFFER_DIR || path.join(path.dirname(DB_PATH), 'camera_buffer');
+  cameraBufferWorker = new CameraBufferWorker({
+    baseDir: cameraBufferDir,
+    stepIntervalMs: 35 * 1000
+  });
+  cameraBufferWorker.start();
 
   if (shouldTriggerBackfill()) {
     console.log('[SQLite Ingest] BACKFILL_TELEMETRY flag active. Triggering non-blocking background worker...');
@@ -1138,79 +1140,6 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // API Route: Camera Analysis
-  if (pathname.startsWith('/api/camera-analysis')) {
-    const cameraId = urlObj.searchParams.get('camera_id') || 'monks_leaze_clyse';
-    const imageUrl = 'https://thecfh.org/parretttonewsom.php#monksleaze';
-
-    let cached = db.prepare('SELECT * FROM camera_analysis WHERE camera_id = ? ORDER BY id DESC LIMIT 1').get(cameraId);
-
-    if (!cached || req.url.includes('refresh=true')) {
-      const stored = getStoredTelemetry();
-      const monksUp = stored.measures['52233-level-stage-i-15_min-mAOD']?.[0]?.value ?? 6.85;
-      const monksDown = stored.measures['52234-level-downstage-i-15_min-mAOD']?.[0]?.value ?? 6.30;
-      const deltaH = monksUp - monksDown;
-
-      const telemetryState = { deltaH, isOvertopping: false };
-      const cameraConfig = { name: "Monk's Leaze Clyse Gate Cam" };
-
-      let analysisJson = null;
-      let aiEvaluated = 0;
-      let fallbackMode = null;
-      let imageHash = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
-
-      if (!isDaylight()) {
-        fallbackMode = 'NIGHT_TELEMETRY';
-        analysisJson = JSON.stringify({
-          gate_status: deltaH >= 0.05 ? "OPEN" : "CLOSED",
-          debris_detected: false,
-          flow_character: deltaH > 0.15 ? "TURBULENT" : "SLACK",
-          overtopping_detected: false,
-          confidence: 0.80,
-          summary: escapeHTML("Night mode fallback: AI vision skipped during darkness. Telemetry active.")
-        });
-      } else if (!process.env.GEMINI_API_KEY) {
-        fallbackMode = 'NO_API_KEY';
-        analysisJson = JSON.stringify(generateLocalFallback(cameraConfig, telemetryState));
-      } else {
-        try {
-          const buffer = await fetchWebcamImageSecure(imageUrl);
-          imageHash = computeImageHash(buffer);
-          const result = await callGeminiVision(buffer, 'image/jpeg', process.env.GEMINI_API_KEY);
-          analysisJson = JSON.stringify(result);
-          aiEvaluated = 1;
-        } catch (err) {
-          fallbackMode = 'FETCH_ERROR';
-          analysisJson = JSON.stringify(generateLocalFallback(cameraConfig, telemetryState));
-        }
-      }
-
-      db.prepare(`
-        INSERT INTO camera_analysis (camera_id, image_hash, image_url, fetched_at, ai_evaluated, analysis_json, trigger_reason, fallback_mode)
-        VALUES (?, ?, ?, datetime('now'), ?, ?, 'SCHEDULED_SYNC', ?)
-      `).run(cameraId, imageHash, imageUrl, aiEvaluated, analysisJson, fallbackMode);
-
-      cached = db.prepare('SELECT * FROM camera_analysis WHERE camera_id = ? ORDER BY id DESC LIMIT 1').get(cameraId);
-    }
-
-    res.writeHead(200, {
-      'Content-Type': 'application/json',
-      'Cache-Control': 'public, max-age=300'
-    });
-    res.end(JSON.stringify({
-      status: "ok",
-      camera_id: cameraId,
-      camera_name: "Monk's Leaze Clyse Gate Cam",
-      fetched_at: cached.fetched_at,
-      image_url: cached.image_url,
-      image_hash: cached.image_hash,
-      ai_evaluated: cached.ai_evaluated === 1,
-      trigger_reason: cached.trigger_reason,
-      fallback_mode: cached.fallback_mode,
-      analysis: JSON.parse(cached.analysis_json)
-    }));
-    return;
-  }
 
   // API Route: List catchments
   if (pathname === '/api/catchments' || pathname === '/api/catchments/') {
@@ -1585,6 +1514,12 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  if (pathname.startsWith('/api/')) {
+    res.writeHead(404, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ status: "error", message: `API route '${pathname}' not found` }));
+    return;
+  }
+
   let reqFile = pathname === '/' ? 'index.html' : pathname;
   let safePath = (pathname === '/js/config/hydro_config.json')
     ? path.resolve(path.join(CATCHMENTS_DIR, 'somerset.json'))
@@ -1641,6 +1576,12 @@ export async function gracefulShutdown(signal) {
   isShuttingDown = true;
   console.log(`[Lifecycle] Received ${signal}. Initiating graceful shutdown...`);
 
+  // Stop background camera buffer worker
+  if (cameraBufferWorker) {
+    console.log('[Lifecycle] Stopping CameraBufferWorker...');
+    cameraBufferWorker.stop();
+  }
+
   // Stop accepting incoming HTTP traffic and wait up to 500ms for in-flight requests to complete
   await new Promise((resolve) => {
     const timeout = setTimeout(resolve, 500);
@@ -1684,4 +1625,4 @@ if (isMainModule) {
   });
 }
 
-export { server, renderHtmlWithPartials, loadPartials, renderNav, getFooterPartial, renderSummaryMarkdown, MIME_TYPES, db };
+export { server, cameraBufferWorker, renderHtmlWithPartials, loadPartials, renderNav, getFooterPartial, renderSummaryMarkdown, MIME_TYPES, db };

@@ -87,14 +87,9 @@ test('GET /api/topology returns polder nodes 52127 and 52159', async () => {
   assert.ok(['DIVERTING', 'SECURE'].includes(clyseTailwaterNode.status), 'Station 52234 status must model clyse diversion rather than overtopping');
 });
 
-test('GET /api/camera-analysis returns cached or fallback camera state', async () => {
+test('GET /api/camera-analysis returns 404 (Decommissioned in Phase 1 / Issue #22)', async () => {
   const res = await httpGet('/api/camera-analysis?camera_id=monks_leaze_clyse');
-  assert.equal(res.status, 200);
-  const json = JSON.parse(res.body);
-  assert.equal(json.status, 'ok');
-  assert.equal(json.camera_id, 'monks_leaze_clyse');
-  assert.ok(json.analysis);
-  assert.ok(json.analysis.gate_status);
+  assert.equal(res.status, 404, 'Decommissioned synchronous camera analysis endpoint must return 404');
 });
 
 test('SEC-01: escapeHTML() sanitizes dynamic XSS inputs', () => {

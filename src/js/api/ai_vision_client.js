@@ -1,4 +1,12 @@
-import crypto from 'node:crypto';
+/**
+ * AI Vision Client & Multimodal Analysis Stubs (Phase 2 Preparation)
+ * 
+ * Note: Raw webcam ingestion, two-step CFH fetching, SSRF guards, and rolling buffer storage
+ * have been decoupled into `src/js/api/camera_buffer.js` (Phase 1 / Issue #22).
+ * This module preserves Phase 2 Gemini Vision multimodal prompt analysis stubs and local fallbacks.
+ */
+
+export { fetchWebcamImageSecure, computeBufferHash as computeImageHash } from './camera_buffer.js';
 
 /**
  * Helper to escape HTML special characters to prevent Cross-Site Scripting (XSS) (SEC-01).
@@ -11,46 +19,6 @@ export function escapeHTML(str) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
-}
-
-/**
- * Secure Webcam Image Fetcher with Server-Side Request Forgery (SSRF) protection (SEC-03).
- */
-export async function fetchWebcamImageSecure(imageUrl, fetchFn = globalThis.fetch) {
-  const parsed = new URL(imageUrl);
-  const allowedHost = 'environment.data.gov.uk';
-
-  if (parsed.hostname !== allowedHost && !parsed.hostname.endsWith('.environment-agency.gov.uk')) {
-    throw new Error(`SSRF Blocked: Host '${parsed.hostname}' is not in allowed domain list.`);
-  }
-
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
-
-  try {
-    const res = await fetchFn(imageUrl, {
-      signal: controller.signal,
-      redirect: 'error' // Disallow HTTP redirects
-    });
-
-    if (!res.ok) throw new Error(`HTTP ${res.status} fetching webcam image`);
-
-    const arrayBuffer = await res.arrayBuffer();
-    if (arrayBuffer.byteLength > 5 * 1024 * 1024) { // 5MB buffer limit
-      throw new Error('Webcam payload exceeds 5MB size limit');
-    }
-
-    return Buffer.from(arrayBuffer);
-  } finally {
-    clearTimeout(timeoutId);
-  }
-}
-
-/**
- * Computes SHA-256 hash of an image Buffer for pre-flight zero-cost deduplication.
- */
-export function computeImageHash(buffer) {
-  return crypto.createHash('sha256').update(buffer).digest('hex');
 }
 
 /**
