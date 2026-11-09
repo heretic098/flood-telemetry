@@ -1371,6 +1371,37 @@ export const PRE_OVERTOPPING_THRESHOLDS = {
 };
 
 /**
+ * Canonical Seasonal Pumping Station Regimes & Operational Thresholds (mAOD) [RULE-SSOT-01]
+ * Source: Environment Agency Somerset Levels & Moors Trigger Point Plan (OGL v3.0)
+ */
+export const CANONICAL_PUMP_THRESHOLDS = Object.freeze({
+  currymoor_ps: Object.freeze({
+    summer: Object.freeze({ lead: 4.60, duty: 4.80, mobile_order: 5.80, mobile_active: 6.10, critical_spill: 7.35 }),
+    winter: Object.freeze({ lead: 4.00, duty: 4.55, mobile_order: 5.80, mobile_active: 6.10, critical_spill: 7.35 })
+  }),
+  stanmoor_ps: Object.freeze({
+    summer: Object.freeze({ lead: 4.70, duty: 4.90, mobile_order: 5.80, mobile_active: 6.10, critical_spill: 7.35 }),
+    winter: Object.freeze({ lead: 4.10, duty: 4.40, mobile_order: 5.80, mobile_active: 6.10, critical_spill: 7.35 })
+  }),
+  saltmoor_ps: Object.freeze({
+    summer: Object.freeze({ lead: 4.00, duty: 4.20, mobile_order: 4.80, mobile_active: 5.20, critical_spill: 7.80 }),
+    winter: Object.freeze({ lead: 3.40, duty: 3.70, mobile_order: 4.80, mobile_active: 5.20, critical_spill: 7.80 })
+  }),
+  northmoor_ps: Object.freeze({
+    summer: Object.freeze({ lead: 4.10, duty: 4.30, mobile_order: 4.80, mobile_active: 5.20, critical_spill: 7.80 }),
+    winter: Object.freeze({ lead: 3.50, duty: 3.80, mobile_order: 4.80, mobile_active: 5.20, critical_spill: 7.80 })
+  }),
+  dunball_mobile_ps: Object.freeze({
+    summer: Object.freeze({ lead: 3.10, duty: 3.30, mobile_order: 3.50, mobile_active: 3.70, critical_spill: 4.10 }),
+    winter: Object.freeze({ lead: 2.80, duty: 3.10, mobile_order: 3.30, mobile_active: 3.50, critical_spill: 3.80 })
+  }),
+  huish_episcopi_ps: Object.freeze({
+    summer: Object.freeze({ lead: 6.70, duty: 6.90, mobile_order: 7.30, mobile_active: 7.86, critical_spill: 8.20 }),
+    winter: Object.freeze({ lead: 6.30, duty: 6.50, mobile_order: 7.30, mobile_active: 7.86, critical_spill: 8.20 })
+  })
+});
+
+/**
  * Canonical Physical Hysteresis Deadbands (m) [RULE-SSOT-01]
  * Directional deadbands (delta) preventing high-frequency sensor noise flapping.
  */
