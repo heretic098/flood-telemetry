@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { getActiveCatchmentId, loadCatchmentConfig } from '../src/js/hydro_engine.js';
+import { getActiveCatchmentId, loadCatchmentConfig, CANONICAL_PUMP_THRESHOLDS } from '../src/js/hydro_engine.js';
 import { getAvailableCatchments } from '../server.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -85,3 +85,37 @@ test('loadCatchmentConfig resolves catchment configuration dynamically and handl
   const fallbackConfig = await loadCatchmentConfig('unknown', mockFetchHydroFallback);
   assert.ok(fallbackConfig.moors.curry_moor);
 });
+
+test('CANONICAL_PUMP_THRESHOLDS preserves 100% parity with somerset.json [RULE-SSOT-01]', () => {
+  const somersetPath = path.join(ROOT_DIR, 'src', 'js', 'config', 'catchments', 'somerset.json');
+  const somersetConfig = JSON.parse(fs.readFileSync(somersetPath, 'utf8'));
+
+  for (const [stationId, seasonalThresholds] of Object.entries(CANONICAL_PUMP_THRESHOLDS)) {
+    let found = null;
+    for (const moor of Object.values(somersetConfig.moors)) {
+      if (moor.pumping_stations) {
+        found = moor.pumping_stations.find(ps => ps.id === stationId);
+      }
+      if (!found && moor.emergency_pumps && moor.emergency_pumps.id === stationId) {
+        found = moor.emergency_pumps;
+      }
+      if (!found && moor[stationId]) {
+        found = moor[stationId];
+      }
+      if (found) break;
+    }
+
+    assert.ok(found, `Station ${stationId} in CANONICAL_PUMP_THRESHOLDS must exist in somerset.json`);
+    for (const season of ['summer', 'winter']) {
+      const canonicalSeason = seasonalThresholds[season];
+      const jsonSeason = found.thresholds[season];
+      assert.ok(jsonSeason, `Station ${stationId} must define ${season} thresholds in somerset.json`);
+      assert.equal(canonicalSeason.lead, jsonSeason.lead, `${stationId} ${season} lead parity`);
+      assert.equal(canonicalSeason.duty, jsonSeason.duty, `${stationId} ${season} duty parity`);
+      if (canonicalSeason.mobile_order !== undefined) {
+        assert.equal(canonicalSeason.mobile_order, jsonSeason.mobile_order ?? jsonSeason.muchelney_road, `${stationId} ${season} mobile_order parity`);
+      }
+    }
+  }
+});
+

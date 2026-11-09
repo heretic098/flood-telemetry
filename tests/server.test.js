@@ -272,6 +272,15 @@ test('Server Partials: Direct access to /partials/ files returns 403 Forbidden',
   }
 });
 
+test('Security Headers: Content-Security-Policy permits connect-src to self and EA API', async () => {
+  const res = await httpGet('/index.html');
+  const csp = res.headers['content-security-policy'];
+  assert.ok(csp, 'Response must include Content-Security-Policy header');
+  assert.ok(csp.includes("connect-src 'self' https://environment.data.gov.uk"), 'CSP must allow connect-src to self and environment.data.gov.uk');
+  assert.ok(csp.includes("img-src 'self' data: https://environment.data.gov.uk"), 'CSP must allow img-src to self, data:, and environment.data.gov.uk');
+});
+
+
 
 
 

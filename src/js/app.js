@@ -1,4 +1,4 @@
-import { evaluateSpillway, evaluateGateState, aggregateGlobalStatus, evaluatePumpStatus, evaluateSowyChannel, evaluateAthelneySpillway, evaluateGravityClyse, evaluateBeerWall, evaluateOathLock, evaluateDunballEmergencyPumping, getSeasonalRegime, getActiveCrestHeight, getActiveCatchmentId, loadCatchmentConfig, evaluateHuishEpiscopi, evaluateMidelney, STATION_REGISTRY, GAUGE_DATUMS, formatClearanceText, computeTrendVector, disambiguateRiverTrend, evaluateRoadNetwork, evaluateStationFreshness, getValidStageOrFallback } from './hydro_engine.js';
+import { evaluateSpillway, evaluateGateState, aggregateGlobalStatus, evaluatePumpStatus, evaluateSowyChannel, evaluateAthelneySpillway, evaluateGravityClyse, evaluateBeerWall, evaluateOathLock, evaluateDunballEmergencyPumping, getSeasonalRegime, getActiveCrestHeight, getActiveCatchmentId, loadCatchmentConfig, evaluateHuishEpiscopi, evaluateMidelney, STATION_REGISTRY, GAUGE_DATUMS, formatClearanceText, computeTrendVector, disambiguateRiverTrend, evaluateRoadNetwork, evaluateStationFreshness, getValidStageOrFallback, CANONICAL_PUMP_THRESHOLDS } from './hydro_engine.js';
 import { initJargonPopovers, renderJargonTerm } from './jargon_popover.js';
 import { createRefreshController } from './modules/refresh_controller.js';
 import { setupOfflineBanner as setupResilienceBanner } from './modules/network_resilience.js';
@@ -1984,35 +1984,9 @@ function getPumpEvaluation(stationId, moorLevel, moorConfigId, stationFallbackNa
     );
   }
 
-  // Fallback to hardcoded seasonal thresholds if hydroConfig not loaded yet
-  const fallbacks = {
-    currymoor_ps: {
-      summer: { lead: 4.60, duty: 4.80, mobile_order: 5.80, mobile_active: 6.10, critical_spill: 7.35 },
-      winter: { lead: 4.00, duty: 4.55, mobile_order: 5.80, mobile_active: 6.10, critical_spill: 7.35 }
-    },
-    stanmoor_ps: {
-      summer: { lead: 4.70, duty: 4.90, mobile_order: 5.80, mobile_active: 6.10, critical_spill: 7.35 },
-      winter: { lead: 4.10, duty: 4.40, mobile_order: 5.80, mobile_active: 6.10, critical_spill: 7.35 }
-    },
-    saltmoor_ps: {
-      summer: { lead: 4.00, duty: 4.20, mobile_order: 4.80, mobile_active: 5.20, critical_spill: 7.80 },
-      winter: { lead: 3.40, duty: 3.70, mobile_order: 4.80, mobile_active: 5.20, critical_spill: 7.80 }
-    },
-    northmoor_ps: {
-      summer: { lead: 4.10, duty: 4.30, mobile_order: 4.80, mobile_active: 5.20, critical_spill: 7.80 },
-      winter: { lead: 3.50, duty: 3.80, mobile_order: 4.80, mobile_active: 5.20, critical_spill: 7.80 }
-    },
-    dunball_mobile_ps: {
-      summer: { lead: 3.10, duty: 3.30, mobile_order: 3.50, mobile_active: 3.70, critical_spill: 4.10 },
-      winter: { lead: 2.80, duty: 3.10, mobile_order: 3.30, mobile_active: 3.50, critical_spill: 3.80 }
-    },
-    huish_episcopi_ps: {
-      summer: { lead: 6.70, duty: 6.90, mobile_order: 7.30, mobile_active: 7.86, critical_spill: 8.20 },
-      winter: { lead: 6.30, duty: 6.50, mobile_order: 7.30, mobile_active: 7.86, critical_spill: 8.20 }
-    }
-  };
-
-  const fb = (fallbacks[stationId] && fallbacks[stationId][seasonKey]) || fallbacks.currymoor_ps[seasonKey];
+  // Fallback to canonical seasonal thresholds if hydroConfig not loaded yet [RULE-SSOT-01]
+  const fb = (CANONICAL_PUMP_THRESHOLDS[stationId] && CANONICAL_PUMP_THRESHOLDS[stationId][seasonKey])
+    || CANONICAL_PUMP_THRESHOLDS.currymoor_ps[seasonKey];
   return evaluatePumpStatus(
     moorLevel,
     stationFallbackName,
