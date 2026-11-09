@@ -38,18 +38,29 @@ function createMockJpegBuffer(content = 'SOMERSET_FLOOD_FRAME') {
   return Buffer.concat([header, body]);
 }
 
-test('Catalog Invariants: Rebalanced 10-camera registry matches canonical choke points', () => {
-  assert.equal(CAMERA_CATALOG.length, 10, 'Must contain exactly 10 monitored camera choke-points');
-  assert.equal(ALLOWED_CAMERA_IDS.size, 10);
+test('Catalog Invariants: Comprehensive 25-camera registry matches canonical choke points', () => {
+  assert.equal(CAMERA_CATALOG.length, 25, 'Must contain all 25 monitored Somerset Levels camera feeds');
+  assert.equal(ALLOWED_CAMERA_IDS.size, 25);
 
   const dunballCams = CAMERA_CATALOG.filter(c => c.chokePoint === 'dunball_outfall');
-  assert.equal(dunballCams.length, 3, 'Dunball must have exactly 3 balanced angles (Northern, Southern, Pump Pipework)');
+  assert.equal(dunballCams.length, 4, 'Dunball must cover Northern Flap, Southern Flap, Inland KSD Approach, and Pump Pipework');
+
+  const muchelneyCams = CAMERA_CATALOG.filter(c => c.chokePoint === 'muchelney_access');
+  assert.equal(muchelneyCams.length, 2, 'Muchelney / Wet Moor must cover Huish Episcopi PS and Midelney PS');
 
   const baltmoor = CAMERA_CATALOG.find(c => c.id === 'baltmoor_wall');
   assert.ok(baltmoor, 'Baltmoor Wall must exist');
   assert.equal(baltmoor.chokePoint, 'baltmoor_wall');
   assert.equal(baltmoor.assetType, 'spillway');
   assert.ok(baltmoor.description.includes('7.80m AOD'), 'Must reflect 7.80m Parrett levee');
+
+  const saltmoorRiver = CAMERA_CATALOG.find(c => c.id === 'saltmoor_river');
+  assert.ok(saltmoorRiver, 'Saltmoor River permanent Parrett camera must exist');
+  assert.equal(saltmoorRiver.campath, 'sites/saltmoor/cam2/');
+
+  const allermoor = CAMERA_CATALOG.find(c => c.id === 'allermoor_spillway');
+  assert.ok(allermoor, 'Allermoor Spillway weir camera must exist');
+  assert.equal(allermoor.campath, 'sites/monks_leaze/cam2/');
 
   const athelney = CAMERA_CATALOG.find(c => c.id === 'athelney_spillway');
   assert.ok(athelney, 'Athelney Spillway must exist');
@@ -235,8 +246,8 @@ test('CameraBufferWorker: Deduplication, 20m heartbeat, and round-robin stepping
     const files1 = fs.readdirSync(cam0Dir).filter(f => f.endsWith('.jpg'));
     assert.equal(files1.length, 1);
 
-    // Step across remaining 9 cameras to return index to cam0
-    for (let i = 1; i < 10; i++) {
+    // Step across remaining cameras to return index to cam0
+    for (let i = 1; i < CAMERA_CATALOG.length; i++) {
       await worker.pollNext();
     }
 
@@ -249,7 +260,7 @@ test('CameraBufferWorker: Deduplication, 20m heartbeat, and round-robin stepping
     // Simulate 21 minutes passing on cam0 (heartbeat expiry)
     worker.lastWrittenMs.set(cam0, Date.now() - (21 * 60 * 1000));
     // Index step again
-    for (let i = 1; i < 10; i++) {
+    for (let i = 1; i < CAMERA_CATALOG.length; i++) {
       await worker.pollNext();
     }
     const res3 = await worker.pollNext();

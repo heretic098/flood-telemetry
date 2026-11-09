@@ -24,7 +24,7 @@ export const CAMERA_CATALOG = Object.freeze([
     name: 'Dunball Northern Tidal Flap Sluice',
     siteKey: 'dunball',
     campath: 'sites/dunball/cam3/',
-    camName: 'Dunball Northern Flap',
+    camName: 'Dunball Northern Tidal Flaps',
     chokePoint: 'dunball_outfall',
     assetType: 'tidal_gate',
     description: 'Downstream northern gravity flap door discharging King\'s Sedgemoor Drain into Parrett Estuary.',
@@ -35,18 +35,29 @@ export const CAMERA_CATALOG = Object.freeze([
     name: 'Dunball Southern Tidal Flap Sluice',
     siteKey: 'dunball',
     campath: 'sites/dunball/cam4/',
-    camName: 'Dunball Southern Flap',
+    camName: 'Dunball Southern Tidal Flaps',
     chokePoint: 'dunball_outfall',
     assetType: 'tidal_gate',
     description: 'Downstream southern gravity flap door and lower concrete apron.',
     lookFor: 'Tidal water elevation relative to the outfall headwall sill.'
   },
   {
+    id: 'dunball_ksd_approach',
+    name: 'Dunball King\'s Sedgemoor Drain Upstream Approach',
+    siteKey: 'dunball',
+    campath: 'sites/dunball/cam2/',
+    camName: 'Dunball Kings Sedgemoor Drain',
+    chokePoint: 'dunball_outfall',
+    assetType: 'tidal_gate',
+    description: 'Inland King\'s Sedgemoor Drain (KSD) approach basin, road bridge, and penstock headwall deck upstream of Dunball Sluice.',
+    lookFor: 'Inland KSD water elevation against the sheet-piled bank walls and surface draw toward the sluice penstocks.'
+  },
+  {
     id: 'dunball_pump_pipework',
     name: 'Dunball High-Volume Pump Outfall & Tidal Bank',
     siteKey: 'dunball',
     campath: 'sites/dunball/cam6/',
-    camName: 'Dunball Pump Pipework',
+    camName: 'Dunball Ultra-High Capacity Pump Pipework',
     chokePoint: 'dunball_outfall',
     assetType: 'tidal_gate',
     description: 'Rock-armoured tidal bank, mudflat outfall channel into the River Parrett, and high-volume delivery pipe manifold (top-left).',
@@ -57,7 +68,7 @@ export const CAMERA_CATALOG = Object.freeze([
     name: 'Hookbridge Spillway Engineered Weir Crest',
     siteKey: 'hookbridge',
     campath: 'sites/hook/cam1/',
-    camName: 'Hookbridge Spillway',
+    camName: 'Hook Spillway',
     chokePoint: 'hookbridge',
     assetType: 'spillway',
     description: 'Concrete and grassed weir crest (7.45m AOD) separating River Tone from Curry Moor flood storage basin.',
@@ -75,6 +86,17 @@ export const CAMERA_CATALOG = Object.freeze([
     lookFor: 'Water elevation against the concrete intake bay divider walls and floating weed or debris accumulation on the angled steel trash racks.'
   },
   {
+    id: 'stanmoor_ps',
+    name: 'Stanmoor Pumping Station Intake Basin & Weed Screens',
+    siteKey: 'currymoor',
+    campath: 'sites/stanmoor/cam1/',
+    camName: 'Stanmoor',
+    chokePoint: 'curry_moor',
+    assetType: 'polder',
+    description: 'Stanmoor pumping station drainage collection basin and twin angled steel weed screens bordering the River Tone.',
+    lookFor: 'Water elevation in the Stanmoor collection basin and duckweed or debris build-up against the twin intake screens.'
+  },
+  {
     id: 'athelney_spillway',
     name: 'Athelney Spillway Embankment & Meadow',
     siteKey: 'athelney',
@@ -86,15 +108,59 @@ export const CAMERA_CATALOG = Object.freeze([
     lookFor: 'Sheet water standing across the grassed spillway meadow or overtopping the 7.35m AOD embankment crest (note: lens frames the grass spillway meadow, not the Cuts Road asphalt carriageway).'
   },
   {
+    id: 'athelney_gauge',
+    name: 'Athelney Spillway Crest Staff Gauge Board',
+    siteKey: 'athelney',
+    campath: 'sites/athelney/cam1/',
+    camName: 'Athelney Spillway Crest Gauge Board',
+    chokePoint: 'cuts_road',
+    assetType: 'road',
+    description: 'Close-up of the vertical metric staff gauge board (1m–7m markings) mounted on the timber fence post at Athelney Spillway crest.',
+    lookFor: 'Standing floodwater meniscus against the vertical metric staff gauge board graduations when Athelney Spillway is overtopping.'
+  },
+  {
+    id: 'east_lyng_cutting',
+    name: 'East Lyng Cutting (Cuts Road Temporary Deployment)',
+    siteKey: 'athelney',
+    campath: 'sites/temporary_deployment_6/cam1/',
+    camName: 'East Lyng Cutting',
+    chokePoint: 'cuts_road',
+    assetType: 'road',
+    description: 'Temporary flood deployment camera position at East Lyng Cutting on the Cuts Road corridor (East Lyng to Athelney).',
+    lookFor: 'Floodwater across the Cuts Road carriageway cutting when temporary camera trailer is deployed by the Environment Agency.'
+  },
+  {
     id: 'baltmoor_wall',
     name: 'Baltmoor Wall Parrett Flood Bank Defence',
     siteKey: 'baltmoor',
     campath: 'sites/temporary_deployment_2/cam1/',
-    camName: 'Baltmoor Wall Parrett Defence',
+    camName: 'Baltmoor Wall',
     chokePoint: 'baltmoor_wall',
     assetType: 'spillway',
     description: 'Temporary deployment camera position on River Parrett right-bank raised embankment levee (7.80m AOD crest) protecting Northmoor.',
     lookFor: 'River Parrett high stage encroaching on the engineered embankment crest near Burrowbridge (camera frequently offline outside active flood deployments).'
+  },
+  {
+    id: 'saltmoor_river',
+    name: 'Saltmoor Pumping Station River Parrett & Outfall',
+    siteKey: 'saltmoor',
+    campath: 'sites/saltmoor/cam2/',
+    camName: 'Saltmoor River',
+    chokePoint: 'baltmoor_wall',
+    assetType: 'spillway',
+    description: 'Permanent view across the embanked River Parrett channel and discharge pipe manifold at Saltmoor Pumping Station downstream of Baltmoor Wall.',
+    lookFor: 'River Parrett water stage relative to the grassy flood embankments and turbulent discharge boil from the foreground pipework.'
+  },
+  {
+    id: 'saltmoor_drain',
+    name: 'Saltmoor Pumping Station Intake Screen',
+    siteKey: 'saltmoor',
+    campath: 'sites/saltmoor/cam1/',
+    camName: 'Saltmoor Drain',
+    chokePoint: 'northmoor',
+    assetType: 'polder',
+    description: 'Saltmoor pumping station landward drainage channel and angled steel intake trash rack.',
+    lookFor: 'Moor drainage water elevation in the stone-lined intake channel and debris accumulation on the steel weed screen.'
   },
   {
     id: 'northmoor_ps',
@@ -108,6 +174,61 @@ export const CAMERA_CATALOG = Object.freeze([
     lookFor: 'Water stage and floating weed or duckweed accumulation directly against the angled steel intake screen bars.'
   },
   {
+    id: 'northmoor_drain',
+    name: 'Northmoor Main Drain Approach Channel',
+    siteKey: 'northmoor',
+    campath: 'sites/northmoor/cam3/',
+    camName: 'Northmoor Main Drain',
+    chokePoint: 'northmoor',
+    assetType: 'polder',
+    description: 'Wide view along the Northmoor Main Drain approach rhyne conveying moorland water toward Northmoor Pumping Station.',
+    lookFor: 'Drainage channel water level relative to the vegetated rhyne banks and surface flow movement toward the pumping station.'
+  },
+  {
+    id: 'westonzoyland_ps',
+    name: 'Westonzoyland Pumping Station Engine Rhyne & Staff Gauge',
+    siteKey: 'northmoor',
+    campath: 'sites/westonzoyland/cam2/',
+    camName: 'Westonzoyland Engine Rhyne',
+    chokePoint: 'northmoor',
+    assetType: 'polder',
+    description: 'Overhead view of the Westonzoyland pumping station angled steel weed screen and vertical metric staff gauge board on the concrete pier.',
+    lookFor: 'Water meniscus against the vertical metric staff gauge markings and weed accumulation on the intake trash rack.'
+  },
+  {
+    id: 'monks_leaze_clyse',
+    name: 'Monk\'s Leaze Clyse Sluice Gate & Staff Gauge',
+    siteKey: 'monksleaze',
+    campath: 'sites/monks_leaze/cam1/',
+    camName: 'Monks Leaze',
+    chokePoint: 'monks_leaze_clyse',
+    assetType: 'sluice',
+    description: 'Close-up of the Monk\'s Leaze Clyse concrete sluice headwall, vertical lifting chain, metric staff gauge board on the left pier, and water channel entering the Sowy.',
+    lookFor: 'Water meniscus level against the vertical metric staff gauge board on the left concrete pier and surface flow turbulence passing under the clyse headwall.'
+  },
+  {
+    id: 'allermoor_spillway',
+    name: 'Allermoor Fixed Spillway Weir & River Parrett Intake',
+    siteKey: 'monksleaze',
+    campath: 'sites/monks_leaze/cam2/',
+    camName: 'Allermoor Spillway',
+    chokePoint: 'monks_leaze_clyse',
+    assetType: 'sluice',
+    description: 'Wide view framing the River Parrett on the left and the Allermoor Fixed Spillway weir (6.73m AOD) / Sowy Flood Relief Channel intake on the right.',
+    lookFor: 'River Parrett floodwater overtopping the fixed spillway weir crest into the Sowy intake embayment on the right.'
+  },
+  {
+    id: 'oath_lock_sluice',
+    name: 'Oath Lock Penning Sluice Twin Radial Gates',
+    siteKey: 'monksleaze',
+    campath: 'sites/oath/cam1/',
+    camName: 'Oath Main Gates',
+    chokePoint: 'monks_leaze_clyse',
+    assetType: 'sluice',
+    description: 'Downstream view of the twin steel penning gates across the River Parrett at Oath Lock.',
+    lookFor: 'River Parrett stage against the twin steel sluice gates and turbulent white-water discharge passing beneath or over the gates.'
+  },
+  {
     id: 'beer_wall',
     name: 'Beer Wall Lang Acre Culverts & Relief Channel',
     siteKey: 'beerwall',
@@ -119,15 +240,59 @@ export const CAMERA_CATALOG = Object.freeze([
     lookFor: 'Water elevation in the approach channel relative to the twin rectangular concrete box culvert soffits and concrete wingwalls.'
   },
   {
-    id: 'monks_leaze_clyse',
-    name: 'Monk\'s Leaze Clyse Sluice Gate & Staff Gauge',
-    siteKey: 'monksleaze',
-    campath: 'sites/monks_leaze/cam1/',
-    camName: 'Monks Leaze Gate',
-    chokePoint: 'monks_leaze_clyse',
-    assetType: 'sluice',
-    description: 'Close-up of the Monk\'s Leaze Clyse concrete sluice headwall, vertical lifting chain, metric staff gauge board on the left pier, and water channel entering the Sowy.',
-    lookFor: 'Water meniscus level against the vertical metric staff gauge board on the left concrete pier and surface flow turbulence passing under the clyse headwall.'
+    id: 'beer_wall_sluice_gb',
+    name: 'Beer Wall Sluice Culvert Gates & Staff Gauge Board',
+    siteKey: 'beerwall',
+    campath: 'sites/beerwall/cam8/',
+    camName: 'Beerwall Lang Acre Upstream GB',
+    chokePoint: 'beer_wall',
+    assetType: 'spillway',
+    description: 'Close-up of the Beer Wall sluice concrete culvert bays and vertical metric staff gauge board.',
+    lookFor: 'Water meniscus against the vertical metric staff gauge board on the central concrete pier.'
+  },
+  {
+    id: 'beazeley_spillway',
+    name: 'Beazeley Spillway Embankment & Sowy Channel',
+    siteKey: 'beerwall',
+    campath: 'sites/beazeley/cam1/',
+    camName: 'Beazeley Spillway',
+    chokePoint: 'beer_wall',
+    assetType: 'spillway',
+    description: 'Wide view along the grassed Beazeley Spillway flood embankment and adjacent Sowy / KSD channel.',
+    lookFor: 'High water stage in the left-hand channel approaching or spilling across the grassed Beazeley Spillway crest.'
+  },
+  {
+    id: 'huish_episcopi_ps',
+    name: 'Huish Episcopi Pumping Station Intake & Staff Gauge',
+    siteKey: 'huish',
+    campath: 'sites/huish_episcopi/cam1/',
+    camName: 'Huish Episcopi Screen',
+    chokePoint: 'muchelney_access',
+    assetType: 'road',
+    description: 'Huish Episcopi pumping station twin angled steel weed screens and vertical metric staff gauge board (1m–3m markings) serving the Wet Moor / Muchelney basin.',
+    lookFor: 'Water elevation against the vertical metric staff gauge board on the concrete wingwall and debris on the twin intake screens.'
+  },
+  {
+    id: 'midelney_ps',
+    name: 'Midelney Pumping Station Intake & Staff Gauge',
+    siteKey: 'huish',
+    campath: 'sites/midelney/cam1/',
+    camName: 'Midelney Screen',
+    chokePoint: 'muchelney_access',
+    assetType: 'road',
+    description: 'Midelney pumping station twin angled steel weed screens and rear vertical metric staff gauge board serving the River Isle / Wet Moor floodplain.',
+    lookFor: 'Floodwater stage against the rear vertical metric staff gauge board and concrete divider piers.'
+  },
+  {
+    id: 'west_sedgemoor_ps',
+    name: 'West Sedgemoor Pumping Station Intake & Staff Gauge',
+    siteKey: 'currymoor',
+    campath: 'sites/west_sedgemoor/cam1/',
+    camName: 'West Sedgemoor Screen',
+    chokePoint: 'curry_moor',
+    assetType: 'polder',
+    description: 'Overhead view of the West Sedgemoor pumping station intake weed screen and vertical metric staff gauge board on the concrete wall.',
+    lookFor: 'Water meniscus against the vertical metric staff gauge board and debris build-up on the intake trash rack.'
   }
 ]);
 
@@ -143,10 +308,10 @@ export const ALLOWED_DOMAINS = Object.freeze([
 export const MAX_METADATA_BYTES = 10 * 1024; // 10 KB cap for HTML snippet
 export const MAX_FRAME_BYTES = 3 * 1024 * 1024; // 3 MB cap for binary JPEG
 export const DEFAULT_RETENTION_MS = 48 * 60 * 60 * 1000; // 48 hours
-export const DEFAULT_MAX_STORAGE_BYTES = 350 * 1024 * 1024; // 350 MB hard ceiling
-export const DEFAULT_LOW_WATERMARK_BYTES = 280 * 1024 * 1024; // 280 MB target prune level
+export const DEFAULT_MAX_STORAGE_BYTES = 500 * 1024 * 1024; // 500 MB hard ceiling (on 1GB /data volume)
+export const DEFAULT_LOW_WATERMARK_BYTES = 420 * 1024 * 1024; // 420 MB target prune level
 export const DEFAULT_HEARTBEAT_MS = 20 * 60 * 1000; // 20-minute heartbeat
-export const DEFAULT_STEP_INTERVAL_MS = 35 * 1000; // 35-second step interval
+export const DEFAULT_STEP_INTERVAL_MS = 12 * 1000; // 12-second step interval (25 cams * 12s = 5.0m full cycle)
 export const TMP_FILE_EXPIRY_MS = 10 * 60 * 1000; // 10-minute sweep for stale .tmp_* files
 
 /**
