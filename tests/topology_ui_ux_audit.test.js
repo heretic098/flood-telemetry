@@ -829,8 +829,12 @@ test('UI/UX Audit 2.6: methodology.html enforces [RULE-CALC-01] with zero volume
     'methodology.html must not contain volumetric discharge formula Q = C_d * B * H * sqrt(2g * dh)'
   );
   assert.ok(
-    methodologyHtml.includes('[RULE-CALC-01]'),
-    'methodology.html must explicitly cite [RULE-CALC-01] ban on volumetric discharge speculation'
+    /volumetric discharge speculation[^<]*is strictly prohibited/.test(methodologyHtml),
+    'methodology.html must state the ban on volumetric discharge speculation'
+  );
+  assert.ok(
+    !methodologyHtml.includes('[RULE-'),
+    'methodology.html must not expose internal rule IDs to readers'
   );
 });
 

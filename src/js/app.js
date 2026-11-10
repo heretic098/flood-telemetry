@@ -1,5 +1,6 @@
 import { evaluateSpillway, evaluateGateState, aggregateGlobalStatus, evaluatePumpStatus, evaluateSowyChannel, evaluateAthelneySpillway, evaluateGravityClyse, evaluateBeerWall, evaluateOathLock, evaluateDunballEmergencyPumping, getSeasonalRegime, getActiveCrestHeight, getActiveCatchmentId, loadCatchmentConfig, evaluateHuishEpiscopi, evaluateMidelney, STATION_REGISTRY, GAUGE_DATUMS, formatClearanceText, computeTrendVector, disambiguateRiverTrend, evaluateRoadNetwork, evaluateStationFreshness, getValidStageOrFallback, CANONICAL_PUMP_THRESHOLDS } from './hydro_engine.js';
 import { initJargonPopovers, renderJargonTerm } from './jargon_popover.js';
+import { setCameraEventsCatalog, openVisualEvidence, initCameraGuideTriggers } from './camera_guide.js';
 import { createRefreshController } from './modules/refresh_controller.js';
 import { setupOfflineBanner as setupResilienceBanner } from './modules/network_resilience.js';
 import {
@@ -259,6 +260,7 @@ function setupManualRefreshListener() {
 
 export async function initApp() {
   initJargonPopovers();
+  initCameraGuideTriggers();
   activeCatchmentId = getActiveCatchmentId();
   try {
     hydroConfig = await loadCatchmentConfig(activeCatchmentId);
@@ -407,6 +409,167 @@ async function fetchAllTelemetryFromDB(range = currentActiveRange) {
     console.warn(`Failed to fetch from local SQLite endpoint (${range}):`, err);
   }
   return null;
+}
+
+export async function fetchRecentEventsFromDB(limit = 15) {
+  try {
+    const res = await fetch(`/api/events?limit=${limit}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data.events)) {
+        return data.events;
+      }
+    }
+  } catch (err) {
+    console.warn('Failed to fetch recent events from /api/events:', err);
+  }
+  return [];
+}
+
+const EVENT_ASSET_DISPLAY_NAMES = Object.freeze({
+  dunball_outfall: 'Dunball Tidal Outfall (52163)',
+  hookbridge: 'Hookbridge Spillway (52118)',
+  curry_moor: 'Curry Moor Polder Basin (52127)',
+  cuts_road: 'Cuts Road • East Lyng ↔ Athelney',
+  baltmoor_wall: 'Baltmoor Wall Spillway (52158)',
+  northmoor: 'Northmoor & Saltmoor Basin (52159)',
+  beer_wall: 'Beer Wall Spillway & Sluices (52157)',
+  monks_leaze_clyse: "Monk's Leaze Clyse Sluice (52233)",
+  muchelney_access: 'Muchelney Spine Road (Langport ↔ Muchelney)',
+  a361_burrowbridge: 'A361 East Lyng ↔ Burrowbridge',
+  new_road_curry: 'New Road (West Sedgemoor ↔ North Curry)',
+  bicknells_bridge_access: "Bicknell's Bridge & Drayton Lane",
+  moorland_new_cut_road: 'Moorland / Fordgate (Northmoor Road)',
+  stan_moor_road: 'Stan Moor Road (Stoke St Gregory ↔ Burrowbridge)',
+  beer_wall_a372: 'A372 Beer Wall Causeway (Othery ↔ Aller)'
+});
+
+const EVENT_STATE_SYMBOLS = Object.freeze({
+  PASSABLE: '🟢',
+  ENCROACHING: '🟡',
+  IMPASSABLE: '🔴',
+  SECURE: '🟢',
+  NEAR_CREST: '🟡',
+  OVERTOPPING: '🔴',
+  STANDBY: '⚪',
+  DUTY_PUMPING: '🟢',
+  MOBILE_ORDERED: '🟡',
+  MOBILE_ACTIVE: '🔴',
+  CRITICAL: '🚨',
+  DISCHARGING: '🔵',
+  TIDE_LOCKED: '🕒',
+  CLOSED: '⚪',
+  DIVERTING: '🟢',
+  THROTTLED: '🟡',
+  REVERSE_LOCK: '🟠',
+  NORMAL: '🟢',
+  ALERT: '🔴'
+});
+
+/**
+ * Renders the Recent Telemetry State Transitions & Visual Evidence Ledger [Issue #24 / RULE-ENT-01]
+ * @param {Array<object>} events
+ * @returns {HTMLElement}
+ */
+export function renderEventsTimeline(events = []) {
+  const section = document.createElement('section');
+  section.className = 'moor-card events-timeline-section';
+  section.id = 'events-timeline-section';
+  section.setAttribute('aria-label', 'Recent Telemetry State Transitions & Visual Evidence Ledger');
+
+  const validEvents = Array.isArray(events) ? events.filter(ev => ev && typeof ev === 'object') : [];
+
+  const rowsHtml = validEvents.length === 0 ? `
+    <div class="events-timeline-empty">
+      <span>📡 No active or recent state transition events recorded in the local ledger.</span>
+    </div>
+  ` : validEvents.slice(0, 12).map(ev => {
+    const assetTypeUpper = String(ev.asset_type || 'asset').toUpperCase().replace(/_/g, ' ');
+    const assetName = EVENT_ASSET_DISPLAY_NAMES[ev.asset_id] || ev.asset_id || 'Monitored Asset';
+    const fromState = ev.from_state || 'NORMAL';
+    const toState = ev.to_state || 'ALERT';
+    const fromSym = EVENT_STATE_SYMBOLS[fromState] || '⚪';
+    const toSym = EVENT_STATE_SYMBOLS[toState] || '🔴';
+    const isActive = ev.status === 'ACTIVE' || !ev.end_time;
+
+    const peakStageStr = typeof ev.peak_stage_mAOD === 'number' ? `${ev.peak_stage_mAOD.toFixed(2)}m AOD` : 'Verified';
+    const startStr = ev.start_time ? new Date(ev.start_time).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }) + ' GMT' : 'N/A';
+    const durStr = ev.duration_formatted || '0h 0m';
+
+    const ce = ev.camera_evidence || null;
+    const seqCount = Array.isArray(ce?.sequence_frames) ? ce.sequence_frames.length : 0;
+    const isNightOnly = Boolean(ce && ce.fallback_mode === 'NIGHT_TELEMETRY' && seqCount === 0);
+    const hasOpticalFrames = Boolean(ce && !isNightOnly && (ce.image_url || seqCount > 0));
+
+    let actionBtnHtml = `<span class="event-sensor-only-tag" title="No optical camera correlated to this transition">📡 Sensor-Only Record</span>`;
+    if (hasOpticalFrames) {
+      const countBadge = seqCount > 1 ? ` (${seqCount} frames)` : '';
+      actionBtnHtml = `
+        <button type="button"
+                class="visual-evidence-btn visual-evidence-trigger"
+                data-visual-evidence-event-id="${escapeAttr(String(ev.id))}"
+                data-visual-evidence-asset="${escapeAttr(ev.asset_id)}"
+                aria-label="Inspect optical visual evidence for ${escapeAttr(assetName)} (${escapeAttr(fromState)} to ${escapeAttr(toState)})">
+          <span aria-hidden="true">📷</span> Visual Evidence${escapeHTML(countBadge)}
+        </button>
+      `;
+    } else if (isNightOnly) {
+      actionBtnHtml = `
+        <button type="button"
+                class="visual-evidence-btn visual-evidence-btn-night visual-evidence-trigger"
+                data-visual-evidence-event-id="${escapeAttr(String(ev.id))}"
+                data-visual-evidence-asset="${escapeAttr(ev.asset_id)}"
+                aria-label="Inspect night telemetry verification for ${escapeAttr(assetName)} (${escapeAttr(fromState)} to ${escapeAttr(toState)})">
+          <span aria-hidden="true">🌙</span> Night Telemetry
+        </button>
+      `;
+    }
+
+    return `
+      <div class="event-timeline-row ${isActive ? 'event-row-active' : 'event-row-resolved'}" role="listitem" data-event-id="${escapeAttr(String(ev.id))}" data-asset-id="${escapeAttr(ev.asset_id)}">
+        <div class="event-row-main">
+          <div class="event-tripartite-group">
+            <span class="event-asset-type-pill">${escapeHTML(assetTypeUpper)}</span>
+            <strong class="event-asset-title">${escapeHTML(assetName)}</strong>
+            <span class="event-transition-pill">
+              <span aria-hidden="true">${fromSym}</span> ${escapeHTML(fromState)}
+              <span aria-hidden="true">➔</span>
+              <span aria-hidden="true">${toSym}</span> <strong>${escapeHTML(toState)}</strong>
+            </span>
+            ${isActive ? '<span class="event-live-tag">● ACTIVE</span>' : '<span class="event-resolved-tag">✓ ARCHIVED</span>'}
+          </div>
+          <div class="event-meta-strip">
+            <span><strong>Started:</strong> ${escapeHTML(startStr)}</span>
+            <span>•</span>
+            <span><strong>Duration:</strong> ${escapeHTML(durStr)}</span>
+            <span>•</span>
+            <span><strong>Max Stage:</strong> <code>${escapeHTML(peakStageStr)}</code></span>
+          </div>
+        </div>
+        <div class="event-row-actions">
+          ${actionBtnHtml}
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  section.innerHTML = `
+    <div class="card-header events-timeline-header">
+      <div>
+        <h2 class="card-title">📸 Telemetry State Transitions &amp; Visual Evidence Ledger</h2>
+        <div class="river-tag">Correlated Environment Agency Stage Transitions &amp; Archived ±60m Optical Camera Sequences</div>
+      </div>
+      <div class="status-badge badge-secure">
+        <span aria-hidden="true">🗂️</span>
+        <span>${validEvents.length} EVENT${validEvents.length === 1 ? '' : 'S'}</span>
+      </div>
+    </div>
+    <div class="events-timeline-list" role="list">
+      ${rowsHtml}
+    </div>
+  `;
+
+  return section;
 }
 
 export async function refreshLiveDashboard() {
@@ -643,13 +806,34 @@ export async function refreshLiveDashboard() {
   const evals = [];
   let isTideLocked = dunballSea >= dunballInland;
 
-  // Progressive Disclosure: Sourced active event sessions [RULE-ENT-01]
+  // Progressive Disclosure: Sourced active event sessions [RULE-ENT-01] & Visual Evidence Catalog [Issue #24]
+  const recentEvents = await fetchRecentEventsFromDB(20);
   const activeEventsMap = new Map();
+  const evidenceByAsset = new Map();
+
+  for (const ev of recentEvents) {
+    if (ev && ev.asset_id && ev.camera_evidence && !evidenceByAsset.has(ev.asset_id)) {
+      evidenceByAsset.set(ev.asset_id, ev);
+    }
+  }
   if (Array.isArray(dbData?.active_events)) {
     for (const ev of dbData.active_events) {
       activeEventsMap.set(ev.asset_id, ev);
+      if (ev && ev.asset_id && ev.camera_evidence) {
+        evidenceByAsset.set(ev.asset_id, ev);
+      }
     }
   }
+
+  const allCatalogEvents = [...recentEvents];
+  if (Array.isArray(dbData?.active_events)) {
+    for (const activeEv of dbData.active_events) {
+      if (activeEv && !allCatalogEvents.some(e => e && e.id === activeEv.id)) {
+        allCatalogEvents.unshift(activeEv);
+      }
+    }
+  }
+  setCameraEventsCatalog(allCatalogEvents);
 
   // Dedicated Community Roads & Access Summary Bridge Banner [Issue #12 / Roads Carve-Out]
   const roadData = dbData?.roads || evaluateRoadNetwork(dbMeasures || {}, activeEventsMap);
@@ -727,6 +911,7 @@ export async function refreshLiveDashboard() {
     cardId: "card-52118",
     stationId: "52118",
     cameraGuideSite: "hookbridge",
+    visualEvidenceEvent: evidenceByAsset.get('hookbridge') || evidenceByAsset.get('curry_moor') || null,
     heroBanner: cmHeroBanner,
     riverTag: `Catchment: River Tone (${regime.label})`,
     eval: cmEval,
@@ -859,6 +1044,7 @@ export async function refreshLiveDashboard() {
     cardId: "card-52127",
     stationId: "52127",
     cameraGuideSite: "baltmoor",
+    visualEvidenceEvent: evidenceByAsset.get('cuts_road') || evidenceByAsset.get('athelney_spillway') || null,
     cardClass: "athelney-cascade-card",
     heroBanner: athelneyHeroBanner,
     riverTag: `Inter-Moor Cascade: Curry Moor ➔ Northmoor`,
@@ -1004,6 +1190,7 @@ export async function refreshLiveDashboard() {
     cardId: "card-52158",
     stationId: "52158",
     cameraGuideSite: "baltmoor",
+    visualEvidenceEvent: evidenceByAsset.get('baltmoor_wall') || evidenceByAsset.get('northmoor') || evidenceByAsset.get('beer_wall') || null,
     heroBanner: nmHeroBanner,
     riverTag: `Catchment: River Parrett (${regime.label})`,
     eval: nmEval,
@@ -1143,6 +1330,7 @@ export async function refreshLiveDashboard() {
     cardId: "card-52233",
     stationId: "52233",
     cameraGuideSite: "monksleaze",
+    visualEvidenceEvent: evidenceByAsset.get('monks_leaze_clyse') || evidenceByAsset.get('beer_wall') || null,
     heroBanner: sowyHeroBanner,
     riverTag: `Diverts: Parrett ➔ Sedgemoor Drain (${renderJargonTerm('KSD')}) (${regime.label})`,
     eval: sowyEval,
@@ -1260,6 +1448,7 @@ export async function refreshLiveDashboard() {
     cardId: "card-52163",
     stationId: "52163",
     cameraGuideSite: "dunball",
+    visualEvidenceEvent: evidenceByAsset.get('dunball_outfall') || null,
     heroBanner: dunballHeroBanner,
     riverTag: `Outfall: Sedgemoor Drain ➔ Parrett Estuary (${regime.label})`,
     eval: dunballStatusBadge,
@@ -1396,6 +1585,7 @@ export async function refreshLiveDashboard() {
     cardId: "card-52120",
     stationId: "52120",
     cameraGuideSite: "currymoor",
+    visualEvidenceEvent: evidenceByAsset.get('muchelney_access') || null,
     heroBanner: confluenceHeroBanner,
     riverTag: `Catchment: River Yeo & Isle Confluence (${regime.label})`,
     eval: confluenceBadge,
@@ -1477,6 +1667,11 @@ export async function refreshLiveDashboard() {
       stationId: '52120',
       error: err
     }));
+  }
+
+  // Render Telemetry State Transitions & Visual Evidence Ledger [Issue #24]
+  if (allCatalogEvents.length > 0) {
+    container.appendChild(renderEventsTimeline(allCatalogEvents));
   }
 
   // Global Status Banner Render
@@ -1610,10 +1805,25 @@ function createMoorCard(opts) {
     </button>
   ` : '';
 
-  const camBarHtml = ((Array.isArray(opts.camLinks) && opts.camLinks.length > 0) || opts.cameraGuideSite) ? `
+  const evObj = opts.visualEvidenceEvent || null;
+  const evCe = evObj?.camera_evidence || null;
+  const evSeqCount = Array.isArray(evCe?.sequence_frames) ? evCe.sequence_frames.length : 0;
+  const evIsNight = Boolean(evCe && evCe.fallback_mode === 'NIGHT_TELEMETRY' && evSeqCount === 0);
+  const visualEvidenceBtn = (evObj && evCe) ? `
+    <button type="button"
+            class="cam-bar-btn visual-evidence-btn ${evIsNight ? 'visual-evidence-btn-night' : ''} visual-evidence-trigger"
+            data-visual-evidence-event-id="${escapeAttr(String(evObj.id || ''))}"
+            data-visual-evidence-asset="${escapeAttr(evObj.asset_id || '')}"
+            title="${evIsNight ? 'Inspect Night Telemetry Verification' : 'Inspect Archived Event Keyframes & Transition Sequence'}">
+      <span aria-hidden="true">${evIsNight ? '🌙' : '📷'}</span> ${evIsNight ? 'Night Telemetry' : `Visual Evidence${evSeqCount > 1 ? ` (${evSeqCount})` : ''}`}
+    </button>
+  ` : '';
+
+  const camBarHtml = ((Array.isArray(opts.camLinks) && opts.camLinks.length > 0) || opts.cameraGuideSite || visualEvidenceBtn) ? `
     <div class="card-cam-bar" aria-label="${escapeAttr(opts.title)} Ground-Truth Cameras">
       <span class="cam-bar-label"><span aria-hidden="true">📷</span> Live Cameras:</span>
       <div class="cam-bar-links">
+        ${visualEvidenceBtn}
         ${(opts.camLinks || []).map(c => `
           <a href="${escapeAttr(c.url)}" target="_blank" rel="noopener noreferrer" class="cam-bar-btn" title="${escapeAttr(c.title || c.label)}" aria-label="${escapeAttr(c.ariaLabel || c.label)}">
             ${escapeHTML(c.label)} <span class="cam-arrow" aria-hidden="true" style="color: #38bdf8; font-weight: bold; margin-left: 2px;">↗</span>
@@ -1818,6 +2028,22 @@ export function renderRoadNetworkCard(roadEvaluations, activeEventsMap = null) {
       </a>
     ` : '';
 
+    const correlatedEvent = (activeEventsMap instanceof Map)
+      ? activeEventsMap.get(corridor.asset_id)
+      : (activeEventsMap && typeof activeEventsMap === 'object' ? activeEventsMap[corridor.asset_id] : null);
+    const evCe = correlatedEvent?.camera_evidence || null;
+    const evSeqCount = Array.isArray(evCe?.sequence_frames) ? evCe.sequence_frames.length : 0;
+    const evIsNight = Boolean(evCe && evCe.fallback_mode === 'NIGHT_TELEMETRY' && evSeqCount === 0);
+    const visualEvidenceBtnHtml = (correlatedEvent && evCe) ? `
+      <button type="button"
+              class="road-evidence-btn visual-evidence-btn ${evIsNight ? 'visual-evidence-btn-night' : ''} visual-evidence-trigger"
+              data-visual-evidence-event-id="${escapeAttr(String(correlatedEvent.id || ''))}"
+              data-visual-evidence-asset="${escapeAttr(correlatedEvent.asset_id || corridor.asset_id)}"
+              title="${evIsNight ? 'Inspect Night Telemetry Verification' : 'Inspect Archived Event Keyframes & Transition Sequence'}">
+        <span aria-hidden="true">${evIsNight ? '🌙' : '📷'}</span> ${evIsNight ? 'Night Telemetry' : `Visual Evidence${evSeqCount > 1 ? ` (${evSeqCount})` : ''}`}
+      </button>
+    ` : '';
+
     const stationBtnHtml = corridor.station_url ? `
       <a href="${escapeAttr(corridor.station_url)}" target="_blank" rel="noopener noreferrer" class="road-station-link" title="Verify raw EA telemetry for ${escapeAttr(corridor.driving_station_label)}">
         📊 Raw Station Telemetry ↗
@@ -1872,6 +2098,7 @@ export function renderRoadNetworkCard(roadEvaluations, activeEventsMap = null) {
         ${lifecycleHtml}
 
         <div class="corridor-actions-bar">
+          ${visualEvidenceBtnHtml}
           ${camBtnHtml}
           ${stationBtnHtml}
         </div>

@@ -1271,7 +1271,7 @@ const server = http.createServer(async (req, res) => {
 
       const frameBuf = await tigrisArchiveStore.fetchFrame(eventId, cameraId, filename);
       if (!frameBuf) {
-        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.writeHead(404, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
         res.end(JSON.stringify({ status: 'error', message: 'Archived event frame not found' }));
         return;
       }
@@ -1284,7 +1284,7 @@ const server = http.createServer(async (req, res) => {
       res.end(frameBuf);
     } catch (err) {
       const isValidationErr = err.message && (err.message.includes('Security Violation') || err.message.includes('Invalid archive'));
-      res.writeHead(isValidationErr ? 400 : 500, { 'Content-Type': 'application/json' });
+      res.writeHead(isValidationErr ? 400 : 500, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
       res.end(JSON.stringify({ status: 'error', message: isValidationErr ? 'Invalid frame coordinates' : 'Failed to retrieve archived frame' }));
     }
     return;

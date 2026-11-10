@@ -228,6 +228,25 @@ export function openCameraGuide(siteKey, triggerEl = null) {
 }
 
 /**
+ * Opens the Event Visual Evidence Inspector Modal / Bottom Sheet (Issue #24)
+ *
+ * @param {object|string|number} eventOrId - Full event row object, event ID, or asset_id
+ * @param {HTMLElement} [triggerEl=null] - Element that triggered the dialog, for focus return
+ */
+export function openVisualEvidence(eventOrId, triggerEl = null) {
+  return cameraModal.openVisualEvidence(eventOrId, triggerEl);
+}
+
+/**
+ * Registers correlated telemetry events on the shared modal controller
+ *
+ * @param {Array<object>} events
+ */
+export function setCameraEventsCatalog(events = []) {
+  return cameraModal.setEventsCatalog(events);
+}
+
+/**
  * Closes the Camera Field Guide Dialog
  */
 export function closeCameraGuide() {

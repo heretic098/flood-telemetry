@@ -18,7 +18,7 @@ import {
   HYDRO_THRESHOLDS
 } from './hydro_engine.js';
 
-import { openCameraGuide } from './camera_guide.js';
+import { openCameraGuide, setCameraEventsCatalog, initCameraGuideTriggers } from './camera_guide.js';
 import { initJargonPopovers } from './jargon_popover.js';
 import { createRefreshController } from './modules/refresh_controller.js';
 import { setupOfflineBanner as setupResilienceBanner } from './modules/network_resilience.js';
@@ -74,6 +74,21 @@ export async function fetchTelemetryData() {
     console.warn('[Roads View] Failed to fetch /api/status:', err);
   }
   return null;
+}
+
+export async function fetchRecentRoadEvents(limit = 30) {
+  try {
+    const res = await fetch(`/api/events?limit=${limit}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data.events)) {
+        return data.events;
+      }
+    }
+  } catch (err) {
+    console.warn('[Roads View] Failed to fetch /api/events:', err);
+  }
+  return [];
 }
 
 export function updateCountdownDisplay() {
@@ -163,7 +178,7 @@ export function renderCorridorFallbackRow(corridor, err = null) {
 /**
  * Renders individual corridor HTML row
  */
-export function renderCorridorRow(corridor) {
+export function renderCorridorRow(corridor, correlatedEvent = null) {
   try {
     if (!corridor) return '';
     if (corridor.isOffline || corridor.status === 'OFFLINE') {
@@ -241,6 +256,19 @@ export function renderCorridorRow(corridor) {
     </button>
   `;
 
+  const evCe = correlatedEvent?.camera_evidence || null;
+  const evSeqCount = Array.isArray(evCe?.sequence_frames) ? evCe.sequence_frames.length : 0;
+  const evIsNight = Boolean(evCe && evCe.fallback_mode === 'NIGHT_TELEMETRY' && evSeqCount === 0);
+  const visualEvidenceBtnHtml = (correlatedEvent && evCe) ? `
+    <button type="button"
+            class="road-evidence-btn visual-evidence-btn ${evIsNight ? 'visual-evidence-btn-night' : ''} visual-evidence-trigger"
+            data-visual-evidence-event-id="${escapeAttr(String(correlatedEvent.id || ''))}"
+            data-visual-evidence-asset="${escapeAttr(correlatedEvent.asset_id || corridor.asset_id)}"
+            title="${evIsNight ? 'Inspect Night Telemetry Verification' : 'Inspect Archived Event Keyframes & Transition Sequence'}">
+      <span aria-hidden="true">${evIsNight ? '🌙' : '📷'}</span> ${evIsNight ? 'Night Telemetry' : `Visual Evidence${evSeqCount > 1 ? ` (${evSeqCount})` : ''}`}
+    </button>
+  ` : '';
+
   const topologyStationId = ROAD_TOPOLOGY_STATION_MAP[corridor.asset_id] || '52118';
   const topologyBtnHtml = `
     <a href="topology.html?station=${topologyStationId}" class="road-topology-link ext-link-btn" title="View controlling station ${topologyStationId} on River Topology Map">
@@ -302,6 +330,7 @@ export function renderCorridorRow(corridor) {
       ${lifecycleHtml}
 
       <div class="corridor-actions-bar">
+        ${visualEvidenceBtnHtml}
         ${camBtnHtml}
         ${camGuideBtnHtml}
         ${topologyBtnHtml}
@@ -328,13 +357,36 @@ export async function refreshRoadsView() {
   if (refreshBtn) refreshBtn.setAttribute('aria-busy', 'true');
 
   try {
-    const statusData = await fetchTelemetryData();
+    const [statusData, recentEvents] = await Promise.all([
+      fetchTelemetryData(),
+      fetchRecentRoadEvents(30)
+    ]);
     const activeEventsMap = new Map();
+    const evidenceByAsset = new Map();
+
+    for (const ev of recentEvents) {
+      if (ev && ev.asset_id && ev.camera_evidence && !evidenceByAsset.has(ev.asset_id)) {
+        evidenceByAsset.set(ev.asset_id, ev);
+      }
+    }
     if (Array.isArray(statusData?.active_events)) {
       for (const ev of statusData.active_events) {
         activeEventsMap.set(ev.asset_id, ev);
+        if (ev && ev.asset_id && ev.camera_evidence) {
+          evidenceByAsset.set(ev.asset_id, ev);
+        }
       }
     }
+
+    const allCatalogEvents = [...recentEvents];
+    if (Array.isArray(statusData?.active_events)) {
+      for (const activeEv of statusData.active_events) {
+        if (activeEv && !allCatalogEvents.some(e => e && e.id === activeEv.id)) {
+          allCatalogEvents.unshift(activeEv);
+        }
+      }
+    }
+    setCameraEventsCatalog(allCatalogEvents);
 
     const roadData = statusData?.roads || evaluateRoadNetwork(statusData?.measures || {}, activeEventsMap);
     const corridorsList = roadData?.corridors_list || [];
@@ -363,7 +415,8 @@ export async function refreshRoadsView() {
     if (container) {
       container.innerHTML = corridorsList.map(c => {
         try {
-          return renderCorridorRow(c);
+          const correlatedEv = evidenceByAsset.get(c.asset_id) || activeEventsMap.get(c.asset_id) || null;
+          return renderCorridorRow(c, correlatedEv);
         } catch (rowErr) {
           console.error('[Corridor Render Error]', rowErr);
           return renderCorridorFallbackRow(c, rowErr);
@@ -454,6 +507,7 @@ export function setupFilterToolbar() {
 
 export function initRoadsPage() {
   initJargonPopovers();
+  initCameraGuideTriggers();
   setupFilterToolbar();
   setupOfflineBanner();
 

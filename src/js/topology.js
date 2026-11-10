@@ -25,6 +25,7 @@ import {
 } from './hydro_engine.js?v=1.2.0';
 
 import { initJargonPopovers, renderJargonTerm } from './jargon_popover.js';
+import { setCameraEventsCatalog, initCameraGuideTriggers } from './camera_guide.js';
 import { createRefreshController } from './modules/refresh_controller.js';
 import { setupOfflineBanner as setupResilienceBanner } from './modules/network_resilience.js';
 
@@ -44,6 +45,7 @@ import {
 let topologyData = null;
 let statusData = null;
 let historyData = null;
+let eventsData = [];
 let activeFilter = 'all';
 let activeStatusFilter = null;
 let selectedNodeId = '52118'; // Default selection: Hookbridge Spillway
@@ -172,6 +174,7 @@ function setupPeriodListeners() {
 
 async function initTopology() {
   initJargonPopovers();
+  initCameraGuideTriggers();
   setupOfflineBanner();
   setupPeriodListeners();
   if (typeof window !== 'undefined' && window.location) {
@@ -577,7 +580,8 @@ async function loadTopologyData(isSilentRefresh = false) {
     const results = await Promise.allSettled([
       fetch('/api/topology'),
       fetch('/api/status'),
-      fetch(`/api/history?range=${currentActiveRange}`)
+      fetch(`/api/history?range=${currentActiveRange}`),
+      fetch('/api/events?limit=30')
     ]);
 
     if (results[0].status === 'fulfilled' && results[0].value.ok) {
@@ -595,6 +599,26 @@ async function loadTopologyData(isSilentRefresh = false) {
     if (results[2].status === 'fulfilled' && results[2].value.ok) {
       historyData = await results[2].value.json();
     }
+
+    if (results[3]?.status === 'fulfilled' && results[3].value.ok) {
+      const evJson = await results[3].value.json();
+      if (Array.isArray(evJson?.events)) {
+        eventsData = evJson.events;
+      }
+    }
+
+    const activeEvents = Array.isArray(statusData?.active_events) ? statusData.active_events : [];
+    const seenEventIds = new Set();
+    const mergedCatalog = [];
+    for (const ev of [...activeEvents, ...eventsData]) {
+      if (!ev) continue;
+      const key = ev.id !== undefined ? `id:${ev.id}` : `${ev.asset_id}:${ev.start_time}`;
+      if (!seenEventIds.has(key)) {
+        seenEventIds.add(key);
+        mergedCatalog.push(ev);
+      }
+    }
+    setCameraEventsCatalog(mergedCatalog);
 
     updateHeaderBanner();
     renderSVGNetwork();
@@ -1945,11 +1969,40 @@ function inspectNode(nodeId, restoreFocus = false) {
       <button type="button" class="ext-link-btn camera-guide-trigger" data-camera-guide="${camSite}" title="Open Layperson Camera Guide">🧭 Camera Guide</button>
     ` : '';
 
+    const NODE_ASSET_CANDIDATES = {
+      '52118': ['hookbridge', 'curry_moor'],
+      '52127': ['curry_moor', 'cuts_road', 'new_road_curry'],
+      '52158': ['baltmoor_wall', 'a361_burrowbridge', 'stan_moor_road'],
+      '52159': ['northmoor', 'moorland_new_cut_road'],
+      '52157': ['beer_wall', 'beer_wall_a372'],
+      '52163': ['dunball_outfall'],
+      'E9094': ['dunball_outfall'],
+      '52233': ['monks_leaze_clyse'],
+      '52234': ['monks_leaze_clyse'],
+      '52120': ['muchelney_access', 'bicknells_bridge_access']
+    };
+    const candidateAssets = NODE_ASSET_CANDIDATES[node.id] || [];
+    const allKnownEvents = [...(statusData?.active_events || []), ...(eventsData || [])];
+    const correlatedEvidenceEvent = allKnownEvents.find(ev => ev && ev.camera_evidence && candidateAssets.includes(ev.asset_id)) || null;
+    const evCe = correlatedEvidenceEvent?.camera_evidence || null;
+    const evSeqCount = Array.isArray(evCe?.sequence_frames) ? evCe.sequence_frames.length : 0;
+    const evIsNight = Boolean(evCe && evCe.fallback_mode === 'NIGHT_TELEMETRY' && evSeqCount === 0);
+    const visualEvidenceBtnHtml = (correlatedEvidenceEvent && evCe) ? `
+      <button type="button"
+              class="ext-link-btn visual-evidence-btn ${evIsNight ? 'visual-evidence-btn-night' : ''} visual-evidence-trigger"
+              data-visual-evidence-event-id="${escapeAttr(String(correlatedEvidenceEvent.id || ''))}"
+              data-visual-evidence-asset="${escapeAttr(correlatedEvidenceEvent.asset_id || '')}"
+              title="${evIsNight ? 'Inspect Night Telemetry Verification' : 'Inspect Archived Event Keyframes & Transition Sequence'}">
+        <span aria-hidden="true">${evIsNight ? '🌙' : '📷'}</span> ${evIsNight ? 'Night Telemetry' : `Visual Evidence${evSeqCount > 1 ? ` (${evSeqCount})` : ''}`}
+      </button>
+    ` : '';
+
     const cameraHtml = node.id === '52233' ? `
       <a href="https://thecfh.org/parretttonewsom.php#monksleaze" target="_blank" rel="noopener noreferrer" class="ext-link-btn" style="border-color: rgba(56, 189, 248, 0.4); color: #38bdf8;" title="View Monk's Leaze Clyse Spillway Crest &amp; Intake Camera at thecfh.org">📷 Spillway Crest &amp; Intake Camera ↗</a>
     ` : '';
 
     footerLinks.innerHTML = `
+      ${visualEvidenceBtnHtml}
       ${dashboardCardBtn}
       ${cameraHtml}
       ${camGuideHtml}
