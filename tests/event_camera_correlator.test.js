@@ -304,7 +304,7 @@ test('Full Lifecycle Correlation: promotes EVENT_START, EVENT_PEAK, and EVENT_EN
   }
 });
 
-test('Out-of-window rejection & multi-camera fallback: rejects frames > 20m away and falls back from offline baltmoor_wall to saltmoor_river', async () => {
+test('Out-of-window rejection & multi-camera fallback: rejects frames > 20m away, keeps baltmoor_wall isolated from saltmoor_river, and falls back across northmoor cameras', async () => {
   const tmpBufDir = fs.mkdtempSync(path.join(os.tmpdir(), 'test-fallback-cam-'));
   const tmpFallbackStore = fs.mkdtempSync(path.join(os.tmpdir(), 'test-ephemeral-store-'));
   const db = new Database(':memory:');
@@ -339,9 +339,13 @@ test('Out-of-window rejection & multi-camera fallback: rejects frames > 20m away
     assert.equal(missRes.matched, false);
     assert.equal(missRes.reason, 'NO_FRAME_IN_WINDOW');
 
-    // 2. baltmoor_wall has no frames on temporary trailer cam 'baltmoor_wall', but has frame on permanent 'saltmoor_river'
-    const candidates = resolveCandidateCamerasForAsset('baltmoor_wall');
-    assert.deepEqual(candidates, ['baltmoor_wall', 'saltmoor_river']);
+    // 2. baltmoor_wall strictly maps to ['baltmoor_wall'] (does NOT attach Saltmoor PS photos when temporary cam is offline)
+    const baltmoorCandidates = resolveCandidateCamerasForAsset('baltmoor_wall');
+    assert.deepEqual(baltmoorCandidates, ['baltmoor_wall']);
+
+    // 3. northmoor falls back across its permanent pumping station cameras to 'saltmoor_river'
+    const northmoorCandidates = resolveCandidateCamerasForAsset('northmoor');
+    assert.ok(northmoorCandidates.includes('saltmoor_river'));
 
     seedBufferedFrame(tmpBufDir, 'saltmoor_river', '2026-11-10T11:04:00.000Z', 145);
 
@@ -351,16 +355,16 @@ test('Out-of-window rejection & multi-camera fallback: rejects frames > 20m away
         start_time, peak_time, trigger_stage_mAOD, peak_stage_mAOD,
         narrative, status
       ) VALUES (
-        'spillway', 'baltmoor_wall', 'NEAR_CREST', 'OVERTOPPING', 4,
-        '2026-11-10T11:00:00.000Z', '2026-11-10T11:00:00.000Z', 7.82, 7.82,
-        'Baltmoor Wall overtopping.', 'ACTIVE'
+        'polder', 'northmoor', 'STANDBY', 'DUTY_PUMPING', 2,
+        '2026-11-10T11:00:00.000Z', '2026-11-10T11:00:00.000Z', 4.82, 4.82,
+        'Northmoor & Saltmoor PS duty pumping.', 'ACTIVE'
       )
     `).run();
 
     const fallbackRes = await correlateEventTransition(db, {
       id: Number(info2.lastInsertRowid),
-      asset_type: 'spillway',
-      asset_id: 'baltmoor_wall',
+      asset_type: 'polder',
+      asset_id: 'northmoor',
       start_time: '2026-11-10T11:00:00.000Z'
     }, 'EVENT_START', { bufferWorker, archiveStore });
 

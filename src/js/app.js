@@ -1177,19 +1177,14 @@ export async function refreshLiveDashboard() {
     stats: [
       { label: 'Defence Crest', value: `${baltmoorCrest.toFixed(2)}m AOD` },
       { label: 'Defence Clearance', value: nmClearanceWithTrend }
-    ],
-    camLink: {
-      url: 'https://thecfh.org/parretttonewsom.php#saltmoor',
-      title: 'View 3-min EA Snapshot Camera at thecfh.org#saltmoor',
-      ariaLabel: 'View 3-min EA Snapshot Camera at thecfh.org for Baltmoor Wall'
-    }
+    ]
   });
 
   container.appendChild(createMoorCard({
     title: "Northmoor & Saltmoor",
     cardId: "card-52158",
     stationId: "52158",
-    cameraGuideSite: "baltmoor",
+    cameraGuideSite: "saltmoor",
     visualEvidenceEvent: evidenceByAsset.get('baltmoor_wall') || evidenceByAsset.get('northmoor') || evidenceByAsset.get('beer_wall') || null,
     heroBanner: nmHeroBanner,
     riverTag: `Catchment: River Parrett (${regime.label})`,
@@ -1224,7 +1219,6 @@ export async function refreshLiveDashboard() {
       }
     ],
     camLinks: [
-      { label: "Baltmoor Wall", url: "https://thecfh.org/parretttonewsom.php#saltmoor", title: "View 3-min EA Snapshot Camera at Baltmoor Wall" },
       { label: "Athelney Spillway", url: "https://thecfh.org/parretttonewsom.php#athelneyspillway", title: "View 3-min EA Snapshot Camera at Athelney" },
       { label: "Beer Wall", url: "https://thecfh.org/parretttonewsom.php#Beerwall", title: "View 3-min EA Snapshot Camera at Beer Wall" },
       { label: "Saltmoor PS", url: "https://thecfh.org/parretttonewsom.php#saltmoor", title: "View 3-min EA Snapshot Camera at Saltmoor PS" },

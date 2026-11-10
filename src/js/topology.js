@@ -1956,7 +1956,6 @@ function inspectNode(nodeId, restoreFocus = false) {
       '52118': 'hookbridge',
       '52127': 'currymoor',
       'currymoor_ps': 'currymoor',
-      '52158': 'baltmoor',
       '52159': 'saltmoor',
       'saltmoor_ps': 'saltmoor',
       '52233': 'monksleaze',
