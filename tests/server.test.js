@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
-import { server } from '../server.js';
+import { server, tigrisArchiveStore } from '../server.js';
 
 let testPort;
 let baseUrl;
@@ -279,6 +279,43 @@ test('Security Headers: Content-Security-Policy permits connect-src to self and 
   assert.ok(csp.includes("connect-src 'self' https://environment.data.gov.uk"), 'CSP must allow connect-src to self and environment.data.gov.uk');
   assert.ok(csp.includes("img-src 'self' data: https://environment.data.gov.uk"), 'CSP must allow img-src to self, data:, and environment.data.gov.uk');
 });
+
+test('GET /api/events/:eventId/frames/:cameraId/:filename enforces cameraId allowlist, returns 404 for missing frame, and streams 200 JPEG for archived frame', async () => {
+  const badCamRes = await httpGet('/api/events/1/frames/unrecognized_cam/2026-11-10T12-00-00.000Z.jpg');
+  assert.equal(badCamRes.status, 400);
+
+  const missingFrameRes = await httpGet('/api/events/999999/frames/hookbridge_crest/2026-11-10T12-00-00.000Z.jpg');
+  assert.equal(missingFrameRes.status, 404);
+
+  // Seed synthetic JPEG frame and verify HTTP 200 binary response & immutable cache headers
+  const syntheticJpeg = Buffer.alloc(128, 0x90);
+  syntheticJpeg[0] = 0xFF;
+  syntheticJpeg[1] = 0xD8;
+  syntheticJpeg[2] = 0xFF;
+  syntheticJpeg[126] = 0xFF;
+  syntheticJpeg[127] = 0xD9;
+
+  await tigrisArchiveStore.uploadFrame(777, 'hookbridge_crest', '2026-11-10T12-00-00.000Z.jpg', syntheticJpeg);
+
+  const validRes = await new Promise((resolve, reject) => {
+    http.get(`${baseUrl}/api/events/777/frames/hookbridge_crest/2026-11-10T12-00-00.000Z.jpg`, (res) => {
+      const chunks = [];
+      res.on('data', chunk => chunks.push(chunk));
+      res.on('end', () => resolve({
+        status: res.statusCode,
+        headers: res.headers,
+        buffer: Buffer.concat(chunks)
+      }));
+    }).on('error', reject);
+  });
+
+  assert.equal(validRes.status, 200);
+  assert.equal(validRes.headers['content-type'], 'image/jpeg');
+  assert.equal(validRes.headers['cache-control'], 'public, max-age=31536000, immutable');
+  assert.equal(validRes.buffer.length, syntheticJpeg.length);
+  assert.equal(Buffer.compare(validRes.buffer, syntheticJpeg), 0);
+});
+
 
 
 

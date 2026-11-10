@@ -826,6 +826,48 @@ export class CameraBufferWorker {
     return null;
   }
 
+  /**
+   * Returns all buffered frames for `cameraId` within `[startIso, endIso]`, sorted chronologically (oldest -> newest).
+   * @param {string} cameraId
+   * @param {string} startIso
+   * @param {string} endIso
+   * @returns {Array<{cameraId: string, filename: string, filePath: string, timestamp: string, timestampMs: number}>}
+   */
+  getFramesInWindow(cameraId, startIso, endIso) {
+    if (!ALLOWED_CAMERA_IDS.has(cameraId)) {
+      throw new Error(`Security Violation: Unrecognized cameraId '${cameraId}'`);
+    }
+
+    const camDir = path.join(this.baseDir, cameraId);
+    if (!fs.existsSync(camDir)) return [];
+
+    const startMs = new Date(startIso).getTime();
+    const endMs = new Date(endIso).getTime();
+    if (isNaN(startMs) || isNaN(endMs) || endMs < startMs) return [];
+
+    const files = fs.readdirSync(camDir).filter(f => f.endsWith('.jpg'));
+    if (files.length === 0) return [];
+
+    const matched = [];
+    for (const f of files) {
+      const parsed = parseFrameFilename(f);
+      if (!parsed) continue;
+      const ms = parsed.getTime();
+      if (ms >= startMs && ms <= endMs) {
+        matched.push({
+          cameraId,
+          filename: f,
+          filePath: path.join(camDir, f),
+          timestamp: parsed.toISOString(),
+          timestampMs: ms
+        });
+      }
+    }
+
+    matched.sort((a, b) => a.timestampMs - b.timestampMs);
+    return matched;
+  }
+
   getStatus() {
     let totalStorageBytes = 0;
     let totalFrames = 0;

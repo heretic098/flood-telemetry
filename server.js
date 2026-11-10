@@ -28,6 +28,11 @@ import {
 } from './src/js/contracts/index.js';
 
 import { CameraBufferWorker } from './src/js/api/camera_buffer.js';
+import { TigrisArchiveStore, validateArchiveCoordinates } from './src/js/api/tigris_archive.js';
+import {
+  correlateEventDecisions,
+  backfillPendingEventSequences
+} from './src/js/event_camera_correlator.js';
 
 import { runMigrations } from './src/js/db_migrations.js';
 import { rehydrateActiveSessions, processTelemetryEvents } from './src/js/event_manager.js';
@@ -340,10 +345,20 @@ export async function syncAllTelemetry(overrideLimit = null, fetchFn = globalThi
     const limit = overrideLimit || (isBackfill ? 2688 : 96);
     await Promise.all(MEASURE_IDS.map(id => syncMeasure(id, limit, fetchFn)));
 
-    // Process canonical telemetry events in shadow mode
+    // Process canonical telemetry events & correlate camera keyframes (Issue #23)
     try {
       const stored = getStoredTelemetry();
-      processTelemetryEvents(db, stored);
+      const decisions = processTelemetryEvents(db, stored);
+      if (cameraBufferWorker) {
+        await correlateEventDecisions(db, decisions, {
+          bufferWorker: cameraBufferWorker,
+          archiveStore: tigrisArchiveStore
+        });
+        await backfillPendingEventSequences(db, {
+          bufferWorker: cameraBufferWorker,
+          archiveStore: tigrisArchiveStore
+        });
+      }
     } catch (evtErr) {
       console.warn('[Event Manager Warning] Failed to process telemetry events:', evtErr.message);
     }
@@ -394,9 +409,15 @@ function getStoredTelemetry() {
 
 const isMainModule = process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url));
 
-let cameraBufferWorker = null;
+const cameraBufferDir = process.env.CAMERA_BUFFER_DIR || path.join(path.dirname(DB_PATH), 'camera_buffer');
+const cameraBufferWorker = new CameraBufferWorker({
+  baseDir: cameraBufferDir
+});
+export const tigrisArchiveStore = new TigrisArchiveStore();
 
 if (isMainModule) {
+  cameraBufferWorker.start();
+
   syncAllTelemetry();
   const syncTimer = setInterval(syncAllTelemetry, 15 * 60 * 1000); // 15-minute sync loop
   if (syncTimer && syncTimer.unref) syncTimer.unref();
@@ -407,13 +428,6 @@ if (isMainModule) {
     });
   }, 10 * 60 * 1000); // 10-minute warning sync loop
   if (warningSyncTimer && warningSyncTimer.unref) warningSyncTimer.unref();
-
-  const cameraBufferDir = process.env.CAMERA_BUFFER_DIR || path.join(path.dirname(DB_PATH), 'camera_buffer');
-  cameraBufferWorker = new CameraBufferWorker({
-    baseDir: cameraBufferDir,
-    stepIntervalMs: 35 * 1000
-  });
-  cameraBufferWorker.start();
 
   if (shouldTriggerBackfill()) {
     console.log('[SQLite Ingest] BACKFILL_TELEMETRY flag active. Triggering non-blocking background worker...');
@@ -1242,6 +1256,36 @@ const server = http.createServer(async (req, res) => {
       console.error("[API History Error]", err);
       res.writeHead(500, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ status: "error", message: "Failed to retrieve historical telemetry" }));
+    }
+    return;
+  }
+
+  // API Route: Archived Event Camera Frame Proxy (Issue #23) [RULE-SEC-02]
+  const frameMatch = pathname.match(/^\/api\/events\/(\d+)\/frames\/([a-z0-9_]+)\/([a-zA-Z0-9._-]+\.jpg)$/);
+  if (frameMatch) {
+    try {
+      const eventId = parseInt(frameMatch[1], 10);
+      const cameraId = frameMatch[2];
+      const filename = frameMatch[3];
+      validateArchiveCoordinates(eventId, cameraId, filename);
+
+      const frameBuf = await tigrisArchiveStore.fetchFrame(eventId, cameraId, filename);
+      if (!frameBuf) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ status: 'error', message: 'Archived event frame not found' }));
+        return;
+      }
+
+      res.writeHead(200, {
+        'Content-Type': 'image/jpeg',
+        'Content-Length': frameBuf.length,
+        'Cache-Control': 'public, max-age=31536000, immutable'
+      });
+      res.end(frameBuf);
+    } catch (err) {
+      const isValidationErr = err.message && (err.message.includes('Security Violation') || err.message.includes('Invalid archive'));
+      res.writeHead(isValidationErr ? 400 : 500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ status: 'error', message: isValidationErr ? 'Invalid frame coordinates' : 'Failed to retrieve archived frame' }));
     }
     return;
   }

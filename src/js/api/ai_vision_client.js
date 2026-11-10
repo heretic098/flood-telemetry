@@ -22,19 +22,28 @@ export function escapeHTML(str) {
 }
 
 /**
- * Evaluates whether an image was captured in daylight using solar elevation cutoff (-6.0°).
+ * Computes solar elevation angle in degrees for a given Date and coordinates.
  */
-export function isDaylight(date = new Date(), lat = 51.05, lon = -2.95) {
-  const dayOfYear = Math.floor((date - new Date(date.getFullYear(), 0, 0)) / 1000 / 60 / 60 / 24);
+export function computeSolarElevationDeg(date = new Date(), lat = 51.05, lon = -2.95) {
+  const d = date instanceof Date ? date : new Date(date);
+  if (isNaN(d.getTime())) return -90;
+  const startOfYearUtc = Date.UTC(d.getUTCFullYear(), 0, 0);
+  const dayOfYear = Math.floor((d.getTime() - startOfYearUtc) / 86400000);
   const declination = 23.45 * Math.sin((360 / 365) * (dayOfYear - 81) * (Math.PI / 180));
-  const hourAngle = (date.getUTCHours() + lon / 15 - 12) * 15;
+  const utcHours = d.getUTCHours() + d.getUTCMinutes() / 60 + d.getUTCSeconds() / 3600;
+  const hourAngle = (utcHours + lon / 15 - 12) * 15;
   const rad = Math.PI / 180;
-  const elevation = Math.asin(
+  return Math.asin(
     Math.sin(lat * rad) * Math.sin(declination * rad) +
     Math.cos(lat * rad) * Math.cos(declination * rad) * Math.cos(hourAngle * rad)
   ) / rad;
+}
 
-  return elevation > -6.0; // Above civil twilight
+/**
+ * Evaluates whether an image was captured in daylight using solar elevation cutoff (-6.0° civil twilight).
+ */
+export function isDaylight(date = new Date(), lat = 51.05, lon = -2.95) {
+  return computeSolarElevationDeg(date, lat, lon) > -6.0; // Above civil twilight
 }
 
 /**
