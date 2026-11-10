@@ -119,26 +119,15 @@ export const CAMERA_CATALOG = Object.freeze([
     lookFor: 'Standing floodwater meniscus against the vertical metric staff gauge board graduations when Athelney Spillway is overtopping.'
   },
   {
-    id: 'east_lyng_cutting',
-    name: 'East Lyng Cutting (Cuts Road Temporary Deployment)',
-    siteKey: 'athelney',
-    campath: 'sites/temporary_deployment_6/cam1/',
-    camName: 'East Lyng Cutting',
-    chokePoint: 'cuts_road',
-    assetType: 'road',
-    description: 'Temporary flood deployment camera position at East Lyng Cutting on the Cuts Road corridor (East Lyng to Athelney).',
-    lookFor: 'Floodwater across the Cuts Road carriageway cutting when temporary camera trailer is deployed by the Environment Agency.'
-  },
-  {
     id: 'baltmoor_wall',
-    name: 'Baltmoor Wall Parrett Flood Bank Defence',
+    name: 'Baltmoor Wall Parrett Flood Bank Defence (Temporary Deployment)',
     siteKey: 'baltmoor',
     campath: 'sites/temporary_deployment_2/cam1/',
     camName: 'Baltmoor Wall',
     chokePoint: 'baltmoor_wall',
     assetType: 'spillway',
-    description: 'Temporary deployment camera position on River Parrett right-bank raised embankment levee (7.80m AOD crest) protecting Northmoor.',
-    lookFor: 'River Parrett high stage encroaching on the engineered embankment crest near Burrowbridge (camera frequently offline outside active flood deployments).'
+    description: 'Temporary deployment camera position on the Baltmoor Wall flood defence embankment (7.80m AOD crest) between East Lyng and Athelney.',
+    lookFor: 'Water stage encroaching on the engineered Baltmoor Wall embankment crest (camera offline outside active Environment Agency flood deployments).'
   },
   {
     id: 'saltmoor_river',
@@ -146,10 +135,10 @@ export const CAMERA_CATALOG = Object.freeze([
     siteKey: 'saltmoor',
     campath: 'sites/saltmoor/cam2/',
     camName: 'Saltmoor River',
-    chokePoint: 'baltmoor_wall',
-    assetType: 'spillway',
-    description: 'Permanent view across the embanked River Parrett channel and discharge pipe manifold at Saltmoor Pumping Station downstream of Baltmoor Wall.',
-    lookFor: 'River Parrett water stage relative to the grassy flood embankments and turbulent discharge boil from the foreground pipework.'
+    chokePoint: 'northmoor',
+    assetType: 'polder',
+    description: 'Permanent view across the embanked River Parrett channel and foreground discharge pipe manifold at Saltmoor Pumping Station.',
+    lookFor: 'River Parrett water stage relative to the grassy flood embankments and turbulent discharge boil from the foreground pumping station pipework.'
   },
   {
     id: 'saltmoor_drain',

@@ -54,6 +54,29 @@ export const activeEventSchema = object({
   trigger_rate_3h_m_per_hr: optional(nullable(number())),
   max_rate_1h_m_per_hr: optional(nullable(number())),
   narrative: optional(nullable(string())),
+  camera_id: optional(nullable(string())),
+  camera_snapshot_id: optional(nullable(number({ integer: true }))),
+  camera_evidence: optional(nullable(object({
+    snapshot_id: optional(nullable(number({ integer: true }))),
+    camera_id: optional(nullable(string())),
+    camera_name: optional(nullable(string())),
+    camera_description: optional(nullable(string())),
+    camera_look_for: optional(nullable(string())),
+    image_url: optional(nullable(string())),
+    image_hash: optional(nullable(string())),
+    fetched_at: optional(nullable(isoDate({ allowSqlite: true }))),
+    trigger_reason: optional(nullable(string())),
+    fallback_mode: optional(nullable(string())),
+    keyframes: optional(nullable(object({
+      start: optional(nullable(object({}))),
+      peak: optional(nullable(object({}))),
+      end: optional(nullable(object({})))
+    }))),
+    sequence_frames: optional(array(object({
+      timestamp: optional(nullable(string())),
+      image_url: optional(nullable(string()))
+    })))
+  }))),
   regime_signature: optional(nullable(object({
     anomaly_type: optional(string()),
     confidence: optional(string()),

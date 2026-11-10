@@ -4,4 +4,7 @@ node_modules/
 *.db-shm
 .DS_Store
 private_outreach/
+camera_buffer/
+data/camera_buffer/
+
 

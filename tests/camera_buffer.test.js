@@ -38,9 +38,9 @@ function createMockJpegBuffer(content = 'SOMERSET_FLOOD_FRAME') {
   return Buffer.concat([header, body]);
 }
 
-test('Catalog Invariants: Comprehensive 25-camera registry matches canonical choke points', () => {
-  assert.equal(CAMERA_CATALOG.length, 25, 'Must contain all 25 monitored Somerset Levels camera feeds');
-  assert.equal(ALLOWED_CAMERA_IDS.size, 25);
+test('Catalog Invariants: Comprehensive 24-camera registry matches canonical choke points', () => {
+  assert.equal(CAMERA_CATALOG.length, 24, 'Must contain all 24 monitored Somerset Levels camera feeds (23 permanent + 1 Baltmoor Wall temporary deployment)');
+  assert.equal(ALLOWED_CAMERA_IDS.size, 24);
 
   const dunballCams = CAMERA_CATALOG.filter(c => c.chokePoint === 'dunball_outfall');
   assert.equal(dunballCams.length, 4, 'Dunball must cover Northern Flap, Southern Flap, Inland KSD Approach, and Pump Pipework');
@@ -49,7 +49,7 @@ test('Catalog Invariants: Comprehensive 25-camera registry matches canonical cho
   assert.equal(muchelneyCams.length, 2, 'Muchelney / Wet Moor must cover Huish Episcopi PS and Midelney PS');
 
   const baltmoor = CAMERA_CATALOG.find(c => c.id === 'baltmoor_wall');
-  assert.ok(baltmoor, 'Baltmoor Wall must exist');
+  assert.ok(baltmoor, 'Baltmoor Wall temporary deployment feed must remain in backend scraper');
   assert.equal(baltmoor.chokePoint, 'baltmoor_wall');
   assert.equal(baltmoor.assetType, 'spillway');
   assert.ok(baltmoor.description.includes('7.80m AOD'), 'Must reflect 7.80m Parrett levee');
@@ -57,6 +57,8 @@ test('Catalog Invariants: Comprehensive 25-camera registry matches canonical cho
   const saltmoorRiver = CAMERA_CATALOG.find(c => c.id === 'saltmoor_river');
   assert.ok(saltmoorRiver, 'Saltmoor River permanent Parrett camera must exist');
   assert.equal(saltmoorRiver.campath, 'sites/saltmoor/cam2/');
+  assert.equal(saltmoorRiver.chokePoint, 'northmoor', 'Saltmoor River shows Saltmoor PS outfall into Parrett and maps to northmoor polder');
+  assert.equal(saltmoorRiver.assetType, 'polder');
 
   const allermoor = CAMERA_CATALOG.find(c => c.id === 'allermoor_spillway');
   assert.ok(allermoor, 'Allermoor Spillway weir camera must exist');

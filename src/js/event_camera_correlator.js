@@ -52,17 +52,17 @@ export const ASSET_CAMERA_MAP = Object.freeze({
   '52118': Object.freeze(['hookbridge_crest', 'stanmoor_ps']),
   curry_moor: Object.freeze(['currymoor_ps', 'stanmoor_ps', 'west_sedgemoor_ps']),
   '52127': Object.freeze(['currymoor_ps', 'stanmoor_ps', 'west_sedgemoor_ps']),
-  cuts_road: Object.freeze(['athelney_spillway', 'athelney_gauge', 'east_lyng_cutting']),
+  cuts_road: Object.freeze(['athelney_spillway', 'athelney_gauge']),
   new_road_curry: Object.freeze(['currymoor_ps', 'athelney_spillway']),
   stan_moor_road: Object.freeze(['stanmoor_ps', 'hookbridge_crest']),
 
   // River Parrett, Baltmoor Wall & Northmoor System
-  baltmoor_wall: Object.freeze(['baltmoor_wall', 'saltmoor_river']),
-  '52158': Object.freeze(['baltmoor_wall', 'saltmoor_river']),
-  a361_burrowbridge: Object.freeze(['baltmoor_wall', 'saltmoor_river', 'athelney_spillway']),
-  northmoor: Object.freeze(['northmoor_ps', 'northmoor_drain', 'saltmoor_drain', 'westonzoyland_ps']),
-  '52159': Object.freeze(['northmoor_ps', 'northmoor_drain', 'saltmoor_drain', 'westonzoyland_ps']),
-  moorland_new_cut_road: Object.freeze(['northmoor_drain', 'northmoor_ps', 'saltmoor_drain']),
+  baltmoor_wall: Object.freeze(['baltmoor_wall']),
+  '52158': Object.freeze(['baltmoor_wall']),
+  a361_burrowbridge: Object.freeze(['baltmoor_wall', 'athelney_spillway']),
+  northmoor: Object.freeze(['northmoor_ps', 'northmoor_drain', 'saltmoor_drain', 'saltmoor_river', 'westonzoyland_ps']),
+  '52159': Object.freeze(['northmoor_ps', 'northmoor_drain', 'saltmoor_drain', 'saltmoor_river', 'westonzoyland_ps']),
+  moorland_new_cut_road: Object.freeze(['northmoor_drain', 'northmoor_ps', 'saltmoor_drain', 'saltmoor_river']),
 
   // Sowy Relief Channel & Monk's Leaze / Beer Wall
   monks_leaze_clyse: Object.freeze(['monks_leaze_clyse', 'allermoor_spillway', 'oath_lock_sluice']),
