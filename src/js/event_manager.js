@@ -107,6 +107,19 @@ export function resetActiveSessions() {
 }
 
 /**
+ * Updates camera correlation metadata on an active in-memory session if present.
+ * @param {string} assetId
+ * @param {{camera_id?: string, image_hash?: string, camera_snapshot_id?: number}} meta
+ */
+export function updateActiveSessionCameraMeta(assetId, meta = {}) {
+  const session = activeSessions.get(assetId);
+  if (!session) return;
+  if (meta.camera_id !== undefined) session.camera_id = meta.camera_id;
+  if (meta.image_hash !== undefined) session.image_hash = meta.image_hash;
+  if (meta.camera_snapshot_id !== undefined) session.camera_snapshot_id = meta.camera_snapshot_id;
+}
+
+/**
  * Transforms raw measures dictionary into a station-keyed map of stage readings in mAOD.
  * @param {object} measures - Dict of measure_id -> readings array
  * @returns {object} Map of station_id -> Array<{ dateTime, value }> in mAOD
@@ -344,8 +357,11 @@ export function processTelemetryEvents(db, storedTelemetry, options = {}) {
             decision.narrative
           );
 
+          const newEventId = Number(info.lastInsertRowid);
+          decision.event_id = newEventId;
+
           activeSessions.set(decision.asset_id, {
-            id: info.lastInsertRowid,
+            id: newEventId,
             asset_type: decision.asset_type,
             asset_id: decision.asset_id,
             from_state: decision.from_state,
@@ -372,6 +388,8 @@ export function processTelemetryEvents(db, storedTelemetry, options = {}) {
           const peakSeverity = Math.max(currentActive.severity_tier || 1, decision.severity_tier);
           const resolvedPeakTime = decision.peak_time ?? currentActive.peak_time ?? null;
           const resolvedMaxRate = decision.max_rate_1h_m_per_hr ?? currentActive.max_rate_1h_m_per_hr ?? null;
+          decision.event_id = Number(currentActive.id);
+          decision.peak_time_changed = Boolean(resolvedPeakTime && resolvedPeakTime !== currentActive.peak_time);
 
           updateStmt.run(
             decision.to_state,
@@ -397,6 +415,8 @@ export function processTelemetryEvents(db, storedTelemetry, options = {}) {
           const peakSeverity = Math.max(currentActive.severity_tier || 1, decision.severity_tier);
           const resolvedPeakTime = decision.peak_time ?? currentActive.peak_time ?? null;
           const resolvedMaxRate = decision.max_rate_1h_m_per_hr ?? currentActive.max_rate_1h_m_per_hr ?? null;
+          decision.event_id = Number(currentActive.id);
+          decision.peak_time_changed = Boolean(resolvedPeakTime && resolvedPeakTime !== currentActive.peak_time);
 
           closeStmt.run(
             peakSeverity,
