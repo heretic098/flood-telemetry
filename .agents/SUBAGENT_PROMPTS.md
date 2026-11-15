@@ -3,8 +3,8 @@
 When invoking specialized subagents on the Somerset Flood Telemetry platform, use the following standardized prompt structures. Each template binds the agent to its specific skill, operational invariants, and required verification commands.
 
 > [!IMPORTANT]
-> **[RULE-MOD-01] Mandatory Pro Model Tier:**
-> Whenever invoking subagents via `invoke_subagent`, you **MUST explicitly pass `Model: 'pro'`**. Never leave it as `'inherit'` or use `'flash'`. All project domain roles require the high-depth reasoning and architectural precision of the Pro tier.
+> **[RULE-MOD-01] Mandatory Inherited Model Tier:**
+> Whenever invoking subagents via `invoke_subagent`, you **MUST explicitly pass `Model: 'inherit'`** so the subagent inherits the active session model (e.g., Gemini 4 Argon / Hydrogen). Never set `Model` to `'pro'`, `'flash'`, or `'flash_lite'`. All project domain roles require inheriting the full reasoning tier of the parent session.
 
 ---
 

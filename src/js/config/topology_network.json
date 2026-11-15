@@ -1,0 +1,531 @@
+{
+  "catchment_id": "somerset",
+  "coupled_rules": {
+    "monks_leaze_diverting": {
+      "type": "clyse_diverting",
+      "upstream_node_id": "52233",
+      "downstream_node_id": "52234",
+      "sill_threshold_ref": "MONKS_LEAZE.SILL_MAOD",
+      "min_delta_h_ref": "MONKS_LEAZE.MIN_DELTA_H"
+    },
+    "dunball_tide_locked": {
+      "type": "stage_gte_node",
+      "node_id": "52163",
+      "compare_node_id": "E9094"
+    }
+  },
+  "chains": [
+    {
+      "id": "tone",
+      "name": "River Tone Chain",
+      "direction": "West → East",
+      "nodes": ["52108", "52109", "52111", "52162", "52118", "52158"]
+    },
+    {
+      "id": "currymoor_polder",
+      "name": "Curry Moor Polder Basin",
+      "direction": "Storage Area",
+      "nodes": ["52118", "52127"]
+    },
+    {
+      "id": "parrett",
+      "name": "River Parrett Chain",
+      "direction": "South → North",
+      "nodes": ["52116", "52119", "52233", "52158", "52124", "52163"]
+    },
+    {
+      "id": "tributaries",
+      "name": "River Yeo & River Isle Tributaries",
+      "direction": "Upland → Langport Confluence",
+      "nodes": ["52120", "52153", "52233"]
+    },
+    {
+      "id": "northmoor_polder",
+      "name": "Northmoor Polder Basin",
+      "direction": "Storage Area",
+      "nodes": ["52158", "52159"]
+    },
+    {
+      "id": "sowy_ksd",
+      "name": "Sowy Relief Channel & Sedgemoor Drain",
+      "direction": "Diversion Route",
+      "nodes": ["52233", "52234", "52157", "E9531", "E9094", "52163"]
+    }
+  ],
+  "nodes": [
+    {
+      "id": "52108",
+      "name": "Greenham (Upper Tone)",
+      "river": "River Tone",
+      "catchment": "tone",
+      "node_type": "gauge",
+      "default_status": "SECURE",
+      "downstream_node_id": "52109",
+      "has_sparkline": true,
+      "status_rule": {
+        "type": "alert_threshold"
+      }
+    },
+    {
+      "id": "52109",
+      "name": "Bishops Hull (Mid Tone)",
+      "river": "River Tone",
+      "catchment": "tone",
+      "node_type": "gauge",
+      "default_status": "SECURE",
+      "downstream_node_id": "52111",
+      "has_sparkline": true,
+      "status_rule": {
+        "type": "alert_threshold"
+      }
+    },
+    {
+      "id": "52111",
+      "name": "Taunton Market",
+      "river": "River Tone",
+      "catchment": "tone",
+      "node_type": "gauge",
+      "default_status": "SECURE",
+      "downstream_node_id": "52162",
+      "has_sparkline": true,
+      "overrides": {
+        "name": "Taunton Market (Urban Tone)"
+      },
+      "status_rule": {
+        "type": "alert_threshold"
+      }
+    },
+    {
+      "id": "52162",
+      "name": "Bathpool Outfall",
+      "river": "River Tone",
+      "catchment": "tone",
+      "node_type": "gauge",
+      "default_status": "SECURE",
+      "downstream_node_id": "52118",
+      "has_sparkline": true,
+      "overrides": {
+        "name": "Bathpool Outfall (Lower Tone)"
+      },
+      "status_rule": {
+        "type": "alert_threshold"
+      }
+    },
+    {
+      "id": "52118",
+      "name": "Hookbridge Spillway / Currymoor PS",
+      "river": "River Tone",
+      "catchment": "tone",
+      "node_type": "spillway",
+      "default_status": "SECURE",
+      "downstream_node_id": "52158",
+      "diverts_to_node_id": "52127",
+      "has_sparkline": true,
+      "govuk_link": "https://check-for-flooding.service.gov.uk/station/3073",
+      "overrides": {
+        "downstream_node_id": "athelney_junction"
+      },
+      "status_rule": {
+        "type": "spillway_overtopping",
+        "crest_threshold_ref": "HOOKBRIDGE.CREST_MAOD",
+        "alert_threshold_ref": "HOOKBRIDGE.ALERT_MAOD"
+      }
+    },
+    {
+      "id": "52127",
+      "name": "Curry Moor Basin",
+      "river": "Curry Moor Basin",
+      "catchment": "tone",
+      "node_type": "polder_basin",
+      "default_status": "SECURE",
+      "downstream_node_id": "currymoor_ps",
+      "has_sparkline": true,
+      "govuk_link": "https://check-for-flooding.service.gov.uk/station/3064",
+      "status_rule": {
+        "type": "alert_threshold"
+      }
+    },
+    {
+      "id": "52116",
+      "name": "Chiselborough (Upper Parrett)",
+      "river": "River Parrett",
+      "catchment": "parrett",
+      "node_type": "gauge",
+      "default_status": "SECURE",
+      "downstream_node_id": "52119",
+      "has_sparkline": true,
+      "status_rule": {
+        "type": "alert_threshold"
+      }
+    },
+    {
+      "id": "52119",
+      "name": "Gaw Bridge (Mid Parrett)",
+      "river": "River Parrett",
+      "catchment": "parrett",
+      "node_type": "gauge",
+      "default_status": "SECURE",
+      "downstream_node_id": "52233",
+      "has_sparkline": true,
+      "status_rule": {
+        "type": "alert_threshold"
+      }
+    },
+    {
+      "id": "52120",
+      "name": "Huish Episcopi PS (River Yeo)",
+      "river": "River Yeo",
+      "catchment": "tributaries",
+      "node_type": "gauge",
+      "default_status": "SECURE",
+      "downstream_node_id": "52233",
+      "upstream_tributaries": ["52121", "52117", "52112"],
+      "has_sparkline": true,
+      "govuk_link": "https://check-for-flooding.service.gov.uk/station/3071",
+      "status_rule": {
+        "type": "alert_threshold",
+        "alert_threshold_ref": "52120.MUCHELNEY_ROAD_MAOD"
+      }
+    },
+    {
+      "id": "52153",
+      "name": "Midelney (River Isle)",
+      "river": "River Isle",
+      "catchment": "tributaries",
+      "node_type": "gauge",
+      "default_status": "SECURE",
+      "downstream_node_id": "52233",
+      "upstream_tributaries": ["52115", "52114"],
+      "has_sparkline": true,
+      "govuk_link": "https://check-for-flooding.service.gov.uk/station/3380",
+      "status_rule": {
+        "type": "alert_threshold"
+      }
+    },
+    {
+      "id": "52233",
+      "name": "Monk's Leaze Clyse (Upstream)",
+      "river": "River Parrett",
+      "catchment": "parrett",
+      "node_type": "clyse_gate",
+      "default_status": "CLOSED",
+      "downstream_node_id": "52158",
+      "diverts_to_node_id": "52234",
+      "has_sparkline": true,
+      "overrides": {
+        "ea_link": "https://environment.data.gov.uk/flood-monitoring/id/stations/52233.html"
+      },
+      "status_rule": {
+        "type": "clyse_upstream",
+        "alert_threshold_ref": "MONKS_LEAZE.UPSTREAM_ALERT_MAOD",
+        "coupled_rule": "monks_leaze_diverting"
+      }
+    },
+    {
+      "id": "52158",
+      "name": "Baltmoor Wall (Burrowbridge Confluence)",
+      "river": "River Parrett",
+      "catchment": "parrett",
+      "node_type": "spillway",
+      "default_status": "SECURE",
+      "downstream_node_id": "52124",
+      "diverts_to_node_id": "52159",
+      "has_sparkline": true,
+      "govuk_link": "https://check-for-flooding.service.gov.uk/station/3065",
+      "overrides": {
+        "govuk_link": "https://check-for-flooding.service.gov.uk/station/3400"
+      },
+      "status_rule": {
+        "type": "spillway_overtopping",
+        "crest_threshold_ref": "BALTMOOR.CREST_MAOD",
+        "alert_threshold_ref": "BALTMOOR.ALERT_MAOD"
+      }
+    },
+    {
+      "id": "52159",
+      "name": "Northmoor Basin",
+      "river": "Northmoor Basin",
+      "catchment": "parrett",
+      "node_type": "polder_basin",
+      "default_status": "SECURE",
+      "downstream_node_id": "saltmoor_ps",
+      "has_sparkline": true,
+      "govuk_link": "https://check-for-flooding.service.gov.uk/station/3415",
+      "status_rule": {
+        "type": "alert_threshold"
+      }
+    },
+    {
+      "id": "52124",
+      "name": "West Quay Bridgwater",
+      "river": "River Parrett",
+      "catchment": "parrett",
+      "node_type": "gauge",
+      "default_status": "SECURE",
+      "downstream_node_id": "52163",
+      "has_sparkline": true,
+      "status_rule": {
+        "type": "alert_threshold"
+      }
+    },
+    {
+      "id": "52163",
+      "name": "Dunball Tidal Outfall",
+      "river": "Parrett Estuary",
+      "catchment": "parrett",
+      "node_type": "tidal_outfall",
+      "default_status": "SECURE",
+      "has_sparkline": true,
+      "govuk_link": "https://check-for-flooding.service.gov.uk/station/9129",
+      "overrides": {
+        "name": "Dunball Tidal (Parrett Estuary)",
+        "downstream_node_id": "sea_outfall"
+      },
+      "status_rule": {
+        "type": "tidal_estuary",
+        "inland_node_id": "E9094",
+        "alert_threshold_ref": "DUNBALL.ESTUARY_ALERT_MAOD"
+      }
+    },
+    {
+      "id": "52234",
+      "name": "Monk's Leaze Clyse (Downstream Sowy)",
+      "river": "Sowy Relief Channel",
+      "catchment": "sowy_ksd",
+      "node_type": "gauge",
+      "default_status": "SECURE",
+      "downstream_node_id": "52157",
+      "has_sparkline": true,
+      "overrides": {
+        "ea_link": "https://environment.data.gov.uk/flood-monitoring/id/stations/52234.html"
+      },
+      "status_rule": {
+        "type": "clyse_downstream",
+        "alert_threshold_ref": "MONKS_LEAZE.DOWNSTREAM_ALERT_MAOD",
+        "coupled_rule": "monks_leaze_diverting"
+      }
+    },
+    {
+      "id": "52157",
+      "name": "Beerwall Upstream (Greylake)",
+      "river": "Sowy Relief Channel",
+      "catchment": "sowy_ksd",
+      "node_type": "spillway",
+      "default_status": "SECURE",
+      "downstream_node_id": "E9531",
+      "has_sparkline": true,
+      "status_rule": {
+        "type": "alert_threshold"
+      }
+    },
+    {
+      "id": "E9531",
+      "name": "Bradney (King's Sedgemoor Drain)",
+      "river": "King's Sedgemoor Drain",
+      "catchment": "sowy_ksd",
+      "node_type": "gauge",
+      "default_status": "SECURE",
+      "downstream_node_id": "E9094",
+      "has_sparkline": true,
+      "ea_link": "https://environment.data.gov.uk/flood-monitoring/id/stations/E9531.html",
+      "status_rule": {
+        "type": "alert_threshold"
+      }
+    },
+    {
+      "id": "E9094",
+      "name": "Dunball Inland KSD Outfall",
+      "river": "King's Sedgemoor Drain",
+      "catchment": "sowy_ksd",
+      "node_type": "gauge",
+      "default_status": "SECURE",
+      "downstream_node_id": "52163",
+      "has_sparkline": true,
+      "govuk_link": "https://check-for-flooding.service.gov.uk/station/9499",
+      "status_rule": {
+        "type": "tidal_inland",
+        "sea_node_id": "52163",
+        "alert_threshold_ref": "DUNBALL.INLAND_ALERT_MAOD"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "from": "52108",
+      "to": "52109",
+      "type": "main_river",
+      "default_flow_active": true,
+      "flow_rule": { "type": "always_active" }
+    },
+    {
+      "from": "52109",
+      "to": "52111",
+      "type": "main_river",
+      "default_flow_active": true,
+      "flow_rule": { "type": "always_active" }
+    },
+    {
+      "from": "52111",
+      "to": "52162",
+      "type": "main_river",
+      "default_flow_active": true,
+      "flow_rule": { "type": "always_active" }
+    },
+    {
+      "from": "52162",
+      "to": "52118",
+      "type": "main_river",
+      "default_flow_active": true,
+      "flow_rule": { "type": "always_active" }
+    },
+    {
+      "from": "52118",
+      "to": "52158",
+      "type": "main_river",
+      "default_flow_active": true,
+      "flow_rule": { "type": "always_active" }
+    },
+    {
+      "from": "52118",
+      "to": "52127",
+      "type": "spillway_overtopping",
+      "default_flow_active": false,
+      "flow_rule": {
+        "type": "stage_gte_threshold",
+        "node_id": "52118",
+        "threshold_ref": "HOOKBRIDGE.CREST_MAOD"
+      }
+    },
+    {
+      "from": "52116",
+      "to": "52119",
+      "type": "main_river",
+      "default_flow_active": true,
+      "flow_rule": { "type": "always_active" }
+    },
+    {
+      "from": "52119",
+      "to": "52233",
+      "type": "main_river",
+      "default_flow_active": true,
+      "flow_rule": { "type": "always_active" }
+    },
+    {
+      "from": "52120",
+      "to": "52233",
+      "type": "tributary_inflow",
+      "default_flow_active": true,
+      "flow_rule": {
+        "type": "stage_lt_threshold",
+        "node_id": "52120",
+        "threshold_ref": "HUISH_EPISCOPI.RIVER_CUTOFF_MAOD"
+      }
+    },
+    {
+      "from": "52153",
+      "to": "52233",
+      "type": "tributary_inflow",
+      "default_flow_active": true,
+      "flow_rule": {
+        "type": "head_gradient",
+        "upstream_node_id": "52153",
+        "downstream_node_id": "52233"
+      }
+    },
+    {
+      "from": "52233",
+      "to": "52158",
+      "type": "main_river",
+      "default_flow_active": true,
+      "flow_rule": { "type": "always_active" }
+    },
+    {
+      "from": "52158",
+      "to": "52159",
+      "type": "spillway_overtopping",
+      "default_flow_active": false,
+      "flow_rule": {
+        "type": "stage_gte_threshold",
+        "node_id": "52158",
+        "threshold_ref": "BALTMOOR.CREST_MAOD"
+      }
+    },
+    {
+      "from": "52127",
+      "to": "52159",
+      "type": "polder_overflow",
+      "default_flow_active": false,
+      "flow_rule": {
+        "type": "stage_gte_threshold",
+        "node_id": "52127",
+        "threshold_ref": "CURRY_MOOR.ATHELNEY_CREST_MAOD"
+      }
+    },
+    {
+      "from": "52158",
+      "to": "52124",
+      "type": "main_river",
+      "default_flow_active": true,
+      "flow_rule": { "type": "always_active" }
+    },
+    {
+      "from": "52124",
+      "to": "52163",
+      "type": "sea_outfall",
+      "default_flow_active": true,
+      "flow_rule": {
+        "type": "head_gradient",
+        "upstream_node_id": "52124",
+        "downstream_node_id": "52163"
+      }
+    },
+    {
+      "from": "52233",
+      "to": "52234",
+      "type": "diversion_clyse",
+      "default_flow_active": false,
+      "flow_rule": {
+        "type": "coupled_rule",
+        "rule_id": "monks_leaze_diverting"
+      }
+    },
+    {
+      "from": "52234",
+      "to": "52157",
+      "type": "diversion_route",
+      "default_flow_active": false,
+      "flow_rule": {
+        "type": "coupled_rule",
+        "rule_id": "monks_leaze_diverting"
+      }
+    },
+    {
+      "from": "52157",
+      "to": "E9531",
+      "type": "diversion_route",
+      "default_flow_active": false,
+      "flow_rule": {
+        "type": "coupled_rule",
+        "rule_id": "monks_leaze_diverting"
+      }
+    },
+    {
+      "from": "E9531",
+      "to": "E9094",
+      "type": "diversion_route",
+      "default_flow_active": true,
+      "flow_rule": { "type": "always_active" }
+    },
+    {
+      "from": "E9094",
+      "to": "52163",
+      "type": "sea_outfall",
+      "default_flow_active": true,
+      "flow_rule": {
+        "type": "head_gradient",
+        "upstream_node_id": "E9094",
+        "downstream_node_id": "52163"
+      }
+    }
+  ]
+}

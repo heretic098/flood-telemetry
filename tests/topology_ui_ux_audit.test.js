@@ -322,13 +322,13 @@ test('UI/UX Audit 3.5: Topology inspector sparkline provides interactive timesta
 // ---------------------------------------------------------------------------
 
 test('UI/UX Audit 4.1: Hydraulic flow connectivity: River Tone flows continuously into River Parrett at Burrowbridge (52118 -> 52158)', () => {
-  const serverJsPath = path.resolve('server.js');
-  const serverJs = fs.readFileSync(serverJsPath, 'utf8');
+  const topologyConfig = JSON.parse(fs.readFileSync(path.resolve('src/js/config/topology_network.json'), 'utf8'));
+  const confluenceEdge = topologyConfig.edges.find(e => e.from === '52118' && e.to === '52158');
 
-  // Both server.js and topology.js must define the main river confluence edge from Hookbridge to Baltmoor Wall
+  // Both topology_network.json and topology.js must define the main river confluence edge from Hookbridge to Baltmoor Wall
   assert.ok(
-    serverJs.includes('from: "52118", to: "52158", type: "main_river"'),
-    'server.js must define main_river edge from Hookbridge (52118) to Baltmoor Wall (52158)'
+    confluenceEdge && confluenceEdge.type === 'main_river',
+    'topology_network.json must define main_river edge from Hookbridge (52118) to Baltmoor Wall (52158)'
   );
   assert.ok(
     topologyJs.includes('from: "52118", to: "52158", type: "main_river"'),
@@ -337,16 +337,15 @@ test('UI/UX Audit 4.1: Hydraulic flow connectivity: River Tone flows continuousl
 });
 
 test('UI/UX Audit 4.2: Estuarine sea outfall uses dynamic hydrostatic head check (westQuayStage > seaStage)', () => {
-  const serverJsPath = path.resolve('server.js');
-  const serverJs = fs.readFileSync(serverJsPath, 'utf8');
+  const topologyConfig = JSON.parse(fs.readFileSync(path.resolve('src/js/config/topology_network.json'), 'utf8'));
+  const seaOutfallEdge = topologyConfig.edges.find(e => e.from === '52124' && e.to === '52163');
 
   assert.ok(
-    serverJs.includes('westQuayStage > seaStage'),
-    'server.js must compute sea outfall gravity discharge using hydrostatic gradient (westQuayStage > seaStage)'
-  );
-  assert.ok(
-    !serverJs.includes('flow_active: seaStage < 5.50'),
-    'server.js must NOT hardcode seaStage < 5.50 for gravity discharge'
+    seaOutfallEdge &&
+      seaOutfallEdge.flow_rule?.type === 'head_gradient' &&
+      seaOutfallEdge.flow_rule?.upstream_node_id === '52124' &&
+      seaOutfallEdge.flow_rule?.downstream_node_id === '52163',
+    'topology_network.json must compute sea outfall gravity discharge using hydrostatic gradient (52124 > 52163)'
   );
 });
 
@@ -404,17 +403,20 @@ test('UI/UX Audit 4.6: Monk\'s Leaze Clyse (52233) spillway and intake camera li
 });
 
 test('UI/UX Audit 4.7: Monk\'s Leaze Clyse (52233 -> 52234) flow animation strictly decoupled from closed gate state', () => {
-  const serverJsPath = path.resolve('server.js');
-  const serverJs = fs.readFileSync(serverJsPath, 'utf8');
+  const topologyConfig = JSON.parse(fs.readFileSync(path.resolve('src/js/config/topology_network.json'), 'utf8'));
+  const clyseEdge = topologyConfig.edges.find(e => e.from === '52233' && e.to === '52234' && e.type === 'diversion_clyse');
 
-  // server.js must use isMonksDiverting for diversion clyse flow_active, not static sill elevation >= 4.20
+  // topology_network.json must use coupled_rule monks_leaze_diverting for diversion clyse flow_active, not static sill elevation >= 4.20
   assert.ok(
-    serverJs.includes('from: "52233", to: "52234", type: "diversion_clyse", flow_active: isMonksDiverting'),
-    'server.js must set diversion_clyse flow_active to isMonksDiverting'
+    clyseEdge &&
+      clyseEdge.flow_rule?.type === 'coupled_rule' &&
+      clyseEdge.flow_rule?.rule_id === 'monks_leaze_diverting',
+    'topology_network.json must set diversion_clyse flow_active via coupled_rule monks_leaze_diverting'
   );
-  assert.ok(
-    !serverJs.includes('from: "52233", to: "52234", type: "diversion_clyse", flow_active: monksUpStage >= 4.20'),
-    'server.js must NOT set diversion_clyse flow_active purely on stage >= 4.20'
+  assert.equal(
+    topologyConfig.coupled_rules?.monks_leaze_diverting?.type,
+    'clyse_diverting',
+    'monks_leaze_diverting coupled_rule must use clyse_diverting (sill + differential head check)'
   );
 
   // topology.js must guard against animating edges when gate node is CLOSED
@@ -487,9 +489,17 @@ test('UI/UX Audit 4.9: Cross-view parity between Main Dashboard and Topology Vie
   );
 
   // 2. Station 52163 (Dunball Tidal Outfall) tidal status & coloration parity
+  const topologyConfig = JSON.parse(fs.readFileSync(path.resolve('src/js/config/topology_network.json'), 'utf8'));
+  const dunballNode = topologyConfig.nodes.find(n => n.id === '52163');
   assert.ok(
-    serverJs.includes('seaStage >= dunballInlandStage ? "SLACK_RESTRICTED" : "SECURE"'),
-    'server.js must set 52163 status to SLACK_RESTRICTED (TIDE-LOCKED) when seaStage >= dunballInlandStage'
+    dunballNode &&
+      dunballNode.status_rule?.type === 'tidal_estuary' &&
+      dunballNode.status_rule?.inland_node_id === 'E9094',
+    'topology_network.json must configure 52163 with tidal_estuary rule comparing against E9094'
+  );
+  assert.ok(
+    serverJs.includes('evaluateTopologyNetwork('),
+    'server.js /api/topology must evaluate topology via evaluateTopologyNetwork'
   );
   assert.ok(
     topologyJs.includes("if (node.node_type === 'tidal_outfall')"),

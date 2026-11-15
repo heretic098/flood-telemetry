@@ -561,4 +561,109 @@ test('HYDRO-19: Dynamic sensor readings pass freshness evaluation without flatli
   assert.equal(freshness.badgeClass, 'badge-fresh');
 });
 
+test('HYDRO-20: Declarative topology_network.json maintains 100% SSOT parity and evaluates normal, overtopping, diverting, and tide-locked regimes', async () => {
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+  const {
+    TOPOLOGY_NETWORK_CONFIG,
+    evaluateTopologyNetwork,
+    resolveThresholdRef
+  } = await import('../src/js/hydro_engine.js');
+
+  const jsonPath = path.resolve('src/js/config/topology_network.json');
+  assert.equal(fs.existsSync(jsonPath), true, 'src/js/config/topology_network.json must exist');
+  const fileConfig = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+
+  // 1. 100% SSOT parity between topology_network.json and TOPOLOGY_NETWORK_CONFIG
+  assert.deepEqual(
+    fileConfig,
+    TOPOLOGY_NETWORK_CONFIG,
+    '[RULE-SSOT-01] topology_network.json must match TOPOLOGY_NETWORK_CONFIG in hydro_engine.js'
+  );
+
+  // 2. Verify all symbolic threshold_ref strings resolve to finite numbers in HYDRO_THRESHOLDS
+  for (const rule of Object.values(fileConfig.coupled_rules)) {
+    if (rule.sill_threshold_ref) assert.equal(typeof resolveThresholdRef(rule.sill_threshold_ref), 'number');
+    if (rule.min_delta_h_ref) assert.equal(typeof resolveThresholdRef(rule.min_delta_h_ref), 'number');
+  }
+  for (const node of fileConfig.nodes) {
+    if (node.status_rule?.crest_threshold_ref) {
+      assert.equal(typeof resolveThresholdRef(node.status_rule.crest_threshold_ref), 'number');
+    }
+    if (node.status_rule?.alert_threshold_ref) {
+      assert.equal(typeof resolveThresholdRef(node.status_rule.alert_threshold_ref), 'number');
+    }
+  }
+  for (const edge of fileConfig.edges) {
+    if (edge.flow_rule?.threshold_ref) {
+      assert.equal(typeof resolveThresholdRef(edge.flow_rule.threshold_ref), 'number');
+    }
+  }
+
+  // 3. Evaluate normal baseflow fallback regime
+  const baseEval = evaluateTopologyNetwork({}, fileConfig);
+  assert.equal(baseEval.status, 'ok');
+  assert.equal(baseEval.nodes.length, 19);
+  assert.equal(baseEval.edges.length, 20);
+  const hookBase = baseEval.nodes.find(n => n.id === '52118');
+  assert.equal(hookBase.status, 'SECURE');
+  assert.equal(hookBase.downstream_node_id, 'athelney_junction');
+  assert.equal(hookBase.telemetry_source, 'cached_fallback');
+  const monksBase = baseEval.nodes.find(n => n.id === '52233');
+  assert.equal(monksBase.status, 'CLOSED');
+  const dunballBase = baseEval.nodes.find(n => n.id === '52163');
+  assert.equal(dunballBase.is_tide_locked, false);
+  assert.equal(dunballBase.status, 'SECURE');
+
+  // 4. Evaluate spillway overtopping & polder cascade regime
+  const overtoppingMeasures = {
+    '52118-level-stage-i-15_min-mAOD': [{ value: 7.50, dateTime: '2026-11-15T12:00:00Z' }],
+    '52127-level-stage-i-15_min-mAOD': [{ value: 7.40, dateTime: '2026-11-15T12:00:00Z' }],
+    '52158-level-stage-i-15_min-mAOD': [{ value: 7.85, dateTime: '2026-11-15T12:00:00Z' }]
+  };
+  const spillEval = evaluateTopologyNetwork(overtoppingMeasures, fileConfig);
+  assert.equal(spillEval.nodes.find(n => n.id === '52118').status, 'OVERSPILLING');
+  assert.equal(spillEval.nodes.find(n => n.id === '52118').telemetry_source, 'live');
+  assert.equal(spillEval.nodes.find(n => n.id === '52158').status, 'OVERSPILLING');
+  assert.equal(spillEval.edges.find(e => e.from === '52118' && e.to === '52127').flow_active, true);
+  assert.equal(spillEval.edges.find(e => e.from === '52158' && e.to === '52159').flow_active, true);
+  assert.equal(spillEval.edges.find(e => e.from === '52127' && e.to === '52159').flow_active, true);
+
+  // 5. Evaluate Monk's Leaze Clyse active diversion regime
+  const divertingMeasures = {
+    '52233-level-stage-i-15_min-mAOD': [{ value: 7.25, dateTime: '2026-11-15T12:00:00Z' }],
+    '52234-level-downstage-i-15_min-mAOD': [{ value: 6.90, dateTime: '2026-11-15T12:00:00Z' }]
+  };
+  const divEval = evaluateTopologyNetwork(divertingMeasures, fileConfig);
+  assert.equal(divEval.nodes.find(n => n.id === '52233').status, 'DIVERTING');
+  assert.equal(divEval.nodes.find(n => n.id === '52234').status, 'DIVERTING');
+  assert.equal(divEval.edges.find(e => e.from === '52233' && e.to === '52234').flow_active, true);
+  assert.equal(divEval.edges.find(e => e.from === '52234' && e.to === '52157').flow_active, true);
+  assert.equal(divEval.edges.find(e => e.from === '52157' && e.to === 'E9531').flow_active, true);
+
+  // 6. Evaluate Dunball tide-locked & Huish river cut-off regime
+  const tideLockMeasures = {
+    '52163-level-tidal_level-i-15_min-mAOD': [{ value: 4.50, dateTime: '2026-11-15T12:00:00Z' }],
+    'E9094-level-stage-i-15_min-mAOD': [{ value: 2.80, dateTime: '2026-11-15T12:00:00Z' }],
+    '52124-level-tidal_level-i-15_min-mAOD': [{ value: 3.90, dateTime: '2026-11-15T12:00:00Z' }],
+    '52120-level-stage-i-15_min-mASD': [{ value: 3.30, dateTime: '2026-11-15T12:00:00Z' }] // +5.00m = 8.30m AOD
+  };
+  const tideEval = evaluateTopologyNetwork(tideLockMeasures, fileConfig);
+  const seaNode = tideEval.nodes.find(n => n.id === '52163');
+  const ksdNode = tideEval.nodes.find(n => n.id === 'E9094');
+  const huishNode = tideEval.nodes.find(n => n.id === '52120');
+  assert.equal(seaNode.is_tide_locked, true);
+  assert.equal(seaNode.inland_stage_mAOD, 2.80);
+  assert.equal(seaNode.status, 'SLACK_RESTRICTED');
+  assert.equal(ksdNode.is_tide_locked, true);
+  assert.equal(ksdNode.sea_stage_mAOD, 4.50);
+  assert.equal(ksdNode.status, 'SLACK_RESTRICTED');
+  assert.equal(huishNode.stage_mAOD, 8.30);
+  assert.equal(huishNode.status, 'ALERT');
+  assert.equal(tideEval.edges.find(e => e.from === 'E9094' && e.to === '52163').flow_active, false);
+  assert.equal(tideEval.edges.find(e => e.from === '52124' && e.to === '52163').flow_active, false);
+  assert.equal(tideEval.edges.find(e => e.from === '52120' && e.to === '52233').flow_active, false);
+});
+
+
 

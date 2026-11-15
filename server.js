@@ -15,6 +15,8 @@ import {
   STATION_REGISTRY,
   ASSET_DEFINITIONS,
   DEFAULT_TOPOLOGY_NODES,
+  TOPOLOGY_NETWORK_CONFIG,
+  evaluateTopologyNetwork,
   extractStationStage,
   evaluateRoadNetwork,
   computeBatchStageRates
@@ -491,6 +493,20 @@ if (isMainModule) {
 }
 
 const CATCHMENTS_DIR = path.join(PUBLIC_DIR, 'js', 'config', 'catchments');
+const TOPOLOGY_NETWORK_PATH = path.join(PUBLIC_DIR, 'js', 'config', 'topology_network.json');
+
+export function getTopologyNetworkConfig() {
+  try {
+    if (fs.existsSync(TOPOLOGY_NETWORK_PATH)) {
+      return JSON.parse(fs.readFileSync(TOPOLOGY_NETWORK_PATH, 'utf8'));
+    }
+  } catch (err) {
+    console.warn('[Server Warning] Could not read topology_network.json, using default config:', err.message);
+  }
+  return TOPOLOGY_NETWORK_CONFIG;
+}
+
+const topologyNetworkConfig = getTopologyNetworkConfig();
 
 export function getAvailableCatchments() {
   try {
@@ -810,156 +826,7 @@ const server = http.createServer(async (req, res) => {
   // API Route: Topology schematic payload
   if (pathname === '/api/topology' || pathname === '/api/topology/') {
     const stored = getStoredTelemetry();
-    const measures = stored.measures;
-
-    const greenhamStage = extractStationStage(measures, '52108');
-    const bishopsHullStage = extractStationStage(measures, '52109');
-    const tauntonStage = extractStationStage(measures, '52111');
-    const bathpoolStage = extractStationStage(measures, '52162');
-    const toneStage = extractStationStage(measures, '52118');
-    const curryMoorStage = extractStationStage(measures, '52127');
-    const chiselboroughStage = extractStationStage(measures, '52116');
-    const gawBridgeStage = extractStationStage(measures, '52119');
-    const huishStage = extractStationStage(measures, '52120');
-    const midelneyStage = extractStationStage(measures, '52153');
-    const monksUpStage = extractStationStage(measures, '52233');
-    const monksDownStage = extractStationStage(measures, '52234');
-    const parrettStage = extractStationStage(measures, '52158');
-    const northmoorStage = extractStationStage(measures, '52159');
-    const westQuayStage = extractStationStage(measures, '52124');
-    const seaStage = extractStationStage(measures, '52163');
-    const beerwallStage = extractStationStage(measures, '52157');
-    const dunballInlandStage = extractStationStage(measures, 'E9094');
-    const bradneyStage = extractStationStage(measures, 'E9531');
-
-    const isMonksDiverting = monksUpStage >= HYDRO_THRESHOLDS.MONKS_LEAZE.SILL_MAOD &&
-      (monksUpStage - monksDownStage) > HYDRO_THRESHOLDS.MONKS_LEAZE.MIN_DELTA_H;
-
-    const hasLiveTelemetry = (stationId) => {
-      return Object.keys(measures).some(k => k.startsWith(stationId) && Array.isArray(measures[k]) && measures[k].length > 0);
-    };
-
-    const topologyPayload = {
-      status: "ok",
-      catchment_id: "somerset",
-      updated_at: new Date().toISOString(),
-      chains: [
-        {
-          id: "tone",
-          name: "River Tone Chain",
-          direction: "West → East",
-          nodes: ["52108", "52109", "52111", "52162", "52118", "52158"]
-        },
-        {
-          id: "currymoor_polder",
-          name: "Curry Moor Polder Basin",
-          direction: "Storage Area",
-          nodes: ["52118", "52127"]
-        },
-        {
-          id: "parrett",
-          name: "River Parrett Chain",
-          direction: "South → North",
-          nodes: ["52116", "52119", "52233", "52158", "52124", "52163"]
-        },
-        {
-          id: "tributaries",
-          name: "River Yeo & River Isle Tributaries",
-          direction: "Upland → Langport Confluence",
-          nodes: ["52120", "52153", "52233"]
-        },
-        {
-          id: "northmoor_polder",
-          name: "Northmoor Polder Basin",
-          direction: "Storage Area",
-          nodes: ["52158", "52159"]
-        },
-        {
-          id: "sowy_ksd",
-          name: "Sowy Relief Channel & Sedgemoor Drain",
-          direction: "Diversion Route",
-          nodes: ["52233", "52234", "52157", "E9531", "E9094", "52163"]
-        }
-      ],
-      nodes: (() => {
-        const stageByNodeId = {
-          '52108': greenhamStage, '52109': bishopsHullStage, '52111': tauntonStage,
-          '52162': bathpoolStage, '52118': toneStage, '52127': curryMoorStage,
-          '52116': chiselboroughStage, '52119': gawBridgeStage, '52120': huishStage,
-          '52153': midelneyStage, '52233': monksUpStage, '52158': parrettStage,
-          '52159': northmoorStage, '52124': westQuayStage, '52163': seaStage,
-          '52234': monksDownStage, '52157': beerwallStage, 'E9531': bradneyStage,
-          'E9094': dunballInlandStage
-        };
-        const nodeOverrides = {
-          '52111': { name: "Taunton Market (Urban Tone)" },
-          '52162': { name: "Bathpool Outfall (Lower Tone)" },
-          '52118': {
-            status: toneStage >= HYDRO_THRESHOLDS.HOOKBRIDGE.CREST_MAOD ? "OVERSPILLING" : (toneStage >= HYDRO_THRESHOLDS.HOOKBRIDGE.ALERT_MAOD ? "ALERT" : "SECURE"),
-            downstream_node_id: "athelney_junction"
-          },
-          '52120': { status: huishStage >= 7.30 ? "ALERT" : "SECURE" },
-          '52233': {
-            status: monksUpStage >= HYDRO_THRESHOLDS.MONKS_LEAZE.UPSTREAM_ALERT_MAOD ? "ALERT" : (isMonksDiverting ? "DIVERTING" : "CLOSED"),
-            ea_link: "https://environment.data.gov.uk/flood-monitoring/id/stations/52233.html"
-          },
-          '52158': {
-            status: parrettStage >= HYDRO_THRESHOLDS.BALTMOOR.CREST_MAOD ? "OVERSPILLING" : (parrettStage >= HYDRO_THRESHOLDS.BALTMOOR.ALERT_MAOD ? "ALERT" : "SECURE"),
-            govuk_link: "https://check-for-flooding.service.gov.uk/station/3400"
-          },
-          '52163': {
-            name: "Dunball Tidal (Parrett Estuary)",
-            inland_stage_mAOD: dunballInlandStage,
-            is_tide_locked: seaStage >= dunballInlandStage,
-            status: seaStage >= HYDRO_THRESHOLDS.DUNBALL.ESTUARY_ALERT_MAOD ? "ALERT" : (seaStage >= dunballInlandStage ? "SLACK_RESTRICTED" : "SECURE"),
-            downstream_node_id: "sea_outfall"
-          },
-          '52234': {
-            status: monksDownStage >= HYDRO_THRESHOLDS.MONKS_LEAZE.DOWNSTREAM_ALERT_MAOD ? "ALERT" : (isMonksDiverting ? "DIVERTING" : "SECURE"),
-            ea_link: "https://environment.data.gov.uk/flood-monitoring/id/stations/52234.html"
-          },
-          'E9094': {
-            sea_stage_mAOD: seaStage,
-            is_tide_locked: seaStage >= dunballInlandStage,
-            status: (seaStage >= dunballInlandStage) ? "SLACK_RESTRICTED" : (dunballInlandStage >= HYDRO_THRESHOLDS.DUNBALL.INLAND_ALERT_MAOD ? "ALERT" : "SECURE")
-          }
-        };
-        return DEFAULT_TOPOLOGY_NODES.map(baseNode => {
-          const stage = stageByNodeId[baseNode.id] ?? baseNode.stage_mAOD;
-          return {
-            ...baseNode,
-            gauge_id: baseNode.id,
-            stage_mAOD: stage,
-            status: stage >= baseNode.alert_level_mAOD ? "ALERT" : "SECURE",
-            ...(nodeOverrides[baseNode.id] || {}),
-            telemetry_source: hasLiveTelemetry(baseNode.id) ? "live" : "cached_fallback",
-            provenance: STATION_REGISTRY[baseNode.id]?.provenance || baseNode.provenance || null
-          };
-        });
-      })(),
-      edges: [
-        { from: "52108", to: "52109", type: "main_river", flow_active: true },
-        { from: "52109", to: "52111", type: "main_river", flow_active: true },
-        { from: "52111", to: "52162", type: "main_river", flow_active: true },
-        { from: "52162", to: "52118", type: "main_river", flow_active: true },
-        { from: "52118", to: "52158", type: "main_river", flow_active: true },
-        { from: "52118", to: "52127", type: "spillway_overtopping", flow_active: toneStage >= 7.45 },
-        { from: "52116", to: "52119", type: "main_river", flow_active: true },
-        { from: "52119", to: "52233", type: "main_river", flow_active: true },
-        { from: "52120", to: "52233", type: "tributary_inflow", flow_active: huishStage < 8.20 },
-        { from: "52153", to: "52233", type: "tributary_inflow", flow_active: midelneyStage > monksUpStage },
-        { from: "52233", to: "52158", type: "main_river", flow_active: true },
-        { from: "52158", to: "52159", type: "spillway_overtopping", flow_active: parrettStage >= 7.80 },
-        { from: "52127", to: "52159", type: "polder_overflow", flow_active: curryMoorStage >= 7.35 },
-        { from: "52158", to: "52124", type: "main_river", flow_active: true },
-        { from: "52124", to: "52163", type: "sea_outfall", flow_active: westQuayStage > seaStage },
-        { from: "52233", to: "52234", type: "diversion_clyse", flow_active: isMonksDiverting },
-        { from: "52234", to: "52157", type: "diversion_route", flow_active: isMonksDiverting },
-        { from: "52157", to: "E9531", type: "diversion_route", flow_active: isMonksDiverting },
-        { from: "E9531", to: "E9094", type: "diversion_route", flow_active: true },
-        { from: "E9094", to: "52163", type: "sea_outfall", flow_active: dunballInlandStage > seaStage }
-      ]
-    };
+    const topologyPayload = evaluateTopologyNetwork(stored.measures, topologyNetworkConfig);
 
     const topologyValidation = validateApiTopologyPayload(topologyPayload);
     if (!topologyValidation.valid) {

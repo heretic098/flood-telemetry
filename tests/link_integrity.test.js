@@ -17,6 +17,7 @@ test('Link Integrity: No file passes 5-digit WISKI station IDs to check-for-floo
     'src/js/app.js',
     'src/js/topology.js',
     'src/js/hydro_engine.js',
+    'src/js/config/topology_network.json',
     'server.js'
   ];
 

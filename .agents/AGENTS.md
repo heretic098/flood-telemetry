@@ -8,10 +8,10 @@ This document establishes the inviolable domain rules, physical invariants, visu
 
 The platform is a community-driven flood telemetry tool coded by autonomous AI agents with platform engineering oversight. The human overseer is **NOT** a civil engineer, hydrologist, or Environment Agency policymaker. All collaborating agents MUST strictly uphold these foundational rules:
 
-0. **[RULE-MOD-01] Mandatory Pro Model Tier for Subagents:**
-   - Whenever invoking subagents (`invoke_subagent`), you **MUST explicitly set `Model: 'pro'`**.
-   - **NEVER** default to `'inherit'`, `'flash'`, or `'flash_lite'`.
-   - All collaborative roles (`fullstack_developer`, `climate_hydrology_scientist`, `ui_ux_designer`, `code_reviewer`, `security_auditor`, `legal_eagle`, `qa_test_engineer`) require the high-depth reasoning of the Pro tier.
+0. **[RULE-MOD-01] Mandatory Inherited Model Tier for Subagents:**
+   - Whenever invoking subagents (`invoke_subagent`), you **MUST explicitly set `Model: 'inherit'`** so the subagent inherits the active session model (e.g., Gemini 4 Argon / Hydrogen).
+   - **NEVER** set `Model` to `'pro'`, `'flash'`, or `'flash_lite'` (as `'pro'` maps to an older 3.8 Flash model slot rather than the active parent model).
+   - All collaborative roles (`fullstack_developer`, `climate_hydrology_scientist`, `ui_ux_designer`, `code_reviewer`, `security_auditor`, `legal_eagle`, `qa_test_engineer`) require inheriting the full reasoning tier of the parent session.
 
 1. **[RULE-HUM-01] Epistemic Humility & Ban on Simulated Authority:**
    - Do **NOT** posture as an authoritative civil engineering consultant, SCADA operator, or certified hydrologist.

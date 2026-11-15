@@ -1223,34 +1223,6 @@ export const STATION_BASELINES = {
 };
 
 /**
- * Default topology node fallbacks
- */
-export const DEFAULT_TOPOLOGY_NODES = [
-  { id: "52108", name: "Greenham (Upper Tone)", river: "River Tone", catchment: "tone", node_type: "gauge", stage_mAOD: 76.14, alert_level_mAOD: 76.99, status: "SECURE", downstream_node_id: "52109", has_sparkline: true },
-  { id: "52109", name: "Bishops Hull (Mid Tone)", river: "River Tone", catchment: "tone", node_type: "gauge", stage_mAOD: 16.93, alert_level_mAOD: 17.48, status: "SECURE", downstream_node_id: "52111", has_sparkline: true },
-  { id: "52111", name: "Taunton Market", river: "River Tone", catchment: "tone", node_type: "gauge", stage_mAOD: 13.12, alert_level_mAOD: 14.24, status: "SECURE", downstream_node_id: "52162", has_sparkline: true },
-  { id: "52162", name: "Bathpool Outfall", river: "River Tone", catchment: "tone", node_type: "gauge", stage_mAOD: 7.54, ground_elevation_mAOD: 7.50, alert_level_mAOD: 9.50, status: "SECURE", downstream_node_id: "52118", has_sparkline: true },
-  { id: "52118", name: "Hookbridge Spillway / Currymoor PS", river: "River Tone", catchment: "tone", node_type: "spillway", stage_mAOD: 4.50, crest_elevation_mAOD: 7.45, alert_level_mAOD: 7.15, status: "SECURE", downstream_node_id: "52158", diverts_to_node_id: "52127", has_sparkline: true, govuk_link: "https://check-for-flooding.service.gov.uk/station/3073" },
-  { id: "52127", name: "Curry Moor Basin", river: "Curry Moor Basin", catchment: "tone", node_type: "polder_basin", stage_mAOD: 4.47, ground_elevation_mAOD: 2.10, alert_level_mAOD: 6.50, crest_elevation_mAOD: 7.45, status: "SECURE", downstream_node_id: "currymoor_ps", has_sparkline: true, govuk_link: "https://check-for-flooding.service.gov.uk/station/3064" },
-  { id: "52116", name: "Chiselborough (Upper Parrett)", river: "River Parrett", catchment: "parrett", node_type: "gauge", stage_mAOD: 20.75, alert_level_mAOD: 22.50, status: "SECURE", downstream_node_id: "52119", has_sparkline: true },
-  { id: "52119", name: "Gaw Bridge (Mid Parrett)", river: "River Parrett", catchment: "parrett", node_type: "gauge", stage_mAOD: 10.42, alert_level_mAOD: 12.80, status: "SECURE", downstream_node_id: "52233", has_sparkline: true },
-  { id: "52120", name: "Huish Episcopi PS (River Yeo)", river: "River Yeo", catchment: "tributaries", node_type: "gauge", stage_mAOD: 6.68, alert_level_mAOD: 8.48, status: "SECURE", downstream_node_id: "52233", upstream_tributaries: ["52121", "52117", "52112"], has_sparkline: true, govuk_link: "https://check-for-flooding.service.gov.uk/station/3071" },
-  { id: "52153", name: "Midelney (River Isle)", river: "River Isle", catchment: "tributaries", node_type: "gauge", stage_mAOD: 6.63, alert_level_mAOD: 8.20, status: "SECURE", downstream_node_id: "52233", upstream_tributaries: ["52115", "52114"], has_sparkline: true, govuk_link: "https://check-for-flooding.service.gov.uk/station/3380" },
-  { id: "52233", name: "Monk's Leaze Clyse (Upstream)", river: "River Parrett", catchment: "parrett", node_type: "clyse_gate", stage_mAOD: 6.73, sill_elevation_mAOD: 4.20, alert_level_mAOD: 7.90, status: "CLOSED", downstream_node_id: "52158", diverts_to_node_id: "52234", has_sparkline: true },
-  { id: "52158", name: "Baltmoor Wall (Burrowbridge Confluence)", river: "River Parrett", catchment: "parrett", node_type: "spillway", stage_mAOD: 3.78, crest_elevation_mAOD: 7.80, alert_level_mAOD: 7.50, status: "SECURE", downstream_node_id: "52124", diverts_to_node_id: "52159", has_sparkline: true, govuk_link: "https://check-for-flooding.service.gov.uk/station/3065" },
-  { id: "52159", name: "Northmoor Basin", river: "Northmoor Basin", catchment: "parrett", node_type: "polder_basin", stage_mAOD: 3.17, ground_elevation_mAOD: 1.80, alert_level_mAOD: 3.80, crest_elevation_mAOD: 7.80, status: "SECURE", downstream_node_id: "saltmoor_ps", has_sparkline: true, govuk_link: "https://check-for-flooding.service.gov.uk/station/3415" },
-  { id: "52124", name: "West Quay Bridgwater", river: "River Parrett", catchment: "parrett", node_type: "gauge", stage_mAOD: 3.10, alert_level_mAOD: 6.10, status: "SECURE", downstream_node_id: "52163", has_sparkline: true },
-  { id: "52163", name: "Dunball Tidal Outfall", river: "Parrett Estuary", catchment: "parrett", node_type: "tidal_outfall", stage_mAOD: 0.84, inland_stage_mAOD: 2.62, is_tide_locked: false, alert_level_mAOD: 6.50, status: "SECURE", has_sparkline: true, govuk_link: "https://check-for-flooding.service.gov.uk/station/9129" },
-  { id: "52234", name: "Monk's Leaze Clyse (Downstream Sowy)", river: "Sowy Relief Channel", catchment: "sowy_ksd", node_type: "gauge", stage_mAOD: 6.72, alert_level_mAOD: 7.60, status: "SECURE", downstream_node_id: "52157", has_sparkline: true },
-  { id: "52157", name: "Beerwall Upstream (Greylake)", river: "Sowy Relief Channel", catchment: "sowy_ksd", node_type: "spillway", stage_mAOD: 3.92, crest_elevation_mAOD: 7.30, alert_level_mAOD: 4.20, status: "SECURE", downstream_node_id: "E9531", has_sparkline: true },
-  { id: "E9531", name: "Bradney (King's Sedgemoor Drain)", river: "King's Sedgemoor Drain", catchment: "sowy_ksd", node_type: "gauge", stage_mAOD: 3.20, alert_level_mAOD: 3.50, status: "SECURE", downstream_node_id: "E9094", has_sparkline: true, ea_link: "https://environment.data.gov.uk/flood-monitoring/id/stations/E9531.html" },
-  { id: "E9094", name: "Dunball Inland KSD Outfall", river: "King's Sedgemoor Drain", catchment: "sowy_ksd", node_type: "gauge", stage_mAOD: 2.62, sea_stage_mAOD: 0.84, is_tide_locked: false, alert_level_mAOD: 3.50, status: "SECURE", downstream_node_id: "52163", has_sparkline: true, govuk_link: "https://check-for-flooding.service.gov.uk/station/9499" }
-].map(node => ({
-  ...node,
-  provenance: STATION_REGISTRY[node.id]?.provenance || null
-}));
-
-/**
  * Single Authoritative Hydrological Threshold Registry (mAOD)
  */
 export const HYDRO_THRESHOLDS = {
@@ -1260,7 +1232,7 @@ export const HYDRO_THRESHOLDS = {
   '52111': { ALERT_MAOD: 14.24, DATUM_MAOD: 12.47, BASELINE_MAOD: 12.67, TYPICAL_LOW_MAOD: 13.29, MAX_ON_RECORD_MAOD: 14.31 },
   '52162': { ALERT_MAOD: 9.50, DATUM_MAOD: 0.00, BASELINE_MAOD: 7.50, TYPICAL_LOW_MAOD: 8.50, MAX_ON_RECORD_MAOD: 11.03 },
   '52118': { CREST_MAOD: 7.45, ALERT_MAOD: 7.15, DATUM_MAOD: 0.00, BASELINE_MAOD: 3.30, TYPICAL_LOW_MAOD: 4.71, MAX_ON_RECORD_MAOD: 8.10 },
-  '52127': { CREST_MAOD: 7.45, ALERT_MAOD: 6.50, GROUND_MAOD: 2.10, DATUM_MAOD: 0.00, BASELINE_MAOD: 2.10, TYPICAL_LOW_MAOD: 3.92, MAX_ON_RECORD_MAOD: 8.05 },
+  '52127': { CREST_MAOD: 7.45, ATHELNEY_CREST_MAOD: 7.35, ALERT_MAOD: 6.50, GROUND_MAOD: 2.10, DATUM_MAOD: 0.00, BASELINE_MAOD: 2.10, TYPICAL_LOW_MAOD: 3.92, MAX_ON_RECORD_MAOD: 8.05 },
   '52116': { ALERT_MAOD: 22.50, DATUM_MAOD: 20.70, BASELINE_MAOD: 20.70, TYPICAL_LOW_MAOD: 20.75, MAX_ON_RECORD_MAOD: 23.63 },
   '52119': { ALERT_MAOD: 12.80, DATUM_MAOD: 10.00, BASELINE_MAOD: 10.16, TYPICAL_LOW_MAOD: 10.23, MAX_ON_RECORD_MAOD: 13.84 },
   '52120': {
@@ -1331,7 +1303,11 @@ export const HYDRO_THRESHOLDS = {
   CURRY_MOOR: {
     GROUND_MAOD: 2.10,
     ALERT_MAOD: 6.50,
-    CREST_MAOD: 7.45
+    CREST_MAOD: 7.45,
+    ATHELNEY_CREST_MAOD: 7.35
+  },
+  ATHELNEY: {
+    CREST_MAOD: 7.35
   },
   NORTHMOOR: {
     GROUND_MAOD: 1.80,
@@ -1363,6 +1339,761 @@ export const HYDRO_THRESHOLDS = {
     ALERT_MAOD: 8.20
   }
 };
+
+/**
+ * Declarative Somerset Hydrological Network Topology Configuration [RULE-SSOT-01, RULE-PAR-01]
+ * Synchronized 1:1 with src/js/config/topology_network.json
+ */
+export const TOPOLOGY_NETWORK_CONFIG = {
+  catchment_id: "somerset",
+  coupled_rules: {
+    monks_leaze_diverting: {
+      type: "clyse_diverting",
+      upstream_node_id: "52233",
+      downstream_node_id: "52234",
+      sill_threshold_ref: "MONKS_LEAZE.SILL_MAOD",
+      min_delta_h_ref: "MONKS_LEAZE.MIN_DELTA_H"
+    },
+    dunball_tide_locked: {
+      type: "stage_gte_node",
+      node_id: "52163",
+      compare_node_id: "E9094"
+    }
+  },
+  chains: [
+    {
+      id: "tone",
+      name: "River Tone Chain",
+      direction: "West → East",
+      nodes: ["52108", "52109", "52111", "52162", "52118", "52158"]
+    },
+    {
+      id: "currymoor_polder",
+      name: "Curry Moor Polder Basin",
+      direction: "Storage Area",
+      nodes: ["52118", "52127"]
+    },
+    {
+      id: "parrett",
+      name: "River Parrett Chain",
+      direction: "South → North",
+      nodes: ["52116", "52119", "52233", "52158", "52124", "52163"]
+    },
+    {
+      id: "tributaries",
+      name: "River Yeo & River Isle Tributaries",
+      direction: "Upland → Langport Confluence",
+      nodes: ["52120", "52153", "52233"]
+    },
+    {
+      id: "northmoor_polder",
+      name: "Northmoor Polder Basin",
+      direction: "Storage Area",
+      nodes: ["52158", "52159"]
+    },
+    {
+      id: "sowy_ksd",
+      name: "Sowy Relief Channel & Sedgemoor Drain",
+      direction: "Diversion Route",
+      nodes: ["52233", "52234", "52157", "E9531", "E9094", "52163"]
+    }
+  ],
+  nodes: [
+    {
+      id: "52108",
+      name: "Greenham (Upper Tone)",
+      river: "River Tone",
+      catchment: "tone",
+      node_type: "gauge",
+      default_status: "SECURE",
+      downstream_node_id: "52109",
+      has_sparkline: true,
+      status_rule: { type: "alert_threshold" }
+    },
+    {
+      id: "52109",
+      name: "Bishops Hull (Mid Tone)",
+      river: "River Tone",
+      catchment: "tone",
+      node_type: "gauge",
+      default_status: "SECURE",
+      downstream_node_id: "52111",
+      has_sparkline: true,
+      status_rule: { type: "alert_threshold" }
+    },
+    {
+      id: "52111",
+      name: "Taunton Market",
+      river: "River Tone",
+      catchment: "tone",
+      node_type: "gauge",
+      default_status: "SECURE",
+      downstream_node_id: "52162",
+      has_sparkline: true,
+      overrides: { name: "Taunton Market (Urban Tone)" },
+      status_rule: { type: "alert_threshold" }
+    },
+    {
+      id: "52162",
+      name: "Bathpool Outfall",
+      river: "River Tone",
+      catchment: "tone",
+      node_type: "gauge",
+      default_status: "SECURE",
+      downstream_node_id: "52118",
+      has_sparkline: true,
+      overrides: { name: "Bathpool Outfall (Lower Tone)" },
+      status_rule: { type: "alert_threshold" }
+    },
+    {
+      id: "52118",
+      name: "Hookbridge Spillway / Currymoor PS",
+      river: "River Tone",
+      catchment: "tone",
+      node_type: "spillway",
+      default_status: "SECURE",
+      downstream_node_id: "52158",
+      diverts_to_node_id: "52127",
+      has_sparkline: true,
+      govuk_link: "https://check-for-flooding.service.gov.uk/station/3073",
+      overrides: { downstream_node_id: "athelney_junction" },
+      status_rule: {
+        type: "spillway_overtopping",
+        crest_threshold_ref: "HOOKBRIDGE.CREST_MAOD",
+        alert_threshold_ref: "HOOKBRIDGE.ALERT_MAOD"
+      }
+    },
+    {
+      id: "52127",
+      name: "Curry Moor Basin",
+      river: "Curry Moor Basin",
+      catchment: "tone",
+      node_type: "polder_basin",
+      default_status: "SECURE",
+      downstream_node_id: "currymoor_ps",
+      has_sparkline: true,
+      govuk_link: "https://check-for-flooding.service.gov.uk/station/3064",
+      status_rule: { type: "alert_threshold" }
+    },
+    {
+      id: "52116",
+      name: "Chiselborough (Upper Parrett)",
+      river: "River Parrett",
+      catchment: "parrett",
+      node_type: "gauge",
+      default_status: "SECURE",
+      downstream_node_id: "52119",
+      has_sparkline: true,
+      status_rule: { type: "alert_threshold" }
+    },
+    {
+      id: "52119",
+      name: "Gaw Bridge (Mid Parrett)",
+      river: "River Parrett",
+      catchment: "parrett",
+      node_type: "gauge",
+      default_status: "SECURE",
+      downstream_node_id: "52233",
+      has_sparkline: true,
+      status_rule: { type: "alert_threshold" }
+    },
+    {
+      id: "52120",
+      name: "Huish Episcopi PS (River Yeo)",
+      river: "River Yeo",
+      catchment: "tributaries",
+      node_type: "gauge",
+      default_status: "SECURE",
+      downstream_node_id: "52233",
+      upstream_tributaries: ["52121", "52117", "52112"],
+      has_sparkline: true,
+      govuk_link: "https://check-for-flooding.service.gov.uk/station/3071",
+      status_rule: {
+        type: "alert_threshold",
+        alert_threshold_ref: "52120.MUCHELNEY_ROAD_MAOD"
+      }
+    },
+    {
+      id: "52153",
+      name: "Midelney (River Isle)",
+      river: "River Isle",
+      catchment: "tributaries",
+      node_type: "gauge",
+      default_status: "SECURE",
+      downstream_node_id: "52233",
+      upstream_tributaries: ["52115", "52114"],
+      has_sparkline: true,
+      govuk_link: "https://check-for-flooding.service.gov.uk/station/3380",
+      status_rule: { type: "alert_threshold" }
+    },
+    {
+      id: "52233",
+      name: "Monk's Leaze Clyse (Upstream)",
+      river: "River Parrett",
+      catchment: "parrett",
+      node_type: "clyse_gate",
+      default_status: "CLOSED",
+      downstream_node_id: "52158",
+      diverts_to_node_id: "52234",
+      has_sparkline: true,
+      overrides: {
+        ea_link: "https://environment.data.gov.uk/flood-monitoring/id/stations/52233.html"
+      },
+      status_rule: {
+        type: "clyse_upstream",
+        alert_threshold_ref: "MONKS_LEAZE.UPSTREAM_ALERT_MAOD",
+        coupled_rule: "monks_leaze_diverting"
+      }
+    },
+    {
+      id: "52158",
+      name: "Baltmoor Wall (Burrowbridge Confluence)",
+      river: "River Parrett",
+      catchment: "parrett",
+      node_type: "spillway",
+      default_status: "SECURE",
+      downstream_node_id: "52124",
+      diverts_to_node_id: "52159",
+      has_sparkline: true,
+      govuk_link: "https://check-for-flooding.service.gov.uk/station/3065",
+      overrides: {
+        govuk_link: "https://check-for-flooding.service.gov.uk/station/3400"
+      },
+      status_rule: {
+        type: "spillway_overtopping",
+        crest_threshold_ref: "BALTMOOR.CREST_MAOD",
+        alert_threshold_ref: "BALTMOOR.ALERT_MAOD"
+      }
+    },
+    {
+      id: "52159",
+      name: "Northmoor Basin",
+      river: "Northmoor Basin",
+      catchment: "parrett",
+      node_type: "polder_basin",
+      default_status: "SECURE",
+      downstream_node_id: "saltmoor_ps",
+      has_sparkline: true,
+      govuk_link: "https://check-for-flooding.service.gov.uk/station/3415",
+      status_rule: { type: "alert_threshold" }
+    },
+    {
+      id: "52124",
+      name: "West Quay Bridgwater",
+      river: "River Parrett",
+      catchment: "parrett",
+      node_type: "gauge",
+      default_status: "SECURE",
+      downstream_node_id: "52163",
+      has_sparkline: true,
+      status_rule: { type: "alert_threshold" }
+    },
+    {
+      id: "52163",
+      name: "Dunball Tidal Outfall",
+      river: "Parrett Estuary",
+      catchment: "parrett",
+      node_type: "tidal_outfall",
+      default_status: "SECURE",
+      has_sparkline: true,
+      govuk_link: "https://check-for-flooding.service.gov.uk/station/9129",
+      overrides: {
+        name: "Dunball Tidal (Parrett Estuary)",
+        downstream_node_id: "sea_outfall"
+      },
+      status_rule: {
+        type: "tidal_estuary",
+        inland_node_id: "E9094",
+        alert_threshold_ref: "DUNBALL.ESTUARY_ALERT_MAOD"
+      }
+    },
+    {
+      id: "52234",
+      name: "Monk's Leaze Clyse (Downstream Sowy)",
+      river: "Sowy Relief Channel",
+      catchment: "sowy_ksd",
+      node_type: "gauge",
+      default_status: "SECURE",
+      downstream_node_id: "52157",
+      has_sparkline: true,
+      overrides: {
+        ea_link: "https://environment.data.gov.uk/flood-monitoring/id/stations/52234.html"
+      },
+      status_rule: {
+        type: "clyse_downstream",
+        alert_threshold_ref: "MONKS_LEAZE.DOWNSTREAM_ALERT_MAOD",
+        coupled_rule: "monks_leaze_diverting"
+      }
+    },
+    {
+      id: "52157",
+      name: "Beerwall Upstream (Greylake)",
+      river: "Sowy Relief Channel",
+      catchment: "sowy_ksd",
+      node_type: "spillway",
+      default_status: "SECURE",
+      downstream_node_id: "E9531",
+      has_sparkline: true,
+      status_rule: { type: "alert_threshold" }
+    },
+    {
+      id: "E9531",
+      name: "Bradney (King's Sedgemoor Drain)",
+      river: "King's Sedgemoor Drain",
+      catchment: "sowy_ksd",
+      node_type: "gauge",
+      default_status: "SECURE",
+      downstream_node_id: "E9094",
+      has_sparkline: true,
+      ea_link: "https://environment.data.gov.uk/flood-monitoring/id/stations/E9531.html",
+      status_rule: { type: "alert_threshold" }
+    },
+    {
+      id: "E9094",
+      name: "Dunball Inland KSD Outfall",
+      river: "King's Sedgemoor Drain",
+      catchment: "sowy_ksd",
+      node_type: "gauge",
+      default_status: "SECURE",
+      downstream_node_id: "52163",
+      has_sparkline: true,
+      govuk_link: "https://check-for-flooding.service.gov.uk/station/9499",
+      status_rule: {
+        type: "tidal_inland",
+        sea_node_id: "52163",
+        alert_threshold_ref: "DUNBALL.INLAND_ALERT_MAOD"
+      }
+    }
+  ],
+  edges: [
+    {
+      from: "52108",
+      to: "52109",
+      type: "main_river",
+      default_flow_active: true,
+      flow_rule: { type: "always_active" }
+    },
+    {
+      from: "52109",
+      to: "52111",
+      type: "main_river",
+      default_flow_active: true,
+      flow_rule: { type: "always_active" }
+    },
+    {
+      from: "52111",
+      to: "52162",
+      type: "main_river",
+      default_flow_active: true,
+      flow_rule: { type: "always_active" }
+    },
+    {
+      from: "52162",
+      to: "52118",
+      type: "main_river",
+      default_flow_active: true,
+      flow_rule: { type: "always_active" }
+    },
+    {
+      from: "52118",
+      to: "52158",
+      type: "main_river",
+      default_flow_active: true,
+      flow_rule: { type: "always_active" }
+    },
+    {
+      from: "52118",
+      to: "52127",
+      type: "spillway_overtopping",
+      default_flow_active: false,
+      flow_rule: {
+        type: "stage_gte_threshold",
+        node_id: "52118",
+        threshold_ref: "HOOKBRIDGE.CREST_MAOD"
+      }
+    },
+    {
+      from: "52116",
+      to: "52119",
+      type: "main_river",
+      default_flow_active: true,
+      flow_rule: { type: "always_active" }
+    },
+    {
+      from: "52119",
+      to: "52233",
+      type: "main_river",
+      default_flow_active: true,
+      flow_rule: { type: "always_active" }
+    },
+    {
+      from: "52120",
+      to: "52233",
+      type: "tributary_inflow",
+      default_flow_active: true,
+      flow_rule: {
+        type: "stage_lt_threshold",
+        node_id: "52120",
+        threshold_ref: "HUISH_EPISCOPI.RIVER_CUTOFF_MAOD"
+      }
+    },
+    {
+      from: "52153",
+      to: "52233",
+      type: "tributary_inflow",
+      default_flow_active: true,
+      flow_rule: {
+        type: "head_gradient",
+        upstream_node_id: "52153",
+        downstream_node_id: "52233"
+      }
+    },
+    {
+      from: "52233",
+      to: "52158",
+      type: "main_river",
+      default_flow_active: true,
+      flow_rule: { type: "always_active" }
+    },
+    {
+      from: "52158",
+      to: "52159",
+      type: "spillway_overtopping",
+      default_flow_active: false,
+      flow_rule: {
+        type: "stage_gte_threshold",
+        node_id: "52158",
+        threshold_ref: "BALTMOOR.CREST_MAOD"
+      }
+    },
+    {
+      from: "52127",
+      to: "52159",
+      type: "polder_overflow",
+      default_flow_active: false,
+      flow_rule: {
+        type: "stage_gte_threshold",
+        node_id: "52127",
+        threshold_ref: "CURRY_MOOR.ATHELNEY_CREST_MAOD"
+      }
+    },
+    {
+      from: "52158",
+      to: "52124",
+      type: "main_river",
+      default_flow_active: true,
+      flow_rule: { type: "always_active" }
+    },
+    {
+      from: "52124",
+      to: "52163",
+      type: "sea_outfall",
+      default_flow_active: true,
+      flow_rule: {
+        type: "head_gradient",
+        upstream_node_id: "52124",
+        downstream_node_id: "52163"
+      }
+    },
+    {
+      from: "52233",
+      to: "52234",
+      type: "diversion_clyse",
+      default_flow_active: false,
+      flow_rule: {
+        type: "coupled_rule",
+        rule_id: "monks_leaze_diverting"
+      }
+    },
+    {
+      from: "52234",
+      to: "52157",
+      type: "diversion_route",
+      default_flow_active: false,
+      flow_rule: {
+        type: "coupled_rule",
+        rule_id: "monks_leaze_diverting"
+      }
+    },
+    {
+      from: "52157",
+      to: "E9531",
+      type: "diversion_route",
+      default_flow_active: false,
+      flow_rule: {
+        type: "coupled_rule",
+        rule_id: "monks_leaze_diverting"
+      }
+    },
+    {
+      from: "E9531",
+      to: "E9094",
+      type: "diversion_route",
+      default_flow_active: true,
+      flow_rule: { type: "always_active" }
+    },
+    {
+      from: "E9094",
+      to: "52163",
+      type: "sea_outfall",
+      default_flow_active: true,
+      flow_rule: {
+        type: "head_gradient",
+        upstream_node_id: "E9094",
+        downstream_node_id: "52163"
+      }
+    }
+  ]
+};
+
+/**
+ * Resolves a dotted threshold reference (e.g. "HOOKBRIDGE.CREST_MAOD" or "52120.MUCHELNEY_ROAD_MAOD")
+ * against the canonical HYDRO_THRESHOLDS registry.
+ */
+export function resolveThresholdRef(ref, thresholds = HYDRO_THRESHOLDS) {
+  if (!ref || typeof ref !== 'string') return undefined;
+  const parts = ref.split('.');
+  let current = thresholds;
+  for (const part of parts) {
+    if (current === null || current === undefined || typeof current !== 'object') {
+      return undefined;
+    }
+    current = current[part];
+  }
+  return typeof current === 'number' ? current : undefined;
+}
+
+/**
+ * Builds a single base topology node record from a declarative node definition and STATION_REGISTRY.
+ */
+export function buildDefaultTopologyNode(nodeDef, registry = STATION_REGISTRY) {
+  const reg = registry[nodeDef.id] || {};
+  const node = {
+    id: nodeDef.id,
+    name: nodeDef.name,
+    river: nodeDef.river,
+    catchment: nodeDef.catchment,
+    node_type: nodeDef.node_type,
+    stage_mAOD: reg.fallback_stage_mAOD
+  };
+  if (reg.ground_elevation_mAOD !== undefined) {
+    node.ground_elevation_mAOD = reg.ground_elevation_mAOD;
+  }
+  if (reg.crest_elevation_mAOD !== undefined && nodeDef.node_type !== 'polder_basin') {
+    node.crest_elevation_mAOD = reg.crest_elevation_mAOD;
+  }
+  if (reg.sill_elevation_mAOD !== undefined) {
+    node.sill_elevation_mAOD = reg.sill_elevation_mAOD;
+  }
+  if (nodeDef.status_rule?.type === 'tidal_estuary') {
+    const inlandReg = registry[nodeDef.status_rule.inland_node_id];
+    node.inland_stage_mAOD = inlandReg?.fallback_stage_mAOD;
+    node.is_tide_locked = false;
+  }
+  if (nodeDef.status_rule?.type === 'tidal_inland') {
+    const seaReg = registry[nodeDef.status_rule.sea_node_id];
+    node.sea_stage_mAOD = seaReg?.fallback_stage_mAOD;
+    node.is_tide_locked = false;
+  }
+  if (reg.alert_level_mAOD !== undefined) {
+    node.alert_level_mAOD = reg.alert_level_mAOD;
+  }
+  if (reg.crest_elevation_mAOD !== undefined && nodeDef.node_type === 'polder_basin') {
+    node.crest_elevation_mAOD = reg.crest_elevation_mAOD;
+  }
+  node.status = nodeDef.default_status || 'SECURE';
+  if (nodeDef.downstream_node_id !== undefined) {
+    node.downstream_node_id = nodeDef.downstream_node_id;
+  }
+  if (nodeDef.diverts_to_node_id !== undefined) {
+    node.diverts_to_node_id = nodeDef.diverts_to_node_id;
+  }
+  if (nodeDef.upstream_tributaries !== undefined) {
+    node.upstream_tributaries = [...nodeDef.upstream_tributaries];
+  }
+  if (nodeDef.has_sparkline !== undefined) {
+    node.has_sparkline = nodeDef.has_sparkline;
+  }
+  if (nodeDef.govuk_link !== undefined) {
+    node.govuk_link = nodeDef.govuk_link;
+  }
+  if (nodeDef.ea_link !== undefined) {
+    node.ea_link = nodeDef.ea_link;
+  }
+  node.provenance = reg.provenance || null;
+  return node;
+}
+
+/**
+ * Default topology node fallbacks derived from TOPOLOGY_NETWORK_CONFIG & STATION_REGISTRY [RULE-SSOT-01]
+ */
+export const DEFAULT_TOPOLOGY_NODES = TOPOLOGY_NETWORK_CONFIG.nodes.map(nodeDef =>
+  buildDefaultTopologyNode(nodeDef, STATION_REGISTRY)
+);
+
+/**
+ * Evaluates the declarative topology network graph against current telemetry measures [RULE-SSOT-01, RULE-PAR-01]
+ */
+export function evaluateTopologyNetwork(measures = {}, config = TOPOLOGY_NETWORK_CONFIG, options = {}) {
+  const safeMeasures = (measures && typeof measures === 'object') ? measures : {};
+  const safeConfig = (config && typeof config === 'object') ? config : TOPOLOGY_NETWORK_CONFIG;
+  const safeOptions = (options && typeof options === 'object') ? options : {};
+  const registry = safeOptions.registry || STATION_REGISTRY;
+  const thresholds = safeOptions.thresholds || HYDRO_THRESHOLDS;
+  const configNodes = Array.isArray(safeConfig.nodes) ? safeConfig.nodes : TOPOLOGY_NETWORK_CONFIG.nodes;
+  const configEdges = Array.isArray(safeConfig.edges) ? safeConfig.edges : TOPOLOGY_NETWORK_CONFIG.edges;
+  const configChains = Array.isArray(safeConfig.chains) ? safeConfig.chains : TOPOLOGY_NETWORK_CONFIG.chains;
+
+  const stageByNodeId = {};
+  for (const nodeDef of configNodes) {
+    const fallback = registry[nodeDef.id]?.fallback_stage_mAOD;
+    const extracted = extractStationStage(safeMeasures, nodeDef.id);
+    stageByNodeId[nodeDef.id] = extracted ?? fallback;
+  }
+
+  const coupledState = {};
+  if (safeConfig.coupled_rules && typeof safeConfig.coupled_rules === 'object') {
+    for (const [ruleId, rule] of Object.entries(safeConfig.coupled_rules)) {
+      if (rule.type === 'clyse_diverting') {
+        const upStage = stageByNodeId[rule.upstream_node_id];
+        const downStage = stageByNodeId[rule.downstream_node_id];
+        const sill = resolveThresholdRef(rule.sill_threshold_ref, thresholds);
+        const minDeltaH = resolveThresholdRef(rule.min_delta_h_ref, thresholds);
+        coupledState[ruleId] = typeof sill === 'number' && typeof minDeltaH === 'number' &&
+          upStage >= sill && (upStage - downStage) > minDeltaH;
+      } else if (rule.type === 'stage_gte_node') {
+        coupledState[ruleId] = stageByNodeId[rule.node_id] >= stageByNodeId[rule.compare_node_id];
+      }
+    }
+  }
+
+  const hasLiveTelemetry = (stationId) => {
+    return Object.keys(safeMeasures).some(
+      k => k.startsWith(stationId) && Array.isArray(safeMeasures[k]) && safeMeasures[k].length > 0
+    );
+  };
+
+  const nodes = configNodes.map(nodeDef => {
+    const baseNode = buildDefaultTopologyNode(nodeDef, registry);
+    const stage = stageByNodeId[baseNode.id] ?? baseNode.stage_mAOD;
+    const rule = nodeDef.status_rule || { type: 'alert_threshold' };
+    let status = stage >= baseNode.alert_level_mAOD ? 'ALERT' : 'SECURE';
+    const dynamicFields = {};
+
+    switch (rule.type) {
+      case 'spillway_overtopping': {
+        const crest = resolveThresholdRef(rule.crest_threshold_ref, thresholds) ?? baseNode.crest_elevation_mAOD;
+        const alert = resolveThresholdRef(rule.alert_threshold_ref, thresholds) ?? baseNode.alert_level_mAOD;
+        status = stage >= crest ? 'OVERSPILLING' : (stage >= alert ? 'ALERT' : 'SECURE');
+        break;
+      }
+      case 'clyse_upstream': {
+        const alert = resolveThresholdRef(rule.alert_threshold_ref, thresholds) ?? baseNode.alert_level_mAOD;
+        const isDiverting = Boolean(coupledState[rule.coupled_rule]);
+        status = stage >= alert ? 'ALERT' : (isDiverting ? 'DIVERTING' : 'CLOSED');
+        break;
+      }
+      case 'clyse_downstream': {
+        const alert = resolveThresholdRef(rule.alert_threshold_ref, thresholds) ?? baseNode.alert_level_mAOD;
+        const isDiverting = Boolean(coupledState[rule.coupled_rule]);
+        status = stage >= alert ? 'ALERT' : (isDiverting ? 'DIVERTING' : 'SECURE');
+        break;
+      }
+      case 'tidal_estuary': {
+        const inlandStage = stageByNodeId[rule.inland_node_id];
+        const isTideLocked = stage >= inlandStage;
+        const alert = resolveThresholdRef(rule.alert_threshold_ref, thresholds) ?? baseNode.alert_level_mAOD;
+        dynamicFields.inland_stage_mAOD = inlandStage;
+        dynamicFields.is_tide_locked = isTideLocked;
+        status = stage >= alert ? 'ALERT' : (isTideLocked ? 'SLACK_RESTRICTED' : 'SECURE');
+        break;
+      }
+      case 'tidal_inland': {
+        const seaStage = stageByNodeId[rule.sea_node_id];
+        const isTideLocked = seaStage >= stage;
+        const alert = resolveThresholdRef(rule.alert_threshold_ref, thresholds) ?? baseNode.alert_level_mAOD;
+        dynamicFields.sea_stage_mAOD = seaStage;
+        dynamicFields.is_tide_locked = isTideLocked;
+        status = isTideLocked ? 'SLACK_RESTRICTED' : (stage >= alert ? 'ALERT' : 'SECURE');
+        break;
+      }
+      case 'alert_threshold':
+      default: {
+        const alert = rule.alert_threshold_ref
+          ? (resolveThresholdRef(rule.alert_threshold_ref, thresholds) ?? baseNode.alert_level_mAOD)
+          : baseNode.alert_level_mAOD;
+        status = stage >= alert ? 'ALERT' : 'SECURE';
+        break;
+      }
+    }
+
+    return {
+      ...baseNode,
+      gauge_id: baseNode.id,
+      stage_mAOD: stage,
+      status,
+      ...(nodeDef.overrides || {}),
+      ...dynamicFields,
+      telemetry_source: hasLiveTelemetry(baseNode.id) ? 'live' : 'cached_fallback',
+      provenance: registry[baseNode.id]?.provenance || baseNode.provenance || null
+    };
+  });
+
+  const edges = configEdges.map(edgeDef => {
+    const rule = edgeDef.flow_rule || { type: 'always_active' };
+    let flow_active = Boolean(edgeDef.default_flow_active ?? true);
+
+    switch (rule.type) {
+      case 'always_active':
+        flow_active = true;
+        break;
+      case 'stage_gte_threshold': {
+        const targetId = rule.node_id || edgeDef.from;
+        const threshold = resolveThresholdRef(rule.threshold_ref, thresholds);
+        flow_active = typeof threshold === 'number'
+          ? stageByNodeId[targetId] >= threshold
+          : Boolean(edgeDef.default_flow_active ?? false);
+        break;
+      }
+      case 'stage_lt_threshold': {
+        const targetId = rule.node_id || edgeDef.from;
+        const threshold = resolveThresholdRef(rule.threshold_ref, thresholds);
+        flow_active = typeof threshold === 'number'
+          ? stageByNodeId[targetId] < threshold
+          : Boolean(edgeDef.default_flow_active ?? true);
+        break;
+      }
+      case 'head_gradient': {
+        const upId = rule.upstream_node_id || edgeDef.from;
+        const downId = rule.downstream_node_id || edgeDef.to;
+        flow_active = stageByNodeId[upId] > stageByNodeId[downId];
+        break;
+      }
+      case 'coupled_rule':
+        flow_active = Boolean(coupledState[rule.rule_id]);
+        break;
+      default:
+        flow_active = Boolean(edgeDef.default_flow_active ?? true);
+        break;
+    }
+
+    return {
+      from: edgeDef.from,
+      to: edgeDef.to,
+      type: edgeDef.type,
+      flow_active
+    };
+  });
+
+  return {
+    status: 'ok',
+    catchment_id: safeConfig.catchment_id || 'somerset',
+    updated_at: safeOptions.updatedAt || new Date().toISOString(),
+    chains: configChains.map(c => ({ ...c, nodes: Array.isArray(c.nodes) ? [...c.nodes] : [] })),
+    nodes,
+    edges
+  };
+}
 
 /**
  * Pre-Overtopping 30cm Warning Alert Thresholds (mAOD)
