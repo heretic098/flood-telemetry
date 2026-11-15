@@ -493,13 +493,12 @@ export class CameraModalController {
     const frames = this._getPlayableSequenceFrames(ev);
     const keyframes = this._normalizeKeyframes(ev);
 
-    // Smart default selection for mixed day/night events:
-    // Select first daylight keyframe ('start' -> 'end' -> 'peak'), or 'start' if all night
-    if (keyframes.start && keyframes.start.image_url && keyframes.start.fallback_mode !== 'NIGHT_TELEMETRY') {
+    // Default selection: select first available keyframe with an image ('start' -> 'end' -> 'peak')
+    if (keyframes.start && keyframes.start.image_url) {
       this.selectedPhase = 'start';
-    } else if (keyframes.end && keyframes.end.image_url && keyframes.end.fallback_mode !== 'NIGHT_TELEMETRY') {
+    } else if (keyframes.end && keyframes.end.image_url) {
       this.selectedPhase = 'end';
-    } else if (keyframes.peak && keyframes.peak.image_url && keyframes.peak.fallback_mode !== 'NIGHT_TELEMETRY') {
+    } else if (keyframes.peak && keyframes.peak.image_url) {
       this.selectedPhase = 'peak';
     } else {
       this.selectedPhase = keyframes.start ? 'start' : (keyframes.end ? 'end' : 'peak');
@@ -544,6 +543,10 @@ export class CameraModalController {
 
     const buildEntry = (phaseKey, label, rawEntry, fallbackTimestamp) => {
       if (rawEntry && typeof rawEntry === 'object') {
+        const isDaylightVal = typeof rawEntry.is_daylight === 'boolean' ? rawEntry.is_daylight : undefined;
+        const isNightVisionVal = Boolean(
+          rawEntry.is_night_vision ?? (isDaylightVal === false || rawEntry.fallback_mode === 'NIGHT_TELEMETRY')
+        );
         return {
           key: phaseKey,
           label,
@@ -551,12 +554,18 @@ export class CameraModalController {
           timestamp: rawEntry.timestamp || fallbackTimestamp || ce.fetched_at || null,
           image_url: safeImageUrl(rawEntry.image_url),
           delta_ms: typeof rawEntry.delta_ms === 'number' ? rawEntry.delta_ms : null,
-          fallback_mode: rawEntry.fallback_mode || null
+          fallback_mode: rawEntry.fallback_mode || null,
+          is_daylight: isDaylightVal,
+          is_night_vision: isNightVisionVal
         };
       }
       // If no explicit keyframes map exists on single-snapshot record, map main snapshot to matching trigger_reason
       const reasonMatch = (ce.trigger_reason === `EVENT_${phaseKey.toUpperCase()}`) || (phaseKey === 'start' && !rawKf.start && !rawKf.peak && !rawKf.end);
       if (reasonMatch && (safeImageUrl(ce.image_url) || ce.fallback_mode)) {
+        const isDaylightVal = typeof ce.is_daylight === 'boolean' ? ce.is_daylight : undefined;
+        const isNightVisionVal = Boolean(
+          ce.is_night_vision ?? (isDaylightVal === false || ce.fallback_mode === 'NIGHT_TELEMETRY')
+        );
         return {
           key: phaseKey,
           label,
@@ -564,7 +573,9 @@ export class CameraModalController {
           timestamp: ce.fetched_at || fallbackTimestamp || null,
           image_url: safeImageUrl(ce.image_url),
           delta_ms: null,
-          fallback_mode: ce.fallback_mode || null
+          fallback_mode: ce.fallback_mode || null,
+          is_daylight: isDaylightVal,
+          is_night_vision: isNightVisionVal
         };
       }
       return null;
@@ -603,30 +614,34 @@ export class CameraModalController {
   }
 
   /**
-   * Extracts ordered playable daylight frames from `camera_evidence.sequence_frames`
-   * (falling back to deduplicated daylight keyframes if `sequence_frames` is empty).
+   * Extracts ordered playable frames from `camera_evidence.sequence_frames`
+   * (including night vision captures, falling back to keyframes if sequence is empty).
    */
   _getPlayableSequenceFrames(ev) {
     const ce = ev?.camera_evidence || {};
-    if (ce.fallback_mode === 'NIGHT_TELEMETRY') {
-      return [];
-    }
     const seq = Array.isArray(ce.sequence_frames) ? ce.sequence_frames : [];
-    const validSeq = seq.filter(f => f && isValidEventImageUrl(f.image_url) && f.fallback_mode !== 'NIGHT_TELEMETRY');
+    const validSeq = seq.filter(f => f && isValidEventImageUrl(f.image_url));
     if (validSeq.length > 0) {
       return validSeq;
+    }
+
+    // If explicit NIGHT_TELEMETRY with zero images, return empty
+    if (ce.fallback_mode === 'NIGHT_TELEMETRY' && (!ce.image_url || !isValidEventImageUrl(ce.image_url))) {
+      return [];
     }
 
     const kf = this._normalizeKeyframes(ev);
     const fallbackFrames = [];
     const seenUrls = new Set();
     for (const entry of [kf.start, kf.peak, kf.end]) {
-      if (entry && entry.image_url && entry.fallback_mode !== 'NIGHT_TELEMETRY' && !seenUrls.has(entry.image_url)) {
+      if (entry && entry.image_url && isValidEventImageUrl(entry.image_url) && !seenUrls.has(entry.image_url)) {
         seenUrls.add(entry.image_url);
         fallbackFrames.push({
           timestamp: entry.timestamp,
           image_url: entry.image_url,
-          phase: entry.phase
+          phase: entry.phase,
+          is_daylight: entry.is_daylight,
+          is_night_vision: entry.is_night_vision ?? (entry.is_daylight === false)
         });
       }
     }
@@ -665,7 +680,13 @@ export class CameraModalController {
     const ce = ev.camera_evidence || {};
     const keyframes = this._normalizeKeyframes(ev);
     const frames = this._getPlayableSequenceFrames(ev);
-    const isAllNight = ce.fallback_mode === 'NIGHT_TELEMETRY' && frames.length === 0;
+    const hasAnyImage = Boolean(
+      (frames && frames.length > 0) ||
+      keyframes.start?.image_url ||
+      keyframes.peak?.image_url ||
+      keyframes.end?.image_url
+    );
+    const isAllNight = ce.fallback_mode === 'NIGHT_TELEMETRY' && !hasAnyImage;
 
     const assetTypeUpper = String(ev.asset_type || 'asset').toUpperCase().replace(/_/g, ' ');
     const assetName = ASSET_DISPLAY_NAMES[ev.asset_id] || ev.asset_id || 'Monitored Asset';
@@ -688,17 +709,18 @@ export class CameraModalController {
     ].filter(p => p.data !== null);
 
     const phasePillsHtml = phaseEntries.map(p => {
-      const isNight = p.data.fallback_mode === 'NIGHT_TELEMETRY' || !p.data.image_url;
+      const hasImage = Boolean(p.data.image_url);
+      const isNightVision = Boolean(p.data.is_night_vision ?? (p.data.is_daylight === false || p.data.fallback_mode === 'NIGHT_TELEMETRY'));
       const isActive = this.selectedPhase === p.key;
       const timeLabel = formatTimeOnlyGmt(p.data.timestamp);
-      const badgeIcon = isNight ? '🌙' : p.icon;
-      const suffix = isNight ? ' • Night' : '';
+      const badgeIcon = isNightVision ? '🌙' : p.icon;
+      const suffix = isNightVision ? ' • Night Vision' : '';
       return `
         <button type="button"
                 class="evidence-phase-pill ${p.pillClass}${isActive ? ' active' : ''}"
                 data-evidence-phase="${p.key}"
                 aria-pressed="${isActive ? 'true' : 'false'}"
-                title="${escapeAttr(isNight ? `${p.label} occurred in darkness (Night Telemetry)` : `Inspect ${p.label} keyframe (${timeLabel})`)}">
+                title="${escapeAttr(hasImage ? `Inspect ${p.label}${isNightVision ? ' (Night Vision)' : ''} keyframe (${timeLabel})` : `${p.label} occurred in darkness (Night Telemetry)`)}">
           <span aria-hidden="true">${badgeIcon}</span>
           <span>${escapeHTML(p.label)} (${escapeHTML(timeLabel)}${escapeHTML(suffix)})</span>
         </button>
@@ -854,26 +876,59 @@ export class CameraModalController {
     `;
   }
 
+  _computeSequenceFrameBadgeSpec(ev, frames, keyframes, safeIdx) {
+    const currentFrame = frames[safeIdx] || {};
+    const peakStageStr = typeof ev?.peak_stage_mAOD === 'number' ? `${ev.peak_stage_mAOD.toFixed(2)}m AOD` : '';
+
+    // Determine if current frame corresponds to Start, Peak, or End keyframe
+    const startIdx = keyframes?.start?.image_url ? this._findNearestSequenceIndex(frames, keyframes.start.timestamp) : -1;
+    const peakIdx = keyframes?.peak?.image_url ? this._findNearestSequenceIndex(frames, keyframes.peak.timestamp) : -1;
+    const endIdx = keyframes?.end?.image_url ? this._findNearestSequenceIndex(frames, keyframes.end.timestamp) : -1;
+
+    let phaseBadgeClass = 'badge-seq-step';
+    let phaseBadgeText = '🎞️ TRANSITION SEQUENCE';
+    if (safeIdx === startIdx) {
+      phaseBadgeClass = 'badge-seq-start';
+      phaseBadgeText = '🟢 TRANSITION START';
+    } else if (safeIdx === endIdx) {
+      phaseBadgeClass = 'badge-seq-end';
+      phaseBadgeText = '🔵 TRANSITION END';
+    } else if (safeIdx === peakIdx) {
+      phaseBadgeClass = 'badge-seq-peak';
+      phaseBadgeText = `⭐ PEAK STAGE${peakStageStr ? ` • ${peakStageStr}` : ''}`;
+    }
+
+    const isNightVision = Boolean(
+      currentFrame.is_night_vision ?? (currentFrame.is_daylight === false || currentFrame.fallback_mode === 'NIGHT_TELEMETRY')
+    );
+
+    return {
+      startIdx,
+      peakIdx,
+      endIdx,
+      isNightVision,
+      phaseBadgeClass,
+      phaseBadgeText
+    };
+  }
+
+  _renderSequenceTopBadgesHtml(ev, frames, keyframes, safeIdx) {
+    const spec = this._computeSequenceFrameBadgeSpec(ev, frames, keyframes, safeIdx);
+    const nightVisionBadge = spec.isNightVision
+      ? '<span class="frame-phase-badge badge-night-vision">🌙 NIGHT VISION</span>'
+      : '';
+    const phaseOverlayBadge = `<span class="frame-phase-badge ${spec.phaseBadgeClass}">${escapeHTML(spec.phaseBadgeText)}</span>`;
+    return `${nightVisionBadge}${phaseOverlayBadge}`;
+  }
+
   _renderSequencePlayerHtml(ev, frames, keyframes) {
     const safeIdx = Math.max(0, Math.min(frames.length - 1, this.sequenceIndex));
     const currentFrame = frames[safeIdx];
     const frameTimeStr = formatShortGmt(currentFrame.timestamp);
     const assetName = ASSET_DISPLAY_NAMES[ev.asset_id] || ev.asset_id || 'Asset';
-    const peakStageStr = typeof ev.peak_stage_mAOD === 'number' ? `${ev.peak_stage_mAOD.toFixed(2)}m AOD` : '';
-
-    // Determine if current frame corresponds to Start, Peak, or End keyframe
-    const startIdx = keyframes.start?.image_url ? this._findNearestSequenceIndex(frames, keyframes.start.timestamp) : -1;
-    const peakIdx = keyframes.peak?.image_url ? this._findNearestSequenceIndex(frames, keyframes.peak.timestamp) : -1;
-    const endIdx = keyframes.end?.image_url ? this._findNearestSequenceIndex(frames, keyframes.end.timestamp) : -1;
-
-    let phaseOverlayBadge = '<span class="frame-phase-badge badge-seq-step">🎞️ TRANSITION SEQUENCE</span>';
-    if (safeIdx === startIdx) {
-      phaseOverlayBadge = '<span class="frame-phase-badge badge-seq-start">🟢 TRANSITION START</span>';
-    } else if (safeIdx === endIdx) {
-      phaseOverlayBadge = '<span class="frame-phase-badge badge-seq-end">🔵 TRANSITION END</span>';
-    } else if (safeIdx === peakIdx) {
-      phaseOverlayBadge = `<span class="frame-phase-badge badge-seq-peak">⭐ PEAK STAGE${peakStageStr ? ` • ${escapeHTML(peakStageStr)}` : ''}</span>`;
-    }
+    const badgeSpec = this._computeSequenceFrameBadgeSpec(ev, frames, keyframes, safeIdx);
+    const { startIdx, peakIdx, endIdx } = badgeSpec;
+    const topBadgesHtml = this._renderSequenceTopBadgesHtml(ev, frames, keyframes, safeIdx);
 
     // Build pin markers along scrubber track (avoid duplicate overlapping pins on identical frame indices)
     const usedPinIndices = new Set();
@@ -887,17 +942,13 @@ export class CameraModalController {
       return `<span class="scrubber-phase-pin ${cls}" style="${alignStyle}" title="${escapeAttr(label)} (Frame ${idx + 1})">${escapeHTML(label)}</span>`;
     };
 
-    const nightNotes = [];
-    if (keyframes.start?.fallback_mode === 'NIGHT_TELEMETRY') nightNotes.push('🌙 Start occurred in darkness');
-    if (keyframes.end?.fallback_mode === 'NIGHT_TELEMETRY') nightNotes.push('🌙 End occurred in darkness');
-
     return `
       <div class="evidence-viewport-stage">
         <div class="evidence-frame-overlay-top">
           <span class="frame-counter-pill" id="evidence-live-counter" aria-live="polite">
             Frame ${safeIdx + 1} / ${frames.length} • ${escapeHTML(frameTimeStr)}
           </span>
-          ${phaseOverlayBadge}
+          <span id="evidence-live-badges" style="display: contents;">${topBadgesHtml}</span>
         </div>
         <img src="${escapeAttr(currentFrame.image_url)}"
              alt="${escapeAttr(`${assetName} optical camera frame ${safeIdx + 1} of ${frames.length} captured at ${frameTimeStr}`)}"
@@ -922,7 +973,6 @@ export class CameraModalController {
                aria-label="Scrub event transition frame sequence from frame 1 to ${frames.length}" />
         <div class="scrubber-endpoints-row">
           <span>${escapeHTML(formatTimeOnlyGmt(frames[0]?.timestamp))} (Frame 1)</span>
-          ${nightNotes.length > 0 ? `<span class="scrubber-night-note">${escapeHTML(nightNotes.join(' • '))}</span>` : ''}
           <span>${escapeHTML(formatTimeOnlyGmt(frames[frames.length - 1]?.timestamp))} (Frame ${frames.length})</span>
         </div>
       </div>
@@ -952,12 +1002,17 @@ export class CameraModalController {
 
   _renderSingleKeyframeHtml(ev, keyframes) {
     const selected = keyframes[this.selectedPhase] || keyframes.peak || keyframes.start || keyframes.end;
-    if (!selected || selected.fallback_mode === 'NIGHT_TELEMETRY') {
-      return this._renderNightTelemetryCard(ev, selected);
-    }
-    if (!selected.image_url) {
+    if (!selected || !selected.image_url) {
+      if (selected?.fallback_mode === 'NIGHT_TELEMETRY') {
+        return this._renderNightTelemetryCard(ev, selected);
+      }
       return this._renderFrameUnavailableCard(ev, selected);
     }
+
+    const isNightVision = Boolean(selected.is_night_vision ?? (selected.is_daylight === false || selected.fallback_mode === 'NIGHT_TELEMETRY'));
+    const nightVisionBadge = isNightVision
+      ? '<span class="frame-phase-badge badge-night-vision">🌙 NIGHT VISION</span>'
+      : '';
 
     const assetName = ASSET_DISPLAY_NAMES[ev.asset_id] || ev.asset_id || 'Asset';
     const timeStr = formatShortGmt(selected.timestamp);
@@ -969,12 +1024,13 @@ export class CameraModalController {
       <div class="evidence-viewport-stage">
         <div class="evidence-frame-overlay-top">
           <span class="frame-counter-pill" aria-live="polite">
-            ${escapeHTML(selected.label.toUpperCase())} KEYFRAME • ${escapeHTML(timeStr)}
+            ${escapeHTML((selected.label || this.selectedPhase).toUpperCase())} KEYFRAME • ${escapeHTML(timeStr)}
           </span>
-          <span class="frame-phase-badge badge-seq-peak">${escapeHTML(selected.phase)} • ${escapeHTML(deltaMins)}</span>
+          ${nightVisionBadge}
+          <span class="frame-phase-badge badge-seq-peak">${escapeHTML(selected.phase || 'KEYFRAME')} • ${escapeHTML(deltaMins)}</span>
         </div>
         <img src="${escapeAttr(selected.image_url)}"
-             alt="${escapeAttr(`${assetName} ${selected.label} keyframe captured at ${timeStr}`)}"
+             alt="${escapeAttr(`${assetName} ${selected.label || this.selectedPhase} keyframe captured at ${timeStr}`)}"
              class="evidence-frame-img"
              loading="eager" />
       </div>
@@ -984,51 +1040,80 @@ export class CameraModalController {
   _renderCompareModeHtml(ev, frames, keyframes) {
     const assetName = ASSET_DISPLAY_NAMES[ev.asset_id] || ev.asset_id || 'Asset';
     const earliestSeqFrame = frames.length > 0 ? frames[0] : null;
+    const earliestDaylightSeqFrame = frames.find(
+      f => f && f.image_url && !f.is_night_vision && f.is_daylight !== false
+    ) || null;
 
-    let beforeItem = keyframes.start || (earliestSeqFrame ? {
+    let beforeItem = (keyframes.start && keyframes.start.image_url) ? keyframes.start : (earliestSeqFrame ? {
       label: 'Pre-Transition (T-60m)',
       phase: 'PRE_EVENT',
       timestamp: earliestSeqFrame.timestamp,
       image_url: earliestSeqFrame.image_url,
-      fallback_mode: null
-    } : null);
+      fallback_mode: earliestSeqFrame.fallback_mode || null,
+      is_daylight: earliestSeqFrame.is_daylight,
+      is_night_vision: Boolean(
+        earliestSeqFrame.is_night_vision ?? (earliestSeqFrame.is_daylight === false || earliestSeqFrame.fallback_mode === 'NIGHT_TELEMETRY')
+      )
+    } : keyframes.start || null);
 
-    // Allow 1-click override if Start was at night but an early dawn sequence frame exists
+    // Allow 1-click override if Start was at night (night vision or dark fallback) but an early daylight sequence frame exists
+    const beforeIsNight = Boolean(
+      beforeItem && (
+        beforeItem.is_night_vision ||
+        beforeItem.is_daylight === false ||
+        beforeItem.fallback_mode === 'NIGHT_TELEMETRY'
+      )
+    );
     const canOfferDawnFallback = Boolean(
-      beforeItem &&
-      (beforeItem.fallback_mode === 'NIGHT_TELEMETRY' || !beforeItem.image_url) &&
-      earliestSeqFrame &&
-      earliestSeqFrame.image_url
+      beforeIsNight &&
+      earliestDaylightSeqFrame &&
+      earliestDaylightSeqFrame.image_url &&
+      earliestDaylightSeqFrame.image_url !== beforeItem?.image_url
     );
 
     if (canOfferDawnFallback && this.useDawnFallbackInCompare) {
       beforeItem = {
         label: 'Earliest Daylight Frame',
         phase: 'DAWN_SEQUENCE_START',
-        timestamp: earliestSeqFrame.timestamp,
-        image_url: earliestSeqFrame.image_url,
-        fallback_mode: null
+        timestamp: earliestDaylightSeqFrame.timestamp,
+        image_url: earliestDaylightSeqFrame.image_url,
+        fallback_mode: null,
+        is_daylight: true,
+        is_night_vision: false
       };
     }
 
+    const lastSeqFrame = frames.length > 1 ? frames[frames.length - 1] : null;
     const afterItem = (keyframes.end && keyframes.end.image_url)
       ? keyframes.end
-      : (keyframes.peak && keyframes.peak.image_url ? keyframes.peak : (frames.length > 1 ? {
+      : (keyframes.peak && keyframes.peak.image_url ? keyframes.peak : (lastSeqFrame ? {
           label: 'Post-Transition Frame',
           phase: 'EVENT_TRANSITION',
-          timestamp: frames[frames.length - 1].timestamp,
-          image_url: frames[frames.length - 1].image_url,
-          fallback_mode: null
+          timestamp: lastSeqFrame.timestamp,
+          image_url: lastSeqFrame.image_url,
+          fallback_mode: lastSeqFrame.fallback_mode || null,
+          is_daylight: lastSeqFrame.is_daylight,
+          is_night_vision: Boolean(
+            lastSeqFrame.is_night_vision ?? (lastSeqFrame.is_daylight === false || lastSeqFrame.fallback_mode === 'NIGHT_TELEMETRY')
+          )
         } : keyframes.end || keyframes.peak || keyframes.start));
 
     const panes = this.compareSwapped
-      ? [{ role: 'AFTER (Post-Transition)', item: afterItem }, { role: 'BEFORE (Transition Start)', item: beforeItem }]
-      : [{ role: 'BEFORE (Transition Start)', item: beforeItem }, { role: 'AFTER (Post-Transition)', item: afterItem }];
+      ? [{ role: 'AFTER (Post-Transition)', isBefore: false, item: afterItem }, { role: 'BEFORE (Transition Start)', isBefore: true, item: beforeItem }]
+      : [{ role: 'BEFORE (Transition Start)', isBefore: true, item: beforeItem }, { role: 'AFTER (Post-Transition)', isBefore: false, item: afterItem }];
+
+    const dawnFallbackBtnHtml = (canOfferDawnFallback && !this.useDawnFallbackInCompare)
+      ? `
+        <button type="button" class="evidence-transport-btn" id="btn-use-dawn-compare">
+          ☀️ Compare Earliest Daylight Frame (${escapeHTML(formatTimeOnlyGmt(earliestDaylightSeqFrame.timestamp))})
+        </button>
+      `
+      : '';
 
     const renderPane = (pane) => {
       const item = pane.item;
-      if (!item || item.fallback_mode === 'NIGHT_TELEMETRY' || !item.image_url) {
-        const isNightPane = !item || item.fallback_mode === 'NIGHT_TELEMETRY';
+      if (!item || !item.image_url) {
+        const isNightPane = !item || item.fallback_mode === 'NIGHT_TELEMETRY' || item.is_night_vision || item.is_daylight === false;
         return `
           <div class="evidence-compare-pane">
             <div class="compare-pane-header">
@@ -1039,27 +1124,29 @@ export class CameraModalController {
               <span aria-hidden="true">🌙</span>
               <strong>${isNightPane ? 'Night Telemetry Active' : 'Optical Frame Unavailable'}</strong>
               <p>${isNightPane ? 'Frame obscured by darkness' : 'No archived frame'} at ${escapeHTML(formatTimeOnlyGmt(item?.timestamp || ev.start_time))}. Sensor stage verified.</p>
-              ${canOfferDawnFallback && !this.useDawnFallbackInCompare ? `
-                <button type="button" class="evidence-transport-btn" id="btn-use-dawn-compare">
-                  ☀️ Compare Earliest Daylight Frame (${escapeHTML(formatTimeOnlyGmt(earliestSeqFrame.timestamp))})
-                </button>
-              ` : ''}
+              ${pane.isBefore ? dawnFallbackBtnHtml : ''}
             </div>
           </div>
         `;
       }
 
+      const isNightVision = Boolean(item.is_night_vision ?? (item.is_daylight === false || item.fallback_mode === 'NIGHT_TELEMETRY'));
+      const nightVisionBadge = isNightVision
+        ? ' <span class="frame-phase-badge badge-night-vision">🌙 NIGHT VISION</span>'
+        : '';
+
       return `
         <div class="evidence-compare-pane">
           <div class="compare-pane-header">
             <strong>${escapeHTML(pane.role)}</strong>
-            <span>${escapeHTML(formatShortGmt(item.timestamp))}</span>
+            <span>${escapeHTML(formatShortGmt(item.timestamp))}${isNightVision ? ' • 🌙 Night Vision' : ''}${nightVisionBadge}</span>
           </div>
           <div class="compare-pane-img-wrap">
             <img src="${escapeAttr(item.image_url)}"
                  alt="${escapeAttr(`${assetName} ${pane.role} captured at ${formatShortGmt(item.timestamp)}`)}"
                  class="evidence-frame-img" />
           </div>
+          ${pane.isBefore && dawnFallbackBtnHtml ? `<div class="compare-pane-actions">${dawnFallbackBtnHtml}</div>` : ''}
         </div>
       `;
     };
@@ -1097,8 +1184,8 @@ export class CameraModalController {
         const targetKf = keyframes[phase];
 
         if (this.evidenceViewMode === 'sequence') {
-          if (targetKf?.fallback_mode === 'NIGHT_TELEMETRY' || !targetKf?.image_url) {
-            // Switch to keyframes view to show the Night Telemetry card for that dark phase
+          if (!targetKf?.image_url) {
+            // Switch to keyframes view to show the fallback card for that missing phase
             this.evidenceViewMode = 'keyframes';
           } else if (targetKf?.timestamp && frames.length > 0) {
             const idx = this._findNearestSequenceIndex(frames, targetKf.timestamp);
@@ -1216,10 +1303,26 @@ export class CameraModalController {
     if (imgEl && currentFrame) {
       const frameTimeStr = formatShortGmt(currentFrame.timestamp);
       const assetName = ASSET_DISPLAY_NAMES[this.activeEvent.asset_id] || this.activeEvent.asset_id || 'Asset';
+      const keyframes = this._normalizeKeyframes(this.activeEvent);
+      const topBadgesHtml = this._renderSequenceTopBadgesHtml(this.activeEvent, frames, keyframes, this.sequenceIndex);
       imgEl.src = currentFrame.image_url;
       imgEl.alt = `${assetName} optical camera frame ${this.sequenceIndex + 1} of ${frames.length} captured at ${frameTimeStr}`;
       if (counterEl) {
         counterEl.textContent = `Frame ${this.sequenceIndex + 1} / ${frames.length} • ${frameTimeStr}`;
+      }
+      const badgesEl = this.backdrop.querySelector('#evidence-live-badges');
+      if (badgesEl) {
+        badgesEl.innerHTML = topBadgesHtml;
+      } else {
+        const overlayTopEl = this.backdrop.querySelector('.evidence-frame-overlay-top');
+        if (overlayTopEl) {
+          overlayTopEl.innerHTML = `
+            <span class="frame-counter-pill" id="evidence-live-counter" aria-live="polite">
+              Frame ${this.sequenceIndex + 1} / ${frames.length} • ${escapeHTML(frameTimeStr)}
+            </span>
+            <span id="evidence-live-badges" style="display: contents;">${topBadgesHtml}</span>
+          `;
+        }
       }
       if (sliderEl && Number(sliderEl.value) !== this.sequenceIndex) {
         sliderEl.value = String(this.sequenceIndex);

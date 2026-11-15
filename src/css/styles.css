@@ -4655,6 +4655,12 @@ svg.inspector-sparkline-svg {
   background: rgba(120, 53, 15, 0.85);
 }
 
+.frame-phase-badge.badge-night-vision {
+  border-color: #818cf8;
+  color: #e0e7ff;
+  background: rgba(49, 46, 129, 0.85);
+}
+
 .frame-phase-badge.badge-seq-start {
   border-color: #10b981;
   color: #a7f3d0;

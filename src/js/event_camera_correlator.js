@@ -30,7 +30,6 @@ import { updateActiveSessionCameraMeta } from './event_manager.js';
 
 export const DEFAULT_KEYFRAME_TOLERANCE_MS = 20 * 60 * 1000; // ±20 minutes
 export const DEFAULT_SEQUENCE_HALF_WINDOW_MS = 60 * 60 * 1000; // ±60 minutes
-export const DEFAULT_DARK_LUMINANCE_THRESHOLD = 20; // 0..255 mean scan byte threshold
 
 /**
  * Maps canonical `asset_id` definitions from `ASSET_DEFINITIONS` to an ordered
@@ -147,32 +146,33 @@ export function computeFrameLuminance(buffer) {
 }
 
 /**
- * Evaluates whether a captured frame occurred in darkness (civil night or pitch-black sensor output).
- * If darkness is detected, returns `fallback_mode: 'NIGHT_TELEMETRY'`.
+ * Evaluates whether a captured frame occurred during daylight or night.
+ * Does not heuristically suppress frames; simply flags whether night-vision/IR conditions apply.
  *
  * @param {Buffer} buffer
  * @param {string|Date} timestamp
  * @param {object} [options]
- * @returns {{isDark: boolean, isDaylight: boolean, solarElevationDeg: number, luminance: number, fallback_mode: 'NIGHT_TELEMETRY'|null}}
+ * @returns {{isDark: boolean, isDaylight: boolean, isNightVision: boolean, solarElevationDeg: number, luminance: number, fallback_mode: null}}
  */
 export function evaluateFrameDarkness(buffer, timestamp, options = {}) {
   const date = timestamp instanceof Date ? timestamp : new Date(timestamp);
   const lat = options.lat ?? 51.05;
   const lon = options.lon ?? -2.95;
-  const darkLuminanceThreshold = options.darkLuminanceThreshold ?? DEFAULT_DARK_LUMINANCE_THRESHOLD;
 
   const solarElevationDeg = Number(computeSolarElevationDeg(date, lat, lon).toFixed(2));
   const daylight = isDaylight(date, lat, lon);
   const luminance = computeFrameLuminance(buffer);
 
-  const isDark = !daylight || luminance < darkLuminanceThreshold;
+  // When sun is below civil twilight (-6.0 deg), the frame is categorized as night vision.
+  const isNightVision = !daylight;
 
   return {
-    isDark,
+    isDark: false,
     isDaylight: daylight,
+    isNightVision,
     solarElevationDeg,
     luminance,
-    fallback_mode: isDark ? 'NIGHT_TELEMETRY' : null
+    fallback_mode: null
   };
 }
 
@@ -254,7 +254,9 @@ async function archiveWindowSequence({
   cameraId,
   centerIso,
   halfWindowMs,
-  manifest
+  manifest,
+  lat = 51.05,
+  lon = -2.95
 }) {
   const centerMs = new Date(centerIso).getTime();
   if (isNaN(centerMs)) return { uploadedCount: 0, windowComplete: false };
@@ -272,12 +274,15 @@ async function archiveWindowSequence({
 
     const buf = fs.readFileSync(frame.filePath);
     const uploadRes = await archiveStore.uploadFrame(eventId, cameraId, frame.filename, buf);
+    const daylight = isDaylight(frame.timestamp, lat, lon);
     manifest.storage_backend = uploadRes.backend;
     manifest.sequence_frames.push({
       timestamp: frame.timestamp,
       filename: frame.filename,
       image_url: uploadRes.proxyUrl,
-      size_bytes: uploadRes.sizeBytes
+      size_bytes: uploadRes.sizeBytes,
+      is_daylight: daylight,
+      is_night_vision: !daylight
     });
     existingFilenames.add(frame.filename);
     uploadedCount++;
@@ -291,7 +296,7 @@ async function archiveWindowSequence({
 
 /**
  * Correlates a specific event transition phase (`EVENT_START`, `EVENT_PEAK`, `EVENT_END`),
- * promotes the matched keyframe and (for daylight transitions) the ±60m frame sequence to
+ * promotes the matched keyframe and the ±60m frame sequence to
  * Tigris S3, and links `telemetry_events.camera_snapshot_id` to `camera_analysis.id`.
  *
  * @param {import('better-sqlite3').Database} db
@@ -364,9 +369,10 @@ export async function correlateEventTransition(db, eventRecord, phase, options =
     image_hash: imageHash,
     size_bytes: keyframeUpload.sizeBytes,
     is_daylight: darkness.isDaylight,
+    is_night_vision: darkness.isNightVision,
     solar_elevation_deg: darkness.solarElevationDeg,
     luminance: darkness.luminance,
-    fallback_mode: darkness.fallback_mode
+    fallback_mode: null
   };
 
   manifest.keyframes[keyframeSlot] = keyframeEntry;
@@ -376,46 +382,38 @@ export async function correlateEventTransition(db, eventRecord, phase, options =
     manifest.keyframes.peak = { ...keyframeEntry, phase: 'EVENT_PEAK' };
   }
 
-  // Ensure the promoted keyframe is also included in sequence_frames if daylight
-  if (!darkness.isDark) {
-    delete manifest.sequence_skipped_reason;
-    if (keyframeSlot === 'start' || keyframeSlot === 'end') {
-      const seqRes = await archiveWindowSequence({
-        bufferWorker,
-        archiveStore,
-        eventId,
-        cameraId: match.cameraId,
-        centerIso: targetIso,
-        halfWindowMs: sequenceHalfWindowMs,
-        manifest
-      });
-      if (keyframeSlot === 'start') {
-        manifest.windows_complete.start_plus_60m = seqRes.windowComplete;
-      } else if (keyframeSlot === 'end') {
-        manifest.windows_complete.end_plus_60m = seqRes.windowComplete;
-      }
-    } else {
-      // Ensure peak keyframe is present in sequence_frames as well
-      const hasPeakInSeq = manifest.sequence_frames.some(f => f.filename === match.filename);
-      if (!hasPeakInSeq) {
-        manifest.sequence_frames.push({
-          timestamp: match.timestamp,
-          filename: match.filename,
-          image_url: keyframeUpload.proxyUrl,
-          size_bytes: keyframeUpload.sizeBytes
-        });
-        manifest.sequence_frames.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-      }
+  // Archive sequence frames around transition window
+  delete manifest.sequence_skipped_reason;
+  if (keyframeSlot === 'start' || keyframeSlot === 'end') {
+    const seqRes = await archiveWindowSequence({
+      bufferWorker,
+      archiveStore,
+      eventId,
+      cameraId: match.cameraId,
+      centerIso: targetIso,
+      halfWindowMs: sequenceHalfWindowMs,
+      manifest,
+      lat: options.lat,
+      lon: options.lon
+    });
+    if (keyframeSlot === 'start') {
+      manifest.windows_complete.start_plus_60m = seqRes.windowComplete;
+    } else if (keyframeSlot === 'end') {
+      manifest.windows_complete.end_plus_60m = seqRes.windowComplete;
     }
   } else {
-    // Mark the specific dark window complete so backfill skips only the dark transition window
-    if (keyframeSlot === 'start') {
-      manifest.windows_complete.start_plus_60m = true;
-    } else if (keyframeSlot === 'end') {
-      manifest.windows_complete.end_plus_60m = true;
-    }
-    if (manifest.sequence_frames.length === 0) {
-      manifest.sequence_skipped_reason = 'NIGHT_TELEMETRY';
+    // Ensure peak keyframe is present in sequence_frames as well
+    const hasPeakInSeq = manifest.sequence_frames.some(f => f.filename === match.filename);
+    if (!hasPeakInSeq) {
+      manifest.sequence_frames.push({
+        timestamp: match.timestamp,
+        filename: match.filename,
+        image_url: keyframeUpload.proxyUrl,
+        size_bytes: keyframeUpload.sizeBytes,
+        is_daylight: darkness.isDaylight,
+        is_night_vision: darkness.isNightVision
+      });
+      manifest.sequence_frames.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
     }
   }
 
@@ -426,12 +424,11 @@ export async function correlateEventTransition(db, eventRecord, phase, options =
   const serializedManifest = JSON.stringify(manifest);
   let snapshotId = existingAnalysis?.id || null;
 
-  // Determine aggregate fallback_mode: if any keyframe is daylight, clear NIGHT_TELEMETRY override on primary row;
-  // if current keyframe is dark and no daylight keyframe exists, set NIGHT_TELEMETRY.
-  const anyDaylightKeyframe = Object.values(manifest.keyframes)
+  // Determine aggregate fallback_mode: null if any optical image exists
+  const hasAnyKeyframeImage = Object.values(manifest.keyframes)
     .filter(Boolean)
-    .some(kf => kf.fallback_mode === null);
-  const resolvedFallbackMode = anyDaylightKeyframe ? null : darkness.fallback_mode;
+    .some(kf => Boolean(kf.image_url));
+  const resolvedFallbackMode = hasAnyKeyframeImage ? null : darkness.fallback_mode;
 
   const tx = db.transaction(() => {
     if (!snapshotId) {
@@ -648,8 +645,7 @@ export async function backfillPendingEventSequences(db, options = {}) {
         }
       }
 
-      const startIsDaylight = manifest.keyframes.start && manifest.keyframes.start.fallback_mode === null;
-      if (!manifest.windows_complete.start_plus_60m && row.start_time && startIsDaylight) {
+      if (!manifest.windows_complete.start_plus_60m && row.start_time) {
         const seqRes = await archiveWindowSequence({
           bufferWorker,
           archiveStore,
@@ -657,7 +653,9 @@ export async function backfillPendingEventSequences(db, options = {}) {
           cameraId: row.camera_id,
           centerIso: row.start_time,
           halfWindowMs: sequenceHalfWindowMs,
-          manifest
+          manifest,
+          lat: options.lat,
+          lon: options.lon
         });
         if (seqRes.uploadedCount > 0 || seqRes.windowComplete !== manifest.windows_complete.start_plus_60m) {
           manifest.windows_complete.start_plus_60m = seqRes.windowComplete;
@@ -666,8 +664,7 @@ export async function backfillPendingEventSequences(db, options = {}) {
         }
       }
 
-      const endIsDaylight = manifest.keyframes.end && manifest.keyframes.end.fallback_mode === null;
-      if (row.status === 'CLOSED' && row.end_time && !manifest.windows_complete.end_plus_60m && endIsDaylight) {
+      if (row.status === 'CLOSED' && row.end_time && !manifest.windows_complete.end_plus_60m) {
         const seqRes = await archiveWindowSequence({
           bufferWorker,
           archiveStore,
@@ -675,7 +672,9 @@ export async function backfillPendingEventSequences(db, options = {}) {
           cameraId: row.camera_id,
           centerIso: row.end_time,
           halfWindowMs: sequenceHalfWindowMs,
-          manifest
+          manifest,
+          lat: options.lat,
+          lon: options.lon
         });
         if (seqRes.uploadedCount > 0 || seqRes.windowComplete !== manifest.windows_complete.end_plus_60m) {
           manifest.windows_complete.end_plus_60m = seqRes.windowComplete;

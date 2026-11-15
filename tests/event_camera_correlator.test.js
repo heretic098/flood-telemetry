@@ -9,7 +9,7 @@
  * - Multi-camera asset fallback (`baltmoor_wall` -> `saltmoor_river`).
  * - Full 3-keyframe (`EVENT_START`, `EVENT_PEAK`, `EVENT_END`) + `±60m` sequence promotion to Tigris S3.
  * - Deferred `+60m` sequence completion via `backfillPendingEventSequences()`.
- * - Civil twilight / darkness detection (`fallback_mode = 'NIGHT_TELEMETRY'`).
+ * - Civil twilight / night-vision classification (`is_night_vision = true`, `is_daylight = false`, `fallback_mode = null`).
  * - SQLite foreign key join (`telemetry_events.camera_snapshot_id = camera_analysis.id`) in `getTelemetryEvents()`.
  */
 
@@ -377,7 +377,7 @@ test('Out-of-window rejection & multi-camera fallback: rejects frames > 20m away
   }
 });
 
-test('Darkness & Civil Twilight Detection: flags nighttime events as NIGHT_TELEMETRY and skips pitch-black sequence uploads', async () => {
+test('Night Vision Preservation: captures nighttime transitions as night vision and archives sequence frames without suppression', async () => {
   const tmpBufDir = fs.mkdtempSync(path.join(os.tmpdir(), 'test-night-buf-'));
   const tmpFallbackStore = fs.mkdtempSync(path.join(os.tmpdir(), 'test-night-store-'));
   const db = new Database(':memory:');
@@ -387,15 +387,16 @@ test('Darkness & Civil Twilight Detection: flags nighttime events as NIGHT_TELEM
     const bufferWorker = new CameraBufferWorker({ baseDir: tmpBufDir });
     const archiveStore = new TigrisArchiveStore({ fallbackDir: tmpFallbackStore });
 
-    // Seed frames around 02:00 UTC in November (deep civil night in Somerset, solar elevation ~ -55 deg)
+    // Seed frames around 02:00 UTC in November (civil night in Somerset, solar elevation ~ -55 deg)
     seedBufferedFrame(tmpBufDir, 'dunball_northern_flap', '2026-11-10T01:45:00.000Z', 10);
     seedBufferedFrame(tmpBufDir, 'dunball_northern_flap', '2026-11-10T02:02:00.000Z', 10);
     seedBufferedFrame(tmpBufDir, 'dunball_northern_flap', '2026-11-10T02:15:00.000Z', 10);
 
     const darknessCheck = evaluateFrameDarkness(makeSyntheticJpeg(10), '2026-11-10T02:02:00.000Z');
-    assert.equal(darknessCheck.isDark, true);
+    assert.equal(darknessCheck.isDark, false);
     assert.equal(darknessCheck.isDaylight, false);
-    assert.equal(darknessCheck.fallback_mode, 'NIGHT_TELEMETRY');
+    assert.equal(darknessCheck.isNightVision, true);
+    assert.equal(darknessCheck.fallback_mode, null);
 
     const info = db.prepare(`
       INSERT INTO telemetry_events (
@@ -418,11 +419,13 @@ test('Darkness & Civil Twilight Detection: flags nighttime events as NIGHT_TELEM
     }, 'EVENT_START', { bufferWorker, archiveStore });
 
     assert.equal(res.matched, true);
-    assert.equal(res.fallback_mode, 'NIGHT_TELEMETRY');
-    assert.equal(res.sequence_count, 0, 'Pitch-black night transitions must skip redundant sequence uploads');
+    assert.equal(res.fallback_mode, null);
+    assert.ok(res.sequence_count >= 1, 'Night vision transitions must archive valid sequence frames');
 
     const events = getTelemetryEvents(db, { asset_id: 'dunball_outfall' });
-    assert.equal(events[0].camera_evidence.fallback_mode, 'NIGHT_TELEMETRY');
+    assert.equal(events[0].camera_evidence.fallback_mode, null);
+    assert.equal(events[0].camera_evidence.keyframes.start.is_night_vision, true);
+    assert.ok(events[0].camera_evidence.sequence_frames.length >= 1);
   } finally {
     db.close();
     fs.rmSync(tmpBufDir, { recursive: true, force: true });
@@ -545,7 +548,7 @@ test('Mixed Night-to-Day Event & Lagged EVENT_END Recovery: night start does not
       start_time: nightStartIso
     }, 'EVENT_START', { bufferWorker, archiveStore });
     assert.equal(startRes.matched, true);
-    assert.equal(startRes.fallback_mode, 'NIGHT_TELEMETRY');
+    assert.equal(startRes.fallback_mode, null);
 
     // Now daylight EVENT_END frame and +25m frame arrive in the ring buffer
     seedBufferedFrame(tmpBufDir, 'hookbridge_crest', dayEndIso, 155);
@@ -558,8 +561,10 @@ test('Mixed Night-to-Day Event & Lagged EVENT_END Recovery: night start does not
     const events = getTelemetryEvents(db, { asset_id: 'hookbridge' });
     assert.ok(events[0].camera_evidence.keyframes.end, 'Missing EVENT_END keyframe must be recovered by backfill');
     assert.equal(events[0].camera_evidence.keyframes.end.fallback_mode, null);
-    assert.equal(events[0].camera_evidence.fallback_mode, null, 'Daylight end keyframe clears aggregate NIGHT_TELEMETRY');
-    assert.ok(events[0].camera_evidence.sequence_frames.length >= 2, 'Daylight end sequence must be archived despite night start');
+    assert.equal(events[0].camera_evidence.keyframes.start.is_night_vision, true, 'Night start keyframe preserves is_night_vision = true');
+    assert.equal(events[0].camera_evidence.keyframes.end.is_night_vision, false, 'Daylight end keyframe has is_night_vision = false');
+    assert.equal(events[0].camera_evidence.fallback_mode, null, 'Optical night-vision and daylight keyframes keep fallback_mode = null');
+    assert.ok(events[0].camera_evidence.sequence_frames.length >= 2, 'Daylight end sequence must be archived alongside night start');
   } finally {
     db.close();
     fs.rmSync(tmpBufDir, { recursive: true, force: true });

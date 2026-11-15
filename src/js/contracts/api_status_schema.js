@@ -35,6 +35,26 @@ export const FORBIDDEN_CALC_KEYS = Object.freeze([
 ]);
 
 /**
+ * Camera Evidence Keyframe Schema
+ * Supports optional daylight and night-vision classification (`is_daylight`, `is_night_vision`).
+ */
+export const cameraKeyframeSchema = object({
+  phase: optional(nullable(string())),
+  timestamp: optional(nullable(string())),
+  target_timestamp: optional(nullable(string())),
+  delta_ms: optional(nullable(number())),
+  filename: optional(nullable(string())),
+  image_url: optional(nullable(string())),
+  image_hash: optional(nullable(string())),
+  size_bytes: optional(nullable(number())),
+  is_daylight: optional(nullable(boolean())),
+  is_night_vision: optional(nullable(boolean())),
+  solar_elevation_deg: optional(nullable(number())),
+  luminance: optional(nullable(number())),
+  fallback_mode: optional(nullable(string()))
+});
+
+/**
  * Canonical Tripartite Active Event Schema [RULE-ENT-01]
  */
 export const activeEventSchema = object({
@@ -68,13 +88,17 @@ export const activeEventSchema = object({
     trigger_reason: optional(nullable(string())),
     fallback_mode: optional(nullable(string())),
     keyframes: optional(nullable(object({
-      start: optional(nullable(object({}))),
-      peak: optional(nullable(object({}))),
-      end: optional(nullable(object({})))
+      start: optional(nullable(cameraKeyframeSchema)),
+      peak: optional(nullable(cameraKeyframeSchema)),
+      end: optional(nullable(cameraKeyframeSchema))
     }))),
     sequence_frames: optional(array(object({
       timestamp: optional(nullable(string())),
-      image_url: optional(nullable(string()))
+      filename: optional(nullable(string())),
+      image_url: optional(nullable(string())),
+      size_bytes: optional(nullable(number())),
+      is_daylight: optional(nullable(boolean())),
+      is_night_vision: optional(nullable(boolean()))
     })))
   }))),
   regime_signature: optional(nullable(object({

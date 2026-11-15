@@ -47,10 +47,14 @@ test('Issue #24 Visual Evidence UI Suite', async (t) => {
     assert.equal(ctl._normalizeKeyframes(mk(U(102, 'x'), '2026-11-10T14:42:00Z')).peak, null);
   });
 
-  await t.test('3. NIGHT_TELEMETRY yields no playable frames', () => {
-    const ev = { id: 103, asset_type: 'road', asset_id: 'muchelney_access', status: 'CLOSED',
-      camera_evidence: { fallback_mode: 'NIGHT_TELEMETRY', image_url: '/x.jpg', sequence_frames: [{ timestamp: 't', image_url: '/y.jpg' }] } };
-    assert.deepEqual(ctl._getPlayableSequenceFrames(ev), []);
+  await t.test('3. Night vision sequence frames are playable; NIGHT_TELEMETRY with zero images yields empty', () => {
+    const evNight = { id: 103, asset_type: 'road', asset_id: 'muchelney_access', status: 'CLOSED',
+      camera_evidence: { fallback_mode: null, sequence_frames: [{ timestamp: '2026-11-12T06:14:59Z', image_url: '/api/events/103/frames/cam/2026-11-12T06-14-59Z.jpg', is_night_vision: true }] } };
+    assert.equal(ctl._getPlayableSequenceFrames(evNight).length, 1);
+
+    const evNoImage = { id: 104, asset_type: 'road', asset_id: 'muchelney_access', status: 'CLOSED',
+      camera_evidence: { fallback_mode: 'NIGHT_TELEMETRY', image_url: null, sequence_frames: [] } };
+    assert.deepEqual(ctl._getPlayableSequenceFrames(evNoImage), []);
   });
 
   await t.test('4. Corridor row renders Visual Evidence / Night Telemetry triggers', () => {
@@ -109,5 +113,197 @@ test('Issue #24 Visual Evidence UI Suite', async (t) => {
     const modalSrc = read('src/js/modules/camera_modal.js');
     assert.doesNotMatch(modalSrc, /Optical Ground-Truth \[RULE-/);
     assert.doesNotMatch(modalSrc, /Physical Limitations \[RULE-/);
+  });
+
+  await t.test('8. _normalizeKeyframes(ev) preserves is_night_vision: true and is_daylight: false across start, peak, and end', () => {
+    const ev = {
+      id: 301,
+      asset_type: 'spillway',
+      asset_id: 'hookbridge',
+      status: 'CLOSED',
+      start_time: '2026-11-10T01:00:00Z',
+      peak_time: '2026-11-10T03:30:00Z',
+      end_time: '2026-11-10T06:00:00Z',
+      camera_evidence: {
+        keyframes: {
+          start: { timestamp: '2026-11-10T01:02:00Z', image_url: U(301, 's'), is_daylight: false, is_night_vision: true, fallback_mode: null },
+          peak: { timestamp: '2026-11-10T03:28:00Z', image_url: U(301, 'p'), is_daylight: false, is_night_vision: true, fallback_mode: null },
+          end: { timestamp: '2026-11-10T06:03:00Z', image_url: U(301, 'e'), is_daylight: false, is_night_vision: true, fallback_mode: null }
+        }
+      }
+    };
+    const kf = ctl._normalizeKeyframes(ev);
+    for (const slot of ['start', 'peak', 'end']) {
+      assert.ok(kf[slot], `${slot} keyframe must exist`);
+      assert.equal(kf[slot].is_night_vision, true, `${slot}.is_night_vision must be preserved as true`);
+      assert.equal(kf[slot].is_daylight, false, `${slot}.is_daylight must be preserved as false`);
+    }
+
+    // Also verify single-snapshot fallback preserves is_night_vision & is_daylight
+    const singleEv = {
+      id: 302,
+      asset_type: 'road',
+      asset_id: 'cuts_road',
+      status: 'ACTIVE',
+      start_time: '2026-11-10T02:00:00Z',
+      camera_evidence: {
+        trigger_reason: 'EVENT_START',
+        fetched_at: '2026-11-10T02:01:00Z',
+        image_url: U(302, 'single'),
+        is_daylight: false,
+        is_night_vision: true,
+        fallback_mode: null
+      }
+    };
+    const singleKf = ctl._normalizeKeyframes(singleEv);
+    assert.equal(singleKf.start.is_night_vision, true);
+    assert.equal(singleKf.start.is_daylight, false);
+  });
+
+  await t.test('9. renderVisualEvidencePanel, _renderSingleKeyframeHtml, and _renderCompareModeHtml emit .badge-night-vision, Night Vision phase pills, and Dawn Fallback toggle', () => {
+    const ev = {
+      id: 303,
+      asset_type: 'spillway',
+      asset_id: 'hookbridge',
+      from_state: 'NEAR_CREST',
+      to_state: 'OVERTOPPING',
+      status: 'CLOSED',
+      peak_stage_mAOD: 7.55,
+      start_time: '2026-11-10T02:00:00Z',
+      peak_time: '2026-11-10T05:00:00Z',
+      end_time: '2026-11-10T10:00:00Z',
+      camera_evidence: {
+        camera_id: 'hookbridge_crest',
+        fallback_mode: null,
+        keyframes: {
+          start: { timestamp: '2026-11-10T02:00:00Z', image_url: U(303, 'night_start'), is_daylight: false, is_night_vision: true, delta_ms: 60000 },
+          peak: { timestamp: '2026-11-10T05:00:00Z', image_url: U(303, 'night_peak'), is_daylight: false, is_night_vision: true, delta_ms: 30000 },
+          end: { timestamp: '2026-11-10T10:00:00Z', image_url: U(303, 'day_end'), is_daylight: true, is_night_vision: false, delta_ms: 45000 }
+        },
+        sequence_frames: [
+          { timestamp: '2026-11-10T02:00:00Z', image_url: U(303, 'night_start'), is_daylight: false, is_night_vision: true },
+          { timestamp: '2026-11-10T08:15:00Z', image_url: U(303, 'dawn_seq'), is_daylight: true, is_night_vision: false },
+          { timestamp: '2026-11-10T10:00:00Z', image_url: U(303, 'day_end'), is_daylight: true, is_night_vision: false }
+        ]
+      }
+    };
+
+    const keyframes = ctl._normalizeKeyframes(ev);
+    const frames = ctl._getPlayableSequenceFrames(ev);
+
+    // Single keyframe HTML for night-vision start
+    const modalInstance = Object.assign(Object.create(CameraModalController.prototype), {
+      activeEvent: ev,
+      selectedPhase: 'start',
+      evidenceViewMode: 'keyframes',
+      sequenceIndex: 0,
+      isPlaying: false,
+      playbackSpeed: 1,
+      compareSwapped: false,
+      useDawnFallbackInCompare: false,
+      fieldGuides: {},
+      defaultSiteKey: 'hookbridge',
+      activeSiteKey: 'hookbridge'
+    });
+
+    const singleHtml = modalInstance._renderSingleKeyframeHtml(ev, keyframes);
+    assert.match(singleHtml, /badge-night-vision/);
+    assert.match(singleHtml, /🌙 NIGHT VISION/);
+
+    // Compare mode HTML with night-vision start and daylight sequence frame -> offers Dawn Fallback toggle
+    const compareHtml = modalInstance._renderCompareModeHtml(ev, frames, keyframes);
+    assert.match(compareHtml, /badge-night-vision/);
+    assert.match(compareHtml, /🌙 NIGHT VISION/);
+    assert.match(compareHtml, /id="btn-use-dawn-compare"/);
+    assert.match(compareHtml, /Compare Earliest Daylight Frame/);
+
+    // Activate Dawn Fallback toggle -> replaces night start with earliest daylight sequence frame
+    modalInstance.useDawnFallbackInCompare = true;
+    const compareDawnHtml = modalInstance._renderCompareModeHtml(ev, frames, keyframes);
+    assert.match(compareDawnHtml, /dawn_seq\.jpg/);
+    assert.doesNotMatch(compareDawnHtml, /id="btn-use-dawn-compare"/);
+
+    // Full renderVisualEvidencePanel emits "• Night Vision" phase pills and .badge-night-vision
+    const containerEl = {
+      innerHTML: '',
+      querySelectorAll: () => [],
+      querySelector: () => null
+    };
+    modalInstance.backdrop = {
+      querySelector: (sel) => (sel === '#visual-evidence-container' ? containerEl : null)
+    };
+    modalInstance.renderVisualEvidencePanel();
+    assert.match(containerEl.innerHTML, /• Night Vision/);
+    assert.match(containerEl.innerHTML, /badge-night-vision/);
+  });
+
+  await t.test('10. jumpToSequenceIndex() dynamically updates .badge-night-vision and .badge-seq-* badges in the DOM', () => {
+    const ev = {
+      id: 304,
+      asset_type: 'spillway',
+      asset_id: 'hookbridge',
+      status: 'CLOSED',
+      peak_stage_mAOD: 7.60,
+      start_time: '2026-11-10T02:00:00Z',
+      peak_time: '2026-11-10T09:00:00Z',
+      end_time: '2026-11-10T11:00:00Z',
+      camera_evidence: {
+        keyframes: {
+          start: { timestamp: '2026-11-10T02:00:00Z', image_url: U(304, 'f0_night_start'), is_daylight: false, is_night_vision: true },
+          peak: { timestamp: '2026-11-10T09:00:00Z', image_url: U(304, 'f2_day_peak'), is_daylight: true, is_night_vision: false },
+          end: { timestamp: '2026-11-10T11:00:00Z', image_url: U(304, 'f3_day_end'), is_daylight: true, is_night_vision: false }
+        },
+        sequence_frames: [
+          { timestamp: '2026-11-10T02:00:00Z', image_url: U(304, 'f0_night_start'), is_daylight: false, is_night_vision: true },
+          { timestamp: '2026-11-10T08:00:00Z', image_url: U(304, 'f1_day_step'), is_daylight: true, is_night_vision: false },
+          { timestamp: '2026-11-10T09:00:00Z', image_url: U(304, 'f2_day_peak'), is_daylight: true, is_night_vision: false },
+          { timestamp: '2026-11-10T11:00:00Z', image_url: U(304, 'f3_day_end'), is_daylight: true, is_night_vision: false }
+        ]
+      }
+    };
+
+    const imgEl = { src: '', alt: '' };
+    const counterEl = { textContent: '' };
+    const badgesEl = { innerHTML: '' };
+    const sliderEl = { value: '0' };
+
+    const modalInstance = Object.assign(Object.create(CameraModalController.prototype), {
+      activeEvent: ev,
+      sequenceIndex: 0,
+      backdrop: {
+        querySelector: (sel) => {
+          if (sel === '#evidence-sequence-img') return imgEl;
+          if (sel === '#evidence-live-counter') return counterEl;
+          if (sel === '#evidence-live-badges') return badgesEl;
+          if (sel === '#evidence-scrubber-slider') return sliderEl;
+          return null;
+        }
+      }
+    });
+
+    // Step 0: Night-vision Start frame
+    modalInstance.jumpToSequenceIndex(0);
+    assert.match(badgesEl.innerHTML, /badge-night-vision/);
+    assert.match(badgesEl.innerHTML, /badge-seq-start/);
+    assert.match(badgesEl.innerHTML, /🟢 TRANSITION START/);
+
+    // Step 1: Daylight intermediate sequence frame -> removes .badge-night-vision, switches to .badge-seq-step
+    modalInstance.jumpToSequenceIndex(1);
+    assert.doesNotMatch(badgesEl.innerHTML, /badge-night-vision/);
+    assert.match(badgesEl.innerHTML, /badge-seq-step/);
+    assert.match(badgesEl.innerHTML, /🎞️ TRANSITION SEQUENCE/);
+    assert.equal(sliderEl.value, '1');
+
+    // Step 2: Daylight Peak frame -> switches to .badge-seq-peak
+    modalInstance.jumpToSequenceIndex(2);
+    assert.doesNotMatch(badgesEl.innerHTML, /badge-night-vision/);
+    assert.match(badgesEl.innerHTML, /badge-seq-peak/);
+    assert.match(badgesEl.innerHTML, /⭐ PEAK STAGE • 7\.60m AOD/);
+
+    // Step 3: Daylight End frame -> switches to .badge-seq-end
+    modalInstance.jumpToSequenceIndex(3);
+    assert.doesNotMatch(badgesEl.innerHTML, /badge-night-vision/);
+    assert.match(badgesEl.innerHTML, /badge-seq-end/);
+    assert.match(badgesEl.innerHTML, /🔵 TRANSITION END/);
   });
 });
