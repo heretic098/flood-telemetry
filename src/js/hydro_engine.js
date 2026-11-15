@@ -1,8 +1,10 @@
 /**
  * Hydraulic & Hydrological Physics Engine
- * Implements Villemonte Submergence Weir Model, Differential Head Gate Inference,
+ * Implements Stage & Structural Clearance Evaluation, Differential Head Gate Inference,
  * and EA Seasonal Penning Regime Rules.
  */
+
+export { escapeHTML, escapeAttr, formatHeadDelta } from './modules/dom_utils.js';
 
 export function getSeasonalRegime(date = new Date()) {
   const month = date.getMonth(); // 0-indexed: 0 = Jan, 3 = Apr, 9 = Oct, 11 = Dec
@@ -1429,85 +1431,6 @@ export function sanitizeStageValue(val) {
     return null; // Out of bounds telemetry outlier
   }
   return val;
-}
-
-/**
- * @deprecated [RULE-CALC-01] Volumetric discharge speculation is strictly banned. Telemetry only provides stage (m) and datum (mAOD). Open-channel discharge cannot be substantiated without surveyed rating curves. Strictly banned from production telemetry, API responses, and event triggering. Preserved only for unit test backwards-compatibility.
- * Calculates estimated overtopping discharge flow (m³/s & Megalitres/day)
- * using the Villemonte broad-crested submerged weir formulation.
- */
-export function calculateVillemonteDischarge(h_river, h_moor, Z_crest, B = 45.0, Cd = 0.575) {
-  const cleanRiver = sanitizeStageValue(h_river);
-  const cleanMoor = sanitizeStageValue(h_moor);
-
-  if (cleanRiver === null) {
-    return { flowM3s: 0, flowMLD: 0, submergenceRatio: 0, state: "INVALID_TELEMETRY" };
-  }
-
-  const H_u = cleanRiver - Z_crest;
-  const H_d = cleanMoor !== null ? cleanMoor - Z_crest : 0;
-
-  if (H_u <= 0) {
-    return { flowM3s: 0, flowMLD: 0, submergenceRatio: 0, state: "DRY" };
-  }
-
-  const g = 9.81;
-  const submergenceRatio = H_u > 0 && H_d > 0 ? Math.min(1.0, H_d / H_u) : 0;
-  const freeFlow = (2 / 3) * Cd * B * Math.pow(H_u, 1.5) * Math.sqrt(2 * g);
-
-  let flowM3s = freeFlow;
-  if (submergenceRatio > 0 && submergenceRatio < 1.0) {
-    const submergenceFactor = Math.pow(1.0 - Math.pow(submergenceRatio, 1.5), 0.385);
-    flowM3s = freeFlow * submergenceFactor;
-  } else if (submergenceRatio >= 1.0) {
-    flowM3s = 0; // Equalized tailwater head
-  }
-
-  flowM3s = Math.round(flowM3s * 10) / 10;
-  const flowMLD = Math.round(flowM3s * 86.4);
-
-  return {
-    flowM3s,
-    flowMLD,
-    submergenceRatio,
-    state: submergenceRatio >= 0.70 ? "SUBMERGED" : "FREE_FLOW"
-  };
-}
-
-/**
- * Sanitizes HTML string inputs to prevent XSS (SEC-01).
- */
-export function escapeHTML(str) {
-  if (typeof str !== 'string') return str;
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
-}
-
-/**
- * Sanitizes HTML attribute values (SEC-01).
- */
-export function escapeAttr(str) {
-  if (typeof str !== 'string') return str;
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
-}
-
-/**
- * Formats head differential values in centimeters.
- */
-export function formatHeadDelta(deltaInMeters) {
-  if (typeof deltaInMeters !== 'number' || isNaN(deltaInMeters)) return '--';
-  const cm = Math.round(deltaInMeters * 100);
-  if (cm > 0) return `+${cm} cm`;
-  return `${cm} cm`;
 }
 
 /**
@@ -2994,7 +2917,7 @@ export function extractReadingMeta(item) {
   const dt = (typeof item === 'object' && item?.dateTime) ? item.dateTime : null;
   let ms = null;
   if (dt) {
-    const parsed = new Date(dt).getTime();
+    const parsed = typeof dt === 'number' ? dt : Date.parse(dt);
     if (!isNaN(parsed)) ms = parsed;
   }
 
@@ -3003,6 +2926,40 @@ export function extractReadingMeta(item) {
     dateTime: dt,
     ms
   };
+}
+
+function findBestWindowRef(valid, startIdx, endIdx, targetMs, win) {
+  let best = null;
+  let minDiff = Infinity;
+  for (let k = startIdx; k < endIdx; k++) {
+    const elapsedMs = targetMs - valid[k].meta.ms;
+    if (elapsedMs < win.minMs) break; // valid is sorted ascending; elapsedMs decreases monotonically
+    if (elapsedMs <= win.maxMs) {
+      const diff = Math.abs(elapsedMs - win.targetMs);
+      if (diff < minDiff) {
+        minDiff = diff;
+        best = { ref: valid[k].meta, elapsedMs };
+      }
+    }
+  }
+  return best;
+}
+
+function buildWindowRates(targetVal, best15, best1h, best3h) {
+  const { window_15m, window_1h, window_3h } = RATE_TOLERANCE_WINDOWS;
+  let delta_15m_m = null;
+  let rate_15m_m_per_hr = null;
+  if (best15 && best15.elapsedMs >= window_15m.minElapsedMs) {
+    delta_15m_m = Number((targetVal - best15.ref.value).toFixed(3));
+    rate_15m_m_per_hr = Number((delta_15m_m / (best15.elapsedMs / 3600000)).toFixed(3));
+  }
+  const rate_1h_m_per_hr = (best1h && best1h.elapsedMs >= window_1h.minElapsedMs)
+    ? Number(((targetVal - best1h.ref.value) / (best1h.elapsedMs / 3600000)).toFixed(3))
+    : null;
+  const rate_3h_m_per_hr = (best3h && best3h.elapsedMs >= window_3h.minElapsedMs)
+    ? Number(((targetVal - best3h.ref.value) / (best3h.elapsedMs / 3600000)).toFixed(3))
+    : null;
+  return { delta_15m_m, rate_15m_m_per_hr, rate_1h_m_per_hr, rate_3h_m_per_hr };
 }
 
 /**
@@ -3014,24 +2971,16 @@ export function extractReadingMeta(item) {
  * @returns {{ delta_15m_m: number|null, rate_15m_m_per_hr: number|null, rate_1h_m_per_hr: number|null, rate_3h_m_per_hr: number|null }}
  */
 export function computeStageRates(readings, targetIndex = 0) {
-  const result = {
-    delta_15m_m: null,
-    rate_15m_m_per_hr: null,
-    rate_1h_m_per_hr: null,
-    rate_3h_m_per_hr: null
-  };
-
   if (!Array.isArray(readings) || readings.length === 0 || targetIndex < 0 || targetIndex >= readings.length) {
-    return result;
+    return { delta_15m_m: null, rate_15m_m_per_hr: null, rate_1h_m_per_hr: null, rate_3h_m_per_hr: null };
   }
 
   const target = extractReadingMeta(readings[targetIndex]);
   if (!target || target.ms === null) {
-    return result;
+    return { delta_15m_m: null, rate_15m_m_per_hr: null, rate_1h_m_per_hr: null, rate_3h_m_per_hr: null };
   }
 
   const { window_15m, window_1h, window_3h } = RATE_TOLERANCE_WINDOWS;
-
   let best15 = null;
   let minDiff15 = Infinity;
   let best1h = null;
@@ -3048,7 +2997,6 @@ export function computeStageRates(readings, targetIndex = 0) {
     const elapsedMs = target.ms - ref.ms;
     if (elapsedMs <= 0) continue;
 
-    // 15-minute window
     if (elapsedMs >= window_15m.minMs && elapsedMs <= window_15m.maxMs) {
       const diff = Math.abs(elapsedMs - window_15m.targetMs);
       if (diff < minDiff15) {
@@ -3056,8 +3004,6 @@ export function computeStageRates(readings, targetIndex = 0) {
         best15 = { ref, elapsedMs };
       }
     }
-
-    // 1-hour window
     if (elapsedMs >= window_1h.minMs && elapsedMs <= window_1h.maxMs) {
       const diff = Math.abs(elapsedMs - window_1h.targetMs);
       if (diff < minDiff1h) {
@@ -3065,8 +3011,6 @@ export function computeStageRates(readings, targetIndex = 0) {
         best1h = { ref, elapsedMs };
       }
     }
-
-    // 3-hour window
     if (elapsedMs >= window_3h.minMs && elapsedMs <= window_3h.maxMs) {
       const diff = Math.abs(elapsedMs - window_3h.targetMs);
       if (diff < minDiff3h) {
@@ -3076,26 +3020,7 @@ export function computeStageRates(readings, targetIndex = 0) {
     }
   }
 
-  if (best15 && best15.elapsedMs >= window_15m.minElapsedMs) {
-    const delta = Number((target.value - best15.ref.value).toFixed(3));
-    const hours = best15.elapsedMs / 3600000;
-    result.delta_15m_m = delta;
-    result.rate_15m_m_per_hr = Number((delta / hours).toFixed(3));
-  }
-
-  if (best1h && best1h.elapsedMs >= window_1h.minElapsedMs) {
-    const delta = target.value - best1h.ref.value;
-    const hours = best1h.elapsedMs / 3600000;
-    result.rate_1h_m_per_hr = Number((delta / hours).toFixed(3));
-  }
-
-  if (best3h && best3h.elapsedMs >= window_3h.minElapsedMs) {
-    const delta = target.value - best3h.ref.value;
-    const hours = best3h.elapsedMs / 3600000;
-    result.rate_3h_m_per_hr = Number((delta / hours).toFixed(3));
-  }
-
-  return result;
+  return buildWindowRates(target.value, best15, best1h, best3h);
 }
 
 /**
@@ -3110,122 +3035,47 @@ export function computeBatchStageRates(readings) {
     return [];
   }
 
-  const items = readings.map((r, idx) => ({
-    original: r,
-    originalIndex: idx,
-    meta: extractReadingMeta(r)
-  }));
+  const len = readings.length;
+  const items = new Array(len);
+  const valid = [];
+  for (let i = 0; i < len; i++) {
+    const r = readings[i];
+    const meta = extractReadingMeta(r);
+    const entry = { original: r, originalIndex: i, meta };
+    items[i] = entry;
+    if (meta && meta.ms !== null) valid.push(entry);
+  }
 
-  // Valid items sorted ascending by timestamp
-  const valid = items.filter(it => it.meta && it.meta.ms !== null);
   valid.sort((a, b) => a.meta.ms - b.meta.ms);
 
   const { window_15m, window_1h, window_3h } = RATE_TOLERANCE_WINDOWS;
-
   let p15 = 0;
   let p1h = 0;
   let p3h = 0;
-
-  const ratesMap = new Map();
+  const emptyRates = { delta_15m_m: null, rate_15m_m_per_hr: null, rate_1h_m_per_hr: null, rate_3h_m_per_hr: null };
+  const ratesByIndex = new Array(len).fill(emptyRates);
 
   for (let i = 0; i < valid.length; i++) {
     const target = valid[i].meta;
-
     while (p15 < i && (target.ms - valid[p15].meta.ms) > window_15m.maxMs) p15++;
     while (p1h < i && (target.ms - valid[p1h].meta.ms) > window_1h.maxMs) p1h++;
     while (p3h < i && (target.ms - valid[p3h].meta.ms) > window_3h.maxMs) p3h++;
 
-    let best15 = null;
-    let minDiff15 = Infinity;
-    for (let k = p15; k < i; k++) {
-      const elapsedMs = target.ms - valid[k].meta.ms;
-      if (elapsedMs >= window_15m.minMs && elapsedMs <= window_15m.maxMs) {
-        const diff = Math.abs(elapsedMs - window_15m.targetMs);
-        if (diff < minDiff15) {
-          minDiff15 = diff;
-          best15 = { ref: valid[k].meta, elapsedMs };
-        }
-      }
-    }
-
-    let best1h = null;
-    let minDiff1h = Infinity;
-    for (let k = p1h; k < i; k++) {
-      const elapsedMs = target.ms - valid[k].meta.ms;
-      if (elapsedMs >= window_1h.minMs && elapsedMs <= window_1h.maxMs) {
-        const diff = Math.abs(elapsedMs - window_1h.targetMs);
-        if (diff < minDiff1h) {
-          minDiff1h = diff;
-          best1h = { ref: valid[k].meta, elapsedMs };
-        }
-      }
-    }
-
-    let best3h = null;
-    let minDiff3h = Infinity;
-    for (let k = p3h; k < i; k++) {
-      const elapsedMs = target.ms - valid[k].meta.ms;
-      if (elapsedMs >= window_3h.minMs && elapsedMs <= window_3h.maxMs) {
-        const diff = Math.abs(elapsedMs - window_3h.targetMs);
-        if (diff < minDiff3h) {
-          minDiff3h = diff;
-          best3h = { ref: valid[k].meta, elapsedMs };
-        }
-      }
-    }
-
-    let delta_15m_m = null;
-    let rate_15m_m_per_hr = null;
-    if (best15 && best15.elapsedMs >= window_15m.minElapsedMs) {
-      delta_15m_m = Number((target.value - best15.ref.value).toFixed(3));
-      const hours = best15.elapsedMs / 3600000;
-      rate_15m_m_per_hr = Number((delta_15m_m / hours).toFixed(3));
-    }
-
-    let rate_1h_m_per_hr = null;
-    if (best1h && best1h.elapsedMs >= window_1h.minElapsedMs) {
-      const delta = target.value - best1h.ref.value;
-      const hours = best1h.elapsedMs / 3600000;
-      rate_1h_m_per_hr = Number((delta / hours).toFixed(3));
-    }
-
-    let rate_3h_m_per_hr = null;
-    if (best3h && best3h.elapsedMs >= window_3h.minElapsedMs) {
-      const delta = target.value - best3h.ref.value;
-      const hours = best3h.elapsedMs / 3600000;
-      rate_3h_m_per_hr = Number((delta / hours).toFixed(3));
-    }
-
-    ratesMap.set(valid[i].originalIndex, {
-      delta_15m_m,
-      rate_15m_m_per_hr,
-      rate_1h_m_per_hr,
-      rate_3h_m_per_hr
-    });
+    const best15 = findBestWindowRef(valid, p15, i, target.ms, window_15m);
+    const best1h = findBestWindowRef(valid, p1h, i, target.ms, window_1h);
+    const best3h = findBestWindowRef(valid, p3h, i, target.ms, window_3h);
+    ratesByIndex[valid[i].originalIndex] = buildWindowRates(target.value, best15, best1h, best3h);
   }
 
-  return items.map((it, idx) => {
-    const rates = ratesMap.get(idx) || {
-      delta_15m_m: null,
-      rate_15m_m_per_hr: null,
-      rate_1h_m_per_hr: null,
-      rate_3h_m_per_hr: null
-    };
-
-    if (typeof it.original === 'object' && it.original !== null) {
-      return {
-        ...it.original,
-        delta_15m_m: rates.delta_15m_m,
-        rate_15m_m_per_hr: rates.rate_15m_m_per_hr,
-        rate_1h_m_per_hr: rates.rate_1h_m_per_hr,
-        rate_3h_m_per_hr: rates.rate_3h_m_per_hr
-      };
-    }
-    return {
-      value: it.original,
-      ...rates
-    };
-  });
+  const out = new Array(len);
+  for (let i = 0; i < len; i++) {
+    const orig = items[i].original;
+    const rates = ratesByIndex[i];
+    out[i] = (typeof orig === 'object' && orig !== null)
+      ? { ...orig, ...rates }
+      : { value: orig, ...rates };
+  }
+  return out;
 }
 
 /**

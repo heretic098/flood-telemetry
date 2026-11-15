@@ -11,6 +11,8 @@
  * - [UI-ACC-01] WCAG 2.1 AA & APCA contrast compliance (Lc >= 90)
  */
 
+import { escapeAttr } from './modules/dom_utils.js';
+
 export const JARGON_DEFINITIONS = {
   mAOD: {
     term: 'mAOD',
@@ -33,19 +35,6 @@ export const JARGON_DEFINITIONS = {
     definition: 'Routine seasonal water retention. In summer and autumn, gates hold water in rhynes for livestock drinking and wetland ecology, distinct from winter flood evacuation.'
   }
 };
-
-/**
- * Escapes attribute values for secure HTML injection.
- */
-function escapeAttr(str) {
-  if (str === null || str === undefined) return '';
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
-}
 
 /**
  * Generates an accessible jargon term trigger element.

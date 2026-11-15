@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import { server, db } from '../server.js';
-import { calculateVillemonteDischarge, sanitizeStageValue, PRE_OVERTOPPING_THRESHOLDS } from '../src/js/hydro_engine.js';
+import { sanitizeStageValue, PRE_OVERTOPPING_THRESHOLDS } from '../src/js/hydro_engine.js';
 import { escapeHTML, fetchWebcamImageSecure, computeImageHash, isDaylight, generateLocalFallback } from '../src/js/api/ai_vision_client.js';
 
 let testPort;
@@ -115,18 +115,6 @@ test('SEC-06: sanitizeStageValue enforces plausibility bounds (-2.0m to 100.0m A
   assert.equal(sanitizeStageValue(150.0), null); // Out of bounds
   assert.equal(sanitizeStageValue(NaN), null);
   assert.equal(sanitizeStageValue(null), null);
-});
-
-test('Hydrological Engine: calculateVillemonteDischarge computes broad-crested weir flow', () => {
-  // Free overtopping (submergence < 0.70)
-  const freeFlow = calculateVillemonteDischarge(7.60, 2.10, 7.45, 45.0, 0.575);
-  assert.ok(freeFlow.flowM3s > 0);
-  assert.equal(freeFlow.state, 'FREE_FLOW');
-
-  // Dry state (river below crest)
-  const dryFlow = calculateVillemonteDischarge(7.20, 2.10, 7.45);
-  assert.equal(dryFlow.flowM3s, 0);
-  assert.equal(dryFlow.state, 'DRY');
 });
 
 test('PRE_OVERTOPPING_THRESHOLDS exports 30cm pre-warning alert elevations', () => {

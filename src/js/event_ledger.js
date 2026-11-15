@@ -31,6 +31,7 @@ import {
   processTelemetryEvents,
   MAX_REPLAY_BATCH_SIZE
 } from './event_manager.js';
+import { formatTimeSpan } from './modules/dom_utils.js';
 
 // Re-export core definitions and lifecycle helpers
 export {
@@ -121,12 +122,9 @@ export function getTelemetryEvents(db, options = {}) {
       durationSec = Math.max(0, Math.floor((nowMs - new Date(r.start_time).getTime()) / 1000));
     }
 
-    let durationFormatted = null;
-    if (typeof durationSec === 'number') {
-      const h = Math.floor(durationSec / 3600);
-      const m = Math.floor((durationSec % 3600) / 60);
-      durationFormatted = `${h}h ${m}m`;
-    }
+    const durationFormatted = typeof durationSec === 'number'
+      ? formatTimeSpan(durationSec)
+      : null;
 
     let cameraEvidence = null;
     if (r.camera_snapshot_id) {

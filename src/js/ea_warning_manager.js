@@ -21,6 +21,7 @@ import {
 } from './hydro_engine.js';
 import { buildStationReadingsMap } from './event_manager.js';
 import { validateEAWarningsIngestPayload } from './contracts/ea_warnings_schema.js';
+import { formatTimeSpan } from './modules/dom_utils.js';
 
 export const SNAPSHOT_STATION_IDS = Object.freeze([
   '52116', // Chiselborough (Upper Parrett)
@@ -485,12 +486,9 @@ export function getEAWarnings(db, options = {}) {
       if (r.associated_roads_json) associatedRoads = JSON.parse(r.associated_roads_json);
     } catch { /* ignore */ }
 
-    let durationFormatted = '—';
-    if (r.duration_seconds && r.duration_seconds > 0) {
-      const hrs = Math.floor(r.duration_seconds / 3600);
-      const mins = Math.floor((r.duration_seconds % 3600) / 60);
-      durationFormatted = `${hrs}h ${mins}m`;
-    }
+    const durationFormatted = (r.duration_seconds && r.duration_seconds > 0)
+      ? formatTimeSpan(r.duration_seconds)
+      : '—';
 
     return {
       id: r.id,

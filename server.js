@@ -6,7 +6,6 @@ import Database from 'better-sqlite3';
 
 import {
   evaluateSpillway,
-  evaluateSowyChannel,
   evaluateHuishEpiscopi,
   evaluateMidelney,
   aggregateGlobalStatus,
@@ -15,6 +14,7 @@ import {
   HYDRO_THRESHOLDS,
   STATION_REGISTRY,
   ASSET_DEFINITIONS,
+  DEFAULT_TOPOLOGY_NODES,
   extractStationStage,
   evaluateRoadNetwork,
   computeBatchStageRates
@@ -141,8 +141,59 @@ function getFooterPartial() {
   return footer;
 }
 
+const PAGE_META_MAP = {
+  'index.html': {
+    title: 'Somerset Levels Flood &amp; Infrastructure Status',
+    description: 'Real-time river levels, emergency highway passability, spillways, pumping stations &amp; lowland moors telemetry for the Somerset Levels.',
+    ogTitle: 'Somerset Levels Flood &amp; Infrastructure Status',
+    ogDescription: 'Real-time river levels, highway passability, spillways, pumping stations &amp; lowland moors telemetry for the Somerset Levels.'
+  },
+  'roads.html': {
+    title: 'Somerset Levels Road Network &amp; Access Status | Flood Telemetry',
+    description: 'Real-time highway passability, flood gate statuses, and road clearance estimates for monitored Somerset Levels road corridors.',
+    ogTitle: 'Somerset Levels Road Network &amp; Access Status | Flood Telemetry',
+    ogDescription: 'Real-time highway passability, flood gate statuses, and road clearance estimates for monitored Somerset Levels road corridors.'
+  },
+  'topology.html': {
+    title: 'River Network Topology Map | Somerset Levels Flood Status',
+    description: 'Interactive topological schematic of the River Tone, River Parrett, and connected lowland moor basins across Somerset.',
+    ogTitle: 'River Network Topology Map | Somerset Levels Flood Status',
+    ogDescription: 'Interactive topological schematic of the River Tone, River Parrett, and connected lowland moor basins across Somerset.'
+  },
+  'methodology.html': {
+    title: 'Methodology & Telemetry Provenance | Somerset Levels Flood Status',
+    description: 'Hydrological methodology, hydraulic calculations, physical benchmarks and open data provenance for the Somerset Levels flood telemetry dashboard.',
+    ogTitle: 'Methodology &amp; Telemetry Provenance | Somerset Levels Flood Status',
+    ogDescription: 'Hydrological methodology, hydraulic calculations, physical benchmarks and open data provenance for the Somerset Levels flood telemetry dashboard.'
+  }
+};
+
+function renderHead(targetPage = 'index.html') {
+  let headTemplate = partialsCache.get('head');
+  if (!headTemplate) {
+    const headPath = path.join(PARTIALS_DIR, 'head.html');
+    if (fs.existsSync(headPath)) {
+      headTemplate = fs.readFileSync(headPath, 'utf8');
+      partialsCache.set('head', headTemplate);
+    } else {
+      return '';
+    }
+  }
+  const baseName = path.basename(targetPage);
+  const key = (baseName === '' || baseName === '/') ? 'index.html' : baseName;
+  const meta = PAGE_META_MAP[key] || PAGE_META_MAP['index.html'];
+  return headTemplate
+    .replaceAll('{{PAGE_TITLE}}', meta.title)
+    .replaceAll('{{PAGE_DESCRIPTION}}', meta.description)
+    .replaceAll('{{OG_TITLE}}', meta.ogTitle)
+    .replaceAll('{{OG_DESCRIPTION}}', meta.ogDescription);
+}
+
 function renderHtmlWithPartials(htmlContent, targetPage = 'index.html') {
   let rendered = htmlContent;
+  if (/<!--\s*INCLUDE:\s*head\s*-->/.test(rendered)) {
+    rendered = rendered.replace(/<!--\s*INCLUDE:\s*head\s*-->/g, renderHead(targetPage));
+  }
   if (/<!--\s*INCLUDE:\s*nav\s*-->/.test(rendered)) {
     rendered = rendered.replace(/<!--\s*INCLUDE:\s*nav\s*-->/g, renderNav(targetPage));
   }
@@ -830,288 +881,62 @@ const server = http.createServer(async (req, res) => {
           nodes: ["52233", "52234", "52157", "E9531", "E9094", "52163"]
         }
       ],
-      nodes: [
-        {
-          id: "52108",
-          name: "Greenham (Upper Tone)",
-          river: "River Tone",
-          catchment: "tone",
-          gauge_id: "52108",
-          node_type: "gauge",
-          stage_mAOD: greenhamStage,
-          alert_level_mAOD: 76.99,
-          status: greenhamStage >= 76.99 ? "ALERT" : "SECURE",
-          downstream_node_id: "52109",
-          has_sparkline: true
-        },
-        {
-          id: "52109",
-          name: "Bishops Hull (Mid Tone)",
-          river: "River Tone",
-          catchment: "tone",
-          gauge_id: "52109",
-          node_type: "gauge",
-          stage_mAOD: bishopsHullStage,
-          alert_level_mAOD: 17.48,
-          status: bishopsHullStage >= 17.48 ? "ALERT" : "SECURE",
-          downstream_node_id: "52111",
-          has_sparkline: true
-        },
-        {
-          id: "52111",
-          name: "Taunton Market (Urban Tone)",
-          river: "River Tone",
-          catchment: "tone",
-          gauge_id: "52111",
-          node_type: "gauge",
-          stage_mAOD: tauntonStage,
-          alert_level_mAOD: 14.24,
-          status: tauntonStage >= 14.24 ? "ALERT" : "SECURE",
-          downstream_node_id: "52162",
-          has_sparkline: true
-        },
-        {
-          id: "52162",
-          name: "Bathpool Outfall (Lower Tone)",
-          river: "River Tone",
-          catchment: "tone",
-          gauge_id: "52162",
-          node_type: "gauge",
-          stage_mAOD: bathpoolStage,
-          ground_elevation_mAOD: 7.50,
-          alert_level_mAOD: 9.50,
-          status: bathpoolStage >= 9.50 ? "ALERT" : "SECURE",
-          downstream_node_id: "52118",
-          has_sparkline: true
-        },
-        {
-          id: "52118",
-          name: "Hookbridge Spillway / Currymoor PS",
-          river: "River Tone",
-          catchment: "tone",
-          gauge_id: "52118",
-          node_type: "spillway",
-          stage_mAOD: toneStage,
-          crest_elevation_mAOD: HYDRO_THRESHOLDS.HOOKBRIDGE.CREST_MAOD,
-          alert_level_mAOD: HYDRO_THRESHOLDS.HOOKBRIDGE.ALERT_MAOD,
-          status: toneStage >= HYDRO_THRESHOLDS.HOOKBRIDGE.CREST_MAOD ? "OVERSPILLING" : (toneStage >= HYDRO_THRESHOLDS.HOOKBRIDGE.ALERT_MAOD ? "ALERT" : "SECURE"),
-          downstream_node_id: "athelney_junction",
-          diverts_to_node_id: "52127",
-          has_sparkline: true,
-          govuk_link: "https://check-for-flooding.service.gov.uk/station/3073"
-        },
-        {
-          id: "52127",
-          name: "Curry Moor Basin",
-          river: "Curry Moor Basin",
-          catchment: "tone",
-          gauge_id: "52127",
-          node_type: "polder_basin",
-          stage_mAOD: curryMoorStage,
-          ground_elevation_mAOD: HYDRO_THRESHOLDS.CURRY_MOOR.GROUND_MAOD,
-          alert_level_mAOD: HYDRO_THRESHOLDS.CURRY_MOOR.ALERT_MAOD,
-          crest_elevation_mAOD: HYDRO_THRESHOLDS.CURRY_MOOR.CREST_MAOD,
-          status: curryMoorStage >= HYDRO_THRESHOLDS.CURRY_MOOR.ALERT_MAOD ? "ALERT" : "SECURE",
-          downstream_node_id: "currymoor_ps",
-          has_sparkline: true,
-          govuk_link: "https://check-for-flooding.service.gov.uk/station/3064"
-        },
-        {
-          id: "52116",
-          name: "Chiselborough (Upper Parrett)",
-          river: "River Parrett",
-          catchment: "parrett",
-          gauge_id: "52116",
-          node_type: "gauge",
-          stage_mAOD: chiselboroughStage,
-          alert_level_mAOD: 22.50,
-          status: chiselboroughStage >= 22.50 ? "ALERT" : "SECURE",
-          downstream_node_id: "52119",
-          has_sparkline: true
-        },
-        {
-          id: "52119",
-          name: "Gaw Bridge (Mid Parrett)",
-          river: "River Parrett",
-          catchment: "parrett",
-          gauge_id: "52119",
-          node_type: "gauge",
-          stage_mAOD: gawBridgeStage,
-          alert_level_mAOD: 12.80,
-          status: gawBridgeStage >= 12.80 ? "ALERT" : "SECURE",
-          downstream_node_id: "52233",
-          has_sparkline: true
-        },
-        {
-          id: "52120",
-          name: "Huish Episcopi PS (River Yeo)",
-          river: "River Yeo",
-          catchment: "tributaries",
-          gauge_id: "52120",
-          node_type: "gauge",
-          stage_mAOD: huishStage,
-          alert_level_mAOD: 8.48,
-          status: huishStage >= 8.48 ? "ALERT" : (huishStage >= 8.20 ? "ALERT" : (huishStage >= 7.30 ? "ALERT" : "SECURE")),
-          downstream_node_id: "52233",
-          upstream_tributaries: ["52121", "52117", "52112"],
-          has_sparkline: true,
-          govuk_link: "https://check-for-flooding.service.gov.uk/station/3071"
-        },
-        {
-          id: "52153",
-          name: "Midelney (River Isle)",
-          river: "River Isle",
-          catchment: "tributaries",
-          gauge_id: "52153",
-          node_type: "gauge",
-          stage_mAOD: midelneyStage,
-          alert_level_mAOD: 8.20,
-          status: midelneyStage >= 8.20 ? "ALERT" : "SECURE",
-          downstream_node_id: "52233",
-          upstream_tributaries: ["52115", "52114"],
-          has_sparkline: true,
-          govuk_link: "https://check-for-flooding.service.gov.uk/station/3380"
-        },
-        {
-          id: "52233",
-          name: "Monk's Leaze Clyse (Upstream)",
-          river: "River Parrett",
-          catchment: "parrett",
-          gauge_id: "52233",
-          node_type: "clyse_gate",
-          stage_mAOD: monksUpStage,
-          sill_elevation_mAOD: HYDRO_THRESHOLDS.MONKS_LEAZE.SILL_MAOD,
-          alert_level_mAOD: HYDRO_THRESHOLDS.MONKS_LEAZE.UPSTREAM_ALERT_MAOD,
-          status: monksUpStage >= HYDRO_THRESHOLDS.MONKS_LEAZE.UPSTREAM_ALERT_MAOD ? "ALERT" : (isMonksDiverting ? "DIVERTING" : "CLOSED"),
-          downstream_node_id: "52158",
-          diverts_to_node_id: "52234",
-          has_sparkline: true,
-          ea_link: "https://environment.data.gov.uk/flood-monitoring/id/stations/52233.html"
-        },
-        {
-          id: "52158",
-          name: "Baltmoor Wall (Burrowbridge Confluence)",
-          river: "River Parrett",
-          catchment: "parrett",
-          gauge_id: "52158",
-          node_type: "spillway",
-          stage_mAOD: parrettStage,
-          crest_elevation_mAOD: HYDRO_THRESHOLDS.BALTMOOR.CREST_MAOD,
-          alert_level_mAOD: HYDRO_THRESHOLDS.BALTMOOR.ALERT_MAOD,
-          status: parrettStage >= HYDRO_THRESHOLDS.BALTMOOR.CREST_MAOD ? "OVERSPILLING" : (parrettStage >= HYDRO_THRESHOLDS.BALTMOOR.ALERT_MAOD ? "ALERT" : "SECURE"),
-          downstream_node_id: "52124",
-          diverts_to_node_id: "52159",
-          has_sparkline: true,
-          govuk_link: "https://check-for-flooding.service.gov.uk/station/3400"
-        },
-        {
-          id: "52159",
-          name: "Northmoor Basin",
-          river: "Northmoor Basin",
-          catchment: "parrett",
-          gauge_id: "52159",
-          node_type: "polder_basin",
-          stage_mAOD: northmoorStage,
-          ground_elevation_mAOD: HYDRO_THRESHOLDS.NORTHMOOR.GROUND_MAOD,
-          alert_level_mAOD: HYDRO_THRESHOLDS.NORTHMOOR.ALERT_MAOD,
-          crest_elevation_mAOD: HYDRO_THRESHOLDS.NORTHMOOR.CREST_MAOD,
-          status: northmoorStage >= HYDRO_THRESHOLDS.NORTHMOOR.ALERT_MAOD ? "ALERT" : "SECURE",
-          downstream_node_id: "saltmoor_ps",
-          has_sparkline: true,
-          govuk_link: "https://check-for-flooding.service.gov.uk/station/3415"
-        },
-        {
-          id: "52124",
-          name: "West Quay Bridgwater",
-          river: "River Parrett",
-          catchment: "parrett",
-          gauge_id: "52124",
-          node_type: "gauge",
-          stage_mAOD: westQuayStage,
-          alert_level_mAOD: 6.10,
-          status: westQuayStage >= 6.10 ? "ALERT" : "SECURE",
-          downstream_node_id: "52163",
-          has_sparkline: true
-        },
-        {
-          id: "52163",
-          name: "Dunball Tidal (Parrett Estuary)",
-          river: "Parrett Estuary",
-          catchment: "parrett",
-          gauge_id: "52163",
-          node_type: "tidal_outfall",
-          stage_mAOD: seaStage,
-          inland_stage_mAOD: dunballInlandStage,
-          is_tide_locked: seaStage >= dunballInlandStage,
-          alert_level_mAOD: HYDRO_THRESHOLDS.DUNBALL.ESTUARY_ALERT_MAOD,
-          status: seaStage >= HYDRO_THRESHOLDS.DUNBALL.ESTUARY_ALERT_MAOD ? "ALERT" : (seaStage >= dunballInlandStage ? "SLACK_RESTRICTED" : "SECURE"),
-          downstream_node_id: "sea_outfall",
-          has_sparkline: true,
-          govuk_link: "https://check-for-flooding.service.gov.uk/station/9129"
-        },
-        {
-          id: "52234",
-          name: "Monk's Leaze Clyse (Downstream Sowy)",
-          river: "Sowy Relief Channel",
-          catchment: "sowy_ksd",
-          gauge_id: "52234",
-          node_type: "gauge",
-          stage_mAOD: monksDownStage,
-          alert_level_mAOD: HYDRO_THRESHOLDS.MONKS_LEAZE.DOWNSTREAM_ALERT_MAOD,
-          status: monksDownStage >= HYDRO_THRESHOLDS.MONKS_LEAZE.DOWNSTREAM_ALERT_MAOD ? "ALERT" : (isMonksDiverting ? "DIVERTING" : "SECURE"),
-          downstream_node_id: "52157",
-          has_sparkline: true,
-          ea_link: "https://environment.data.gov.uk/flood-monitoring/id/stations/52234.html"
-        },
-        {
-          id: "52157",
-          name: "Beerwall Upstream (Greylake)",
-          river: "Sowy Relief Channel",
-          catchment: "sowy_ksd",
-          gauge_id: "52157",
-          node_type: "spillway",
-          stage_mAOD: beerwallStage,
-          crest_elevation_mAOD: HYDRO_THRESHOLDS.BEERWALL.CREST_MAOD,
-          alert_level_mAOD: HYDRO_THRESHOLDS.BEERWALL.ALERT_MAOD,
-          status: beerwallStage >= HYDRO_THRESHOLDS.BEERWALL.ALERT_MAOD ? "ALERT" : "SECURE",
-          downstream_node_id: "E9531",
-          has_sparkline: true
-        },
-        {
-          id: "E9531",
-          name: "Bradney (King's Sedgemoor Drain)",
-          river: "King's Sedgemoor Drain",
-          catchment: "sowy_ksd",
-          gauge_id: "E9531",
-          node_type: "gauge",
-          stage_mAOD: bradneyStage,
-          alert_level_mAOD: 3.50,
-          status: bradneyStage >= 3.50 ? "ALERT" : "SECURE",
-          downstream_node_id: "E9094",
-          has_sparkline: true,
-          ea_link: "https://environment.data.gov.uk/flood-monitoring/id/stations/E9531.html"
-        },
-        {
-          id: "E9094",
-          name: "Dunball Inland KSD Outfall",
-          river: "King's Sedgemoor Drain",
-          catchment: "sowy_ksd",
-          gauge_id: "E9094",
-          node_type: "gauge",
-          stage_mAOD: dunballInlandStage,
-          sea_stage_mAOD: seaStage,
-          is_tide_locked: seaStage >= dunballInlandStage,
-          alert_level_mAOD: HYDRO_THRESHOLDS.DUNBALL.INLAND_ALERT_MAOD,
-          status: (seaStage >= dunballInlandStage) ? "SLACK_RESTRICTED" : (dunballInlandStage >= HYDRO_THRESHOLDS.DUNBALL.INLAND_ALERT_MAOD ? "ALERT" : "SECURE"),
-          downstream_node_id: "52163",
-          has_sparkline: true,
-          govuk_link: "https://check-for-flooding.service.gov.uk/station/9499"
-        }
-      ].map(node => ({
-        ...node,
-        telemetry_source: hasLiveTelemetry(node.id) ? "live" : "cached_fallback",
-        provenance: STATION_REGISTRY[node.id]?.provenance || null
-      })),
+      nodes: (() => {
+        const stageByNodeId = {
+          '52108': greenhamStage, '52109': bishopsHullStage, '52111': tauntonStage,
+          '52162': bathpoolStage, '52118': toneStage, '52127': curryMoorStage,
+          '52116': chiselboroughStage, '52119': gawBridgeStage, '52120': huishStage,
+          '52153': midelneyStage, '52233': monksUpStage, '52158': parrettStage,
+          '52159': northmoorStage, '52124': westQuayStage, '52163': seaStage,
+          '52234': monksDownStage, '52157': beerwallStage, 'E9531': bradneyStage,
+          'E9094': dunballInlandStage
+        };
+        const nodeOverrides = {
+          '52111': { name: "Taunton Market (Urban Tone)" },
+          '52162': { name: "Bathpool Outfall (Lower Tone)" },
+          '52118': {
+            status: toneStage >= HYDRO_THRESHOLDS.HOOKBRIDGE.CREST_MAOD ? "OVERSPILLING" : (toneStage >= HYDRO_THRESHOLDS.HOOKBRIDGE.ALERT_MAOD ? "ALERT" : "SECURE"),
+            downstream_node_id: "athelney_junction"
+          },
+          '52120': { status: huishStage >= 7.30 ? "ALERT" : "SECURE" },
+          '52233': {
+            status: monksUpStage >= HYDRO_THRESHOLDS.MONKS_LEAZE.UPSTREAM_ALERT_MAOD ? "ALERT" : (isMonksDiverting ? "DIVERTING" : "CLOSED"),
+            ea_link: "https://environment.data.gov.uk/flood-monitoring/id/stations/52233.html"
+          },
+          '52158': {
+            status: parrettStage >= HYDRO_THRESHOLDS.BALTMOOR.CREST_MAOD ? "OVERSPILLING" : (parrettStage >= HYDRO_THRESHOLDS.BALTMOOR.ALERT_MAOD ? "ALERT" : "SECURE"),
+            govuk_link: "https://check-for-flooding.service.gov.uk/station/3400"
+          },
+          '52163': {
+            name: "Dunball Tidal (Parrett Estuary)",
+            inland_stage_mAOD: dunballInlandStage,
+            is_tide_locked: seaStage >= dunballInlandStage,
+            status: seaStage >= HYDRO_THRESHOLDS.DUNBALL.ESTUARY_ALERT_MAOD ? "ALERT" : (seaStage >= dunballInlandStage ? "SLACK_RESTRICTED" : "SECURE"),
+            downstream_node_id: "sea_outfall"
+          },
+          '52234': {
+            status: monksDownStage >= HYDRO_THRESHOLDS.MONKS_LEAZE.DOWNSTREAM_ALERT_MAOD ? "ALERT" : (isMonksDiverting ? "DIVERTING" : "SECURE"),
+            ea_link: "https://environment.data.gov.uk/flood-monitoring/id/stations/52234.html"
+          },
+          'E9094': {
+            sea_stage_mAOD: seaStage,
+            is_tide_locked: seaStage >= dunballInlandStage,
+            status: (seaStage >= dunballInlandStage) ? "SLACK_RESTRICTED" : (dunballInlandStage >= HYDRO_THRESHOLDS.DUNBALL.INLAND_ALERT_MAOD ? "ALERT" : "SECURE")
+          }
+        };
+        return DEFAULT_TOPOLOGY_NODES.map(baseNode => {
+          const stage = stageByNodeId[baseNode.id] ?? baseNode.stage_mAOD;
+          return {
+            ...baseNode,
+            gauge_id: baseNode.id,
+            stage_mAOD: stage,
+            status: stage >= baseNode.alert_level_mAOD ? "ALERT" : "SECURE",
+            ...(nodeOverrides[baseNode.id] || {}),
+            telemetry_source: hasLiveTelemetry(baseNode.id) ? "live" : "cached_fallback",
+            provenance: STATION_REGISTRY[baseNode.id]?.provenance || baseNode.provenance || null
+          };
+        });
+      })(),
       edges: [
         { from: "52108", to: "52109", type: "main_river", flow_active: true },
         { from: "52109", to: "52111", type: "main_river", flow_active: true },
@@ -1405,10 +1230,8 @@ const server = http.createServer(async (req, res) => {
     const baltmoorStage = extractStationStage(measures, '52158');
     const northMoorStage = extractStationStage(measures, '52159');
     const monksUpStage = extractStationStage(measures, '52233');
-    const monksDownStage = extractStationStage(measures, '52234');
     const huishStage = extractStationStage(measures, '52120');
     const midelneyStage = extractStationStage(measures, '52153');
-    const gawStage = extractStationStage(measures, '52119');
     const dunballInlandStage = extractStationStage(measures, 'E9094');
     const seaStage = extractStationStage(measures, '52163');
     const isTideLocked = seaStage >= dunballInlandStage;
@@ -1417,7 +1240,6 @@ const server = http.createServer(async (req, res) => {
     const hookbridgeOverspill = { ...evaluateSpillway(hookbridgeStage, curryMoorStage, HYDRO_THRESHOLDS.HOOKBRIDGE.CREST_MAOD), name: "Curry Moor System" };
     const athelneyOverspill = { ...evaluateSpillway(curryMoorStage, northMoorStage, 7.35), name: "Athelney Spillway & Cuts Road" };
     const baltmoorOverspill = { ...evaluateSpillway(baltmoorStage, northMoorStage, HYDRO_THRESHOLDS.BALTMOOR.CREST_MAOD), name: "Northmoor & Saltmoor" };
-    const sowyEval = evaluateSowyChannel(monksUpStage, monksDownStage, HYDRO_THRESHOLDS.MONKS_LEAZE.SILL_MAOD);
     const huishEval = evaluateHuishEpiscopi(huishStage, regime.isSummer);
     const midelneyEval = evaluateMidelney(midelneyStage, monksUpStage);
     const confluenceEval = { name: "Langport Confluence", severity: Math.min(huishEval.severity, midelneyEval.severity) };
@@ -1435,22 +1257,6 @@ const server = http.createServer(async (req, res) => {
     const eaWarningStates = getActiveEAWarningStatesMap(db);
     const roadNetwork = evaluateRoadNetwork(measures, activeEvents, { nowMs, eaWarnings: eaWarningStates });
     const eaWarningsSummary = getEAWarningsSummary(db);
-
-    const hookbridgeEvent = db.prepare("SELECT * FROM telemetry_events WHERE asset_id = 'hookbridge' AND status = 'ACTIVE'").get();
-    const baltmoorEvent = db.prepare("SELECT * FROM telemetry_events WHERE asset_id = 'baltmoor_wall' AND status = 'ACTIVE'").get();
-
-    const hookbridgeDuration = hookbridgeEvent ? Math.max(0, Math.floor((nowMs - new Date(hookbridgeEvent.start_time).getTime()) / 1000)) : 0;
-    const baltmoorDuration = baltmoorEvent ? Math.max(0, Math.floor((nowMs - new Date(baltmoorEvent.start_time).getTime()) / 1000)) : 0;
-
-    const mapStatusCode = (evalResult) => {
-      if (evalResult.code === 'OVERTOPPING' || evalResult.code === 'SUBMERGED') return 'OVERSPILLING';
-      if (evalResult.code === 'NEAR_CREST') return 'ALERT';
-      if (evalResult.code === 'SECURE') return 'SECURE';
-      if (evalResult.code === 'GRAVITY_OPEN' || evalResult.code === 'OPEN') return 'DIVERTING';
-      if (evalResult.code === 'CLOSED') return 'CLOSED';
-      if (evalResult.code === 'THROTTLED' || evalResult.code === 'SLACK_WATER') return 'SLACK_RESTRICTED';
-      return 'SECURE';
-    };
 
     const statusPayload = {
       status: "ok",
@@ -1470,72 +1276,6 @@ const server = http.createServer(async (req, res) => {
       ea_warnings: eaWarningsSummary,
       roads: roadNetwork,
       road_corridors: roadNetwork.corridors_list,
-      cards: {
-        hookbridge_spillway: {
-          id: "hookbridge_spillway",
-          name: "Hookbridge Spillway",
-          river: "River Tone → Curry Moor",
-          stage_mAOD: hookbridgeStage,
-          crest_mAOD: 7.45,
-          moor_stage_mAOD: curryMoorStage,
-          status_code: hookbridgeEvent?.to_state === 'OVERTOPPING' ? 'OVERSPILLING' : (hookbridgeEvent?.to_state === 'NEAR_CREST' ? 'ALERT' : mapStatusCode(hookbridgeOverspill)),
-          badge_label: hookbridgeOverspill.label,
-          badge_class: hookbridgeOverspill.badgeClass,
-          clearance_text: hookbridgeOverspill.clearanceText,
-          is_spilling: hookbridgeEvent?.to_state === 'OVERTOPPING' || hookbridgeOverspill.code === 'OVERTOPPING',
-          spill_duration_seconds: hookbridgeDuration,
-          spill_duration_formatted: `${Math.floor(hookbridgeDuration / 3600)}h ${Math.floor((hookbridgeDuration % 3600) / 60)}m`,
-          narrative: hookbridgeEvent?.narrative || hookbridgeOverspill.narrative
-        },
-        baltmoor_wall: {
-          id: "baltmoor_wall",
-          name: "Baltmoor Wall Spillway",
-          river: "River Parrett → Northmoor",
-          stage_mAOD: baltmoorStage,
-          crest_mAOD: 7.80,
-          moor_stage_mAOD: northMoorStage,
-          status_code: baltmoorEvent?.to_state === 'OVERTOPPING' ? 'OVERSPILLING' : (baltmoorEvent?.to_state === 'NEAR_CREST' ? 'ALERT' : mapStatusCode(baltmoorOverspill)),
-          badge_label: baltmoorOverspill.label,
-          badge_class: baltmoorOverspill.badgeClass,
-          clearance_text: baltmoorOverspill.clearanceText,
-          is_spilling: baltmoorEvent?.to_state === 'OVERTOPPING' || baltmoorOverspill.code === 'OVERTOPPING',
-          spill_duration_seconds: baltmoorDuration,
-          spill_duration_formatted: `${Math.floor(baltmoorDuration / 3600)}h ${Math.floor((baltmoorDuration % 3600) / 60)}m`,
-          narrative: baltmoorEvent?.narrative || baltmoorOverspill.narrative
-        },
-        monks_leaze_clyse: {
-          id: "monks_leaze_clyse",
-          name: "Monk's Leaze Clyse",
-          river: "River Parrett → Sowy Relief Channel",
-          upstream_mAOD: monksUpStage,
-          downstream_mAOD: monksDownStage,
-          sill_mAOD: 4.20,
-          delta_h_m: Math.round((monksUpStage - monksDownStage) * 100) / 100,
-          status_code: mapStatusCode(sowyEval),
-          badge_label: sowyEval.label,
-          badge_class: sowyEval.badgeClass,
-          tributary_inflows: {
-            yeo_mAOD: huishStage,
-            isle_mAOD: midelneyStage,
-            parrett_mAOD: gawStage
-          },
-          narrative: sowyEval.narrative
-        },
-        langport_confluence: {
-          id: "langport_confluence",
-          name: "Langport Confluence & Tributaries",
-          river: "River Yeo & River Isle → Parrett Confluence",
-          yeo_stage_mAOD: huishStage,
-          isle_stage_mAOD: midelneyStage,
-          status_code: huishEval.code === 'ALERT' || midelneyEval.code === 'ALERT' ? 'ALERT' : (huishEval.code === 'CUT_OFF' ? 'SLACK_RESTRICTED' : 'SECURE'),
-          badge_label: huishEval.label,
-          badge_class: huishEval.badgeClass,
-          clearance_text: huishEval.clearanceText,
-          huish_episcopi: huishEval,
-          midelney: midelneyEval,
-          narrative: `${huishEval.narrative} ${midelneyEval.narrative}`
-        }
-      },
       measures_summary: stored.measures_summary,
       measures: stored.measures
     };

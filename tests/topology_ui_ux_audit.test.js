@@ -7,6 +7,7 @@ import { JARGON_DEFINITIONS, renderJargonTerm } from '../src/js/jargon_popover.j
 // Load source files for automated static and heuristic analysis
 const topologyJsPath = path.resolve('src/js/topology.js');
 const appJsPath = path.resolve('src/js/app.js');
+const sparklineJsPath = path.resolve('src/js/sparkline.js');
 const stylesCssPath = path.resolve('src/css/styles.css');
 const topologyHtmlPath = path.resolve('src/topology.html');
 const indexHtmlPath = path.resolve('src/index.html');
@@ -15,6 +16,7 @@ const jargonPopoverJsPath = path.resolve('src/js/jargon_popover.js');
 
 const topologyJs = fs.readFileSync(topologyJsPath, 'utf8');
 const appJs = fs.readFileSync(appJsPath, 'utf8');
+const sparklineJs = fs.readFileSync(sparklineJsPath, 'utf8');
 const stylesCss = fs.readFileSync(stylesCssPath, 'utf8');
 const topologyHtml = fs.readFileSync(topologyHtmlPath, 'utf8');
 const indexHtml = fs.readFileSync(indexHtmlPath, 'utf8');
@@ -116,13 +118,20 @@ test('UI/UX Audit 1.4: Main dashboard dual sparkline and card use #0284c7 for se
   // Dunball Tidal Parrett in app.js must use #0284c7
   assert.ok(appJs.includes('color: "#0284c7"'), 'Dunball Tidal Parrett gauge config in app.js must use #0284c7');
   
-  // Dual sparkline Sea Tide stream in app.js must not use warning orange #fb923c
-  const startIdx = appJs.indexOf('function renderDualSparkline');
+  // Dual sparkline Sea Tide stream in app.js and sparkline.js must not use warning orange #fb923c
+  const startIdx = appJs.indexOf('export function renderDualSparkline');
   const endIdx = appJs.indexOf('export function bindSparklineEvents');
   assert.ok(startIdx !== -1 && endIdx !== -1, 'renderDualSparkline must exist in app.js');
   const funcBody = appJs.slice(startIdx, endIdx);
   assert.ok(!funcBody.includes('#fb923c'), 'renderDualSparkline must not use warning orange #fb923c for sea tide');
   assert.ok(funcBody.includes('#0284c7'), 'renderDualSparkline must use Estuarine Deep Blue #0284c7 for sea tide');
+
+  const coreStartIdx = sparklineJs.indexOf('export function renderDualSparkline');
+  const coreEndIdx = sparklineJs.indexOf('export function renderInspectorSparkline');
+  assert.ok(coreStartIdx !== -1 && coreEndIdx !== -1, 'renderDualSparkline must exist in sparkline.js');
+  const coreBody = sparklineJs.slice(coreStartIdx, coreEndIdx);
+  assert.ok(!coreBody.includes('#fb923c'), 'Canonical sparkline.js renderDualSparkline must not use warning orange #fb923c');
+  assert.ok(coreBody.includes('#0284c7'), 'Canonical sparkline.js renderDualSparkline must enforce #0284c7');
 });
 
 // ---------------------------------------------------------------------------
@@ -130,19 +139,16 @@ test('UI/UX Audit 1.4: Main dashboard dual sparkline and card use #0284c7 for se
 // ---------------------------------------------------------------------------
 
 test('UI/UX Audit 2.1: Spatial Monotonicity in Data-Viz: Two separated lines NEVER display the identical number', () => {
-  // Test sparkline flat stage condition in topology.js and app.js
-  const flatLineLogicTopology = topologyJs.includes('const isFlatStage = rawRange < 0.01 || topLabel === botLabel;');
-  assert.ok(flatLineLogicTopology, 'topology.js must collapse dual lines when formatted labels match or range < 0.01m');
-
-  const flatLineLogicApp = appJs.includes('const isFlatStage = rawRange < 0.01 || topLabel === botLabel;');
-  assert.ok(flatLineLogicApp, 'app.js must collapse dual lines when formatted labels match or range < 0.01m');
+  // Verify canonical flat-stage threshold collapse in sparkline.js (SSOT for dashboard & topology)
+  const flatLineLogic = sparklineJs.includes('const isFlatStage = rawRange < 0.01 || topLabel === botLabel;');
+  assert.ok(flatLineLogic, 'sparkline.js must collapse dual lines when formatted labels match or range < 0.01m');
 });
 
 test('UI/UX Audit 2.2: Flat-line hydrographs render single central reference line with Steady badge', () => {
-  // Verify that steady badge and single center guide are rendered when isFlatStage is true
-  assert.ok(topologyJs.includes('Steady ${rawMax.toFixed(2)}m'), 'topology.js sparkline must render Steady X.XXm badge');
-  assert.ok(topologyJs.includes('deltaText = isFlatStage ? \'0cm (Steady)\''), 'topology.js sparkline must display 0cm (Steady) in header pill');
-  assert.ok(topologyJs.includes('const centerY = marginTop + drawHeight / 2;'), 'topology.js must calculate exact vertical center for flat reference line');
+  // Verify that steady badge and single center guide are rendered in canonical sparkline.js when isFlatStage is true
+  assert.ok(sparklineJs.includes('Steady ${bounds.rawMax.toFixed(2)}m'), 'sparkline.js must render Steady X.XXm badge');
+  assert.ok(sparklineJs.includes('deltaText = isFlatStage ? \'0cm (Steady)\''), 'sparkline.js must display 0cm (Steady) in header pill');
+  assert.ok(sparklineJs.includes('const centerY = dimensions.marginTop + dimensions.drawHeight / 2;'), 'sparkline.js must calculate exact vertical center for flat reference line');
 });
 
 test('UI/UX Audit 2.3: Hero metric & clearance badge consistency (Spills vs Gauges)', () => {
@@ -168,17 +174,17 @@ test('UI/UX Audit 2.4: Sparkline crest thresholds are strictly scoped to spillwa
     'crestForSparkline must be null for non-spillway nodes'
   );
 
-  // Dynamic crest threshold colors in renderInspectorSparkline
+  // Dynamic crest threshold colors in canonical sparkline.js evaluateCrestVisuals / renderInspectorSparkline
   assert.ok(
-    topologyJs.includes("crestStroke = '#64748b'"),
+    sparklineJs.includes("let crestStroke = '#64748b'"),
     'Dormant crest line must use neutral muted slate #64748b when river is safe'
   );
   assert.ok(
-    topologyJs.includes("crestStroke = '#f59e0b'"),
+    sparklineJs.includes("crestStroke = '#f59e0b'"),
     'Near-crest line must transition to amber alert #f59e0b within 30cm'
   );
   assert.ok(
-    topologyJs.includes("crestStroke = '#ef4444'"),
+    sparklineJs.includes("crestStroke = '#ef4444'"),
     'Emergency overtopping line turns red #ef4444 only when river level >= crest'
   );
 });
@@ -291,20 +297,20 @@ test('UI/UX Audit 3.4: Screen-reader accessible names on all SVG interactive gro
 });
 
 test('UI/UX Audit 3.5: Topology inspector sparkline provides interactive timestamp scrubbing & crosshairs', () => {
-  // Sparkline must output interactive wrapper, tooltip, and overlay
-  assert.ok(topologyJs.includes('class="sparkline-wrapper"'), 'Inspector sparkline must wrap in .sparkline-wrapper');
-  assert.ok(topologyJs.includes('class="sparkline-crosshair"'), 'Inspector sparkline must render interactive crosshair line');
-  assert.ok(topologyJs.includes('class="sparkline-dot-highlight"'), 'Inspector sparkline must render active dot highlight');
-  assert.ok(topologyJs.includes('class="sparkline-touch-overlay"'), 'Inspector sparkline must render transparent hit overlay for touch/mouse');
-  assert.ok(topologyJs.includes('class="sparkline-tooltip"'), 'Inspector sparkline must render floating tooltip for timestamps and readings');
+  // Sparkline must output interactive wrapper, tooltip, and overlay in canonical sparkline.js
+  assert.ok(sparklineJs.includes('class="sparkline-wrapper"'), 'Inspector sparkline must wrap in .sparkline-wrapper');
+  assert.ok(sparklineJs.includes('class="sparkline-crosshair"'), 'Inspector sparkline must render interactive crosshair line');
+  assert.ok(sparklineJs.includes('class="sparkline-dot-highlight"'), 'Inspector sparkline must render active dot highlight');
+  assert.ok(sparklineJs.includes('class="sparkline-touch-overlay"'), 'Inspector sparkline must render transparent hit overlay for touch/mouse');
+  assert.ok(sparklineJs.includes('class="sparkline-tooltip"'), 'Inspector sparkline must render floating tooltip for timestamps and readings');
 
   // Data attributes must encode full 24h timeline
-  assert.ok(topologyJs.includes("data-timestamps='${JSON.stringify(timestamps)}'"), 'Inspector sparkline must serialize data-timestamps');
-  assert.ok(topologyJs.includes("data-points='${JSON.stringify(values)}'"), 'Inspector sparkline must serialize data-points');
+  assert.ok(sparklineJs.includes("data-timestamps='${JSON.stringify(timestamps)}'"), 'Inspector sparkline must serialize data-timestamps');
+  assert.ok(sparklineJs.includes("data-points='${JSON.stringify(values)}'"), 'Inspector sparkline must serialize data-points');
 
   // Event binding and keyboard navigation
-  assert.ok(topologyJs.includes('bindInspectorSparklineEvents(sparklineBox);'), 'selectNode must invoke bindInspectorSparklineEvents');
-  assert.ok(topologyJs.includes("'ArrowLeft'") && topologyJs.includes("'ArrowRight'"), 'Inspector sparkline must support Arrow key scrubbing');
+  assert.ok(topologyJs.includes('bindInspectorSparklineEvents(sparklineBox'), 'inspectNode must invoke bindInspectorSparklineEvents');
+  assert.ok(sparklineJs.includes("'ArrowLeft'") && sparklineJs.includes("'ArrowRight'"), 'Inspector sparkline must support Arrow key scrubbing');
 
   // CSS positioning rules
   assert.ok(stylesCss.includes('.inspector-sparkline-box .sparkline-wrapper'), 'styles.css must style inspector sparkline wrapper');
