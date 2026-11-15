@@ -527,5 +527,35 @@
         "downstream_node_id": "52163"
       }
     }
+  ],
+  "flanking_polders": [
+    {
+      "id": "wet_moor",
+      "name": "Wet Moor Polder Basin (Huish Episcopi & Midelney)",
+      "choke_point_nodes": ["52120", "52153", "52233"],
+      "pumping_stations": ["huish_episcopi_ps", "midelney_ps"],
+      "primary_station": "52120"
+    },
+    {
+      "id": "stanmoor",
+      "name": "Stanmoor Polder Basin",
+      "choke_point_nodes": ["52118", "52127", "52158"],
+      "pumping_stations": ["stanmoor_ps"],
+      "primary_station": "52127"
+    },
+    {
+      "id": "west_sedgemoor",
+      "name": "West Sedgemoor Polder Basin (SSSI Wet Grassland)",
+      "choke_point_nodes": ["52127", "52233", "52158"],
+      "pumping_stations": ["west_sedgemoor_ps"],
+      "primary_station": "52233"
+    },
+    {
+      "id": "westonzoyland",
+      "name": "Westonzoyland Polder Basin (Engine Rhyne)",
+      "choke_point_nodes": ["52159", "52157"],
+      "pumping_stations": ["westonzoyland_ps"],
+      "primary_station": "52159"
+    }
   ]
 }

@@ -3,6 +3,9 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { JARGON_DEFINITIONS, renderJargonTerm } from '../src/js/jargon_popover.js';
+import { DEFAULT_TOPOLOGY_EDGES, TOPOLOGY_NETWORK_CONFIG } from '../src/js/hydro_engine.js';
+import { resolveCandidateCamerasForAsset } from '../src/js/event_camera_correlator.js';
+import { CAMERA_CATALOG } from '../src/js/api/camera_buffer.js';
 
 // Load source files for automated static and heuristic analysis
 const topologyJsPath = path.resolve('src/js/topology.js');
@@ -325,14 +328,18 @@ test('UI/UX Audit 4.1: Hydraulic flow connectivity: River Tone flows continuousl
   const topologyConfig = JSON.parse(fs.readFileSync(path.resolve('src/js/config/topology_network.json'), 'utf8'));
   const confluenceEdge = topologyConfig.edges.find(e => e.from === '52118' && e.to === '52158');
 
-  // Both topology_network.json and topology.js must define the main river confluence edge from Hookbridge to Baltmoor Wall
+  // Both topology_network.json and hydro_engine.js DEFAULT_TOPOLOGY_EDGES must define the main river confluence edge from Hookbridge to Baltmoor Wall
   assert.ok(
     confluenceEdge && confluenceEdge.type === 'main_river',
     'topology_network.json must define main_river edge from Hookbridge (52118) to Baltmoor Wall (52158)'
   );
   assert.ok(
-    topologyJs.includes('from: "52118", to: "52158", type: "main_river"'),
-    'topology.js must define main_river edge from Hookbridge (52118) to Baltmoor Wall (52158)'
+    DEFAULT_TOPOLOGY_EDGES.some(e => e.from === '52118' && e.to === '52158' && e.type === 'main_river'),
+    'DEFAULT_TOPOLOGY_EDGES must define main_river edge from Hookbridge (52118) to Baltmoor Wall (52158)'
+  );
+  assert.ok(
+    topologyJs.includes('DEFAULT_TOPOLOGY_EDGES'),
+    'topology.js must import and use DEFAULT_TOPOLOGY_EDGES from hydro_engine.js'
   );
 });
 
@@ -852,6 +859,47 @@ test('UI/UX Audit 2.6: methodology.html enforces [RULE-CALC-01] with zero volume
     !methodologyHtml.includes('[RULE-'),
     'methodology.html must not expose internal rule IDs to readers'
   );
+});
+
+test('UI/UX Audit 6.6 (Issue #52): Southern & Flanking Polder Basin Topology Integration & Camera Correlations', () => {
+  const topologyConfig = JSON.parse(fs.readFileSync(path.resolve('src/js/config/topology_network.json'), 'utf8'));
+
+  // 1. Both topology_network.json and TOPOLOGY_NETWORK_CONFIG define flanking polder basins
+  assert.ok(Array.isArray(topologyConfig.flanking_polders), 'topology_network.json must define flanking_polders array');
+  assert.ok(Array.isArray(TOPOLOGY_NETWORK_CONFIG.flanking_polders), 'TOPOLOGY_NETWORK_CONFIG must define flanking_polders array');
+  assert.deepEqual(
+    topologyConfig.flanking_polders,
+    TOPOLOGY_NETWORK_CONFIG.flanking_polders,
+    'flanking_polders must maintain 100% SSOT parity between JSON and JS engine'
+  );
+
+  const expectedPolders = ['wet_moor', 'stanmoor', 'west_sedgemoor', 'westonzoyland'];
+  for (const pId of expectedPolders) {
+    const pEntry = topologyConfig.flanking_polders.find(p => p.id === pId);
+    assert.ok(pEntry, `flanking_polders must define ${pId}`);
+    assert.ok(Array.isArray(pEntry.choke_point_nodes) && pEntry.choke_point_nodes.length > 0);
+    assert.ok(Array.isArray(pEntry.pumping_stations) && pEntry.pumping_stations.length > 0);
+  }
+
+  // 2. Camera correlations for each polder asset
+  const catalogIds = new Set(CAMERA_CATALOG.map(c => c.id));
+
+  const wetMoorCams = resolveCandidateCamerasForAsset('wet_moor');
+  assert.ok(wetMoorCams.includes('huish_episcopi_ps'), 'wet_moor must resolve huish_episcopi_ps camera');
+  assert.ok(wetMoorCams.includes('midelney_ps'), 'wet_moor must resolve midelney_ps camera');
+  assert.ok(catalogIds.has('huish_episcopi_ps') && catalogIds.has('midelney_ps'));
+
+  const stanmoorCams = resolveCandidateCamerasForAsset('stanmoor');
+  assert.ok(stanmoorCams.includes('stanmoor_ps'), 'stanmoor must resolve stanmoor_ps camera');
+  assert.ok(catalogIds.has('stanmoor_ps'));
+
+  const westSedgeCams = resolveCandidateCamerasForAsset('west_sedgemoor');
+  assert.ok(westSedgeCams.includes('west_sedgemoor_ps'), 'west_sedgemoor must resolve west_sedgemoor_ps camera');
+  assert.ok(catalogIds.has('west_sedgemoor_ps'));
+
+  const westonCams = resolveCandidateCamerasForAsset('westonzoyland');
+  assert.ok(westonCams.includes('westonzoyland_ps'), 'westonzoyland must resolve westonzoyland_ps camera');
+  assert.ok(catalogIds.has('westonzoyland_ps'));
 });
 
 

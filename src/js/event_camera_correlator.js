@@ -75,7 +75,13 @@ export const ASSET_CAMERA_MAP = Object.freeze({
   muchelney_access: Object.freeze(['huish_episcopi_ps', 'midelney_ps']),
   bicknells_bridge_access: Object.freeze(['huish_episcopi_ps', 'midelney_ps']),
   '52120': Object.freeze(['huish_episcopi_ps', 'midelney_ps']),
-  '52153': Object.freeze(['midelney_ps', 'huish_episcopi_ps'])
+  '52153': Object.freeze(['midelney_ps', 'huish_episcopi_ps']),
+
+  // Southern & Flanking Polder Basins (Issue #52)
+  wet_moor: Object.freeze(['huish_episcopi_ps', 'midelney_ps']),
+  stanmoor: Object.freeze(['stanmoor_ps', 'currymoor_ps']),
+  west_sedgemoor: Object.freeze(['west_sedgemoor_ps']),
+  westonzoyland: Object.freeze(['westonzoyland_ps'])
 });
 
 const CAMERA_BY_ID = new Map(CAMERA_CATALOG.map(c => [c.id, c]));

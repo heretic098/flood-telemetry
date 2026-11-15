@@ -665,5 +665,167 @@ test('HYDRO-20: Declarative topology_network.json maintains 100% SSOT parity and
   assert.equal(tideEval.edges.find(e => e.from === '52120' && e.to === '52233').flow_active, false);
 });
 
+test('HYDRO-26: Southern & Flanking Polders First-Class Basin Modeling & Seasonal Monotonic Order (Issue #52)', async () => {
+  const {
+    STATION_REGISTRY,
+    ASSET_DEFINITIONS,
+    CANONICAL_PUMP_THRESHOLDS,
+    HYDRO_THRESHOLDS,
+    evaluateAssetTransition,
+    evaluateAllAssets
+  } = await import('../src/js/hydro_engine.js');
+
+  // 0. Every asset's primary_station and secondary_station MUST exist in STATION_REGISTRY [RULE-SSOT-01]
+  for (const [assetKey, asset] of Object.entries(ASSET_DEFINITIONS)) {
+    if (asset.primary_station) {
+      assert.ok(
+        STATION_REGISTRY[asset.primary_station],
+        `ASSET_DEFINITIONS.${assetKey}.primary_station '${asset.primary_station}' must exist in STATION_REGISTRY`
+      );
+    }
+    if (asset.secondary_station) {
+      assert.ok(
+        STATION_REGISTRY[asset.secondary_station],
+        `ASSET_DEFINITIONS.${assetKey}.secondary_station '${asset.secondary_station}' must exist in STATION_REGISTRY`
+      );
+    }
+  }
+
+  // 0b. At calm fallback_stage_mAOD across all stations, ALL 6 polders MUST evaluate strictly to STANDBY (Tier 1) [RULE-PUMP-01]
+  const fallbackReadingsMap = {};
+  for (const [stationId, station] of Object.entries(STATION_REGISTRY)) {
+    fallbackReadingsMap[stationId] = [{ value: station.fallback_stage_mAOD, dateTime: '2026-11-15T12:00:00Z' }];
+  }
+  const allPolderKeys = ['curry_moor', 'northmoor', 'wet_moor', 'west_sedgemoor', 'stanmoor', 'westonzoyland'];
+  for (const isSummer of [false, true]) {
+    const evaluated = evaluateAllAssets(fallbackReadingsMap, { isSummer });
+    for (const pKey of allPolderKeys) {
+      assert.ok(evaluated[pKey], `evaluateAllAssets must return evaluation for ${pKey}`);
+      assert.equal(
+        evaluated[pKey].status,
+        'STANDBY',
+        `Polder '${pKey}' must evaluate to STANDBY at calm fallback stage in ${isSummer ? 'summer' : 'winter'} (got ${evaluated[pKey].status})`
+      );
+      assert.equal(
+        evaluated[pKey].severity_tier,
+        1,
+        `Polder '${pKey}' must have severity_tier === 1 at calm fallback stage in ${isSummer ? 'summer' : 'winter'}`
+      );
+    }
+  }
+
+  const polderKeys = ['wet_moor', 'west_sedgemoor', 'stanmoor', 'westonzoyland'];
+
+  // 1. First-class polder asset verification [RULE-ENT-01]
+  for (const key of polderKeys) {
+    const polder = ASSET_DEFINITIONS[key];
+    assert.ok(polder, `ASSET_DEFINITIONS must define ${key}`);
+    assert.equal(polder.asset_type, 'polder', `${key} must have asset_type: 'polder' [RULE-ENT-01]`);
+    assert.equal(polder.asset_id, key, `${key} must have matching asset_id`);
+    assert.equal(typeof polder.name, 'string');
+    assert.equal(typeof polder.floor_elevation_mAOD, 'number');
+    assert.equal(typeof polder.lead_pump_winter_mAOD, 'number');
+    assert.equal(typeof polder.lead_pump_summer_mAOD, 'number');
+    assert.equal(typeof polder.duty_pump_winter_mAOD, 'number');
+    assert.equal(typeof polder.duty_pump_summer_mAOD, 'number');
+    assert.equal(typeof polder.mobile_ordered_mAOD, 'number');
+    assert.equal(typeof polder.mobile_active_mAOD, 'number');
+    assert.equal(typeof polder.critical_mAOD, 'number');
+    assert.equal(typeof polder.deadband_pump, 'number');
+
+    // Seasonal monotonic progression
+    assert.ok(
+      polder.floor_elevation_mAOD < polder.lead_pump_winter_mAOD,
+      `${key}: floor < winter lead pump trigger`
+    );
+    assert.ok(
+      polder.lead_pump_winter_mAOD <= polder.duty_pump_winter_mAOD,
+      `${key}: winter lead <= winter duty trigger`
+    );
+    assert.ok(
+      polder.lead_pump_summer_mAOD <= polder.duty_pump_summer_mAOD,
+      `${key}: summer lead <= summer duty trigger`
+    );
+    assert.ok(
+      polder.lead_pump_winter_mAOD <= polder.lead_pump_summer_mAOD,
+      `${key}: winter lead <= summer lead (penning storage)`
+    );
+    assert.ok(
+      polder.duty_pump_winter_mAOD <= polder.duty_pump_summer_mAOD,
+      `${key}: winter duty <= summer duty`
+    );
+    assert.ok(
+      polder.duty_pump_summer_mAOD < polder.mobile_ordered_mAOD,
+      `${key}: summer duty < mobile ordered trigger`
+    );
+    assert.ok(
+      polder.mobile_ordered_mAOD <= polder.mobile_active_mAOD,
+      `${key}: mobile ordered <= mobile active trigger`
+    );
+    assert.ok(
+      polder.mobile_active_mAOD <= polder.critical_mAOD,
+      `${key}: mobile active <= critical storage trigger`
+    );
+  }
+
+  // 2. Wet Moor seasonal pump inference
+  const wm = ASSET_DEFINITIONS.wet_moor;
+  const wmReadings = [{ value: 6.80, dateTime: '2026-11-15T12:00:00Z' }];
+  const wmWinter = evaluateAssetTransition(wm, null, wmReadings, { isSummer: false });
+  assert.equal(wmWinter.to_state, 'DUTY_PUMPING', 'Wet Moor 6.80m is DUTY_PUMPING in winter (>= 6.75m)');
+  const wmSummer = evaluateAssetTransition(wm, null, wmReadings, { isSummer: true });
+  assert.equal(wmSummer.to_state, 'STANDBY', 'Wet Moor 6.80m is STANDBY under summer penning (< 6.90m)');
+
+  // 3. West Sedgemoor seasonal pump inference
+  const ws = ASSET_DEFINITIONS.west_sedgemoor;
+  const wsReadings = [{ value: 7.05, dateTime: '2026-11-15T12:00:00Z' }];
+  const wsWinter = evaluateAssetTransition(ws, null, wsReadings, { isSummer: false });
+  assert.equal(wsWinter.to_state, 'DUTY_PUMPING', 'West Sedgemoor 7.05m is DUTY_PUMPING in winter (>= 7.00m)');
+  const wsSummer = evaluateAssetTransition(ws, null, wsReadings, { isSummer: true });
+  assert.equal(wsSummer.to_state, 'STANDBY', 'West Sedgemoor 7.05m is STANDBY under summer penning (< 7.10m)');
+
+  // 4. Stanmoor seasonal pump inference
+  const sm = ASSET_DEFINITIONS.stanmoor;
+  const smReadings = [{ value: 4.60, dateTime: '2026-11-15T12:00:00Z' }];
+  const smWinter = evaluateAssetTransition(sm, null, smReadings, { isSummer: false });
+  assert.equal(smWinter.to_state, 'DUTY_PUMPING', 'Stanmoor 4.60m is DUTY_PUMPING in winter (>= 4.55m)');
+  const smSummer = evaluateAssetTransition(sm, null, smReadings, { isSummer: true });
+  assert.equal(smSummer.to_state, 'STANDBY', 'Stanmoor 4.60m is STANDBY under summer penning (< 4.90m)');
+
+  // 5. Westonzoyland seasonal pump inference
+  const wz = ASSET_DEFINITIONS.westonzoyland;
+  const wzReadings = [{ value: 3.80, dateTime: '2026-11-15T12:00:00Z' }];
+  const wzWinter = evaluateAssetTransition(wz, null, wzReadings, { isSummer: false });
+  assert.equal(wzWinter.to_state, 'DUTY_PUMPING', 'Westonzoyland 3.80m is DUTY_PUMPING in winter (>= 3.75m)');
+  const wzSummer = evaluateAssetTransition(wz, null, wzReadings, { isSummer: true });
+  assert.equal(wzSummer.to_state, 'STANDBY', 'Westonzoyland 3.80m is STANDBY under summer penning (< 4.25m)');
+
+  // 6. Parity with CANONICAL_PUMP_THRESHOLDS and HYDRO_THRESHOLDS
+  assert.equal(wm.lead_pump_winter_mAOD, CANONICAL_PUMP_THRESHOLDS.huish_episcopi_ps.winter.lead);
+  assert.equal(wm.duty_pump_winter_mAOD, CANONICAL_PUMP_THRESHOLDS.huish_episcopi_ps.winter.duty);
+  assert.equal(wm.lead_pump_summer_mAOD, CANONICAL_PUMP_THRESHOLDS.huish_episcopi_ps.summer.lead);
+  assert.equal(wm.duty_pump_summer_mAOD, CANONICAL_PUMP_THRESHOLDS.huish_episcopi_ps.summer.duty);
+
+  assert.equal(sm.lead_pump_winter_mAOD, CANONICAL_PUMP_THRESHOLDS.stanmoor_ps.winter.lead);
+  assert.equal(sm.duty_pump_winter_mAOD, CANONICAL_PUMP_THRESHOLDS.stanmoor_ps.winter.duty);
+  assert.equal(sm.lead_pump_summer_mAOD, CANONICAL_PUMP_THRESHOLDS.stanmoor_ps.summer.lead);
+  assert.equal(sm.duty_pump_summer_mAOD, CANONICAL_PUMP_THRESHOLDS.stanmoor_ps.summer.duty);
+
+  assert.equal(ws.lead_pump_winter_mAOD, CANONICAL_PUMP_THRESHOLDS.west_sedgemoor_ps.winter.lead);
+  assert.equal(ws.duty_pump_winter_mAOD, CANONICAL_PUMP_THRESHOLDS.west_sedgemoor_ps.winter.duty);
+  assert.equal(ws.lead_pump_summer_mAOD, CANONICAL_PUMP_THRESHOLDS.west_sedgemoor_ps.summer.lead);
+  assert.equal(ws.duty_pump_summer_mAOD, CANONICAL_PUMP_THRESHOLDS.west_sedgemoor_ps.summer.duty);
+
+  assert.equal(wz.lead_pump_winter_mAOD, CANONICAL_PUMP_THRESHOLDS.westonzoyland_ps.winter.lead);
+  assert.equal(wz.duty_pump_winter_mAOD, CANONICAL_PUMP_THRESHOLDS.westonzoyland_ps.winter.duty);
+  assert.equal(wz.lead_pump_summer_mAOD, CANONICAL_PUMP_THRESHOLDS.westonzoyland_ps.summer.lead);
+  assert.equal(wz.duty_pump_summer_mAOD, CANONICAL_PUMP_THRESHOLDS.westonzoyland_ps.summer.duty);
+
+  assert.equal(wm.floor_elevation_mAOD, HYDRO_THRESHOLDS.WET_MOOR.GROUND_MAOD);
+  assert.equal(sm.floor_elevation_mAOD, HYDRO_THRESHOLDS.STANMOOR.GROUND_MAOD);
+  assert.equal(ws.floor_elevation_mAOD, HYDRO_THRESHOLDS.WEST_SEDGEMOOR.GROUND_MAOD);
+  assert.equal(wz.floor_elevation_mAOD, HYDRO_THRESHOLDS.WESTONZOYLAND.GROUND_MAOD);
+});
+
 
 

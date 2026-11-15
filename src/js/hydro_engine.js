@@ -732,7 +732,7 @@ export const STATION_REGISTRY = {
       datum: { tier: 1, label: 'Surveyed Datum', authority: 'EA Geodetic Benchmark (+5.00m ODN)' },
       invert: { tier: 1, label: 'Surveyed Bed Invert', authority: 'EA River Yeo Bed Survey' },
       alert: { tier: 3, label: 'EA Statistical Envelope', authority: 'EA stageScale.typicalRangeHigh (3.48m stage)' },
-      operational: { tier: 2, label: 'EA Operating Rules', authority: 'EA River Cut-off at 8.20m, Winter Duty 6.50m' }
+      operational: { tier: 2, label: 'EA Operating Rules', authority: 'EA River Cut-off at 8.20m, Winter Duty 6.75m' }
     }
   },
   '52153': {
@@ -1240,7 +1240,7 @@ export const HYDRO_THRESHOLDS = {
     GROUND_INVERT_MAOD: 5.80,
     BASELINE_MAOD: 5.80,
     LEAD_PUMP_WINTER: 6.30,
-    DUTY_PUMP_WINTER: 6.50,
+    DUTY_PUMP_WINTER: 6.75,
     LEAD_PUMP_SUMMER: 6.70,
     DUTY_PUMP_SUMMER: 6.90,
     MUCHELNEY_ROAD_MAOD: 7.30,
@@ -1302,6 +1302,14 @@ export const HYDRO_THRESHOLDS = {
   },
   CURRY_MOOR: {
     GROUND_MAOD: 2.10,
+    LEAD_PUMP_WINTER: 4.00,
+    DUTY_PUMP_WINTER: 4.55,
+    LEAD_PUMP_SUMMER: 4.60,
+    DUTY_PUMP_SUMMER: 4.80,
+    MOBILE_ORDERED_MAOD: 5.80,
+    MOBILE_ACTIVE_MAOD: 6.10,
+    CRITICAL_MAOD: 6.50,
+    CRITICAL_SPILL_MAOD: 7.35,
     ALERT_MAOD: 6.50,
     CREST_MAOD: 7.45,
     ATHELNEY_CREST_MAOD: 7.35
@@ -1311,6 +1319,14 @@ export const HYDRO_THRESHOLDS = {
   },
   NORTHMOOR: {
     GROUND_MAOD: 1.80,
+    LEAD_PUMP_WINTER: 3.40,
+    DUTY_PUMP_WINTER: 3.70,
+    LEAD_PUMP_SUMMER: 4.00,
+    DUTY_PUMP_SUMMER: 4.20,
+    MOBILE_ORDERED_MAOD: 4.80,
+    MOBILE_ACTIVE_MAOD: 5.20,
+    CRITICAL_MAOD: 5.60,
+    CRITICAL_SPILL_MAOD: 7.80,
     ALERT_MAOD: 3.80,
     CREST_MAOD: 7.80
   },
@@ -1322,7 +1338,7 @@ export const HYDRO_THRESHOLDS = {
     DATUM_MAOD: 5.000,
     GROUND_INVERT_MAOD: 5.80,
     LEAD_PUMP_WINTER: 6.30,
-    DUTY_PUMP_WINTER: 6.50,
+    DUTY_PUMP_WINTER: 6.75,
     LEAD_PUMP_SUMMER: 6.70,
     DUTY_PUMP_SUMMER: 6.90,
     MUCHELNEY_ROAD_MAOD: 7.30,
@@ -1337,6 +1353,50 @@ export const HYDRO_THRESHOLDS = {
     DUTY_PUMP: 6.70,
     HEADLOCK_OVERFLOW_MAOD: 8.20,
     ALERT_MAOD: 8.20
+  },
+  STANMOOR: {
+    GROUND_MAOD: 2.10,
+    LEAD_PUMP_WINTER: 4.10,
+    DUTY_PUMP_WINTER: 4.55,
+    LEAD_PUMP_SUMMER: 4.70,
+    DUTY_PUMP_SUMMER: 4.90,
+    MOBILE_ORDERED_MAOD: 5.80,
+    MOBILE_ACTIVE_MAOD: 6.10,
+    CRITICAL_MAOD: 7.35,
+    CRITICAL_SPILL_MAOD: 7.35
+  },
+  WET_MOOR: {
+    GROUND_MAOD: 5.80,
+    LEAD_PUMP_WINTER: 6.30,
+    DUTY_PUMP_WINTER: 6.75,
+    LEAD_PUMP_SUMMER: 6.70,
+    DUTY_PUMP_SUMMER: 6.90,
+    MOBILE_ORDERED_MAOD: 7.30,
+    MOBILE_ACTIVE_MAOD: 7.86,
+    CRITICAL_MAOD: 8.20,
+    CRITICAL_SPILL_MAOD: 8.20
+  },
+  WEST_SEDGEMOOR: {
+    GROUND_MAOD: 3.60,
+    LEAD_PUMP_WINTER: 6.80,
+    DUTY_PUMP_WINTER: 7.00,
+    LEAD_PUMP_SUMMER: 6.85,
+    DUTY_PUMP_SUMMER: 7.10,
+    MOBILE_ORDERED_MAOD: 7.35,
+    MOBILE_ACTIVE_MAOD: 7.60,
+    CRITICAL_MAOD: 7.90,
+    CRITICAL_SPILL_MAOD: 7.90
+  },
+  WESTONZOYLAND: {
+    GROUND_MAOD: 1.80,
+    LEAD_PUMP_WINTER: 3.45,
+    DUTY_PUMP_WINTER: 3.75,
+    LEAD_PUMP_SUMMER: 4.05,
+    DUTY_PUMP_SUMMER: 4.25,
+    MOBILE_ORDERED_MAOD: 4.80,
+    MOBILE_ACTIVE_MAOD: 5.20,
+    CRITICAL_MAOD: 5.60,
+    CRITICAL_SPILL_MAOD: 7.80
   }
 };
 
@@ -1843,6 +1903,36 @@ export const TOPOLOGY_NETWORK_CONFIG = {
         downstream_node_id: "52163"
       }
     }
+  ],
+  flanking_polders: [
+    {
+      id: "wet_moor",
+      name: "Wet Moor Polder Basin (Huish Episcopi & Midelney)",
+      choke_point_nodes: ["52120", "52153", "52233"],
+      pumping_stations: ["huish_episcopi_ps", "midelney_ps"],
+      primary_station: "52120"
+    },
+    {
+      id: "stanmoor",
+      name: "Stanmoor Polder Basin",
+      choke_point_nodes: ["52118", "52127", "52158"],
+      pumping_stations: ["stanmoor_ps"],
+      primary_station: "52127"
+    },
+    {
+      id: "west_sedgemoor",
+      name: "West Sedgemoor Polder Basin (SSSI Wet Grassland)",
+      choke_point_nodes: ["52127", "52233", "52158"],
+      pumping_stations: ["west_sedgemoor_ps"],
+      primary_station: "52233"
+    },
+    {
+      id: "westonzoyland",
+      name: "Westonzoyland Polder Basin (Engine Rhyne)",
+      choke_point_nodes: ["52159", "52157"],
+      pumping_stations: ["westonzoyland_ps"],
+      primary_station: "52159"
+    }
   ]
 };
 
@@ -1932,6 +2022,16 @@ export const DEFAULT_TOPOLOGY_NODES = TOPOLOGY_NETWORK_CONFIG.nodes.map(nodeDef 
 );
 
 /**
+ * Default topology edges derived directly from TOPOLOGY_NETWORK_CONFIG.edges [RULE-SSOT-01]
+ */
+export const DEFAULT_TOPOLOGY_EDGES = TOPOLOGY_NETWORK_CONFIG.edges.map(e => ({
+  from: e.from,
+  to: e.to,
+  type: e.type,
+  flow_active: Boolean(e.default_flow_active ?? true)
+}));
+
+/**
  * Evaluates the declarative topology network graph against current telemetry measures [RULE-SSOT-01, RULE-PAR-01]
  */
 export function evaluateTopologyNetwork(measures = {}, config = TOPOLOGY_NETWORK_CONFIG, options = {}) {
@@ -1943,6 +2043,9 @@ export function evaluateTopologyNetwork(measures = {}, config = TOPOLOGY_NETWORK
   const configNodes = Array.isArray(safeConfig.nodes) ? safeConfig.nodes : TOPOLOGY_NETWORK_CONFIG.nodes;
   const configEdges = Array.isArray(safeConfig.edges) ? safeConfig.edges : TOPOLOGY_NETWORK_CONFIG.edges;
   const configChains = Array.isArray(safeConfig.chains) ? safeConfig.chains : TOPOLOGY_NETWORK_CONFIG.chains;
+  const configFlankingPolders = Array.isArray(safeConfig.flanking_polders)
+    ? safeConfig.flanking_polders
+    : TOPOLOGY_NETWORK_CONFIG.flanking_polders;
 
   const stageByNodeId = {};
   for (const nodeDef of configNodes) {
@@ -2091,7 +2194,12 @@ export function evaluateTopologyNetwork(measures = {}, config = TOPOLOGY_NETWORK
     updated_at: safeOptions.updatedAt || new Date().toISOString(),
     chains: configChains.map(c => ({ ...c, nodes: Array.isArray(c.nodes) ? [...c.nodes] : [] })),
     nodes,
-    edges
+    edges,
+    flanking_polders: configFlankingPolders.map(p => ({
+      ...p,
+      choke_point_nodes: Array.isArray(p.choke_point_nodes) ? [...p.choke_point_nodes] : [],
+      pumping_stations: Array.isArray(p.pumping_stations) ? [...p.pumping_stations] : []
+    }))
   };
 }
 
@@ -2109,16 +2217,52 @@ export const PRE_OVERTOPPING_THRESHOLDS = {
  */
 export const CANONICAL_PUMP_THRESHOLDS = Object.freeze({
   currymoor_ps: Object.freeze({
-    summer: Object.freeze({ lead: 4.60, duty: 4.80, mobile_order: 5.80, mobile_active: 6.10, critical_spill: 7.35 }),
-    winter: Object.freeze({ lead: 4.00, duty: 4.55, mobile_order: 5.80, mobile_active: 6.10, critical_spill: 7.35 })
+    summer: Object.freeze({
+      lead: HYDRO_THRESHOLDS.CURRY_MOOR.LEAD_PUMP_SUMMER,
+      duty: HYDRO_THRESHOLDS.CURRY_MOOR.DUTY_PUMP_SUMMER,
+      mobile_order: HYDRO_THRESHOLDS.CURRY_MOOR.MOBILE_ORDERED_MAOD,
+      mobile_active: HYDRO_THRESHOLDS.CURRY_MOOR.MOBILE_ACTIVE_MAOD,
+      critical_spill: HYDRO_THRESHOLDS.CURRY_MOOR.CRITICAL_SPILL_MAOD
+    }),
+    winter: Object.freeze({
+      lead: HYDRO_THRESHOLDS.CURRY_MOOR.LEAD_PUMP_WINTER,
+      duty: HYDRO_THRESHOLDS.CURRY_MOOR.DUTY_PUMP_WINTER,
+      mobile_order: HYDRO_THRESHOLDS.CURRY_MOOR.MOBILE_ORDERED_MAOD,
+      mobile_active: HYDRO_THRESHOLDS.CURRY_MOOR.MOBILE_ACTIVE_MAOD,
+      critical_spill: HYDRO_THRESHOLDS.CURRY_MOOR.CRITICAL_SPILL_MAOD
+    })
   }),
   stanmoor_ps: Object.freeze({
-    summer: Object.freeze({ lead: 4.70, duty: 4.90, mobile_order: 5.80, mobile_active: 6.10, critical_spill: 7.35 }),
-    winter: Object.freeze({ lead: 4.10, duty: 4.40, mobile_order: 5.80, mobile_active: 6.10, critical_spill: 7.35 })
+    summer: Object.freeze({
+      lead: HYDRO_THRESHOLDS.STANMOOR.LEAD_PUMP_SUMMER,
+      duty: HYDRO_THRESHOLDS.STANMOOR.DUTY_PUMP_SUMMER,
+      mobile_order: HYDRO_THRESHOLDS.STANMOOR.MOBILE_ORDERED_MAOD,
+      mobile_active: HYDRO_THRESHOLDS.STANMOOR.MOBILE_ACTIVE_MAOD,
+      critical_spill: HYDRO_THRESHOLDS.STANMOOR.CRITICAL_SPILL_MAOD
+    }),
+    winter: Object.freeze({
+      lead: HYDRO_THRESHOLDS.STANMOOR.LEAD_PUMP_WINTER,
+      duty: HYDRO_THRESHOLDS.STANMOOR.DUTY_PUMP_WINTER,
+      mobile_order: HYDRO_THRESHOLDS.STANMOOR.MOBILE_ORDERED_MAOD,
+      mobile_active: HYDRO_THRESHOLDS.STANMOOR.MOBILE_ACTIVE_MAOD,
+      critical_spill: HYDRO_THRESHOLDS.STANMOOR.CRITICAL_SPILL_MAOD
+    })
   }),
   saltmoor_ps: Object.freeze({
-    summer: Object.freeze({ lead: 4.00, duty: 4.20, mobile_order: 4.80, mobile_active: 5.20, critical_spill: 7.80 }),
-    winter: Object.freeze({ lead: 3.40, duty: 3.70, mobile_order: 4.80, mobile_active: 5.20, critical_spill: 7.80 })
+    summer: Object.freeze({
+      lead: HYDRO_THRESHOLDS.NORTHMOOR.LEAD_PUMP_SUMMER,
+      duty: HYDRO_THRESHOLDS.NORTHMOOR.DUTY_PUMP_SUMMER,
+      mobile_order: HYDRO_THRESHOLDS.NORTHMOOR.MOBILE_ORDERED_MAOD,
+      mobile_active: HYDRO_THRESHOLDS.NORTHMOOR.MOBILE_ACTIVE_MAOD,
+      critical_spill: HYDRO_THRESHOLDS.NORTHMOOR.CRITICAL_SPILL_MAOD
+    }),
+    winter: Object.freeze({
+      lead: HYDRO_THRESHOLDS.NORTHMOOR.LEAD_PUMP_WINTER,
+      duty: HYDRO_THRESHOLDS.NORTHMOOR.DUTY_PUMP_WINTER,
+      mobile_order: HYDRO_THRESHOLDS.NORTHMOOR.MOBILE_ORDERED_MAOD,
+      mobile_active: HYDRO_THRESHOLDS.NORTHMOOR.MOBILE_ACTIVE_MAOD,
+      critical_spill: HYDRO_THRESHOLDS.NORTHMOOR.CRITICAL_SPILL_MAOD
+    })
   }),
   northmoor_ps: Object.freeze({
     summer: Object.freeze({ lead: 4.10, duty: 4.30, mobile_order: 4.80, mobile_active: 5.20, critical_spill: 7.80 }),
@@ -2129,8 +2273,52 @@ export const CANONICAL_PUMP_THRESHOLDS = Object.freeze({
     winter: Object.freeze({ lead: 2.80, duty: 3.10, mobile_order: 3.30, mobile_active: 3.50, critical_spill: 3.80 })
   }),
   huish_episcopi_ps: Object.freeze({
-    summer: Object.freeze({ lead: 6.70, duty: 6.90, mobile_order: 7.30, mobile_active: 7.86, critical_spill: 8.20 }),
-    winter: Object.freeze({ lead: 6.30, duty: 6.50, mobile_order: 7.30, mobile_active: 7.86, critical_spill: 8.20 })
+    summer: Object.freeze({
+      lead: HYDRO_THRESHOLDS.WET_MOOR.LEAD_PUMP_SUMMER,
+      duty: HYDRO_THRESHOLDS.WET_MOOR.DUTY_PUMP_SUMMER,
+      mobile_order: HYDRO_THRESHOLDS.WET_MOOR.MOBILE_ORDERED_MAOD,
+      mobile_active: HYDRO_THRESHOLDS.WET_MOOR.MOBILE_ACTIVE_MAOD,
+      critical_spill: HYDRO_THRESHOLDS.WET_MOOR.CRITICAL_SPILL_MAOD
+    }),
+    winter: Object.freeze({
+      lead: HYDRO_THRESHOLDS.WET_MOOR.LEAD_PUMP_WINTER,
+      duty: HYDRO_THRESHOLDS.WET_MOOR.DUTY_PUMP_WINTER,
+      mobile_order: HYDRO_THRESHOLDS.WET_MOOR.MOBILE_ORDERED_MAOD,
+      mobile_active: HYDRO_THRESHOLDS.WET_MOOR.MOBILE_ACTIVE_MAOD,
+      critical_spill: HYDRO_THRESHOLDS.WET_MOOR.CRITICAL_SPILL_MAOD
+    })
+  }),
+  west_sedgemoor_ps: Object.freeze({
+    summer: Object.freeze({
+      lead: HYDRO_THRESHOLDS.WEST_SEDGEMOOR.LEAD_PUMP_SUMMER,
+      duty: HYDRO_THRESHOLDS.WEST_SEDGEMOOR.DUTY_PUMP_SUMMER,
+      mobile_order: HYDRO_THRESHOLDS.WEST_SEDGEMOOR.MOBILE_ORDERED_MAOD,
+      mobile_active: HYDRO_THRESHOLDS.WEST_SEDGEMOOR.MOBILE_ACTIVE_MAOD,
+      critical_spill: HYDRO_THRESHOLDS.WEST_SEDGEMOOR.CRITICAL_SPILL_MAOD
+    }),
+    winter: Object.freeze({
+      lead: HYDRO_THRESHOLDS.WEST_SEDGEMOOR.LEAD_PUMP_WINTER,
+      duty: HYDRO_THRESHOLDS.WEST_SEDGEMOOR.DUTY_PUMP_WINTER,
+      mobile_order: HYDRO_THRESHOLDS.WEST_SEDGEMOOR.MOBILE_ORDERED_MAOD,
+      mobile_active: HYDRO_THRESHOLDS.WEST_SEDGEMOOR.MOBILE_ACTIVE_MAOD,
+      critical_spill: HYDRO_THRESHOLDS.WEST_SEDGEMOOR.CRITICAL_SPILL_MAOD
+    })
+  }),
+  westonzoyland_ps: Object.freeze({
+    summer: Object.freeze({
+      lead: HYDRO_THRESHOLDS.WESTONZOYLAND.LEAD_PUMP_SUMMER,
+      duty: HYDRO_THRESHOLDS.WESTONZOYLAND.DUTY_PUMP_SUMMER,
+      mobile_order: HYDRO_THRESHOLDS.WESTONZOYLAND.MOBILE_ORDERED_MAOD,
+      mobile_active: HYDRO_THRESHOLDS.WESTONZOYLAND.MOBILE_ACTIVE_MAOD,
+      critical_spill: HYDRO_THRESHOLDS.WESTONZOYLAND.CRITICAL_SPILL_MAOD
+    }),
+    winter: Object.freeze({
+      lead: HYDRO_THRESHOLDS.WESTONZOYLAND.LEAD_PUMP_WINTER,
+      duty: HYDRO_THRESHOLDS.WESTONZOYLAND.DUTY_PUMP_WINTER,
+      mobile_order: HYDRO_THRESHOLDS.WESTONZOYLAND.MOBILE_ORDERED_MAOD,
+      mobile_active: HYDRO_THRESHOLDS.WESTONZOYLAND.MOBILE_ACTIVE_MAOD,
+      critical_spill: HYDRO_THRESHOLDS.WESTONZOYLAND.CRITICAL_SPILL_MAOD
+    })
   })
 });
 
@@ -2649,14 +2837,14 @@ export const ASSET_DEFINITIONS = Object.freeze({
     asset_id: 'curry_moor',
     name: 'Curry Moor Polder Basin',
     primary_station: '52127',
-    floor_elevation_mAOD: 2.10,
-    lead_pump_winter_mAOD: 4.00,
-    lead_pump_summer_mAOD: 4.60,
-    duty_pump_winter_mAOD: 4.55,
-    duty_pump_summer_mAOD: 4.80,
-    mobile_ordered_mAOD: 5.80,
-    mobile_active_mAOD: 6.10,
-    critical_mAOD: 6.50,
+    floor_elevation_mAOD: HYDRO_THRESHOLDS.CURRY_MOOR.GROUND_MAOD,
+    lead_pump_winter_mAOD: CANONICAL_PUMP_THRESHOLDS.currymoor_ps.winter.lead,
+    lead_pump_summer_mAOD: CANONICAL_PUMP_THRESHOLDS.currymoor_ps.summer.lead,
+    duty_pump_winter_mAOD: CANONICAL_PUMP_THRESHOLDS.currymoor_ps.winter.duty,
+    duty_pump_summer_mAOD: CANONICAL_PUMP_THRESHOLDS.currymoor_ps.summer.duty,
+    mobile_ordered_mAOD: CANONICAL_PUMP_THRESHOLDS.currymoor_ps.winter.mobile_order,
+    mobile_active_mAOD: CANONICAL_PUMP_THRESHOLDS.currymoor_ps.winter.mobile_active,
+    critical_mAOD: HYDRO_THRESHOLDS.CURRY_MOOR.CRITICAL_MAOD,
     sump_ceiling_mAOD: 4.52,
     rapid_inrush_threshold_mh: 0.10,
     deadband_pump: 0.10
@@ -2666,16 +2854,80 @@ export const ASSET_DEFINITIONS = Object.freeze({
     asset_id: 'northmoor',
     name: 'Northmoor Polder Basin',
     primary_station: '52159',
-    floor_elevation_mAOD: 1.80,
-    lead_pump_winter_mAOD: 3.40,
-    lead_pump_summer_mAOD: 4.00,
-    duty_pump_winter_mAOD: 3.70,
-    duty_pump_summer_mAOD: 4.20,
-    mobile_ordered_mAOD: 4.80,
-    mobile_active_mAOD: 5.20,
-    critical_mAOD: 5.60,
+    floor_elevation_mAOD: HYDRO_THRESHOLDS.NORTHMOOR.GROUND_MAOD,
+    lead_pump_winter_mAOD: CANONICAL_PUMP_THRESHOLDS.saltmoor_ps.winter.lead,
+    lead_pump_summer_mAOD: CANONICAL_PUMP_THRESHOLDS.saltmoor_ps.summer.lead,
+    duty_pump_winter_mAOD: CANONICAL_PUMP_THRESHOLDS.saltmoor_ps.winter.duty,
+    duty_pump_summer_mAOD: CANONICAL_PUMP_THRESHOLDS.saltmoor_ps.summer.duty,
+    mobile_ordered_mAOD: CANONICAL_PUMP_THRESHOLDS.saltmoor_ps.winter.mobile_order,
+    mobile_active_mAOD: CANONICAL_PUMP_THRESHOLDS.saltmoor_ps.winter.mobile_active,
+    critical_mAOD: HYDRO_THRESHOLDS.NORTHMOOR.CRITICAL_MAOD,
     sump_ceiling_mAOD: 3.35,
     rapid_inrush_threshold_mh: 0.10,
+    deadband_pump: HYDRO_DEADBANDS.polder_pump
+  }),
+  wet_moor: Object.freeze({
+    asset_type: 'polder',
+    asset_id: 'wet_moor',
+    name: 'Wet Moor Polder Basin (Huish Episcopi / Muchelney)',
+    primary_station: '52120',
+    secondary_station: '52153',
+    floor_elevation_mAOD: HYDRO_THRESHOLDS.WET_MOOR.GROUND_MAOD,
+    lead_pump_winter_mAOD: CANONICAL_PUMP_THRESHOLDS.huish_episcopi_ps.winter.lead,
+    lead_pump_summer_mAOD: CANONICAL_PUMP_THRESHOLDS.huish_episcopi_ps.summer.lead,
+    duty_pump_winter_mAOD: CANONICAL_PUMP_THRESHOLDS.huish_episcopi_ps.winter.duty,
+    duty_pump_summer_mAOD: CANONICAL_PUMP_THRESHOLDS.huish_episcopi_ps.summer.duty,
+    mobile_ordered_mAOD: CANONICAL_PUMP_THRESHOLDS.huish_episcopi_ps.winter.mobile_order,
+    mobile_active_mAOD: CANONICAL_PUMP_THRESHOLDS.huish_episcopi_ps.winter.mobile_active,
+    critical_mAOD: HYDRO_THRESHOLDS.WET_MOOR.CRITICAL_MAOD,
+    deadband_pump: HYDRO_DEADBANDS.polder_pump
+  }),
+  west_sedgemoor: Object.freeze({
+    asset_type: 'polder',
+    asset_id: 'west_sedgemoor',
+    name: 'West Sedgemoor Polder Basin (SSSI Wet Grassland)',
+    primary_station: '52233',
+    secondary_station: '52119',
+    floor_elevation_mAOD: HYDRO_THRESHOLDS.WEST_SEDGEMOOR.GROUND_MAOD,
+    lead_pump_winter_mAOD: CANONICAL_PUMP_THRESHOLDS.west_sedgemoor_ps.winter.lead,
+    lead_pump_summer_mAOD: CANONICAL_PUMP_THRESHOLDS.west_sedgemoor_ps.summer.lead,
+    duty_pump_winter_mAOD: CANONICAL_PUMP_THRESHOLDS.west_sedgemoor_ps.winter.duty,
+    duty_pump_summer_mAOD: CANONICAL_PUMP_THRESHOLDS.west_sedgemoor_ps.summer.duty,
+    mobile_ordered_mAOD: CANONICAL_PUMP_THRESHOLDS.west_sedgemoor_ps.winter.mobile_order,
+    mobile_active_mAOD: CANONICAL_PUMP_THRESHOLDS.west_sedgemoor_ps.winter.mobile_active,
+    critical_mAOD: HYDRO_THRESHOLDS.WEST_SEDGEMOOR.CRITICAL_MAOD,
+    deadband_pump: HYDRO_DEADBANDS.polder_pump
+  }),
+  stanmoor: Object.freeze({
+    asset_type: 'polder',
+    asset_id: 'stanmoor',
+    name: 'Stanmoor Polder Basin (Curry Moor Flank)',
+    primary_station: '52127',
+    secondary_station: '52118',
+    floor_elevation_mAOD: HYDRO_THRESHOLDS.STANMOOR.GROUND_MAOD,
+    lead_pump_winter_mAOD: CANONICAL_PUMP_THRESHOLDS.stanmoor_ps.winter.lead,
+    lead_pump_summer_mAOD: CANONICAL_PUMP_THRESHOLDS.stanmoor_ps.summer.lead,
+    duty_pump_winter_mAOD: CANONICAL_PUMP_THRESHOLDS.stanmoor_ps.winter.duty,
+    duty_pump_summer_mAOD: CANONICAL_PUMP_THRESHOLDS.stanmoor_ps.summer.duty,
+    mobile_ordered_mAOD: CANONICAL_PUMP_THRESHOLDS.stanmoor_ps.winter.mobile_order,
+    mobile_active_mAOD: CANONICAL_PUMP_THRESHOLDS.stanmoor_ps.winter.mobile_active,
+    critical_mAOD: HYDRO_THRESHOLDS.STANMOOR.CRITICAL_MAOD,
+    deadband_pump: HYDRO_DEADBANDS.polder_pump
+  }),
+  westonzoyland: Object.freeze({
+    asset_type: 'polder',
+    asset_id: 'westonzoyland',
+    name: 'Westonzoyland Polder Basin (Engine Rhyne)',
+    primary_station: '52159',
+    secondary_station: '52157',
+    floor_elevation_mAOD: HYDRO_THRESHOLDS.WESTONZOYLAND.GROUND_MAOD,
+    lead_pump_winter_mAOD: CANONICAL_PUMP_THRESHOLDS.westonzoyland_ps.winter.lead,
+    lead_pump_summer_mAOD: CANONICAL_PUMP_THRESHOLDS.westonzoyland_ps.summer.lead,
+    duty_pump_winter_mAOD: CANONICAL_PUMP_THRESHOLDS.westonzoyland_ps.winter.duty,
+    duty_pump_summer_mAOD: CANONICAL_PUMP_THRESHOLDS.westonzoyland_ps.summer.duty,
+    mobile_ordered_mAOD: CANONICAL_PUMP_THRESHOLDS.westonzoyland_ps.winter.mobile_order,
+    mobile_active_mAOD: CANONICAL_PUMP_THRESHOLDS.westonzoyland_ps.winter.mobile_active,
+    critical_mAOD: HYDRO_THRESHOLDS.WESTONZOYLAND.CRITICAL_MAOD,
     deadband_pump: HYDRO_DEADBANDS.polder_pump
   }),
 
@@ -3604,6 +3856,61 @@ export function evaluateAssetTransition(assetDef, activeSession = null, readings
       max_rate_1h_m_per_hr
     }
   };
+}
+
+/**
+ * Evaluates all canonical network assets in ASSET_DEFINITIONS against a station readings map
+ * or calm baseflow fallback stages from STATION_REGISTRY [RULE-SSOT-01, RULE-PAR-01].
+ *
+ * @param {object} [readingsInput={}] - Map of station_id or measure_id to readings array or numeric stage (mAOD)
+ * @param {object|Map|null} [seasonalRegimeOrSessions=null] - Seasonal regime ({ isSummer }) or active sessions map
+ * @param {object|null} [seasonalRegimeArg=null] - Seasonal regime if second arg is active sessions
+ * @param {object} [options={}]
+ * @returns {Record<string, object>} Map of asset_id -> TransitionDecision with .status alias for .to_state
+ */
+export function evaluateAllAssets(readingsInput = {}, seasonalRegimeOrSessions = null, seasonalRegimeArg = null, options = {}) {
+  let activeSessionsMap = null;
+  let regime = seasonalRegimeArg;
+
+  if (seasonalRegimeOrSessions && typeof seasonalRegimeOrSessions === 'object' && typeof seasonalRegimeOrSessions.isSummer === 'boolean') {
+    regime = seasonalRegimeOrSessions;
+  } else if (seasonalRegimeOrSessions instanceof Map) {
+    activeSessionsMap = seasonalRegimeOrSessions;
+  } else if (seasonalRegimeOrSessions && typeof seasonalRegimeOrSessions === 'object') {
+    activeSessionsMap = new Map(Object.entries(seasonalRegimeOrSessions));
+  }
+
+  const resolvedRegime = regime || getSeasonalRegime();
+  const nowIso = options.timestamp || new Date().toISOString();
+  const normalizedReadings = {};
+
+  for (const [stId, reg] of Object.entries(STATION_REGISTRY)) {
+    const rawEntry = (readingsInput && typeof readingsInput === 'object')
+      ? (readingsInput[stId] ?? readingsInput[reg.measure_id])
+      : undefined;
+
+    if (Array.isArray(rawEntry) && rawEntry.length > 0) {
+      normalizedReadings[stId] = rawEntry;
+    } else if (typeof rawEntry === 'number' && Number.isFinite(rawEntry)) {
+      normalizedReadings[stId] = [{ value: rawEntry, dateTime: nowIso }];
+    } else if (rawEntry && typeof rawEntry === 'object' && typeof rawEntry.value === 'number') {
+      normalizedReadings[stId] = [{ value: rawEntry.value, dateTime: rawEntry.dateTime || nowIso }];
+    } else {
+      normalizedReadings[stId] = [{ value: reg.fallback_stage_mAOD, dateTime: nowIso }];
+    }
+  }
+
+  const results = {};
+  for (const [assetId, assetDef] of Object.entries(ASSET_DEFINITIONS)) {
+    const activeSession = activeSessionsMap ? (activeSessionsMap.get(assetId) || null) : null;
+    const decision = evaluateAssetTransition(assetDef, activeSession, normalizedReadings, resolvedRegime, options);
+    results[assetId] = {
+      ...decision,
+      status: decision.to_state
+    };
+  }
+
+  return results;
 }
 
 /**

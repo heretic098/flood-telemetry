@@ -382,7 +382,11 @@ const EVENT_ASSET_DISPLAY_NAMES = Object.freeze({
   bicknells_bridge_access: "Bicknell's Bridge & Drayton Lane",
   moorland_new_cut_road: 'Moorland / Fordgate (Northmoor Road)',
   stan_moor_road: 'Stan Moor Road (Stoke St Gregory ↔ Burrowbridge)',
-  beer_wall_a372: 'A372 Beer Wall Causeway (Othery ↔ Aller)'
+  beer_wall_a372: 'A372 Beer Wall Causeway (Othery ↔ Aller)',
+  wet_moor: 'Wet Moor Polder Basin (Huish Episcopi • 52120)',
+  west_sedgemoor: 'West Sedgemoor Polder Basin (SSSI • 52233)',
+  stanmoor: 'Stanmoor Polder Basin (Curry Moor Flank • 52127)',
+  westonzoyland: 'Westonzoyland Polder Basin (Engine Rhyne • 52159)'
 });
 
 const EVENT_STATE_SYMBOLS = Object.freeze({
@@ -788,12 +792,19 @@ export async function refreshLiveDashboard() {
     const cmRiverColor = cmEval.code === 'OVERTOPPING' ? '#f87171' : (cmRiverFreshness.isStale ? '#f59e0b' : '#4ade80');
     const cmMoorColor = cmMoorFreshness.isStale ? '#f59e0b' : '#38bdf8';
     const cmTriggerDelta = getPumpTriggerDelta(currymoorPump, cmMoorLevel);
+    const stanmoorTriggerDelta = getPumpTriggerDelta(stanmoorPump, cmMoorLevel);
 
     const currymoorPillMode = currymoorPump.stage === 0 ? '⚪ STANDBY' :
       (currymoorPump.mode === 'PARTIAL_DUTY' ? '🟢 LEAD DUTY' :
       (currymoorPump.mode === 'FULL_CAPACITY' ? '🟢 FULL DUTY' :
       (currymoorPump.mode === 'MOBILE_ORDERED' ? '🟡 MOBILE ORDERED' :
       (currymoorPump.mode === 'EMERGENCY_MOBILE_ACTIVE' ? '🔴 MOBILE ACTIVE' : '🚨 CRITICAL'))));
+
+    const stanmoorPillMode = stanmoorPump.stage === 0 ? '⚪ STANDBY' :
+      (stanmoorPump.mode === 'PARTIAL_DUTY' ? '🟢 LEAD DUTY' :
+      (stanmoorPump.mode === 'FULL_CAPACITY' ? '🟢 FULL DUTY' :
+      (stanmoorPump.mode === 'MOBILE_ORDERED' ? '🟡 MOBILE ORDERED' :
+      (stanmoorPump.mode === 'EMERGENCY_MOBILE_ACTIVE' ? '🔴 MOBILE ACTIVE' : '🚨 CRITICAL'))));
 
     // Progressive Disclosure Level 1: Centimetre Rule + 3h Trend Vector + Active Duration
     const hookbridgeActive = activeEventsMap.get('hookbridge');
@@ -858,7 +869,7 @@ export async function refreshLiveDashboard() {
         tooltip: `📍 Currymoor Pumping Station: Driven by water stage in Curry Moor Basin (Station 52127), NOT the River Tone. Inferred from EA Trigger Point Plan.`
       },
       {
-        html: `<strong>Stanmoor PS:</strong> ${stanmoorPump.statusText}`,
+        html: `<strong>Stanmoor PS:</strong> ${stanmoorPillMode} (Curry Moor ${cmMoorLevel.toFixed(2)}m • ${stanmoorTriggerDelta.statusText})`,
         tooltip: `📍 Stanmoor Pumping Station: Driven by water stage in Curry Moor Basin (Station 52127). Inferred from EA Trigger Point Plan.`
       }
     ],

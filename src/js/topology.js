@@ -15,6 +15,7 @@ import {
   evaluatePumpStatus,
   getSeasonalRegime,
   DEFAULT_TOPOLOGY_NODES,
+  DEFAULT_TOPOLOGY_EDGES,
   STATION_REGISTRY,
   GAUGE_DATUMS,
   STATION_BASELINES,
@@ -545,28 +546,7 @@ function setupFilterListeners() {
 
 
 
-const DEFAULT_TOPOLOGY_EDGES = [
-  { from: "52108", to: "52109", type: "main_river", flow_active: true },
-  { from: "52109", to: "52111", type: "main_river", flow_active: true },
-  { from: "52111", to: "52162", type: "main_river", flow_active: true },
-  { from: "52162", to: "52118", type: "main_river", flow_active: true },
-  { from: "52118", to: "52158", type: "main_river", flow_active: true },
-  { from: "52118", to: "52127", type: "spillway_overtopping", flow_active: false },
-  { from: "52116", to: "52119", type: "main_river", flow_active: true },
-  { from: "52119", to: "52233", type: "main_river", flow_active: true },
-  { from: "52120", to: "52233", type: "tributary_inflow", flow_active: true },
-  { from: "52153", to: "52233", type: "tributary_inflow", flow_active: true },
-  { from: "52233", to: "52234", type: "diversion_clyse", flow_active: false },
-  { from: "52233", to: "52158", type: "main_river", flow_active: true },
-  { from: "52158", to: "52159", type: "spillway_overtopping", flow_active: false },
-  { from: "52127", to: "52159", type: "polder_overflow", flow_active: false },
-  { from: "52158", to: "52124", type: "main_river", flow_active: true },
-  { from: "52124", to: "52163", type: "sea_outfall", flow_active: true },
-  { from: "52234", to: "52157", type: "diversion_route", flow_active: false },
-  { from: "52157", to: "E9531", type: "diversion_route", flow_active: false },
-  { from: "E9531", to: "E9094", type: "diversion_route", flow_active: true },
-  { from: "E9094", to: "52163", type: "sea_outfall", flow_active: true }
-];
+
 
 async function loadTopologyData(isSilentRefresh = false) {
   try {
@@ -1406,14 +1386,15 @@ function inspectNode(nodeId, restoreFocus = false) {
   // Active event session lookup [Progressive Disclosure Level 1 & 2]
   const activeEvents = statusData?.active_events || [];
   const activeEvent = activeEvents.find(e => {
-    if (node.id === '52118') return e.asset_id === 'hookbridge';
+    if (node.id === '52118') return e.asset_id === 'hookbridge' || e.asset_id === 'stanmoor';
     if (node.id === '52158') return e.asset_id === 'baltmoor_wall';
-    if (node.id === '52157') return e.asset_id === 'beer_wall';
-    if (node.id === '52127') return e.asset_id === 'curry_moor' || e.asset_id === 'cuts_road';
-    if (node.id === '52159') return e.asset_id === 'northmoor';
+    if (node.id === '52157') return e.asset_id === 'beer_wall' || e.asset_id === 'westonzoyland';
+    if (node.id === '52127') return e.asset_id === 'curry_moor' || e.asset_id === 'stanmoor' || e.asset_id === 'cuts_road';
+    if (node.id === '52159') return e.asset_id === 'northmoor' || e.asset_id === 'westonzoyland';
     if (node.id === '52163') return e.asset_id === 'dunball_outfall';
-    if (node.id === '52233') return e.asset_id === 'monks_leaze_clyse';
-    if (node.id === '52120') return e.asset_id === 'muchelney_access';
+    if (node.id === '52233') return e.asset_id === 'monks_leaze_clyse' || e.asset_id === 'west_sedgemoor';
+    if (node.id === '52120') return e.asset_id === 'muchelney_access' || e.asset_id === 'wet_moor';
+    if (node.id === '52153') return e.asset_id === 'wet_moor';
     return false;
   });
   const durTimer = activeEvent?.duration_formatted ? ` • ⏱️ ${activeEvent.duration_formatted}` : '';
@@ -1920,16 +1901,17 @@ function inspectNode(nodeId, restoreFocus = false) {
     ` : '';
 
     const NODE_ASSET_CANDIDATES = {
-      '52118': ['hookbridge', 'curry_moor'],
-      '52127': ['curry_moor', 'cuts_road', 'new_road_curry'],
-      '52158': ['baltmoor_wall', 'a361_burrowbridge', 'stan_moor_road'],
-      '52159': ['northmoor', 'moorland_new_cut_road'],
-      '52157': ['beer_wall', 'beer_wall_a372'],
+      '52118': ['hookbridge', 'curry_moor', 'stanmoor'],
+      '52127': ['curry_moor', 'stanmoor', 'cuts_road', 'new_road_curry'],
+      '52158': ['baltmoor_wall', 'a361_burrowbridge', 'stan_moor_road', 'west_sedgemoor'],
+      '52159': ['northmoor', 'westonzoyland', 'moorland_new_cut_road'],
+      '52157': ['beer_wall', 'beer_wall_a372', 'westonzoyland'],
       '52163': ['dunball_outfall'],
       'E9094': ['dunball_outfall'],
-      '52233': ['monks_leaze_clyse'],
+      '52233': ['monks_leaze_clyse', 'west_sedgemoor'],
       '52234': ['monks_leaze_clyse'],
-      '52120': ['muchelney_access', 'bicknells_bridge_access']
+      '52120': ['wet_moor', 'muchelney_access', 'bicknells_bridge_access'],
+      '52153': ['wet_moor']
     };
     const candidateAssets = NODE_ASSET_CANDIDATES[node.id] || [];
     const allKnownEvents = [...(statusData?.active_events || []), ...(eventsData || [])];

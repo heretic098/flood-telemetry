@@ -101,6 +101,38 @@ The Environment Agency and Somerset Drainage Boards Consortium operate high-capa
 - **Mobile Pumps Active:** `5.20m AOD` (Emergency pumping operational)
 - **Critical Risk Stage:** `5.60m AOD` (Internal road submergence across Moorland and Fordgate)
 
+### Wet Moor Polder Basin (52120 / 52153)
+- **Basin Bed Floor:** `5.80m AOD` (Huish Episcopi & Midelney drainage floor)
+- **Winter Duty Pumping:** `6.75m AOD` (Huish Episcopi PS winter duty pumps online)
+- **Summer Duty Pumping:** `6.90m AOD` (Summer penning regime)
+- **Mobile Pumps Ordered:** `7.30m AOD` (Muchelney spine road caution stage)
+- **Mobile Pumps Active:** `7.86m AOD` (Muchelney spine road crown submergence stage)
+- **Critical Risk Stage:** `8.20m AOD` (River Yeo high head cut-off & reverse locking)
+
+### West Sedgemoor Polder Basin (52233 / 52119)
+- **Basin Bed Floor:** `3.60m AOD` (SSSI wet grassland polder floor)
+- **Winter Duty Pumping:** `7.00m AOD` (Winter low-water drainage retention)
+- **Summer Duty Pumping:** `7.10m AOD` (SSSI conservation high-penning regime)
+- **Mobile Pumps Ordered:** `7.35m AOD` (High moor water accumulation)
+- **Mobile Pumps Active:** `7.60m AOD` (Multi-pump deployment online)
+- **Critical Risk Stage:** `7.90m AOD` (SSSI boundary levee overspill threat)
+
+### Stanmoor Polder Basin (52127 / 52118)
+- **Basin Bed Floor:** `2.10m AOD` (Tone confluence flank moor floor)
+- **Winter Duty Pumping:** `4.55m AOD` (Stanmoor Pumping Station winter duty)
+- **Summer Duty Pumping:** `4.90m AOD` (Summer penning level)
+- **Mobile Pumps Ordered:** `5.80m AOD` (Tone backwater protection triggers)
+- **Mobile Pumps Active:** `6.10m AOD` (Mobile pumping active)
+- **Critical Risk Stage:** `7.35m AOD` (Athelney cascade overtopping elevation)
+
+### Westonzoyland Polder Basin (52159 / 52157)
+- **Basin Bed Floor:** `1.80m AOD` (Engine Rhyne & Northmoor flank floor)
+- **Winter Duty Pumping:** `3.75m AOD` (Westonzoyland PS winter duty pumps online)
+- **Summer Duty Pumping:** `4.25m AOD` (Summer penning regime)
+- **Mobile Pumps Ordered:** `4.80m AOD` (EA mobilizes mobile high-volume pumps)
+- **Mobile Pumps Active:** `5.20m AOD` (Emergency pumping operational)
+- **Critical Risk Stage:** `5.60m AOD` (Internal road submergence across Moorland and Westonzoyland flank)
+
 ---
 
 ## 6. Sluice Diversions & Estuarine Tidal Locking
