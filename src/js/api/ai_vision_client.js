@@ -6,20 +6,10 @@
  * This module preserves Phase 2 Gemini Vision multimodal prompt analysis stubs and local fallbacks.
  */
 
-export { fetchWebcamImageSecure, computeBufferHash as computeImageHash } from './camera_buffer.js';
+import { escapeHTML } from '../modules/dom_utils.js';
 
-/**
- * Helper to escape HTML special characters to prevent Cross-Site Scripting (XSS) (SEC-01).
- */
-export function escapeHTML(str) {
-  if (typeof str !== 'string') return '';
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
-}
+export { fetchWebcamImageSecure, computeBufferHash as computeImageHash } from './camera_buffer.js';
+export { escapeHTML };
 
 /**
  * Computes solar elevation angle in degrees for a given Date and coordinates.

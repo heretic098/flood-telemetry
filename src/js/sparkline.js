@@ -9,35 +9,8 @@
  * Single Source of Truth for sparkline geometry across Main Dashboard and Topology Inspector.
  */
 
-/**
- * Escapes HTML characters in dynamic strings to prevent XSS.
- * @param {string|number} str
- * @returns {string}
- */
-export function escapeHTML(str) {
-  if (typeof str !== 'string') return String(str ?? '');
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
-/**
- * Escapes characters for HTML attribute values.
- * @param {string|number} str
- * @returns {string}
- */
-export function escapeAttr(str) {
-  if (typeof str !== 'string') return String(str ?? '');
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
-}
+import { escapeHTML, escapeAttr, formatRelativeAge, formatSpanUnit } from './modules/dom_utils.js';
+export { escapeHTML, escapeAttr, formatRelativeAge, formatSpanUnit };
 
 /**
  * Normalizes input telemetry points into numerical values and ISO timestamps.
@@ -375,50 +348,6 @@ export function formatTimestampTooltip(rawTime) {
 }
 
 /**
- * Formats relative age for telemetry inspection banners.
- *
- * @param {Date|number|string} dateOrMs
- * @returns {string}
- */
-export function formatRelativeAge(dateOrMs) {
-  const timeMs = dateOrMs instanceof Date ? dateOrMs.getTime() : (typeof dateOrMs === 'string' ? new Date(dateOrMs).getTime() : dateOrMs);
-  if (!timeMs || isNaN(timeMs)) return '';
-
-  const diffMs = Date.now() - timeMs;
-  const diffMins = Math.floor(diffMs / 60000);
-
-  if (diffMins < 1) return '(Just now)';
-  if (diffMins < 60) return `(${diffMins}m ago)`;
-
-  const h = Math.floor(diffMins / 60);
-  const m = diffMins % 60;
-  if (h < 24) return `(${h}h ${m}m ago)`;
-
-  const d = Math.floor(h / 24);
-  const remH = h % 24;
-  return `(${d}d ${remH}h ago)`;
-}
-
-/**
- * Formats stage span delta into human units (m, cm, mm).
- *
- * @param {number} deltaInMeters
- * @returns {string}
- */
-export function formatSpanUnit(deltaInMeters) {
-  const absDelta = Math.abs(deltaInMeters);
-  if (absDelta >= 1.0) {
-    return `${deltaInMeters.toFixed(2)}m`;
-  } else if (absDelta >= 0.01) {
-    const cm = Number((deltaInMeters * 100).toFixed(1));
-    return `${Number.isInteger(cm) || cm >= 10 ? cm.toFixed(0) : cm.toFixed(1)}cm`;
-  } else {
-    const mm = Math.round(deltaInMeters * 1000);
-    return `${mm}mm`;
-  }
-}
-
-/**
  * Calculates scrub ratio [0, 1] from a pointer or touch event relative to the sparkline drawing width.
  *
  * @param {PointerEvent|TouchEvent|MouseEvent} e
@@ -534,44 +463,62 @@ export function renderCrestGuide(dimensions, bounds, crestHeight, latestVal) {
   `;
 }
 
+/** Updates primary (and optional secondary) crosshair SVG attributes at target coordinates. */
+function updateCrosshairSvgElements(svg, targetX, targetY, secTargetY = null) {
+  const xStr = targetX.toFixed(1);
+  const yStr = targetY.toFixed(1);
+  const crosshairLine = svg.querySelector('.sparkline-crosshair');
+  const dotHighlight = svg.querySelector('.sparkline-dot-highlight');
+  const dotHalo = svg.querySelector('.sparkline-dot-halo');
+  if (crosshairLine) {
+    crosshairLine.setAttribute('x1', xStr);
+    crosshairLine.setAttribute('x2', xStr);
+  }
+  if (dotHighlight) {
+    dotHighlight.setAttribute('cx', xStr);
+    dotHighlight.setAttribute('cy', yStr);
+  }
+  if (dotHalo) {
+    dotHalo.setAttribute('cx', xStr);
+    dotHalo.setAttribute('cy', yStr);
+  }
+  if (secTargetY !== null) {
+    const secDot = svg.querySelector('.sparkline-dot-highlight-secondary');
+    if (secDot) {
+      secDot.setAttribute('cx', xStr);
+      secDot.setAttribute('cy', secTargetY.toFixed(1));
+    }
+  }
+}
+
 /**
  * Attaches pointer, touch, and keyboard accessibility listeners for interactive scrubbing.
- *
- * @param {HTMLElement} wrapper - Container element (.sparkline-wrapper)
- * @param {Object} options
- * @param {Function} options.onUpdate - Callback invoked with ratio (number|null)
- * @param {number} [options.stickyDelay=1500] - Milliseconds before clearing crosshair on pointerleave
- * @param {number} [options.stepCount=95] - Step count for arrow key navigation
- * @param {Function} [options.getRatio] - Optional custom ratio getter
- * @param {Object} [options.dimensions] - Optional dimensions
  * @returns {Function} Teardown function to unbind listeners
  */
 export function bindInteractiveScrubbing(wrapper, options = {}) {
-  const svg = wrapper.querySelector('svg.sparkline');
+  const svg = options.svg || wrapper.querySelector('svg.sparkline, svg.inspector-sparkline-svg');
   const overlay = wrapper.querySelector('.sparkline-touch-overlay');
   if (!svg || !overlay) return () => {};
 
   const dimensions = options.dimensions || getSparklineDimensions();
   const stickyDelay = options.stickyDelay !== undefined ? options.stickyDelay : 1500;
-  const stepCount = options.stepCount || 95;
-  const step = 1 / Math.max(1, stepCount);
-
-  let hoverTimer = null;
+  const timerRef = options.timerRef || { id: null };
   let currentRatio = options.initialRatio !== undefined ? options.initialRatio : null;
 
-  const handleMove = (e) => {
-    if (hoverTimer) clearTimeout(hoverTimer);
-    const ratio = options.getRatio ? options.getRatio(e) : calculateRatioFromEvent(e, svg, dimensions);
+  const setRatio = (ratio) => {
     currentRatio = ratio;
     if (options.onUpdate) options.onUpdate(ratio);
   };
 
+  const handleMove = (e) => {
+    if (timerRef.id) clearTimeout(timerRef.id);
+    const ratio = options.getRatio ? options.getRatio(e) : calculateRatioFromEvent(e, svg, dimensions);
+    setRatio(ratio);
+  };
+
   const handleLeave = () => {
-    if (hoverTimer) clearTimeout(hoverTimer);
-    hoverTimer = setTimeout(() => {
-      currentRatio = null;
-      if (options.onUpdate) options.onUpdate(null);
-    }, stickyDelay);
+    if (timerRef.id) clearTimeout(timerRef.id);
+    timerRef.id = setTimeout(() => setRatio(null), stickyDelay);
   };
 
   overlay.addEventListener('pointermove', handleMove);
@@ -579,34 +526,75 @@ export function bindInteractiveScrubbing(wrapper, options = {}) {
   overlay.addEventListener('pointerleave', handleLeave);
 
   const handleKeyDown = (e) => {
-    if (['ArrowLeft', 'ArrowRight', 'Home', 'End', 'Escape'].includes(e.key)) {
-      e.preventDefault();
-      let ratio = currentRatio !== null ? currentRatio : 1.0;
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End', 'Escape'].includes(e.key)) return;
+    e.preventDefault();
+    const active = options.getActiveRatio ? options.getActiveRatio() : currentRatio;
+    let ratio = active !== null && active !== undefined ? active : 1.0;
+    const rawCount = typeof options.stepCount === 'function' ? options.stepCount() : options.stepCount;
+    const step = 1 / Math.max(1, rawCount !== undefined ? rawCount : 95);
 
-      if (e.key === 'ArrowLeft') ratio = Math.max(0, ratio - (e.shiftKey ? step * 4 : step));
-      if (e.key === 'ArrowRight') ratio = Math.min(1, ratio + (e.shiftKey ? step * 4 : step));
-      if (e.key === 'Home') ratio = 0;
-      if (e.key === 'End') ratio = 1;
-      if (e.key === 'Escape') {
-        currentRatio = null;
-        if (options.onUpdate) options.onUpdate(null);
-        return;
-      }
-
-      currentRatio = ratio;
-      if (options.onUpdate) options.onUpdate(ratio);
+    if (e.key === 'ArrowLeft') ratio = Math.max(0, ratio - (e.shiftKey ? step * 4 : step));
+    if (e.key === 'ArrowRight') ratio = Math.min(1, ratio + (e.shiftKey ? step * 4 : step));
+    if (e.key === 'Home') ratio = 0;
+    if (e.key === 'End') ratio = 1;
+    if (e.key === 'Escape') {
+      setRatio(null);
+      return;
     }
+    setRatio(ratio);
   };
 
   wrapper.addEventListener('keydown', handleKeyDown);
 
   return () => {
-    if (hoverTimer) clearTimeout(hoverTimer);
+    if (timerRef.id) clearTimeout(timerRef.id);
     overlay.removeEventListener('pointermove', handleMove);
     overlay.removeEventListener('touchmove', handleMove);
     overlay.removeEventListener('pointerleave', handleLeave);
     wrapper.removeEventListener('keydown', handleKeyDown);
   };
+}
+
+/**
+ * Renders a compact inline micro-sparkline SVG for summary rows and corridor tiles.
+ *
+ * @param {Array<number|Object>} points
+ * @param {string} [strokeColor='#38bdf8']
+ * @param {number} [minSpan=0.50]
+ * @returns {string}
+ */
+export function renderMicroSparkline(points, strokeColor = '#38bdf8', minSpan = 0.50) {
+  if (!points || points.length < 2) return `<span class="micro-empty">--</span>`;
+  const rawValues = points.map(p => typeof p === 'object' ? p.value : p);
+  const width = 110;
+  const height = 24;
+
+  const rawMin = Math.min(...rawValues);
+  const rawMax = Math.max(...rawValues);
+  const rawRange = rawMax - rawMin;
+
+  let yMin = rawMin;
+  let yMax = rawMax;
+
+  if (rawRange < minSpan) {
+    const midpoint = (rawMin + rawMax) / 2;
+    yMin = midpoint - (minSpan / 2);
+    yMax = midpoint + (minSpan / 2);
+  }
+
+  const effectiveRange = yMax - yMin || 1;
+
+  const pts = rawValues.map((p, i) => {
+    const x = (i / (rawValues.length - 1)) * (width - 6) + 3;
+    const y = height - 3 - (((p - yMin) / effectiveRange) * (height - 6));
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(' ');
+
+  return `
+    <svg class="micro-sparkline" viewBox="0 0 ${width} ${height}" title="24h variation: ${(rawRange * 100).toFixed(1)}cm">
+      <polyline fill="none" stroke="${strokeColor}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" points="${pts}" />
+    </svg>
+  `;
 }
 
 /**
@@ -926,21 +914,18 @@ export function renderInspectorSparkline(readings, strokeColor = '#38bdf8', cres
   `;
 }
 
-let inspectorHoverStickyTimer = null;
+const inspectorHoverTimerRef = { id: null };
 
 /**
  * Binds interactive mouse, touch, and keyboard crosshair scrubbing to the Topology Inspector sparkline.
  *
  * @param {HTMLElement} container - The sparkline container element
+ * @param {Object} [options={}] - Optional callbacks (`refreshController`, `onScrubStateChange`, `stickyDelay`)
  */
-export function bindInspectorSparklineEvents(container) {
-  if (!container) return;
-  const wrapper = container.querySelector('.sparkline-wrapper');
-  if (!wrapper) return;
-
-  const svg = wrapper.querySelector('svg.inspector-sparkline-svg');
-  const overlay = wrapper.querySelector('.sparkline-touch-overlay');
-  if (!svg || !overlay) return;
+export function bindInspectorSparklineEvents(container, options = {}) {
+  const wrapper = container?.querySelector('.sparkline-wrapper');
+  const svg = wrapper?.querySelector('svg.inspector-sparkline-svg');
+  if (!wrapper || !svg) return;
 
   let pointsData = [];
   let timestamps = [];
@@ -951,100 +936,169 @@ export function bindInspectorSparklineEvents(container) {
 
   if (pointsData.length === 0) return;
 
-  const w = 340;
-  const h = 100;
-  const marginTop = 18;
-  const marginBottom = 18;
-  const marginLeft = 10;
-  const marginRight = 68;
-  const drawWidth = w - marginLeft - marginRight;
-  const drawHeight = h - marginTop - marginBottom;
-  const dims = { width: w, height: h, marginTop, marginBottom, marginLeft, marginRight, drawWidth, drawHeight };
-
+  const dims = getSparklineDimensions({
+    width: 340, height: 100, marginTop: 18, marginBottom: 18, marginLeft: 10, marginRight: 68
+  });
   const yMin = parseFloat(svg.dataset.ymin) || 0;
   const yMax = parseFloat(svg.dataset.ymax) || 1;
   const effectiveRange = yMax - yMin || 1;
   const unit = svg.dataset.unit || 'mAOD';
-
-  const crosshairLine = svg.querySelector('.sparkline-crosshair');
-  const dotHighlight = svg.querySelector('.sparkline-dot-highlight');
-  const dotHalo = svg.querySelector('.sparkline-dot-halo');
   const tooltip = wrapper.querySelector('.sparkline-tooltip');
 
-  let currentRatio = null;
-
   const updateCrosshair = (ratio) => {
-    if (ratio === null) {
-      wrapper.classList.remove('crosshair-active');
-      return;
-    }
-    wrapper.classList.add('crosshair-active');
+    const active = ratio !== null;
+    wrapper.classList.toggle('crosshair-active', active);
+    if (options.refreshController) options.refreshController.setScrubbing(active);
+    if (options.onScrubStateChange) options.onScrubStateChange(active);
+    if (!active) return;
 
     const index = calculateSparklineScrubIndex(ratio, pointsData.length);
     const primaryVal = pointsData[index];
-    const targetX = marginLeft + ratio * drawWidth;
-    const normalizedY = (primaryVal - yMin) / effectiveRange;
-    const targetY = h - marginBottom - (normalizedY * drawHeight);
+    const targetX = dims.marginLeft + ratio * dims.drawWidth;
+    const targetY = dims.height - dims.marginBottom - (((primaryVal - yMin) / effectiveRange) * dims.drawHeight);
 
-    if (crosshairLine) {
-      crosshairLine.setAttribute('x1', targetX.toFixed(1));
-      crosshairLine.setAttribute('x2', targetX.toFixed(1));
-    }
-    if (dotHighlight) {
-      dotHighlight.setAttribute('cx', targetX.toFixed(1));
-      dotHighlight.setAttribute('cy', targetY.toFixed(1));
-    }
-    if (dotHalo) {
-      dotHalo.setAttribute('cx', targetX.toFixed(1));
-      dotHalo.setAttribute('cy', targetY.toFixed(1));
-    }
+    updateCrosshairSvgElements(svg, targetX, targetY);
 
     if (tooltip) {
-      const leftPct = Math.max(16, Math.min(84, (targetX / w) * 100));
+      const leftPct = Math.max(16, Math.min(84, (targetX / dims.width) * 100));
       tooltip.style.left = `${leftPct.toFixed(1)}%`;
-      
       const formatted = formatTimestampTooltip(timestamps[index]);
       tooltip.innerHTML = `<span class="tooltip-time">${formatted.fullGmt}</span><span class="tooltip-val">${primaryVal.toFixed(2)} ${unit}</span>`;
     }
   };
 
-  const handleMove = (e) => {
-    if (inspectorHoverStickyTimer) clearTimeout(inspectorHoverStickyTimer);
-    const ratio = calculateRatioFromEvent(e, svg, dims);
-    currentRatio = ratio;
-    updateCrosshair(ratio);
-  };
+  bindInteractiveScrubbing(wrapper, {
+    svg,
+    dimensions: dims,
+    stickyDelay: options.stickyDelay ?? 1200,
+    timerRef: inspectorHoverTimerRef,
+    stepCount: Math.max(1, pointsData.length - 1),
+    onUpdate: updateCrosshair
+  });
+}
 
-  const handleLeave = () => {
-    if (inspectorHoverStickyTimer) clearTimeout(inspectorHoverStickyTimer);
-    inspectorHoverStickyTimer = setTimeout(() => {
-      currentRatio = null;
-      updateCrosshair(null);
-    }, 1200);
-  };
+const globalHoverTimerRef = { id: null };
 
-  overlay.addEventListener('pointermove', handleMove);
-  overlay.addEventListener('touchmove', handleMove, { passive: true });
-  overlay.addEventListener('pointerleave', handleLeave);
+/**
+ * Binds synchronized mouse, touch, and keyboard crosshair scrubbing across all dashboard sparklines.
+ *
+ * @param {HTMLElement|Document} [container=document] - Container holding `.sparkline-wrapper` cards
+ * @param {Object} [options={}] - Optional callbacks (`stickyDelay`, `refreshController`, `onHoverChange`)
+ */
+export function bindSparklineEvents(container = document, options = {}) {
+  const wrappers = container.querySelectorAll('.sparkline-wrapper');
+  const stickyDelay = options.stickyDelay ?? 1200;
+  const dims = getSparklineDimensions({
+    width: 300, height: 75, marginLeft: 8, marginRight: 65, marginTop: 16, marginBottom: 16
+  });
+  let activeRatio = null;
 
-  wrapper.addEventListener('keydown', (e) => {
-    if (['ArrowLeft', 'ArrowRight', 'Home', 'End', 'Escape'].includes(e.key)) {
-      e.preventDefault();
-      let ratio = currentRatio !== null ? currentRatio : 1.0;
-      const step = 1 / Math.max(1, pointsData.length - 1);
+  const updateWrapperCrosshair = (wrapper, ratio) => {
+    const svg = wrapper.querySelector('svg.sparkline');
+    if (!svg) return;
 
-      if (e.key === 'ArrowLeft') ratio = Math.max(0, ratio - (e.shiftKey ? step * 4 : step));
-      if (e.key === 'ArrowRight') ratio = Math.min(1, ratio + (e.shiftKey ? step * 4 : step));
-      if (e.key === 'Home') ratio = 0;
-      if (e.key === 'End') ratio = 1;
-      if (e.key === 'Escape') {
-        currentRatio = null;
-        updateCrosshair(null);
-        return;
-      }
+    const pointsData = JSON.parse(svg.dataset.points || '[]');
+    const secondaryData = JSON.parse(svg.dataset.secondaryPoints || '[]');
+    const timestamps = JSON.parse(svg.dataset.timestamps || '[]');
+    if (!pointsData || pointsData.length === 0) return;
 
-      currentRatio = ratio;
-      updateCrosshair(ratio);
+    const targetX = dims.marginLeft + ratio * dims.drawWidth;
+    const index = calculateSparklineScrubIndex(ratio, pointsData.length);
+    const primaryVal = pointsData[index];
+    const yMin = parseFloat(svg.dataset.ymin);
+    const yMax = parseFloat(svg.dataset.ymax);
+    const effectiveRange = yMax - yMin || 1;
+    const targetY = dims.height - dims.marginBottom - (((primaryVal - yMin) / effectiveRange) * dims.drawHeight);
+    const hasSec = secondaryData.length > 0 && index < secondaryData.length;
+    const secTargetY = hasSec
+      ? dims.height - dims.marginBottom - (((secondaryData[index] - yMin) / effectiveRange) * dims.drawHeight)
+      : null;
+
+    updateCrosshairSvgElements(svg, targetX, targetY, secTargetY);
+
+    const tooltip = wrapper.querySelector('.sparkline-tooltip');
+    if (tooltip) {
+      tooltip.style.left = `${(targetX / dims.width) * 100}%`;
+      const formatted = formatTimestampTooltip(timestamps[index]);
+      const valText = hasSec
+        ? `${svg.dataset.primaryName || 'Inland'}: ${primaryVal.toFixed(2)}m | ${svg.dataset.secondaryName || 'Sea'}: ${secondaryData[index].toFixed(2)}m`
+        : `${primaryVal.toFixed(2)} ${svg.dataset.unit || 'mAOD'}`;
+      tooltip.innerHTML = `<span class="tooltip-time">${formatted.dateStr} ${formatted.timeStr}</span><span class="tooltip-val">${valText}</span>`;
     }
+  };
+
+  const updateGlobalTimestampBanner = (ratio) => {
+    const banner = document.getElementById('global-timestamp-banner');
+    const badge = document.getElementById('gt-mode-badge');
+    const timeDisplay = document.getElementById('gt-time-display');
+    const ageDisplay = document.getElementById('gt-age-display');
+    const syncStatus = document.getElementById('gt-sync-status');
+    if (!banner) return;
+
+    if (ratio === null) {
+      banner.classList.remove('active-inspection');
+      if (badge) badge.innerText = '📡 REAL-TIME STREAM';
+      if (timeDisplay) timeDisplay.innerText = 'Showing latest live telemetry across all catchments';
+      if (ageDisplay) ageDisplay.innerText = '';
+      if (syncStatus) syncStatus.innerText = '💡 Hover over or scrub any sparkline to inspect synchronized crosshair';
+      return;
+    }
+
+    const firstSvg = container.querySelector('svg.sparkline');
+    const timestamps = firstSvg ? JSON.parse(firstSvg.dataset.timestamps || '[]') : [];
+    const index = calculateSparklineScrubIndex(ratio, timestamps.length);
+    const formatted = formatTimestampTooltip(timestamps[index]);
+
+    banner.classList.add('active-inspection');
+    if (badge) badge.innerText = '🎯 SYNCHRONIZED INSPECTION';
+    if (timeDisplay && formatted.isValid) {
+      timeDisplay.innerText = `📅 ${formatted.dateFormatted}, ${formatted.timeStr} GMT`;
+    }
+    if (ageDisplay && formatted.isValid) {
+      ageDisplay.innerText = formatRelativeAge(formatted.timeObj);
+    }
+    if (syncStatus) syncStatus.innerText = '[ 4/4 MOORS SYNCED ]';
+  };
+
+  const setGlobalSparklineHover = (ratio) => {
+    activeRatio = ratio;
+    if (options.refreshController) options.refreshController.setScrubbing(ratio !== null);
+    if (options.onHoverChange) options.onHoverChange(ratio);
+    updateGlobalTimestampBanner(ratio);
+    wrappers.forEach(w => {
+      if (ratio === null) {
+        w.classList.remove('crosshair-active');
+      } else {
+        w.classList.add('crosshair-active');
+        updateWrapperCrosshair(w, ratio);
+      }
+    });
+  };
+
+  wrappers.forEach(wrapper => {
+    const svg = wrapper.querySelector('svg.sparkline');
+    const overlay = wrapper.querySelector('.sparkline-touch-overlay');
+    if (!svg || !overlay) return;
+
+    wrapper.setAttribute('tabindex', '0');
+    wrapper.setAttribute('role', 'region');
+    const titleText = wrapper.querySelector('.sparkline-title')?.textContent || 'Hydrological trend';
+    wrapper.setAttribute('aria-label', `${titleText} interactive sparkline. Use Left and Right Arrow keys to scrub timeline.`);
+
+    bindInteractiveScrubbing(wrapper, {
+      svg,
+      dimensions: dims,
+      stickyDelay,
+      timerRef: globalHoverTimerRef,
+      getActiveRatio: () => activeRatio,
+      stepCount: () => {
+        try {
+          return Math.max(1, (JSON.parse(svg.dataset.points || '[]').length || 96) - 1);
+        } catch (_) {
+          return 95;
+        }
+      },
+      onUpdate: setGlobalSparklineHover
+    });
   });
 }

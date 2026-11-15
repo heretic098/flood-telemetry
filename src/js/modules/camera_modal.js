@@ -23,6 +23,8 @@
  *   Escape dismissal, ArrowLeft/ArrowRight frame stepping, Space play/pause, >= 44x44px touch targets.
  */
 
+import { escapeHTML, escapeAttr } from './dom_utils.js';
+
 const ASSET_TO_GUIDE_SITE = Object.freeze({
   dunball_outfall: 'dunball',
   dunball_ksd: 'dunball',
@@ -1466,26 +1468,6 @@ export function isValidEventImageUrl(url) {
 
 function safeImageUrl(url) {
   return isValidEventImageUrl(url) ? url : null;
-}
-
-function escapeHTML(str) {
-  if (str === null || str === undefined) return '';
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
-function escapeAttr(str) {
-  if (str === null || str === undefined) return '';
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
 }
 
 export function createCameraModal(options) {

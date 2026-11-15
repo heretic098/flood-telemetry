@@ -162,25 +162,13 @@ test('GET /api/events?asset_id=hookbridge filters events by asset_id', async () 
   }
 });
 
-test('GET /api/status includes active_events list and preserves backward-compatible cards', async () => {
+test('GET /api/status includes active_events list and omits legacy cards dictionary', async () => {
   const res = await httpGet('/api/status');
   assert.equal(res.status, 200);
   const json = JSON.parse(res.body);
   assert.equal(json.status, 'ok');
   assert.ok(Array.isArray(json.active_events));
-  assert.ok(json.cards.hookbridge_spillway);
-  assert.ok(json.cards.baltmoor_wall);
-  assert.ok(json.cards.monks_leaze_clyse);
-  assert.ok(typeof json.cards.hookbridge_spillway.spill_duration_seconds === 'number');
-  assert.ok(typeof json.cards.baltmoor_wall.spill_duration_seconds === 'number');
-
-  // [RULE-CALC-01] Purge of speculative volumetric calculations
-  assert.equal(json.cards.hookbridge_spillway.discharge_m3s, undefined);
-  assert.equal(json.cards.hookbridge_spillway.discharge_mld, undefined);
-  assert.equal(json.cards.baltmoor_wall.discharge_m3s, undefined);
-  assert.equal(json.cards.baltmoor_wall.discharge_mld, undefined);
-  assert.equal(json.cards.monks_leaze_clyse.flow_m3s, undefined);
-  assert.equal(json.cards.monks_leaze_clyse.flow_mld, undefined);
+  assert.equal(json.cards, undefined, 'Legacy redundant cards dictionary must be omitted from /api/status');
 });
 
 test('GET /api/status includes evaluated roads and road_corridors for all 8 corridors', async () => {
@@ -239,6 +227,7 @@ test('Server Partials: Injects nav and footer with correct active tabs across al
     assert.ok(res.headers['content-type'].includes('text/html'), `${page.path} must be text/html`);
 
     // Verify partial injection replaced placeholders
+    assert.ok(!res.body.includes('<!-- INCLUDE: head -->'), `${page.path} must have head placeholder injected`);
     assert.ok(!res.body.includes('<!-- INCLUDE: nav -->'), `${page.path} must have nav placeholder injected`);
     assert.ok(!res.body.includes('<!-- INCLUDE: footer -->'), `${page.path} must have footer placeholder injected`);
 
@@ -261,6 +250,7 @@ test('Server Partials: Injects nav and footer with correct active tabs across al
 
 test('Server Partials: Direct access to /partials/ files returns 403 Forbidden', async () => {
   const forbiddenPaths = [
+    '/partials/head.html',
     '/partials/nav.html',
     '/partials/footer.html',
     '/partials/'

@@ -4,19 +4,19 @@ import { setCameraEventsCatalog, openVisualEvidence, initCameraGuideTriggers } f
 import { createRefreshController } from './modules/refresh_controller.js';
 import { setupOfflineBanner as setupResilienceBanner } from './modules/network_resilience.js';
 import {
-  computeSparklineBounds,
-  checkFlatStage,
-  projectCoordinates,
-  buildSvgPoints,
-  computeTideLockIntervals,
-  formatTimestampTooltip,
-  calculateSparklineScrubIndex,
-  calculateRatioFromEvent,
-  formatRelativeAge,
-  normalizePoints,
+  escapeAttr,
+  escapeHTML,
+  formatSpanUnit,
+  formatHeadDelta,
+  applyFreshnessPill
+} from './modules/dom_utils.js';
+export { escapeAttr, escapeHTML, formatSpanUnit, formatHeadDelta };
+import { renderCorridorRow } from './roads.js';
+import {
+  renderMicroSparkline,
+  renderSingleSparkline as renderSingleSparklineCore,
   renderDualSparkline as renderDualSparklineCore,
-  renderGridLines,
-  renderYAxisLabels
+  bindSparklineEvents as bindSparklineEventsCore
 } from './sparkline.js';
 
 export function renderHeroSpillwayBanner(opts) {
@@ -127,55 +127,6 @@ async function fetchEAReadings(measureId) {
   return null;
 }
 
-export function escapeAttr(str) {
-  if (str === null || str === undefined) return '';
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
-}
-
-export function escapeHTML(str) {
-  if (str === null || str === undefined) return '';
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
-export function formatSpanUnit(deltaInMeters) {
-  const absDelta = Math.abs(deltaInMeters);
-  if (absDelta >= 1.0) {
-    return `${deltaInMeters.toFixed(2)}m`;
-  } else if (absDelta >= 0.01) {
-    const cm = Number((deltaInMeters * 100).toFixed(1));
-    return `${Number.isInteger(cm) || cm >= 10 ? cm.toFixed(0) : cm.toFixed(1)}cm`;
-  } else {
-    const mm = Math.round(deltaInMeters * 1000);
-    return `${mm.toFixed(0)}mm`;
-  }
-}
-
-export function formatHeadDelta(deltaInMeters) {
-  const prefix = deltaInMeters > 0 ? '+' : (deltaInMeters < 0 ? '-' : '');
-  const absDelta = Math.abs(deltaInMeters);
-  if (absDelta >= 1.0) {
-    return `${prefix}${absDelta.toFixed(2)}m`;
-  } else if (absDelta >= 0.01) {
-    const cm = absDelta * 100;
-    return `${prefix}${cm < 10 ? cm.toFixed(1) : cm.toFixed(0)}cm`;
-  } else if (absDelta > 0) {
-    const mm = absDelta * 1000;
-    return `${prefix}${mm.toFixed(0)}mm`;
-  } else {
-    return `0cm`;
-  }
-}
-
 let currentActiveRange = '24h';
 
 export async function setupCatchmentNav(currentCatchmentId) {
@@ -207,17 +158,7 @@ export async function setupCatchmentNav(currentCatchmentId) {
         link.removeAttribute('aria-current');
       }
     });
-    return;
   }
-
-  // Fallback template if static file was loaded without server-side partial injection
-  navContainer.innerHTML = `
-    <a href="index.html" class="nav-btn nav-link ${isDashboard ? 'active' : ''}" ${isDashboard ? 'aria-current="page"' : ''}>📊 Overview</a>
-    <a href="roads.html" class="nav-btn nav-link ${isRoads ? 'active' : ''}" ${isRoads ? 'aria-current="page"' : ''}>🚗 Roads &amp; Access</a>
-    <a href="topology.html" class="nav-btn nav-link ${isTopology ? 'active' : ''}" ${isTopology ? 'aria-current="page"' : ''}>🗺️ River Topology</a>
-    <a href="methodology.html" class="nav-btn nav-link ${isMethodology ? 'active' : ''}" ${isMethodology ? 'aria-current="page"' : ''}>📖 Methodology</a>
-    <a href="https://ko-fi.com/heretic098" target="_blank" rel="noopener noreferrer" class="nav-btn nav-link nav-btn-kofi" title="Support the developer on Ko-fi" aria-label="Support the developer on Ko-fi (opens in new tab)">☕ Support ↗</a>
-  `;
 }
 
 export { getValidStageOrFallback };
@@ -601,26 +542,7 @@ export async function refreshLiveDashboard() {
 
       const eaPill = document.getElementById('ea-freshness-pill');
       if (eaPill) {
-        let pillText = '';
-        if (diffMins < 1) {
-          pillText = 'Just now';
-        } else if (diffMins <= 120) {
-          pillText = diffMins < 60 ? `${diffMins}m ago` : `${(diffMins / 60).toFixed(1)}h ago`;
-        } else if (diffMins <= 360) {
-          pillText = `${(diffMins / 60).toFixed(1)}h ago (Lagging)`;
-        } else {
-          pillText = `${(diffMins / 60).toFixed(1)}h ago (Stale)`;
-        }
-
-        eaPill.innerText = `📡 Telemetry: ${pillText}`;
-        eaPill.classList.remove('freshness-fresh', 'freshness-warning', 'freshness-stale');
-        if (diffMins <= 120) {
-          eaPill.classList.add('freshness-fresh');
-        } else if (diffMins <= 360) {
-          eaPill.classList.add('freshness-warning');
-        } else {
-          eaPill.classList.add('freshness-stale');
-        }
+        applyFreshnessPill(eaPill, sysTimestamps.latest_ea_reading_at);
       }
 
       const modalEaTime = document.getElementById('modal-ea-time');
@@ -1957,147 +1879,10 @@ export function renderRoadNetworkCard(roadEvaluations, activeEventsMap = null) {
   `;
 
   const corridorsHtml = corridors_list.map(corridor => {
-    const statusLower = (corridor.status || 'passable').toLowerCase();
-    const isClearing = corridor.phase === 'CLEARING_INSPECTION_PENDING';
-
-    const provClass = (corridor.survey_tier === 'TIER_1_SURVEYED' || corridor.survey_tier === 'TIER_1_WEIR_PENDING_SURVEY_CROWN')
-      ? 'prov-high' : 'prov-medium';
-
-    const momentumClass = (typeof corridor.rate_of_rise_mh === 'number' && corridor.rate_of_rise_mh >= 0.02)
-      ? 'trending-rising'
-      : ((typeof corridor.rate_of_rise_mh === 'number' && corridor.rate_of_rise_mh <= -0.02) ? 'trending-falling' : 'trending-steady');
-
-    let crownLabel = 'Road Crown:';
-    if (corridor.asset_id === 'cuts_road') crownLabel = 'Spillway Crown:';
-    else if (corridor.asset_id === 'beer_wall_a372') crownLabel = 'Culvert Relief:';
-
-    let eaStateText = 'Inactive';
-    if (corridor.ea_warning_state === 'RED_WARNING') eaStateText = '⚠️ Active Warning';
-    else if (corridor.ea_warning_state === 'AMBER_ALERT') eaStateText = '⚠️ Active Alert';
-
-    let lifecycleHtml = '';
-    if (isClearing) {
-      const timeFormatted = corridor.submerged_end_time 
-        ? new Date(corridor.submerged_end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        : '';
-      const dryHours = (typeof corridor.dry_duration_hours === 'number' && Number.isFinite(corridor.dry_duration_hours))
-        ? `${corridor.dry_duration_hours.toFixed(1)}h`
-        : '0.0h';
-      const daylightHours = (typeof corridor.daylight_dry_hours === 'number' && Number.isFinite(corridor.daylight_dry_hours))
-        ? `${corridor.daylight_dry_hours.toFixed(1)} / 6.0 daylight hrs`
-        : '0.0 / 6.0 daylight hrs';
-      const progressPct = Math.min(100, Math.max(0, corridor.daylight_progress_percent || 0));
-
-      lifecycleHtml = `
-        <div class="corridor-lifecycle-box lifecycle-clearing" role="region" aria-label="Inspection Progress">
-          <div class="lifecycle-header">
-            <span class="lifecycle-title"><strong>Council Gate Safety Inspection Pending</strong></span>
-            <span class="lifecycle-timer">⏱️ ${timeFormatted ? `Water receded ${timeFormatted} • ` : ''}Dry for ${dryHours}</span>
-          </div>
-          <div class="daylight-progress-wrap">
-            <div class="daylight-labels">
-              <span>Daylight Inspection Window (08:00–17:00):</span>
-              <strong>${daylightHours}</strong>
-            </div>
-            <div class="daylight-progress-track" role="progressbar" aria-valuenow="${progressPct.toFixed(0)}" aria-valuemin="0" aria-valuemax="100" aria-label="Daylight inspection window progress">
-              <div class="daylight-progress-fill" style="width: ${progressPct.toFixed(1)}%;"></div>
-            </div>
-          </div>
-          <p class="lifecycle-narrative">
-            ${escapeHTML(corridor.narrative || '')}
-          </p>
-        </div>
-      `;
-    } else if (corridor.narrative) {
-      lifecycleHtml = `
-        <p class="lifecycle-narrative" style="margin-bottom: 0.5rem; font-size: 0.8rem; color: #cbd5e1;">
-          ${escapeHTML(corridor.narrative)}
-        </p>
-      `;
-    }
-
-    const camBtnHtml = corridor.cam_url ? `
-      <a href="${escapeAttr(corridor.cam_url)}" target="_blank" rel="noopener noreferrer" class="road-cam-btn" title="View live camera for ${escapeAttr(corridor.name)}" aria-label="View live camera for ${escapeAttr(corridor.name)}">
-        <span aria-hidden="true">📷</span> ${escapeHTML(corridor.cam_label || 'Check Live Camera ↗')}
-      </a>
-    ` : '';
-
     const correlatedEvent = (activeEventsMap instanceof Map)
       ? activeEventsMap.get(corridor.asset_id)
       : (activeEventsMap && typeof activeEventsMap === 'object' ? activeEventsMap[corridor.asset_id] : null);
-    const evCe = correlatedEvent?.camera_evidence || null;
-    const evSeqCount = Array.isArray(evCe?.sequence_frames) ? evCe.sequence_frames.length : 0;
-    const evIsNight = Boolean(evCe && evCe.fallback_mode === 'NIGHT_TELEMETRY' && evSeqCount === 0);
-    const visualEvidenceBtnHtml = (correlatedEvent && evCe) ? `
-      <button type="button"
-              class="road-evidence-btn visual-evidence-btn ${evIsNight ? 'visual-evidence-btn-night' : ''} visual-evidence-trigger"
-              data-visual-evidence-event-id="${escapeAttr(String(correlatedEvent.id || ''))}"
-              data-visual-evidence-asset="${escapeAttr(correlatedEvent.asset_id || corridor.asset_id)}"
-              title="${evIsNight ? 'Inspect Night Telemetry Verification' : 'Inspect Archived Event Keyframes & Transition Sequence'}">
-        <span aria-hidden="true">${evIsNight ? '🌙' : '📷'}</span> ${evIsNight ? 'Night Telemetry' : `Visual Evidence${evSeqCount > 1 ? ` (${evSeqCount})` : ''}`}
-      </button>
-    ` : '';
-
-    const stationBtnHtml = corridor.station_url ? `
-      <a href="${escapeAttr(corridor.station_url)}" target="_blank" rel="noopener noreferrer" class="road-station-link" title="Verify raw EA telemetry for ${escapeAttr(corridor.driving_station_label)}">
-        📊 Raw Station Telemetry ↗
-      </a>
-    ` : '';
-
-    const stageValText = (typeof corridor.stage_mAOD === 'number') ? `${corridor.stage_mAOD.toFixed(2)}m AOD` : 'N/A';
-    const crownValText = (typeof corridor.crown_elevation_mAOD === 'number') ? `${corridor.crown_elevation_mAOD.toFixed(2)}m AOD` : 'N/A';
-
-    return `
-      <section class="road-corridor-row status-${statusLower}" data-asset-id="${escapeAttr(corridor.asset_id)}" data-status="${statusLower}" role="listitem" aria-labelledby="road-title-${escapeAttr(corridor.asset_id)}">
-        <div class="corridor-main-header">
-          <div class="corridor-title-col">
-            <div class="corridor-heading-wrap">
-              <h3 class="corridor-title" id="road-title-${escapeAttr(corridor.asset_id)}">${escapeHTML(corridor.name)}</h3>
-              <span class="corridor-type-badge">${escapeHTML(corridor.corridor_type)}</span>
-            </div>
-            <div class="corridor-provenance-wrap">
-              <span class="provenance-tag ${provClass}" title="${escapeAttr(corridor.survey_tooltip || '')}">${escapeHTML(corridor.survey_label || '')}</span>
-              <span class="corridor-station-label">Driving Station: ${escapeHTML(corridor.driving_station_label)}</span>
-            </div>
-          </div>
-
-          <div class="corridor-status-col">
-            <div class="status-badge ${escapeAttr(corridor.badge_class)}" aria-live="polite">
-              <span aria-hidden="true">${escapeHTML(corridor.badge_symbol)}</span>
-              <span class="sr-only">Status: </span>
-              <span>${escapeHTML(corridor.badge_label)}</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="corridor-metrics-strip">
-          <div class="corridor-metric-item">
-            <span class="metric-label">Water Stage:</span>
-            <span class="metric-val">${stageValText}</span>
-          </div>
-          <div class="corridor-metric-item">
-            <span class="metric-label">${crownLabel}</span>
-            <span class="metric-val">${crownValText} <small>(${escapeHTML(corridor.clearance_text || '')})</small></span>
-          </div>
-          <div class="corridor-metric-item">
-            <span class="metric-label">3h Momentum:</span>
-            <span class="metric-val ${momentumClass}">${escapeHTML(corridor.momentum_text || 'Steady')}</span>
-          </div>
-          <div class="corridor-metric-item">
-            <span class="metric-label">EA Warning Area:</span>
-            <span class="metric-val">${escapeHTML(corridor.ea_warning_target_area || 'None')} <small>(${eaStateText})</small></span>
-          </div>
-        </div>
-
-        ${lifecycleHtml}
-
-        <div class="corridor-actions-bar">
-          ${visualEvidenceBtnHtml}
-          ${camBtnHtml}
-          ${stationBtnHtml}
-        </div>
-      </section>
-    `;
+    return renderCorridorRow(corridor, correlatedEvent);
   }).join('');
 
   card.innerHTML = `
@@ -2396,108 +2181,13 @@ export function renderPumpTriggerGauge(pumpEval, drivingInfo) {
   `;
 }
 
-export function renderMicroSparkline(points, strokeColor = '#38bdf8', minSpan = 0.50) {
-  if (!points || points.length < 2) return `<span class="micro-empty">--</span>`;
-  const rawValues = points.map(p => typeof p === 'object' ? p.value : p);
-  const width = 110;
-  const height = 24;
-  
-  const rawMin = Math.min(...rawValues);
-  const rawMax = Math.max(...rawValues);
-  const rawRange = rawMax - rawMin;
-
-  let yMin = rawMin;
-  let yMax = rawMax;
-
-  if (rawRange < minSpan) {
-    const midpoint = (rawMin + rawMax) / 2;
-    yMin = midpoint - (minSpan / 2);
-    yMax = midpoint + (minSpan / 2);
-  }
-
-  const effectiveRange = yMax - yMin || 1;
-
-  const pts = rawValues.map((p, i) => {
-    const x = (i / (rawValues.length - 1)) * (width - 6) + 3;
-    const y = height - 3 - (((p - yMin) / effectiveRange) * (height - 6));
-    return `${x.toFixed(1)},${y.toFixed(1)}`;
-  }).join(' ');
-
-  return `
-    <svg class="micro-sparkline" viewBox="0 0 ${width} ${height}" title="24h variation: ${(rawRange * 100).toFixed(1)}cm">
-      <polyline fill="none" stroke="${strokeColor}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" points="${pts}" />
-    </svg>
-  `;
-}
-
+export { renderMicroSparkline };
 
 export function renderSingleSparkline(pointsInput, strokeColor = '#4ade80', options = {}) {
-  if (!pointsInput || pointsInput.length === 0) return `<div class="sparkline-empty">No telemetry data</div>`;
-
-  const values = pointsInput.map(p => typeof p === 'object' ? p.value : p);
-  const timestamps = pointsInput.map(p => typeof p === 'object' ? p.time : '');
-
-  const width = options.width || 300;
-  const height = options.height || 75;
-  const minSpan = options.minSpan !== undefined ? options.minSpan : 0.50; // Enforce minimum 50cm scale window
-
-  const bounds = computeSparklineBounds(values, { minSpan });
-  const { rawMin, rawMax, rawRange, latestVal, yMin, yMax, effectiveRange } = bounds;
-
-  const marginTop = 16;
-  const marginBottom = 16;
-  const marginLeft = 8;
-  const marginRight = 68;
-  const drawWidth = width - marginLeft - marginRight;
-  const drawHeight = height - marginTop - marginBottom;
-  const dims = { width, height, marginTop, marginBottom, marginLeft, marginRight, drawWidth, drawHeight };
-
-  const projected = projectCoordinates(values, bounds, dims);
-  const pts = buildSvgPoints(projected);
-
-  const topLabel = `Max ${rawMax.toFixed(2)}m`;
-  const botLabel = `Min ${rawMin.toFixed(2)}m`;
-  const isFlatStage = rawRange < 0.01 || topLabel === botLabel;
-  const spanText = isFlatStage ? `${currentActiveRange.toUpperCase()} Range: Steady (0cm)` : `${currentActiveRange.toUpperCase()} Range: ${formatSpanUnit(rawRange)}`;
-
-  const streamHeader = options.streamLabel ? 
-    `<span class="stream-dot" style="background:${strokeColor}; color:${strokeColor}"></span><span class="sparkline-title">${options.streamLabel}</span> <span class="gauge-id-badge">ID: ${options.stationId}</span>` :
-    `<span class="sparkline-title">${currentActiveRange.toUpperCase()} Telemetry</span>`;
-
-  const centerY = marginTop + drawHeight / 2;
-  const gridLinesHTML = renderGridLines(dims, isFlatStage);
-  const yLabelsHTML = renderYAxisLabels(dims, bounds, isFlatStage);
-
-  return `
-    <div class="sparkline-wrapper">
-      <div class="sparkline-header">
-        <div class="sparkline-title-group">${streamHeader}</div>
-        <div class="sparkline-stats-bar">
-          <span class="sparkline-stat-pill pill-current" title="Latest stage reading">Current: <strong>${typeof latestVal === 'number' ? latestVal.toFixed(2) : '--'}${options.unit || 'mAOD'}</strong></span>
-          <span class="sparkline-stat-pill" title="Minimum stage reading in active window">Min: <strong>${rawMin.toFixed(2)}m</strong></span>
-          <span class="sparkline-stat-pill" title="Maximum stage reading in active window">Max: <strong>${rawMax.toFixed(2)}m</strong></span>
-          <span class="sparkline-span-pill" title="Actual variation range">${spanText}</span>
-        </div>
-      </div>
-      <svg class="sparkline" 
-           viewBox="0 0 ${width} ${height}" 
-           preserveAspectRatio="none"
-           data-points='${JSON.stringify(values)}'
-           data-timestamps='${JSON.stringify(timestamps)}'
-           data-ymin="${yMin}"
-           data-ymax="${yMax}"
-           data-unit="${options.unit || 'mAOD'}">
-        ${gridLinesHTML}
-        <polyline fill="none" stroke="${strokeColor}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" points="${pts}" />
-        <line class="sparkline-crosshair" x1="${marginLeft}" y1="${marginTop}" x2="${marginLeft}" y2="${height - marginBottom}" />
-        <circle class="sparkline-dot-halo" cx="0" cy="0" r="7" />
-        <circle class="sparkline-dot-highlight" cx="0" cy="0" r="4.5" />
-        <rect class="sparkline-touch-overlay" x="${marginLeft}" y="0" width="${drawWidth}" height="${height}" fill="transparent" />
-        ${yLabelsHTML}
-      </svg>
-      <div class="sparkline-tooltip"></div>
-    </div>
-  `;
+  return renderSingleSparklineCore(pointsInput, strokeColor, {
+    rangeLabel: options.rangeLabel || (typeof currentActiveRange !== 'undefined' ? currentActiveRange : '24h'),
+    ...options
+  });
 }
 
 export function renderDualSparkline(seaInput, inlandInput, isTideLocked, options = {}) {
@@ -2509,187 +2199,15 @@ export function renderDualSparkline(seaInput, inlandInput, isTideLocked, options
   });
 }
 
-let hoverStickyTimer = null;
-
 export function bindSparklineEvents(container = document) {
-  const wrappers = container.querySelectorAll('.sparkline-wrapper');
-
-  const updateWrapperCrosshair = (wrapper, ratio) => {
-    const svg = wrapper.querySelector('svg.sparkline');
-    if (!svg) return;
-
-    const pointsData = JSON.parse(svg.dataset.points || '[]');
-    const secondaryData = JSON.parse(svg.dataset.secondaryPoints || '[]');
-    const timestamps = JSON.parse(svg.dataset.timestamps || '[]');
-    if (!pointsData || pointsData.length === 0) return;
-
-    const width = 300;
-    const height = 75;
-    const marginLeft = 8;
-    const marginRight = 65;
-    const marginTop = 16;
-    const marginBottom = 16;
-    const drawWidth = width - marginLeft - marginRight;
-    const drawHeight = height - marginTop - marginBottom;
-
-    const targetX = marginLeft + ratio * drawWidth;
-    const index = calculateSparklineScrubIndex(ratio, pointsData.length);
-
-    const primaryVal = pointsData[index];
-    const yMin = parseFloat(svg.dataset.ymin);
-    const yMax = parseFloat(svg.dataset.ymax);
-    const effectiveRange = yMax - yMin || 1;
-
-    const normalizedY = (primaryVal - yMin) / effectiveRange;
-    const targetY = height - marginBottom - (normalizedY * drawHeight);
-
-    const crosshairLine = svg.querySelector('.sparkline-crosshair');
-    const dotHighlight = svg.querySelector('.sparkline-dot-highlight');
-    const dotHalo = svg.querySelector('.sparkline-dot-halo');
-
-    if (crosshairLine) {
-      crosshairLine.setAttribute('x1', targetX.toFixed(1));
-      crosshairLine.setAttribute('x2', targetX.toFixed(1));
+  return bindSparklineEventsCore(container, {
+    stickyDelay: 1200,
+    refreshController,
+    onHoverChange: (ratio) => {
+      currentHoverRatio = ratio;
+      isUserInspecting = ratio !== null;
+      updateCountdownDisplay();
     }
-    if (dotHighlight) {
-      dotHighlight.setAttribute('cx', targetX.toFixed(1));
-      dotHighlight.setAttribute('cy', targetY.toFixed(1));
-    }
-    if (dotHalo) {
-      dotHalo.setAttribute('cx', targetX.toFixed(1));
-      dotHalo.setAttribute('cy', targetY.toFixed(1));
-    }
-
-    if (secondaryData.length > 0 && index < secondaryData.length) {
-      const secVal = secondaryData[index];
-      const secNormY = (secVal - yMin) / effectiveRange;
-      const secTargetY = height - marginBottom - (secNormY * drawHeight);
-      const secDot = svg.querySelector('.sparkline-dot-highlight-secondary');
-      if (secDot) {
-        secDot.setAttribute('cx', targetX.toFixed(1));
-        secDot.setAttribute('cy', secTargetY.toFixed(1));
-      }
-    }
-
-    const tooltip = wrapper.querySelector('.sparkline-tooltip');
-    if (tooltip) {
-      tooltip.style.left = `${(targetX / width) * 100}%`;
-      const formatted = formatTimestampTooltip(timestamps[index]);
-      const timeStr = formatted.timeStr;
-      const dateStr = formatted.dateStr;
-      
-      let valText = '';
-      if (secondaryData.length > 0 && index < secondaryData.length) {
-        const pName = svg.dataset.primaryName || 'Inland';
-        const sName = svg.dataset.secondaryName || 'Sea';
-        valText = `${pName}: ${primaryVal.toFixed(2)}m | ${sName}: ${secondaryData[index].toFixed(2)}m`;
-      } else {
-        valText = `${primaryVal.toFixed(2)} ${svg.dataset.unit || 'mAOD'}`;
-      }
-
-      tooltip.innerHTML = `<span class="tooltip-time">${dateStr} ${timeStr}</span><span class="tooltip-val">${valText}</span>`;
-    }
-  };
-
-  const updateGlobalTimestampBanner = (ratio) => {
-    const banner = document.getElementById('global-timestamp-banner');
-    const badge = document.getElementById('gt-mode-badge');
-    const timeDisplay = document.getElementById('gt-time-display');
-    const ageDisplay = document.getElementById('gt-age-display');
-    const syncStatus = document.getElementById('gt-sync-status');
-    if (!banner) return;
-
-    if (ratio === null) {
-      banner.classList.remove('active-inspection');
-      if (badge) badge.innerText = '📡 REAL-TIME STREAM';
-      if (timeDisplay) timeDisplay.innerText = 'Showing latest live telemetry across all catchments';
-      if (ageDisplay) ageDisplay.innerText = '';
-      if (syncStatus) syncStatus.innerText = '💡 Hover over or scrub any sparkline to inspect synchronized crosshair';
-      return;
-    }
-
-    const firstSvg = container.querySelector('svg.sparkline');
-    const timestamps = firstSvg ? JSON.parse(firstSvg.dataset.timestamps || '[]') : [];
-    const index = calculateSparklineScrubIndex(ratio, timestamps.length);
-    const formatted = formatTimestampTooltip(timestamps[index]);
-
-    banner.classList.add('active-inspection');
-    if (badge) badge.innerText = '🎯 SYNCHRONIZED INSPECTION';
-    if (timeDisplay && formatted.isValid) {
-      timeDisplay.innerText = `📅 ${formatted.dateFormatted}, ${formatted.timeStr} GMT`;
-    }
-    if (ageDisplay && formatted.isValid) {
-      ageDisplay.innerText = formatRelativeAge(formatted.timeObj);
-    }
-    if (syncStatus) syncStatus.innerText = '[ 4/4 MOORS SYNCED ]';
-  };
-
-  const setGlobalSparklineHover = (ratio) => {
-    currentHoverRatio = ratio;
-    isUserInspecting = ratio !== null;
-    refreshController.setScrubbing(ratio !== null);
-    updateGlobalTimestampBanner(ratio);
-    wrappers.forEach(w => {
-      if (ratio === null) {
-        w.classList.remove('crosshair-active');
-      } else {
-        w.classList.add('crosshair-active');
-        updateWrapperCrosshair(w, ratio);
-      }
-    });
-
-    updateCountdownDisplay();
-  };
-
-  wrappers.forEach(wrapper => {
-    const svg = wrapper.querySelector('svg.sparkline');
-    const overlay = wrapper.querySelector('.sparkline-touch-overlay');
-    if (!svg || !overlay) return;
-
-    wrapper.setAttribute('tabindex', '0');
-    wrapper.setAttribute('role', 'region');
-    const titleText = wrapper.querySelector('.sparkline-title')?.textContent || 'Hydrological trend';
-    wrapper.setAttribute('aria-label', `${titleText} interactive sparkline. Use Left and Right Arrow keys to scrub timeline.`);
-
-    const getRatioFromEvent = (e) => {
-      return calculateRatioFromEvent(e, svg, { width: 300, marginLeft: 8, marginRight: 65 });
-    };
-
-    const handleMove = (e) => {
-      if (hoverStickyTimer) clearTimeout(hoverStickyTimer);
-      const ratio = getRatioFromEvent(e);
-      setGlobalSparklineHover(ratio);
-    };
-
-    const handleLeave = () => {
-      if (hoverStickyTimer) clearTimeout(hoverStickyTimer);
-      hoverStickyTimer = setTimeout(() => {
-        setGlobalSparklineHover(null);
-      }, 1500);
-    };
-
-    overlay.addEventListener('pointermove', handleMove);
-    overlay.addEventListener('touchmove', handleMove, { passive: true });
-    overlay.addEventListener('pointerleave', handleLeave);
-
-    wrapper.addEventListener('keydown', (e) => {
-      if (['ArrowLeft', 'ArrowRight', 'Home', 'End', 'Escape'].includes(e.key)) {
-        e.preventDefault();
-        let ratio = currentHoverRatio !== null ? currentHoverRatio : 1.0;
-        const step = 1 / 95;
-
-        if (e.key === 'ArrowLeft') ratio = Math.max(0, ratio - (e.shiftKey ? step * 4 : step));
-        if (e.key === 'ArrowRight') ratio = Math.min(1, ratio + (e.shiftKey ? step * 4 : step));
-        if (e.key === 'Home') ratio = 0;
-        if (e.key === 'End') ratio = 1;
-        if (e.key === 'Escape') {
-          setGlobalSparklineHover(null);
-          return;
-        }
-
-        setGlobalSparklineHover(ratio);
-      }
-    });
   });
 }
 

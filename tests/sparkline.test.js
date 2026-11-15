@@ -2,6 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  formatTimeSpan,
+  formatFreshnessPill,
+  applyFreshnessPill
+} from '../src/js/modules/dom_utils.js';
+
+import {
   escapeHTML,
   escapeAttr,
   normalizePoints,
@@ -228,4 +234,45 @@ test('Sparkline: renderInspectorSparkline includes dynamic crest guide and acces
   assert.ok(nearHtml.includes('tabindex="0"'));
   assert.ok(nearHtml.includes('#f59e0b'), 'Near crest must render warning amber guide');
   assert.ok(nearHtml.includes('⚠️ Crest 7.45m'));
+});
+
+test('DOM Utils: formatTimeSpan formats duration seconds into Xh Ym strings', () => {
+  assert.equal(formatTimeSpan(0), '0h 0m');
+  assert.equal(formatTimeSpan(-45), '0h 0m');
+  assert.equal(formatTimeSpan(3661), '1h 1m');
+  assert.equal(formatTimeSpan(7500), '2h 5m');
+});
+
+test('DOM Utils: formatFreshnessPill and applyFreshnessPill enforce triple-encoded freshness states', () => {
+  const nowMs = Date.UTC(2026, 10, 15, 12, 0, 0);
+
+  const justNow = formatFreshnessPill(new Date(nowMs - 20 * 1000), nowMs);
+  assert.equal(justNow.state, 'FRESH');
+  assert.equal(justNow.modifierClass, 'freshness-fresh');
+  assert.ok(justNow.text.includes('📡 Telemetry: Just now'));
+
+  const freshMins = formatFreshnessPill(new Date(nowMs - 45 * 60000), nowMs);
+  assert.equal(freshMins.state, 'FRESH');
+  assert.equal(freshMins.text, '📡 Telemetry: 45m ago');
+
+  const lagging = formatFreshnessPill(new Date(nowMs - 180 * 60000), nowMs);
+  assert.equal(lagging.state, 'WARNING');
+  assert.equal(lagging.modifierClass, 'freshness-warning');
+  assert.ok(lagging.text.includes('⚠️ Telemetry: 3.0h ago (Lagging)'));
+
+  const stale = formatFreshnessPill(new Date(nowMs - 420 * 60000), nowMs);
+  assert.equal(stale.state, 'STALE');
+  assert.equal(stale.modifierClass, 'freshness-stale');
+  assert.ok(stale.text.includes('⏱️ Telemetry: 7.0h ago (Stale)'));
+
+  const offline = formatFreshnessPill(null, nowMs);
+  assert.equal(offline.state, 'STALE');
+  assert.equal(offline.modifierClass, 'freshness-stale');
+  assert.equal(offline.text, '⏱️ Telemetry: Offline / Unknown');
+
+  const stubEl = { textContent: '', innerText: '', className: '' };
+  applyFreshnessPill(stubEl, new Date(nowMs - 15 * 60000), nowMs);
+  assert.equal(stubEl.textContent, '📡 Telemetry: 15m ago');
+  assert.equal(stubEl.innerText, '📡 Telemetry: 15m ago');
+  assert.equal(stubEl.className, 'telemetry-freshness-pill freshness-fresh');
 });

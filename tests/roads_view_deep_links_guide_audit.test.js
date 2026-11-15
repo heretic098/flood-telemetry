@@ -44,6 +44,7 @@ const methodologyHtml = renderHtmlWithPartials(fs.readFileSync(path.join(ROOT_DI
 const stylesCss = fs.readFileSync(path.join(ROOT_DIR, 'src/css/styles.css'), 'utf8');
 const captureViewsJs = fs.readFileSync(path.join(ROOT_DIR, 'scripts/capture_views.js'), 'utf8');
 const appJs = fs.readFileSync(path.join(ROOT_DIR, 'src/js/app.js'), 'utf8');
+const navPartialHtml = fs.readFileSync(path.join(ROOT_DIR, 'src/partials/nav.html'), 'utf8');
 const topologyJs = fs.readFileSync(path.join(ROOT_DIR, 'src/js/topology.js'), 'utf8');
 const roadsJs = fs.readFileSync(path.join(ROOT_DIR, 'src/js/roads.js'), 'utf8');
 const cameraGuideJs = fs.readFileSync(path.join(ROOT_DIR, 'src/js/camera_guide.js'), 'utf8');
@@ -379,13 +380,15 @@ test('Automated Snapshot Suite: capture_views.js configures all 6 desktop and mo
 // 6. Cynical Auditor Rigorous Regressions & Edge Cases
 // ============================================================================
 
-test('Cynical Auditor Check: setupCatchmentNav dynamic navigation parity across 4 tabs', () => {
-  // Must render all 4 tabs dynamically, not just legacy 3
-  assert.ok(appJs.includes('roads.html'), 'setupCatchmentNav must include roads.html');
-  assert.ok(appJs.includes('🚗 Roads &amp; Access'), 'setupCatchmentNav must include Roads link label');
-  assert.ok(appJs.includes('📊 Overview'), 'setupCatchmentNav must use Overview label');
-  assert.ok(appJs.includes('🗺️ River Topology'), 'setupCatchmentNav must use River Topology label');
-  assert.ok(appJs.includes('📖 Methodology'), 'setupCatchmentNav must use Methodology label');
+test('Cynical Auditor Check: setupCatchmentNav updates canonical 4-tab nav partial without duplicate HTML fallback', () => {
+  // Canonical src/partials/nav.html must define all 4 tabs; app.js updates active state in place
+  assert.ok(navPartialHtml.includes('roads.html'), 'nav.html must include roads.html');
+  assert.ok(navPartialHtml.includes('🚗 Roads &amp; Access'), 'nav.html must include Roads link label');
+  assert.ok(navPartialHtml.includes('📊 Overview'), 'nav.html must use Overview label');
+  assert.ok(navPartialHtml.includes('🗺️ River Topology'), 'nav.html must use River Topology label');
+  assert.ok(navPartialHtml.includes('📖 Methodology'), 'nav.html must use Methodology label');
+  assert.ok(appJs.includes('roads.html'), 'setupCatchmentNav must handle roads.html active state');
+  assert.ok(!appJs.includes('navContainer.innerHTML ='), 'app.js must not duplicate nav partial HTML in setupCatchmentNav');
 });
 
 test('Cynical Auditor Check: No unhandled reference to undefined roadCard in app.js', () => {

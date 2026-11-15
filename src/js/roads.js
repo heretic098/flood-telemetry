@@ -22,6 +22,7 @@ import { openCameraGuide, setCameraEventsCatalog, initCameraGuideTriggers } from
 import { initJargonPopovers } from './jargon_popover.js';
 import { createRefreshController } from './modules/refresh_controller.js';
 import { setupOfflineBanner as setupResilienceBanner } from './modules/network_resilience.js';
+import { escapeHTML, escapeAttr, applyFreshnessPill } from './modules/dom_utils.js';
 
 // Station mappings for deep-linking road corridors to the River Topology Map
 export const ROAD_TOPOLOGY_STATION_MAP = {
@@ -432,29 +433,7 @@ export async function refreshRoadsView() {
       || null;
 
     if (freshnessPill) {
-      if (rawTelemetryTimestamp) {
-        const eaTime = new Date(rawTelemetryTimestamp);
-        const diffMs = Math.max(0, Date.now() - eaTime.getTime());
-        const diffMins = Math.floor(diffMs / 60000);
-
-        if (diffMins <= 120) {
-          // <= 2h: subtle green/slate pill
-          const ageText = diffMins < 1 ? 'Just now' : (diffMins < 60 ? `${diffMins}m ago` : `${(diffMins / 60).toFixed(1)}h ago`);
-          freshnessPill.textContent = `📡 Telemetry: ${ageText}`;
-          freshnessPill.className = 'telemetry-freshness-pill freshness-fresh';
-        } else if (diffMins <= 360) {
-          // <= 6h: subtle amber pill
-          freshnessPill.textContent = `⚠️ Telemetry: ${(diffMins / 60).toFixed(1)}h ago (Lagging)`;
-          freshnessPill.className = 'telemetry-freshness-pill freshness-warning';
-        } else {
-          // > 6h: subtle slate pill with clock icon (DO NOT use panic red per [UI-COL-03])
-          freshnessPill.textContent = `⏱️ Telemetry: ${(diffMins / 60).toFixed(1)}h ago (Stale)`;
-          freshnessPill.className = 'telemetry-freshness-pill freshness-stale';
-        }
-      } else {
-        freshnessPill.textContent = '⏱️ Telemetry: Offline / Unknown';
-        freshnessPill.className = 'telemetry-freshness-pill freshness-stale';
-      }
+      applyFreshnessPill(freshnessPill, rawTelemetryTimestamp);
     }
 
     // Update print situation header timestamp
@@ -523,31 +502,16 @@ export function initRoadsPage() {
   startAutoRefresh(60000);
 }
 
-function escapeHTML(str) {
-  if (!str) return '';
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
-function escapeAttr(str) {
-  if (!str) return '';
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
-}
-
-// Auto-boot if in browser context
-if (typeof window !== 'undefined') {
+// Auto-boot if in browser context on the dedicated Roads view
+if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+  const bootIfRoadsPage = () => {
+    if (document.getElementById('roads-corridors-container')) {
+      initRoadsPage();
+    }
+  };
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initRoadsPage);
+    document.addEventListener('DOMContentLoaded', bootIfRoadsPage);
   } else {
-    initRoadsPage();
+    bootIfRoadsPage();
   }
 }

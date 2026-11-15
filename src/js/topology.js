@@ -28,18 +28,11 @@ import { initJargonPopovers, renderJargonTerm } from './jargon_popover.js';
 import { setCameraEventsCatalog, initCameraGuideTriggers } from './camera_guide.js';
 import { createRefreshController } from './modules/refresh_controller.js';
 import { setupOfflineBanner as setupResilienceBanner } from './modules/network_resilience.js';
+import { applyFreshnessPill } from './modules/dom_utils.js';
 
 import {
-  computeSparklineBounds,
-  checkFlatStage,
-  projectCoordinates,
-  calculatePointY,
-  renderGridLines,
-  renderYAxisLabels,
-  evaluateCrestVisuals,
-  formatTimestampTooltip,
-  calculateSparklineScrubIndex,
-  calculateRatioFromEvent
+  renderInspectorSparkline,
+  bindInspectorSparklineEvents
 } from './sparkline.js';
 
 let topologyData = null;
@@ -668,19 +661,8 @@ function updateHeaderBanner() {
     }
   }
 
-  if (statusData && statusData.system_timestamps && freshnessPill) {
-    const eaTime = new Date(statusData.system_timestamps.latest_ea_reading_at || Date.now());
-    const diffMins = Math.max(0, Math.floor((Date.now() - eaTime.getTime()) / 60000));
-    
-    let ageStr = `${diffMins}m ago`;
-    if (diffMins < 1) ageStr = 'Just now';
-    else if (diffMins >= 60) ageStr = `${(diffMins / 60).toFixed(1)}h ago`;
-
-    freshnessPill.innerText = `📡 Telemetry: Updated ${ageStr}`;
-    freshnessPill.className = `telemetry-freshness-pill ${diffMins <= 120 ? 'freshness-fresh' : (diffMins <= 360 ? 'freshness-warning' : 'freshness-stale')}`;
-  } else if (freshnessPill) {
-    freshnessPill.innerText = '📡 Telemetry: Active';
-    freshnessPill.className = 'telemetry-freshness-pill freshness-fresh';
+  if (freshnessPill) {
+    applyFreshnessPill(freshnessPill, statusData?.system_timestamps?.latest_ea_reading_at || null);
   }
 }
 
@@ -1600,24 +1582,9 @@ function inspectNode(nodeId, restoreFocus = false) {
         </div>
       `;
     } else if (isPolder) {
+      const regime = getSeasonalRegime();
       if (node.id === '52127') {
-        const regime = getSeasonalRegime();
-        const cmDef = ASSET_DEFINITIONS.curry_moor;
-        const leadThresh = regime.isSummer ? cmDef.lead_pump_summer_mAOD : cmDef.lead_pump_winter_mAOD;
-        const dutyThresh = regime.isSummer ? cmDef.duty_pump_summer_mAOD : cmDef.duty_pump_winter_mAOD;
-        const pumpEval = evaluatePumpStatus(stage ?? 0, 'Currymoor PS', 2, leadThresh, dutyThresh, cmDef.mobile_ordered_mAOD, cmDef.mobile_active_mAOD, cmDef.critical_mAOD, regime.isSummer);
-        let pumpText = `🟢 Standby (Lead ${leadThresh.toFixed(2)}m, Duty ${dutyThresh.toFixed(2)}m)`;
-        if (stage !== null) {
-          if (pumpEval.mode === 'CRITICAL_OVERSPILL' || pumpEval.mode === 'EMERGENCY_MOBILE_ACTIVE') {
-            pumpText = `⚡ EA MOBILE TRIGGER MET (≥${cmDef.mobile_active_mAOD.toFixed(2)}m, Inferred)`;
-          } else if (pumpEval.mode === 'MOBILE_ORDERED') {
-            pumpText = `⚠️ EA MOBILE ORDER TRIGGER MET (≥${cmDef.mobile_ordered_mAOD.toFixed(2)}m, Inferred)`;
-          } else if (pumpEval.mode === 'FULL_CAPACITY') {
-            pumpText = `⚡ ABOVE DUTY TRIGGER (≥${dutyThresh.toFixed(2)}m, Inferred)`;
-          } else if (pumpEval.mode === 'PARTIAL_DUTY') {
-            pumpText = `⚡ ABOVE LEAD TRIGGER (≥${leadThresh.toFixed(2)}m, Inferred)`;
-          }
-        }
+        const pumpText = formatPolderPumpSummary(stage, ASSET_DEFINITIONS.curry_moor, 'Currymoor PS', 2, regime.isSummer);
 
         const athelneyDelta = stage !== null ? (7.35 - stage) : null;
         let athelneyText = '🟢 DRY: >0.30m below crest';
@@ -1645,23 +1612,7 @@ function inspectNode(nodeId, restoreFocus = false) {
           </div>
         `;
       } else {
-        const regime = getSeasonalRegime();
-        const nmDef = ASSET_DEFINITIONS.northmoor;
-        const leadThresh = regime.isSummer ? nmDef.lead_pump_summer_mAOD : nmDef.lead_pump_winter_mAOD;
-        const dutyThresh = regime.isSummer ? nmDef.duty_pump_summer_mAOD : nmDef.duty_pump_winter_mAOD;
-        const pumpEval = evaluatePumpStatus(stage ?? 0, 'Saltmoor & Northmoor PS', 4, leadThresh, dutyThresh, nmDef.mobile_ordered_mAOD, nmDef.mobile_active_mAOD, nmDef.critical_mAOD, regime.isSummer);
-        let pumpText = `🟢 Standby (Lead ${leadThresh.toFixed(2)}m, Duty ${dutyThresh.toFixed(2)}m)`;
-        if (stage !== null) {
-          if (pumpEval.mode === 'CRITICAL_OVERSPILL' || pumpEval.mode === 'EMERGENCY_MOBILE_ACTIVE') {
-            pumpText = `⚡ EA MOBILE TRIGGER MET (≥${nmDef.mobile_active_mAOD.toFixed(2)}m, Inferred)`;
-          } else if (pumpEval.mode === 'MOBILE_ORDERED') {
-            pumpText = `⚠️ EA MOBILE ORDER TRIGGER MET (≥${nmDef.mobile_ordered_mAOD.toFixed(2)}m, Inferred)`;
-          } else if (pumpEval.mode === 'FULL_CAPACITY') {
-            pumpText = `⚡ ABOVE DUTY TRIGGER (≥${dutyThresh.toFixed(2)}m, Inferred)`;
-          } else if (pumpEval.mode === 'PARTIAL_DUTY') {
-            pumpText = `⚡ ABOVE LEAD TRIGGER (≥${leadThresh.toFixed(2)}m, Inferred)`;
-          }
-        }
+        const pumpText = formatPolderPumpSummary(stage, ASSET_DEFINITIONS.northmoor, 'Saltmoor & Northmoor PS', 4, regime.isSummer);
 
         statsGrid.innerHTML = `
           ${activeEventCardHTML}
@@ -1802,7 +1753,7 @@ function inspectNode(nodeId, restoreFocus = false) {
     const sparklineColor = vis.sparklineColor || vis.stroke;
     if (readings.length > 0) {
       sparklineBox.innerHTML = renderInspectorSparkline(readings, sparklineColor, crestForSparkline, isRelativeGauge);
-      bindInspectorSparklineEvents(sparklineBox);
+      bindInspectorSparklineEvents(sparklineBox, { refreshController });
     } else {
       sparklineBox.innerHTML = `<div style="padding:1rem; text-align:center; color:#38bdf8; font-size:0.8rem;">📡 Fetching live 24h EA telemetry hydrograph...</div>`;
       const candidateKeys = [
@@ -1831,7 +1782,7 @@ function inspectNode(nodeId, restoreFocus = false) {
         }
         if (selectedNodeId === node.id) {
           sparklineBox.innerHTML = renderInspectorSparkline(fetchedReadings || [], sparklineColor, crestForSparkline, isRelativeGauge);
-          bindInspectorSparklineEvents(sparklineBox);
+          bindInspectorSparklineEvents(sparklineBox, { refreshController });
         }
       })();
     }
@@ -2047,269 +1998,35 @@ function getInspectorNarrative(node, stage, crest) {
   return `NOMINAL / SECURE: Telemetry is live & active (96 readings synced today). River stage (${stageStr}) is in steady summer baseflow, securely below the alert threshold (${crestStr}).`;
 }
 
-function renderInspectorSparkline(readings, strokeColor = '#38bdf8', crestHeight = null, isRelative = false) {
-  if (!readings || readings.length === 0) {
-    return `<div style="padding:1rem; text-align:center; color:#64748b; font-size:0.8rem;">No 24h hydrograph historical telemetry available for this gauge.</div>`;
+function formatPolderPumpSummary(stage, def, stationName, pumpCount, isSummer) {
+  const leadThresh = isSummer ? def.lead_pump_summer_mAOD : def.lead_pump_winter_mAOD;
+  const dutyThresh = isSummer ? def.duty_pump_summer_mAOD : def.duty_pump_winter_mAOD;
+  const pumpEval = evaluatePumpStatus(
+    stage ?? 0,
+    stationName,
+    pumpCount,
+    leadThresh,
+    dutyThresh,
+    def.mobile_ordered_mAOD,
+    def.mobile_active_mAOD,
+    def.critical_mAOD,
+    isSummer
+  );
+  if (stage !== null) {
+    if (pumpEval.mode === 'CRITICAL_OVERSPILL' || pumpEval.mode === 'EMERGENCY_MOBILE_ACTIVE') {
+      return `⚡ EA MOBILE TRIGGER MET (≥${def.mobile_active_mAOD.toFixed(2)}m, Inferred)`;
+    }
+    if (pumpEval.mode === 'MOBILE_ORDERED') {
+      return `⚠️ EA MOBILE ORDER TRIGGER MET (≥${def.mobile_ordered_mAOD.toFixed(2)}m, Inferred)`;
+    }
+    if (pumpEval.mode === 'FULL_CAPACITY') {
+      return `⚡ ABOVE DUTY TRIGGER (≥${dutyThresh.toFixed(2)}m, Inferred)`;
+    }
+    if (pumpEval.mode === 'PARTIAL_DUTY') {
+      return `⚡ ABOVE LEAD TRIGGER (≥${leadThresh.toFixed(2)}m, Inferred)`;
+    }
   }
-
-  const rawItems = readings.slice(0, 96).map(r => ({
-    value: r.value,
-    time: r.dateTime ? new Date(r.dateTime) : null,
-    isoTime: r.dateTime || ''
-  })).reverse();
-  const items = rawItems.filter(i => typeof i.value === 'number' && !isNaN(i.value));
-
-  if (items.length < 2) {
-    return `<div style="padding:1rem; text-align:center; color:#64748b; font-size:0.8rem;">Insufficient telemetry points to draw sparkline.</div>`;
-  }
-
-  const values = items.map(i => i.value);
-  const timestamps = items.map(i => i.isoTime);
-
-  const rawMin = Math.min(...values);
-  const rawMax = Math.max(...values);
-  const latestV = values[values.length - 1];
-  const rawRange = rawMax - rawMin;
-
-  const bounds = computeSparklineBounds(values, { crestHeight, spanPadding: 0.20 });
-  const minV = bounds.yMin;
-  const maxV = bounds.yMax;
-  const isCrestRelevant = bounds.isCrestRelevant;
-  const range = bounds.effectiveRange;
-
-  const w = 340;
-  const h = 100;
-  const marginTop = 18;
-  const marginBottom = 18;
-  const marginLeft = 10;
-  const marginRight = 68;
-  const drawWidth = w - marginLeft - marginRight;
-  const drawHeight = h - marginTop - marginBottom;
-  const dims = { width: w, height: h, marginTop, marginBottom, marginLeft, marginRight, drawWidth, drawHeight };
-
-  const pointsArr = projectCoordinates(values, bounds, dims);
-  const points = pointsArr.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
-  const latestPt = pointsArr[pointsArr.length - 1];
-
-  let crestLine = '';
-  if (isCrestRelevant && crestHeight >= minV && crestHeight <= maxV) {
-    const crestY = calculatePointY(crestHeight, bounds, dims);
-    const visuals = evaluateCrestVisuals(latestV, crestHeight);
-    let crestStroke = visuals.crestStroke;
-    let crestFill = visuals.crestFill;
-    let crestText = visuals.crestText;
-    let crestLabelText = visuals.crestLabelText;
-
-    if (latestV >= crestHeight) {
-      crestStroke = '#ef4444'; // Zone 3 - Emergency Overtopping
-      crestFill = 'rgba(127, 29, 29, 0.9)';
-      crestText = '#fca5a5';
-      crestLabelText = `▲ Overtopping ${crestHeight.toFixed(2)}m`;
-    } else if (latestV >= crestHeight - 0.30) {
-      crestStroke = '#f59e0b'; // Zone 2 - Pre-warning Alert (<30cm)
-      crestFill = 'rgba(120, 53, 15, 0.9)';
-      crestText = '#fde68a';
-      crestLabelText = `⚠️ Crest ${crestHeight.toFixed(2)}m`;
-    } else {
-      crestStroke = '#64748b'; // Muted Slate (Zone 2 - Dormant / Nominal)
-    }
-
-    crestLine = `
-      <line x1="${marginLeft}" y1="${crestY.toFixed(1)}" x2="${w - marginRight + 5}" y2="${crestY.toFixed(1)}" stroke="${crestStroke}" stroke-width="1.2" stroke-dasharray="4 3" />
-      <g transform="translate(${w - 4}, ${crestY.toFixed(1)})">
-        <rect x="-68" y="-9" width="68" height="13" rx="2" fill="${crestFill}" stroke="${crestStroke}" stroke-width="0.5" />
-        <text x="-4" y="1" text-anchor="end" fill="${crestText}" font-size="9" font-weight="700" font-family="monospace">${crestLabelText}</text>
-      </g>
-    `;
-  }
-
-  const topLabel = `Max ${rawMax.toFixed(2)}m`;
-  const botLabel = `Min ${rawMin.toFixed(2)}m`;
-
-  const unitLabel = isRelative ? 'm depth' : 'mAOD';
-  const isFlatStage = rawRange < 0.01 || topLabel === botLabel;
-  const deltaText = isFlatStage ? '0cm (Steady)' : `${(rawRange * 100).toFixed(0)}cm`;
-
-  const centerY = marginTop + drawHeight / 2;
-  const gridLinesHTML = renderGridLines(dims, isFlatStage);
-
-  const topDisplayLabel = isCrestRelevant && (maxV - rawMax > 0.05) ? `Top ${maxV.toFixed(2)}m` : topLabel;
-  const yLabelsHTML = isFlatStage ? `
-    <g transform="translate(${w - 4}, ${centerY + 3})">
-      <rect x="-64" y="-9" width="64" height="13" rx="2" fill="rgba(15, 23, 42, 0.85)" stroke="rgba(56, 189, 248, 0.3)" stroke-width="0.5" />
-      <text x="-4" y="1" text-anchor="end" class="sparkline-y-label sparkline-y-steady" fill="#38bdf8" font-weight="600">Steady ${rawMax.toFixed(2)}m</text>
-    </g>
-  ` : renderYAxisLabels(dims, bounds, isFlatStage, { topDisplayLabel });
-
-  return `
-    <div class="sparkline-stats-bar">
-      <span class="sparkline-stat-pill pill-current">Current: <strong>${latestV.toFixed(2)}${unitLabel}</strong></span>
-      <span class="sparkline-stat-pill">Min: <strong>${rawMin.toFixed(2)}m</strong></span>
-      <span class="sparkline-stat-pill">Max: <strong>${rawMax.toFixed(2)}m</strong></span>
-      <span class="sparkline-stat-pill">Δ <strong>${deltaText}</strong></span>
-    </div>
-    <div class="sparkline-wrapper" tabindex="0" role="region" aria-label="24h hydrograph stage sparkline. Use Left and Right Arrow keys to scrub timeline.">
-      <svg class="inspector-sparkline-svg sparkline" 
-           viewBox="0 0 ${w} ${h}" 
-           preserveAspectRatio="none"
-           data-points='${JSON.stringify(values)}'
-           data-timestamps='${JSON.stringify(timestamps)}'
-           data-ymin="${minV}"
-           data-ymax="${maxV}"
-           data-unit="${unitLabel}"
-           aria-label="24h hydrograph stage sparkline. Min ${rawMin.toFixed(2)}m, Max ${rawMax.toFixed(2)}m, Latest ${latestV.toFixed(2)}${unitLabel}.">
-        ${gridLinesHTML}
-        
-        <path d="M ${points}" fill="none" stroke="${strokeColor}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
-        
-        ${crestLine}
-
-        <!-- Interactive Crosshair & Scrub Highlight Elements -->
-        <line class="sparkline-crosshair" x1="${marginLeft}" y1="${marginTop}" x2="${marginLeft}" y2="${h - marginBottom}" />
-        <circle class="sparkline-dot-halo" cx="0" cy="0" r="7" />
-        <circle class="sparkline-dot-highlight" cx="0" cy="0" r="4.5" />
-
-        <!-- Latest telemetry point marker -->
-        <circle cx="${latestPt.x.toFixed(1)}" cy="${latestPt.y.toFixed(1)}" r="6" fill="${strokeColor}" fill-opacity="0.35" />
-        <circle cx="${latestPt.x.toFixed(1)}" cy="${latestPt.y.toFixed(1)}" r="3.5" fill="${strokeColor}" stroke="#0f172a" stroke-width="1.5" />
-
-        ${yLabelsHTML}
-
-        <!-- Transparent Touch / Mouse Scrubbing Overlay -->
-        <rect class="sparkline-touch-overlay" x="${marginLeft}" y="0" width="${drawWidth}" height="${h}" fill="transparent" style="cursor: crosshair; touch-action: none;" />
-      </svg>
-      <div class="sparkline-tooltip" role="status" aria-live="polite"></div>
-    </div>
-  `;
-}
-
-let inspectorHoverStickyTimer = null;
-
-function bindInspectorSparklineEvents(container) {
-  if (!container) return;
-  const wrapper = container.querySelector('.sparkline-wrapper');
-  if (!wrapper) return;
-
-  const svg = wrapper.querySelector('svg.inspector-sparkline-svg');
-  const overlay = wrapper.querySelector('.sparkline-touch-overlay');
-  if (!svg || !overlay) return;
-
-  let pointsData = [];
-  let timestamps = [];
-  try {
-    pointsData = JSON.parse(svg.dataset.points || '[]');
-    timestamps = JSON.parse(svg.dataset.timestamps || '[]');
-  } catch (_) {}
-
-  if (pointsData.length === 0) return;
-
-  const w = 340;
-  const h = 100;
-  const marginTop = 18;
-  const marginBottom = 18;
-  const marginLeft = 10;
-  const marginRight = 68;
-  const drawWidth = w - marginLeft - marginRight;
-  const drawHeight = h - marginTop - marginBottom;
-
-  const dims = { width: w, height: h, marginTop, marginBottom, marginLeft, marginRight, drawWidth, drawHeight };
-
-  const yMin = parseFloat(svg.dataset.ymin) || 0;
-  const yMax = parseFloat(svg.dataset.ymax) || 1;
-  const effectiveRange = yMax - yMin || 1;
-  const unit = svg.dataset.unit || 'mAOD';
-
-  const crosshairLine = svg.querySelector('.sparkline-crosshair');
-  const dotHighlight = svg.querySelector('.sparkline-dot-highlight');
-  const dotHalo = svg.querySelector('.sparkline-dot-halo');
-  const tooltip = wrapper.querySelector('.sparkline-tooltip');
-
-  let currentRatio = null;
-
-  const updateCrosshair = (ratio) => {
-    if (ratio === null) {
-      wrapper.classList.remove('crosshair-active');
-      if (refreshController) refreshController.setScrubbing(false);
-      return;
-    }
-    wrapper.classList.add('crosshair-active');
-    if (refreshController) refreshController.setScrubbing(true);
-
-    const index = calculateSparklineScrubIndex(ratio, pointsData.length);
-
-    const primaryVal = pointsData[index];
-    const targetX = marginLeft + ratio * drawWidth;
-    const normalizedY = (primaryVal - yMin) / effectiveRange;
-    const targetY = h - marginBottom - (normalizedY * drawHeight);
-
-    if (crosshairLine) {
-      crosshairLine.setAttribute('x1', targetX.toFixed(1));
-      crosshairLine.setAttribute('x2', targetX.toFixed(1));
-    }
-    if (dotHighlight) {
-      dotHighlight.setAttribute('cx', targetX.toFixed(1));
-      dotHighlight.setAttribute('cy', targetY.toFixed(1));
-    }
-    if (dotHalo) {
-      dotHalo.setAttribute('cx', targetX.toFixed(1));
-      dotHalo.setAttribute('cy', targetY.toFixed(1));
-    }
-
-    if (tooltip) {
-      const leftPct = Math.max(16, Math.min(84, (targetX / w) * 100));
-      tooltip.style.left = `${leftPct.toFixed(1)}%`;
-      
-      const formatted = formatTimestampTooltip(timestamps[index]);
-      const timeStr = formatted.timeStr;
-      const dateStr = formatted.dateStr;
-      
-      tooltip.innerHTML = `<span class="tooltip-time">${dateStr} ${timeStr} GMT</span><span class="tooltip-val">${primaryVal.toFixed(2)} ${unit}</span>`;
-    }
-  };
-
-  const getRatioFromEvent = (e) => {
-    return calculateRatioFromEvent(e, svg, dims);
-  };
-
-  const handleMove = (e) => {
-    if (inspectorHoverStickyTimer) clearTimeout(inspectorHoverStickyTimer);
-    const ratio = getRatioFromEvent(e);
-    currentRatio = ratio;
-    updateCrosshair(ratio);
-  };
-
-  const handleLeave = () => {
-    if (inspectorHoverStickyTimer) clearTimeout(inspectorHoverStickyTimer);
-    inspectorHoverStickyTimer = setTimeout(() => {
-      currentRatio = null;
-      updateCrosshair(null);
-    }, 1200);
-  };
-
-  overlay.addEventListener('pointermove', handleMove);
-  overlay.addEventListener('touchmove', handleMove, { passive: true });
-  overlay.addEventListener('pointerleave', handleLeave);
-
-  wrapper.addEventListener('keydown', (e) => {
-    if (['ArrowLeft', 'ArrowRight', 'Home', 'End', 'Escape'].includes(e.key)) {
-      e.preventDefault();
-      let ratio = currentRatio !== null ? currentRatio : 1.0;
-      const step = 1 / Math.max(1, pointsData.length - 1);
-
-      if (e.key === 'ArrowLeft') ratio = Math.max(0, ratio - (e.shiftKey ? step * 4 : step));
-      if (e.key === 'ArrowRight') ratio = Math.min(1, ratio + (e.shiftKey ? step * 4 : step));
-      if (e.key === 'Home') ratio = 0;
-      if (e.key === 'End') ratio = 1;
-      if (e.key === 'Escape') {
-        currentRatio = null;
-        updateCrosshair(null);
-        return;
-      }
-
-      currentRatio = ratio;
-      updateCrosshair(ratio);
-    }
-  });
+  return `🟢 Standby (Lead ${leadThresh.toFixed(2)}m, Duty ${dutyThresh.toFixed(2)}m)`;
 }
 
 // Auto-boot if in browser context
