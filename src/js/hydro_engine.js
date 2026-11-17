@@ -297,11 +297,22 @@ export function estimateClyseFlow(h_up, h_down, z_sill = 4.20, B = 4.20, Cd = 0.
 }
 
 export function evaluateSowyChannel(h_up, h_down, thresholdTrigger = 7.20, options = {}) {
-  const deltaH = Number((h_up - h_down).toFixed(2));
   const sillM = options.sillM ?? 4.20;
   const allermoorCrestM = options.allermoorCrestM ?? 7.50;
   const allermoorPreSpillM = options.allermoorPreSpillM ?? 7.35;
   const isDownstreamFlatlined = Boolean(options.isDownstreamFlatlined);
+  const isDownstreamStale = Boolean(options.isDownstreamStale);
+  const isDownstreamHealthy = (
+    h_down !== null &&
+    Number.isFinite(h_down) &&
+    !isDownstreamFlatlined &&
+    !isDownstreamStale
+  );
+  const deltaH = isDownstreamHealthy ? Number((h_up - h_down).toFixed(2)) : null;
+  const minDelta = options.minDeltaH ?? ASSET_DEFINITIONS?.monks_leaze_clyse?.min_delta_h ?? 0.05;
+  const sowyCapM = options.sowyCapM ?? ASSET_DEFINITIONS?.monks_leaze_clyse?.sowy_capacity_mAOD ?? 7.60;
+  const dbClyse = HYDRO_DEADBANDS?.clyse_head ?? 0.05;
+  const revDeadband = HYDRO_DEADBANDS?.reverse_lock ?? 0.10;
   const beerwallRate1h = options.beerwallRate1h ?? null;
   const beerwallStage = options.beerwallStage ?? null;
   const isWaveConfirmed = Boolean(
@@ -323,30 +334,27 @@ export function evaluateSowyChannel(h_up, h_down, thresholdTrigger = 7.20, optio
     ? ` Allermoor Spillway is assumed to be overtopping (≥${allermoorCrestM.toFixed(2)}m AOD proxy from Beasley's Spillway); under EA protocol, Monk's Leaze Clyse closes and upstream tributary pumps (Huish Episcopi, Midelney, Long Load) are curtailed.`
     : '';
 
-  if (h_up >= thresholdTrigger && (deltaH > 0.10 || isDownstreamFlatlined)) {
-    const waveNote = isDownstreamFlatlined
-      ? (isWaveConfirmed
-        ? ` Downstream 52234 ponded/flatlined; active diversion wave verified downstream at Beer Wall 52157.`
-        : ` Downstream 52234 stilling-well ponded; evaluating from upstream 52233 trigger (${thresholdTrigger.toFixed(2)}m AOD).`)
-      : '';
+  if (isDownstreamHealthy && h_up >= (thresholdTrigger - dbClyse) && (h_down - h_up) >= revDeadband) {
     return {
       asset_type: 'sluice',
       asset_id: 'monks_leaze_clyse',
-      status: 'DIVERTING',
-      code: "GRAVITY_OPEN",
-      label: "GRAVITY FLOW",
-      badgeClass: "badge-open",
-      symbol: "➔",
-      pillText: "🟢 ACTIVE DIVERSION (DUAL GAUGE)",
+      status: 'REVERSE_LOCK',
+      code: "REVERSE_LOCK",
+      label: "REVERSE LOCK",
+      badgeClass: "badge-overtopping",
+      symbol: "🔴",
+      pillText: "🔴 REVERSE LOCK (DUAL GAUGE)",
       confidence: "HIGH_DUAL_SENSOR",
       confidenceTag: "📡 DEDICATED SENSORS",
+      isDownstreamHealthy,
+      deltaH,
       isWaveConfirmed,
       allermoor_spillway,
-      metricText: `Head Drop: +${deltaH.toFixed(2)}m`,
-      clearanceText: `Intake Sill Margin: +${(h_up - sillM).toFixed(2)}m`,
-      narrative: `Monk's Leaze Clyse gravity diversion active. Upstream Parrett stage (${h_up.toFixed(2)}m AOD) exceeds ${thresholdTrigger.toFixed(2)}m AOD trigger (${sillM.toFixed(2)}m sill) with a +${deltaH.toFixed(2)}m head drop into the Sowy Relief Channel.${waveNote}${allermoorNote}`
+      metricText: `Head Drop: ${deltaH >= 0 ? '+' : ''}${deltaH.toFixed(2)}m`,
+      clearanceText: "Downstream Exceeds Parrett",
+      narrative: `Monk's Leaze Clyse sealed in reverse lock. Downstream Sowy tailwater (${h_down.toFixed(2)}m AOD) exceeds upstream Parrett (${h_up.toFixed(2)}m AOD) by ${(h_down - h_up).toFixed(2)}m.${allermoorNote}`
     };
-  } else if (h_up >= thresholdTrigger && deltaH <= 0.10) {
+  } else if (isDownstreamHealthy && h_up >= thresholdTrigger && (h_down >= sowyCapM || deltaH < minDelta)) {
     return {
       asset_type: 'sluice',
       asset_id: 'monks_leaze_clyse',
@@ -358,11 +366,44 @@ export function evaluateSowyChannel(h_up, h_down, thresholdTrigger = 7.20, optio
       pillText: "🟡 DIVERSION RESTRICTED (DUAL GAUGE)",
       confidence: "HIGH_DUAL_SENSOR",
       confidenceTag: "📡 DEDICATED SENSORS",
+      isDownstreamHealthy,
+      deltaH,
       isWaveConfirmed,
       allermoor_spillway,
-      metricText: "Head Differential Neutral",
-      clearanceText: "Downstream Head Equalized",
+      metricText: h_down >= sowyCapM ? `Sowy At Capacity (${h_down.toFixed(2)}m)` : "Head Differential Neutral",
+      clearanceText: h_down >= sowyCapM ? `Sowy Cap/Alert: ${sowyCapM.toFixed(2)}m` : "Downstream Head Equalized",
       narrative: `Monk's Leaze Clyse throttled. Downstream Sedgemoor Drain level (${h_down.toFixed(2)}m AOD) limits diversion capacity.${allermoorNote}`
+    };
+  } else if (h_up >= thresholdTrigger && (!isDownstreamHealthy || (deltaH >= minDelta && h_down < sowyCapM))) {
+    const waveNote = !isDownstreamHealthy
+      ? (isWaveConfirmed
+        ? ` Downstream 52234 ${isDownstreamFlatlined ? 'ponded/flatlined' : 'unavailable/stale'}; active diversion wave verified downstream at Beer Wall 52157.`
+        : ` Downstream 52234 ${isDownstreamFlatlined ? 'stilling-well ponded/flatlined' : 'unavailable/stale'}; evaluating from upstream 52233 trigger (${thresholdTrigger.toFixed(2)}m AOD).`)
+      : '';
+    const headDropPhrase = isDownstreamHealthy
+      ? ` with a +${deltaH.toFixed(2)}m head drop into the Sowy Relief Channel`
+      : '';
+    const metricText = isDownstreamHealthy
+      ? `Head Drop: +${deltaH.toFixed(2)}m`
+      : (isDownstreamFlatlined ? 'Head Drop: Unavailable (52234 Flatlined)' : 'Head Drop: Unavailable (52234 Stale)');
+    return {
+      asset_type: 'sluice',
+      asset_id: 'monks_leaze_clyse',
+      status: 'DIVERTING',
+      code: "GRAVITY_OPEN",
+      label: "GRAVITY FLOW",
+      badgeClass: "badge-open",
+      symbol: "➔",
+      pillText: isDownstreamHealthy ? "🟢 ACTIVE DIVERSION (DUAL GAUGE)" : "🟢 ACTIVE DIVERSION (UPSTREAM 52233)",
+      confidence: isDownstreamHealthy ? "HIGH_DUAL_SENSOR" : "DEGRADED_SINGLE_SENSOR",
+      confidenceTag: isDownstreamHealthy ? "📡 DEDICATED SENSORS" : "⚠️ 52234 DEGRADED",
+      isDownstreamHealthy,
+      deltaH,
+      isWaveConfirmed,
+      allermoor_spillway,
+      metricText,
+      clearanceText: `Intake Sill Margin: +${(h_up - sillM).toFixed(2)}m`,
+      narrative: `Monk's Leaze Clyse gravity diversion active. Upstream Parrett stage (${h_up.toFixed(2)}m AOD) exceeds ${thresholdTrigger.toFixed(2)}m AOD trigger (${sillM.toFixed(2)}m sill)${headDropPhrase}.${waveNote}${allermoorNote}`
     };
   } else {
     return {
@@ -373,9 +414,11 @@ export function evaluateSowyChannel(h_up, h_down, thresholdTrigger = 7.20, optio
       label: "PENNING / CLOSED",
       badgeClass: "badge-closed",
       symbol: "🔒",
-      pillText: "⚪ PENNING / CLOSED (DUAL GAUGE)",
-      confidence: "HIGH_DUAL_SENSOR",
-      confidenceTag: "📡 DEDICATED SENSORS",
+      pillText: isDownstreamHealthy ? "⚪ PENNING / CLOSED (DUAL GAUGE)" : "⚪ PENNING / CLOSED (UPSTREAM 52233)",
+      confidence: isDownstreamHealthy ? "HIGH_DUAL_SENSOR" : "DEGRADED_SINGLE_SENSOR",
+      confidenceTag: isDownstreamHealthy ? "📡 DEDICATED SENSORS" : "⚠️ 52234 DEGRADED",
+      isDownstreamHealthy,
+      deltaH,
       isWaveConfirmed: false,
       allermoor_spillway,
       metricText: "Penning / No Diversion",

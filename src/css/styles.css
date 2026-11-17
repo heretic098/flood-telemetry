@@ -1739,6 +1739,218 @@ svg.micro-sparkline {
   padding-top: 0.4rem;
 }
 
+/* Sluice Operational Scale Widget (#59) */
+.sluice-operational-gauge-box .gauge-explainer-sub {
+  color: #94a3b8;
+}
+
+.sluice-operational-gauge-box .sluice-degraded-note {
+  color: #fde68a;
+  font-style: normal;
+  font-weight: 500;
+  margin-top: 0.3rem;
+}
+
+.sluice-dual-attribution {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 0.75rem;
+  padding: 0.6rem 0.75rem;
+  margin-bottom: 0.65rem;
+  background: rgba(30, 41, 59, 0.7);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 0.45rem;
+}
+
+.sluice-attr-node {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 115px;
+}
+
+.sluice-attr-right {
+  align-items: flex-end;
+  text-align: right;
+}
+
+.sluice-attr-role {
+  font-size: 0.7rem;
+  color: #cbd5e1;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.sluice-attr-val {
+  color: #e2e8f0;
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
+.sluice-attr-val-wrap {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.3rem;
+}
+
+.sluice-cap-tag {
+  font-size: 0.7rem;
+  color: #cbd5e1;
+}
+
+.sluice-delta-pill {
+  display: inline-block;
+  font-size: 0.74rem;
+  font-weight: 700;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  background: rgba(12, 74, 110, 0.7);
+  border: 1px solid #38bdf8;
+  color: #e0f2fe;
+  white-space: nowrap;
+}
+
+.sluice-delta-pill.sluice-delta-unavailable {
+  background: rgba(120, 53, 15, 0.8);
+  border-color: #f59e0b;
+  color: #fde68a;
+}
+
+.sluice-operational-gauge-box .gauge-header {
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.sluice-operational-gauge-box .gauge-subtitle-pill,
+.sluice-operational-gauge-box .stage-badge {
+  display: inline-block;
+  white-space: nowrap;
+}
+
+.gauge-track-container.sluice-track {
+  margin: 4.1rem 0 2.5rem 0;
+}
+
+.sluice-gauge-pin {
+  top: -64px;
+  z-index: 2;
+}
+
+.sluice-gauge-pin .pin-bubble {
+  position: relative;
+  z-index: 4;
+}
+
+.sluice-gauge-pin .pin-stem {
+  width: 2px;
+  height: 36px;
+  background: rgba(56, 189, 248, 0.5);
+  margin: 1px 0;
+}
+
+.sluice-gauge-pin .pin-head {
+  font-size: 0.65rem;
+  line-height: 1;
+}
+
+.sluice-track .gauge-tick.tick-top {
+  z-index: 3;
+}
+
+.sluice-track .gauge-tick.tick-top .tick-label {
+  text-shadow: 0 1px 4px #0f172a, 0 0 6px #0f172a;
+}
+
+.gauge-tick.tick-edge-start {
+  transform: translateX(0);
+  align-items: flex-start;
+}
+
+.gauge-tick.tick-edge-start .tick-label {
+  text-align: left;
+}
+
+.gauge-tick.tick-edge-end {
+  transform: translateX(-100%);
+  align-items: flex-end;
+}
+
+.gauge-tick.tick-edge-end .tick-label {
+  text-align: right;
+}
+
+.gauge-tick.tick-alert-dormant .tick-label {
+  color: #cbd5e1;
+}
+
+.gauge-tick.tick-alert-approaching .tick-line {
+  background: #f59e0b;
+}
+
+.gauge-tick.tick-alert-approaching .tick-label {
+  color: #fde68a;
+}
+
+.gauge-tick.tick-alert-active .tick-line {
+  background: #ef4444;
+}
+
+.gauge-tick.tick-alert-active .tick-label {
+  color: #fecaca;
+  font-weight: 700;
+}
+
+.stage-badge.sluice-status-closed {
+  background: rgba(30, 41, 59, 0.9);
+  border: 1px solid #64748b;
+  color: #e2e8f0;
+}
+
+.stage-badge.sluice-status-approaching,
+.stage-badge.sluice-status-throttled {
+  background: rgba(120, 53, 15, 0.9);
+  border: 1px solid #f59e0b;
+  color: #fde68a;
+}
+
+.stage-badge.sluice-status-diverting {
+  background: rgba(12, 74, 110, 0.9);
+  border: 1px solid #38bdf8;
+  color: #e0f2fe;
+}
+
+.stage-badge.sluice-status-reverse {
+  background: rgba(127, 29, 29, 0.9);
+  border: 1px solid #ef4444;
+  color: #fecaca;
+}
+
+@media (max-width: 600px) {
+  .sluice-track .tick-label {
+    font-size: 0.63rem;
+  }
+
+  .sluice-dual-attribution {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.4rem;
+  }
+
+  .sluice-attr-right {
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  .sluice-attr-val-wrap {
+    justify-content: flex-start;
+  }
+}
+
 /* App Data Disclaimer Footer */
 .app-disclaimer-footer {
   margin-top: 3.5rem;

@@ -1256,6 +1256,7 @@ export async function refreshLiveDashboard() {
     const sowyEval = evaluateSowyChannel(monksUpLevel, monksDownLevel, sowyTrigger, {
       sillM: monksSill,
       isDownstreamFlatlined: monksDownFreshness.isFlatlined,
+      isDownstreamStale: monksDownFreshness.isStale || monksDownFreshness.isOffline,
       beerwallRate1h: beerWallRates.rate_1h_m_per_hr,
       beerwallStage: beerWallLevel
     });
@@ -1264,9 +1265,14 @@ export async function refreshLiveDashboard() {
     sowyEval.symbol = sowyStaleInfo.isOffline ? '⚠️' : '🕒';
     sowyEval.label = `${sowyEval.label} (UNCONFIRMED - ${sowyStaleInfo.isOffline ? 'OFFLINE' : 'STALE'})`;
   }
-  const headDropMeters = Number((monksUpLevel - monksDownLevel).toFixed(2));
-  const headDropFormatted = formatHeadDelta(headDropMeters);
-  const oathLock = evaluateOathLock(monksUpLevel, monksDownLevel);
+  const hasHealthyDownstream = Boolean(sowyEval.isDownstreamHealthy);
+  const headDropMeters = hasHealthyDownstream ? Number((monksUpLevel - monksDownLevel).toFixed(2)) : null;
+  const headDropFormatted = hasHealthyDownstream
+    ? formatHeadDelta(headDropMeters)
+    : (monksDownFreshness.isFlatlined ? 'Unavailable (52234 Flatlined)' : 'Unavailable');
+  const oathLock = hasHealthyDownstream
+    ? evaluateOathLock(monksUpLevel, monksDownLevel)
+    : { statusText: '⚪ UNCONFIRMED (52234 Degraded)', narrative: 'Downstream Sowy sensor (52234) is flatlined/stale; Oath Lock differential head cannot be verified.' };
   const beerWallSowyEval = evaluateBeerWall(beerWallLevel, HYDRO_THRESHOLDS.BEERWALL.CREST_MAOD);
   const allermoorCrest = hydroConfig?.moors?.sowy_channel?.allermoor_spillway?.baseline_crest_mAOD ?? 7.50;
   const allermoorMargin = Number((allermoorCrest - monksUpLevel).toFixed(2));
@@ -1280,25 +1286,34 @@ export async function refreshLiveDashboard() {
     icon: '🚰',
     title: "Monk's Leaze Clyse Intake Control",
     statusBadge: sowyEval,
-    mainMetricValue: headDropFormatted,
-    mainMetricUnit: 'Head Drop (Parrett ➔ Sowy)',
-    clearanceText: `Intake Sill: 4.20m AOD • Trigger: 7.20m AOD`,
-    minLevel: 4.20,
-    maxLevel: 8.00,
+    mainMetricValue: hasHealthyDownstream ? headDropFormatted : `${monksUpLevel.toFixed(2)}m`,
+    mainMetricUnit: hasHealthyDownstream ? 'Head Drop (Parrett ➔ Sowy)' : 'Parrett Stage (52234 Degraded)',
+    clearanceText: `Intake Sill: ${monksSill.toFixed(2)}m AOD • Trigger: ${sowyTrigger.toFixed(2)}m AOD`,
+    minLevel: monksSill,
+    maxLevel: Number((STATION_REGISTRY['52233'].alert_level_mAOD + 0.10).toFixed(2)),
     currentLevel: monksUpLevel,
-    minLabel: 'Intake Sill: 4.20m',
+    minLabel: `Intake Sill: ${monksSill.toFixed(2)}m`,
     maxLabel: `Parrett Stage: ${monksUpLevel.toFixed(2)}m AOD`,
     isAlert: false,
     staleInfo: sowyStaleInfo,
     stats: [
       { label: 'Gate Position', htmlValue: sowyEval.code === 'GRAVITY_OPEN' ? '🔵 DIVERTING' : '🔒 PENNING / CLOSED' },
-      { label: 'Intake Head Drop', value: `${headDropMeters >= 0 ? '+' : ''}${headDropMeters.toFixed(2)}m` }
+      { label: 'Intake Head Drop', value: hasHealthyDownstream ? `${headDropMeters >= 0 ? '+' : ''}${headDropMeters.toFixed(2)}m` : 'Unavailable' }
     ],
     camLink: {
       url: 'https://thecfh.org/parretttonewsom.php#monksleaze',
       title: 'View 3-min EA Snapshot Camera at thecfh.org#monksleaze',
       ariaLabel: 'View 3-min EA Snapshot Camera at thecfh.org for Monk\'s Leaze Clyse'
     }
+  });
+
+  const sowyPumpGauge = renderSluiceOperationalGauge(sowyEval, {
+    upStage: monksUpLevel,
+    downStage: monksDownLevel,
+    upFreshness: monksUpFreshness,
+    downFreshness: monksDownFreshness,
+    triggerM: sowyTrigger,
+    sillM: monksSill
   });
 
   container.appendChild(createMoorCard({
@@ -1308,13 +1323,16 @@ export async function refreshLiveDashboard() {
     cameraGuideSite: "monksleaze",
     visualEvidenceEvent: evidenceByAsset.get('monks_leaze_clyse') || evidenceByAsset.get('allermoor_spillway') || evidenceByAsset.get('beer_wall') || null,
     heroBanner: sowyHeroBanner,
+    pumpGauge: sowyPumpGauge,
     riverTag: `Diverts: Parrett ➔ Sedgemoor Drain (${renderJargonTerm('KSD')}) (${regime.label})`,
     eval: sowyEval,
     staleInfo: sowyStaleInfo,
-    provenanceTag: "📡 DEDICATED SENSORS",
-    provenanceClass: "prov-high",
-    metricText: `Sowy Level: ${monksDownLevel.toFixed(2)}m AOD`,
-    clearanceText: `Head Drop Across ${renderJargonTerm('Clyse')}: ${headDropFormatted} (${monksUpLevel.toFixed(3)}m ➔ ${monksDownLevel.toFixed(3)}m)`,
+    provenanceTag: hasHealthyDownstream ? "📡 DEDICATED SENSORS" : "⚠️ 52234 DEGRADED",
+    provenanceClass: hasHealthyDownstream ? "prov-high" : "prov-med",
+    metricText: hasHealthyDownstream ? `Sowy Level: ${monksDownLevel.toFixed(2)}m AOD` : `Parrett Level: ${monksUpLevel.toFixed(2)}m AOD`,
+    clearanceText: hasHealthyDownstream
+      ? `Head Drop Across ${renderJargonTerm('Clyse')}: ${headDropFormatted} (${monksUpLevel.toFixed(3)}m ➔ ${monksDownLevel.toFixed(3)}m)`
+      : `Head Drop Across ${renderJargonTerm('Clyse')}: ${headDropFormatted} (Parrett ${monksUpLevel.toFixed(2)}m)`,
     narrative: sowyEval.narrative,
     pills: [
       {
@@ -2408,6 +2426,155 @@ export function renderPumpTriggerGauge(pumpEval, drivingInfo) {
         <span>🔴 Mobile Active</span>
       </div>
     </div>
+  `;
+}
+
+export function renderSluiceOperationalGauge(sowyEval, opts = {}) {
+  if (!sowyEval) return '';
+
+  const regUp = STATION_REGISTRY['52233'];
+  const regDown = STATION_REGISTRY['52234'];
+  const minLevel = opts.sillM ?? regUp.sill_elevation_mAOD;
+  const upAlert = regUp.alert_level_mAOD;
+  const maxLevel = Number((upAlert + 0.10).toFixed(2));
+  const headwall = regUp.headwall_elevation_mAOD;
+  const trigger = opts.triggerM ?? regUp.diversion_trigger_mAOD;
+  const downAlert = regDown.alert_level_mAOD;
+  const approachingMargin = 0.20;
+
+  const upStage = Number.isFinite(opts.upStage) ? opts.upStage : regUp.fallback_stage_mAOD;
+  const downStage = Number.isFinite(opts.downStage) ? opts.downStage : null;
+  const downFreshness = opts.downFreshness || {};
+  const isDownstreamHealthy = Boolean(
+    sowyEval.isDownstreamHealthy &&
+    downStage !== null &&
+    !downFreshness.isFlatlined &&
+    !downFreshness.isStale &&
+    !downFreshness.isOffline
+  );
+
+  const canonicalStatus = sowyEval.status || 'CLOSED';
+  const isApproaching = canonicalStatus === 'CLOSED' && upStage >= (trigger - approachingMargin);
+
+  const statusPresentation = {
+    REVERSE_LOCK: { pill: '🔴 REVERSE LOCK', cls: 'sluice-status-reverse', fill: '#ef4444' },
+    THROTTLED: { pill: '🟡 THROTTLED', cls: 'sluice-status-throttled', fill: '#f59e0b' },
+    DIVERTING: { pill: '🔵 DIVERTING', cls: 'sluice-status-diverting', fill: '#0284c7' },
+    CLOSED: isApproaching
+      ? { pill: '🟡 CLOSED · APPROACHING TRIGGER', cls: 'sluice-status-approaching', fill: '#f59e0b' }
+      : { pill: '🔒 CLOSED · PENNING', cls: 'sluice-status-closed', fill: '#38bdf8' }
+  }[canonicalStatus] || { pill: '🔒 CLOSED · PENNING', cls: 'sluice-status-closed', fill: '#38bdf8' };
+
+  const span = maxLevel - minLevel;
+  const toPct = (val) => {
+    if (!Number.isFinite(val) || span <= 0) return 0;
+    return Math.max(0, Math.min(100, Number((((val - minLevel) / span) * 100).toFixed(1))));
+  };
+
+  const progressPct = toPct(upStage);
+  const deltaToTrigger = Number((trigger - upStage).toFixed(2));
+  const nextPillText = upStage >= trigger
+    ? `+${Math.abs(deltaToTrigger).toFixed(2)}m above Diversion Trigger (@ ${trigger.toFixed(2)}m)`
+    : `${deltaToTrigger.toFixed(2)}m to Diversion Trigger (@ ${trigger.toFixed(2)}m)`;
+
+  const alertTickStateClass = upStage >= upAlert
+    ? 'tick-alert-active'
+    : (upStage >= (upAlert - 0.30) ? 'tick-alert-approaching' : 'tick-alert-dormant');
+
+  const ticks = [
+    { label: 'Sill', level: minLevel, side: 'tick-bottom tick-edge-start', extraClass: '' },
+    { label: 'Headwall', level: headwall, side: 'tick-top', extraClass: '' },
+    { label: 'Diversion Trigger', level: trigger, side: 'tick-bottom', extraClass: upStage < trigger ? 'tick-next-target' : '' },
+    { label: 'Parrett Alert', level: upAlert, side: 'tick-top tick-edge-end', extraClass: alertTickStateClass }
+  ];
+
+  const ticksHTML = ticks.map((t) => {
+    const pct = toPct(t.level);
+    const cls = ['gauge-tick', t.side, t.extraClass].filter(Boolean).join(' ');
+    return `
+      <div class="${cls}" style="left: ${pct}%" title="${escapeAttr(t.label)}: ${t.level.toFixed(2)}m AOD">
+        <span class="tick-line"></span>
+        <span class="tick-label">${escapeHTML(t.label)}<br><strong>${t.level.toFixed(2)}m</strong></span>
+      </div>
+    `;
+  }).join('');
+
+  let deltaHtml;
+  let downstreamValHtml;
+  let degradedNoteHtml = '';
+
+  if (isDownstreamHealthy) {
+    const deltaH = Number((upStage - downStage).toFixed(2));
+    const deltaSign = deltaH >= 0 ? '+' : '';
+    deltaHtml = `<span class="sluice-delta-pill">➔ Δh: ${deltaSign}${deltaH.toFixed(2)}m</span>`;
+    downstreamValHtml = `<code class="sluice-attr-val">${downStage.toFixed(2)}m AOD</code> <span class="sluice-cap-tag">(Cap/Alert ${downAlert.toFixed(2)}m)</span>`;
+  } else {
+    let downStatusTag = '⚠️ Unavailable';
+    let downReason = 'unavailable';
+    if (downFreshness.isOffline) {
+      downStatusTag = '⚠️ Offline';
+      downReason = 'offline';
+    } else if (downFreshness.isFlatlined) {
+      const staticVal = downStage !== null ? `${downStage.toFixed(2)}m static` : 'static';
+      downStatusTag = `⚠️ Flatlined (${staticVal})`;
+      downReason = 'flatlined';
+    } else if (downFreshness.isStale) {
+      const ageLabel = downFreshness.ageHours !== undefined && downFreshness.ageHours !== null ? `${downFreshness.ageHours}h` : 'stale';
+      downStatusTag = `🕒 Stale (${ageLabel})`;
+      downReason = 'stale';
+    }
+    deltaHtml = `<span class="sluice-delta-pill sluice-delta-unavailable" role="status">➔ Head Drop: Unavailable</span>`;
+    downstreamValHtml = `<span class="stage-stale-tag">${escapeHTML(downStatusTag)}</span> <span class="sluice-cap-tag">(Cap/Alert ${downAlert.toFixed(2)}m)</span>`;
+    degradedNoteHtml = `<p class="gauge-explainer-sub sluice-degraded-note">⚠️ Downstream Sowy gauge (52234) is currently ${escapeHTML(downReason)}; head drop cannot be verified and status is inferred from upstream Parrett (52233) only.</p>`;
+  }
+
+  return `
+    <section class="pump-trigger-gauge-box sluice-operational-gauge-box" data-status="${escapeAttr(canonicalStatus)}" aria-label="Monk's Leaze Clyse Sluice Operational Scale">
+      <div class="gauge-header">
+        <div>
+          <span class="gauge-title">🚰 Monk's Leaze Clyse Intake Scale</span>
+          <span class="gauge-subtitle-pill">Parrett (52233) ➔ Sowy (52234)</span>
+          <span class="next-pill" title="Distance to EA Diversion Trigger">${escapeHTML(nextPillText)}</span>
+        </div>
+        <span class="stage-badge ${statusPresentation.cls}">${statusPresentation.pill}</span>
+      </div>
+
+      <div class="sluice-dual-attribution" role="group" aria-label="Upstream and downstream sensor comparison">
+        <div class="sluice-attr-node">
+          <span class="sluice-attr-role">Upstream · Parrett (52233)</span>
+          <code class="sluice-attr-val">${upStage.toFixed(2)}m AOD</code>
+        </div>
+        <div class="sluice-attr-delta">
+          ${deltaHtml}
+        </div>
+        <div class="sluice-attr-node sluice-attr-right">
+          <span class="sluice-attr-role">Downstream · Sowy (52234)</span>
+          <span class="sluice-attr-val-wrap">${downstreamValHtml}</span>
+        </div>
+      </div>
+
+      <div class="gauge-explainer-callout">
+        <p>ℹ️ <strong>How this works:</strong> Operational status is inferred from River Parrett stage (52233) relative to the EA Somerset Levels Trigger Point Plan, as live penstock actuator SCADA is not broadcast publicly.</p>
+        ${degradedNoteHtml}
+      </div>
+
+      <div class="gauge-track-container sluice-track">
+        <div class="gauge-track-fill" style="width: ${progressPct}%; background: ${statusPresentation.fill};"></div>
+        <div class="gauge-pin sluice-gauge-pin" style="left: ${progressPct}%" title="Current Parrett Level: ${upStage.toFixed(2)}m AOD (${progressPct}% of scale window)">
+          <span class="pin-bubble">${upStage.toFixed(2)}m</span>
+          <span class="pin-stem" aria-hidden="true"></span>
+          <span class="pin-head" aria-hidden="true">▼</span>
+        </div>
+        ${ticksHTML}
+      </div>
+
+      <div class="gauge-legend">
+        <span>🔒 Closed · Penning</span>
+        <span>🟡 Approaching / Throttled</span>
+        <span>🔵 Diverting (≥${trigger.toFixed(2)}m)</span>
+        <span>🔴 Reverse Lock</span>
+      </div>
+    </section>
   `;
 }
 
