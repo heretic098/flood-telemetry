@@ -60,8 +60,18 @@ function el(tag, className, text) {
   return node;
 }
 
-async function loadFrame(entry, body) {
-  body.replaceChildren(el('p', 'staff-gauge-status', 'Loading latest camera frame…'));
+/**
+ * Loads the latest frame into `body`.
+ * @param {object} entry - staff gauge camera entry (needs camera_id)
+ * @param {HTMLElement} body
+ * @param {{silent?: boolean}} [options] - silent: refresh an already-open panel without a
+ *   "Loading…" flash. If the frame is unchanged only the age caption is updated, so the
+ *   "captured X ago" text never goes stale while a panel stays open.
+ */
+export async function loadFrame(entry, body, options = {}) {
+  if (!options.silent) {
+    body.replaceChildren(el('p', 'staff-gauge-status', 'Loading latest camera frame…'));
+  }
   try {
     const res = await fetch(`/api/staff-gauge-cameras/${encodeURIComponent(entry.camera_id)}/latest`);
     const data = res.ok ? await res.json() : null;
@@ -69,16 +79,25 @@ async function loadFrame(entry, body) {
       body.replaceChildren(el('p', 'staff-gauge-status', 'No recent camera frame is available. Camera may be offline or dark.'));
       return;
     }
+
+    const caption = el('p', 'staff-gauge-status', `Captured ${formatAge(data.age_minutes)} (${new Date(data.captured_at).toLocaleString('en-GB')}).`);
+    const notes = [caption];
+    if (data.age_minutes > OLD_FRAME_MINUTES) {
+      notes.push(el('p', 'staff-gauge-status staff-gauge-warning', '⚠️ This frame is more than an hour old and may not show current conditions.'));
+    }
+
+    const existing = options.silent ? body.querySelector('img.staff-gauge-frame') : null;
+    if (existing && existing.dataset.capturedAt === data.captured_at) {
+      body.replaceChildren(existing, ...notes);
+      return;
+    }
+
     const img = el('img', 'staff-gauge-frame');
     img.alt = `Latest frame from the staff gauge camera near this station, captured ${formatAge(data.age_minutes)}`;
     img.loading = 'lazy';
+    img.dataset.capturedAt = data.captured_at;
     img.src = data.image_url;
-
-    const caption = el('p', 'staff-gauge-status', `Captured ${formatAge(data.age_minutes)} (${new Date(data.captured_at).toLocaleString('en-GB')}).`);
-    body.replaceChildren(img, caption);
-    if (data.age_minutes > OLD_FRAME_MINUTES) {
-      body.appendChild(el('p', 'staff-gauge-status staff-gauge-warning', '⚠️ This frame is more than an hour old and may not show current conditions.'));
-    }
+    body.replaceChildren(img, ...notes);
   } catch (err) {
     body.replaceChildren(el('p', 'staff-gauge-status', 'Could not load the camera frame.'));
   }

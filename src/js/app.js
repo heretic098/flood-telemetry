@@ -12,12 +12,9 @@ import {
 } from './modules/dom_utils.js';
 export { escapeAttr, escapeHTML, formatSpanUnit, formatHeadDelta };
 import { renderCorridorRow } from './roads.js';
-import {
-  renderMicroSparkline,
-  renderSingleSparkline as renderSingleSparklineCore,
-  renderDualSparkline as renderDualSparklineCore,
-  bindSparklineEvents as bindSparklineEventsCore
-} from './sparkline.js';
+import { renderMicroSparkline, renderSingleSparkline as renderSingleSparklineCore, renderDualSparkline as renderDualSparklineCore, bindSparklineEvents as bindSparklineEventsCore } from './sparkline.js';
+import { getStaffGaugeCameraForStation } from './staff_gauge_cameras.js';
+import { loadFrame, getStaffGaugePanelCopy, getStaffGaugePanelMode } from './modules/staff_gauge_panel.js';
 
 export function renderHeroSpillwayBanner(opts) {
   const isAlert = opts.isAlert || opts.isOvertopping;
@@ -202,6 +199,7 @@ function setupManualRefreshListener() {
 export async function initApp() {
   initJargonPopovers();
   initCameraGuideTriggers();
+  initDashboardStaffGaugeTriggers(document.getElementById('cards-container'));
   activeCatchmentId = getActiveCatchmentId();
   try {
     hydroConfig = await loadCatchmentConfig(activeCatchmentId);
@@ -705,6 +703,11 @@ export async function refreshLiveDashboard() {
     const confluenceIsStale = huishFreshness.isStale || midelneyFreshness.isStale;
     const confluenceStaleInfo = huishFreshness.isStale ? huishFreshness : (midelneyFreshness.isStale ? midelneyFreshness : null);
 
+    stationFreshnessById.set('52157', beerWallFreshness);
+    stationFreshnessById.set('52234', monksDownFreshness);
+    stationFreshnessById.set('52120', huishFreshness);
+    stationFreshnessById.set('52153', midelneyFreshness);
+
     // Build trend histories according to selected lookback period (24h, 7d, 30d)
     const rangeLimitMap = { '24h': 96, '7d': 672, '30d': 2688 };
     const maxLimit = rangeLimitMap[currentActiveRange] || 96;
@@ -734,6 +737,11 @@ export async function refreshLiveDashboard() {
     const huishHistory = extractHistory(huishReadings, huishDatum);
     const midelneyHistory = extractHistory(midelneyReadings, midelneyDatum);
 
+  const openDrawers = new Set(
+    Array.from(container.querySelectorAll('.moor-card'))
+      .filter(c => c.id && c.querySelector('.drawer-content.open'))
+      .map(c => c.id)
+  );
   container.innerHTML = '';
 
   const evals = [];
@@ -1335,7 +1343,7 @@ export async function refreshLiveDashboard() {
         history: monksDownHistory,
         color: monksDownFreshness.isStale ? "#f59e0b" : "#38bdf8",
         link: "https://environment.data.gov.uk/flood-monitoring/id/stations/52234.html",
-        staleTag: monksDownFreshness.isStale ? (monksDownFreshness.isOffline ? '⚠️ OFFLINE' : (monksDownFreshness.isFlatlined ? '⚠️ PONDED / FLATLINE' : `⚠️ STALE (${monksDownFreshness.ageHours}h)`)) : null
+        staleTag: monksDownFreshness.isStale ? (monksDownFreshness.isOffline ? '⚠️ OFFLINE' : (monksDownFreshness.isFlatlined ? '⚠️ READING STATIC' : `⚠️ STALE (${monksDownFreshness.ageHours}h)`)) : null
       },
       {
         name: "Beer Wall Upstream (Greylake)",
@@ -1638,6 +1646,13 @@ export async function refreshLiveDashboard() {
     }));
   }
 
+  // Restore any technical telemetry drawers that were open prior to the 60s re-render
+  openDrawers.forEach((cardId) => {
+    const cardEl = document.getElementById(cardId);
+    const drawer = cardEl?.querySelector('.drawer-content');
+    if (drawer) drawer.classList.add('open');
+  });
+
   // Render Telemetry State Transitions & Visual Evidence Ledger [Issue #24]
   if (allCatalogEvents.length > 0) {
     container.appendChild(renderEventsTimeline(allCatalogEvents));
@@ -1732,7 +1747,140 @@ export function createMoorFallbackCard(opts) {
   return card;
 }
 
-function createMoorCard(opts) {
+const dashboardStaffGaugeState = new Map();
+const stationFreshnessById = new Map();
+const boundStaffGaugeContainers = new WeakSet();
+
+/** Clears cached dashboard staff-gauge panel state (intended for test isolation). */
+export function resetDashboardStaffGaugeState() {
+  dashboardStaffGaugeState.clear();
+  stationFreshnessById.clear();
+}
+
+function createDashboardStaffGaugePanel(entry, stationId) {
+  const freshness = stationFreshnessById.get(String(stationId)) || { isOffline: false, isStale: false, isFlatlined: false };
+  const mode = getStaffGaugePanelMode(entry, freshness);
+
+  const panel = document.createElement('section');
+  panel.className = 'staff-gauge-panel';
+  panel.setAttribute('aria-label', 'Staff gauge camera view');
+
+  if (mode.notice) {
+    const noticeP = document.createElement('p');
+    noticeP.className = 'staff-gauge-status staff-gauge-warning';
+    noticeP.textContent = mode.notice;
+    panel.appendChild(noticeP);
+  }
+
+  const copyP = document.createElement('p');
+  copyP.className = 'staff-gauge-status';
+  copyP.textContent = getStaffGaugePanelCopy(entry);
+  panel.appendChild(copyP);
+
+  const body = document.createElement('div');
+  body.className = 'staff-gauge-body';
+  panel.appendChild(body);
+
+  return { panel, body };
+}
+
+/**
+ * Delegates on-demand staff-gauge camera button clicks on a stable card container
+ * so 60s innerHTML card rebuilds never drop click handlers or reload active frames.
+ */
+export function initDashboardStaffGaugeTriggers(container) {
+  if (!container || boundStaffGaugeContainers.has(container)) return;
+  boundStaffGaugeContainers.add(container);
+
+  container.addEventListener('click', (event) => {
+    const btn = event.target?.closest?.('.staff-gauge-load');
+    if (!btn) return;
+    const cameraId = btn.getAttribute('data-staff-gauge-camera');
+    const stationId = btn.getAttribute('data-staff-gauge-station');
+    if (!cameraId || !stationId) return;
+
+    const entry = getStaffGaugeCameraForStation(stationId);
+    if (!entry || entry.confidence === 'low' || entry.camera_id !== cameraId) return;
+
+    const slot = btn.closest('.staff-gauge-slot');
+    if (!slot) return;
+
+    let state = dashboardStaffGaugeState.get(cameraId);
+    if (!state) {
+      const { panel, body } = createDashboardStaffGaugePanel(entry, stationId);
+      state = { panel, body, isOpen: true };
+      dashboardStaffGaugeState.set(cameraId, state);
+      slot.appendChild(panel);
+      btn.setAttribute('aria-expanded', 'true');
+      loadFrame(entry, body);
+      return;
+    }
+
+    state.isOpen = !state.isOpen;
+    if (state.isOpen) {
+      if (state.panel.parentNode !== slot) {
+        slot.appendChild(state.panel);
+      }
+      btn.setAttribute('aria-expanded', 'true');
+      if (!state.body.querySelector?.('img.staff-gauge-frame')) {
+        loadFrame(entry, state.body);
+      }
+    } else {
+      if (state.panel.parentNode === slot) {
+        slot.removeChild(state.panel);
+      }
+      btn.setAttribute('aria-expanded', 'false');
+    }
+  });
+}
+
+/**
+ * Renders a single sub-station gauge row, attaching an on-demand metric-board
+ * camera button only when the gauge has a non-low-confidence camera mapping.
+ */
+export function renderSubStationGaugeRow(g) {
+  const entry = getStaffGaugeCameraForStation(g.id);
+  const hasCam = Boolean(entry && entry.confidence !== 'low');
+  const camSlotHtml = hasCam ? `
+    <div class="staff-gauge-slot" data-camera-id="${escapeAttr(entry.camera_id)}" data-station-id="${escapeAttr(g.id)}">
+      <button type="button"
+              class="ext-link-btn staff-gauge-load"
+              data-staff-gauge-camera="${escapeAttr(entry.camera_id)}"
+              data-staff-gauge-station="${escapeAttr(g.id)}"
+              aria-expanded="false">
+        📷 Camera view of the metric board
+      </button>
+    </div>
+  ` : '';
+
+  return `
+    <div class="sub-station-gauge-card" data-station-id="${escapeAttr(g.id)}">
+      <div class="sub-station-gauge-row">
+        <div class="gauge-info">
+          <div class="gauge-name">
+            <a href="${escapeAttr(g.link)}" target="_blank" rel="noopener noreferrer" class="gauge-link" title="Verify Station ${escapeAttr(g.id)} on GOV.UK">${escapeHTML(g.name)}</a>
+            <span class="gauge-id-badge">ID: ${escapeHTML(g.id)}</span>
+            ${g.staleTag ? `<span class="gauge-offline-tag">${escapeHTML(g.staleTag)}</span>` : ''}
+          </div>
+          <div class="gauge-value">${escapeHTML(g.value)}</div>
+        </div>
+        <div class="gauge-sparkline-box">
+          ${renderMicroSparkline(g.history, g.color)}
+        </div>
+      </div>
+      ${camSlotHtml}
+    </div>
+  `;
+}
+
+export function createMoorCard(opts) {
+  if (Array.isArray(opts.gauges)) {
+    for (const g of opts.gauges) {
+      if (g && g.id && g.freshness) {
+        stationFreshnessById.set(String(g.id), g.freshness);
+      }
+    }
+  }
   const card = document.createElement('article');
   card.className = opts.cardClass ? `moor-card ${opts.cardClass}` : 'moor-card';
   card.setAttribute('tabindex', '0');
@@ -1841,21 +1989,7 @@ function createMoorCard(opts) {
       <div class="drawer-content">
         ${opts.pumpGauge || ''}
         <div class="drawer-section-title">Individual Gauge Telemetry & Trends</div>
-        ${opts.gauges ? opts.gauges.map(g => `
-          <div class="sub-station-gauge-card">
-            <div class="gauge-info">
-              <div class="gauge-name">
-                <a href="${g.link}" target="_blank" rel="noopener noreferrer" class="gauge-link" title="Verify Station ${g.id} on GOV.UK">${g.name}</a>
-                <span class="gauge-id-badge">ID: ${g.id}</span>
-                ${g.staleTag ? `<span class="gauge-offline-tag">${escapeHTML(g.staleTag)}</span>` : ''}
-              </div>
-              <div class="gauge-value">${g.value}</div>
-            </div>
-            <div class="gauge-sparkline-box">
-              ${renderMicroSparkline(g.history, g.color)}
-            </div>
-          </div>
-        `).join('') : ''}
+        ${opts.gauges ? opts.gauges.map(g => renderSubStationGaugeRow(g)).join('') : ''}
 
         <div class="sub-station-row" style="margin-top: 0.5rem; padding-top: 0.4rem; border-top: 1px solid rgba(255,255,255,0.08);">
           <span>Data Provenance</span>
@@ -1883,6 +2017,22 @@ function createMoorCard(opts) {
       </div>
     </div>
   `;
+
+  const slots = card.querySelectorAll?.('.staff-gauge-slot[data-camera-id]');
+  if (slots) {
+    slots.forEach((slot) => {
+      const cameraId = slot.getAttribute('data-camera-id');
+      const state = cameraId ? dashboardStaffGaugeState.get(cameraId) : null;
+      if (state && state.isOpen) {
+        slot.appendChild(state.panel);
+        const btn = slot.querySelector('.staff-gauge-load');
+        if (btn) btn.setAttribute('aria-expanded', 'true');
+        // Re-check the camera on each 60s refresh so the "captured X ago" caption never goes stale
+        const entry = getStaffGaugeCameraForStation(slot.getAttribute('data-station-id'));
+        if (entry) loadFrame(entry, state.body, { silent: true });
+      }
+    });
+  }
 
   return card;
 }
