@@ -15,6 +15,7 @@ import { renderCorridorRow } from './roads.js';
 import { renderMicroSparkline, renderSingleSparkline as renderSingleSparklineCore, renderDualSparkline as renderDualSparklineCore, bindSparklineEvents as bindSparklineEventsCore } from './sparkline.js';
 import { getStaffGaugeCameraForStation } from './staff_gauge_cameras.js';
 import { loadFrame, getStaffGaugePanelCopy, getStaffGaugePanelMode } from './modules/staff_gauge_panel.js';
+import { updateEAWarningSummaryBanner, buildCardEAWarningStripHtml, initEAWarningsDialog } from './modules/ea_warnings_panel.js';
 
 export function renderHeroSpillwayBanner(opts) {
   const isAlert = opts.isAlert || opts.isOvertopping;
@@ -200,6 +201,7 @@ export async function initApp() {
   initJargonPopovers();
   initCameraGuideTriggers();
   initDashboardStaffGaugeTriggers(document.getElementById('cards-container'));
+  initEAWarningsDialog(document.getElementById('cards-container'));
   activeCatchmentId = getActiveCatchmentId();
   try {
     hydroConfig = await loadCatchmentConfig(activeCatchmentId);
@@ -780,6 +782,22 @@ export async function refreshLiveDashboard() {
   // Dedicated Community Roads & Access Summary Bridge Banner [Issue #12 / Roads Carve-Out]
   const roadData = dbData?.roads || evaluateRoadNetwork(dbMeasures || {}, activeEventsMap);
   updateRoadStatusSummaryBanner(roadData);
+
+  // Official EA Flood Warnings Header Banner & Per-Card Briefing Badges [Issue #55]
+  updateEAWarningSummaryBanner(dbData?.ea_warnings);
+  if ((dbData?.ea_warnings?.active_count || 0) <= 0) {
+    latestActiveEAWarnings = [];
+  } else {
+    try {
+      const warnRes = await fetch('/api/warnings?status=ACTIVE');
+      if (warnRes.ok) {
+        const warnPayload = await warnRes.json();
+        latestActiveEAWarnings = Array.isArray(warnPayload?.warnings) ? warnPayload.warnings : [];
+      }
+    } catch {
+      // Preserve last known active warnings on transient fetch failure
+    }
+  }
 
   const athelneyConfig = hydroConfig?.moors?.curry_moor?.athelney_spillway;
   const athelneyCrest = getActiveCrestHeight(athelneyConfig, new Date(), 7.35);
@@ -1505,7 +1523,7 @@ export async function refreshLiveDashboard() {
     evals.push({ name: 'Dunball Sea Outfall', severity: 4, status: 'OFFLINE', isOffline: true });
     container.appendChild(createMoorFallbackCard({
       title: 'Dunball Clyse & Sea Outfall',
-      cardId: 'card-dunball',
+      cardId: 'card-52163',
       stationId: 'E9094',
       error: err
     }));
@@ -1726,6 +1744,9 @@ export function createMoorFallbackCard(opts) {
   else if (opts.stationId) card.id = `card-${opts.stationId}`;
   card.style.minHeight = '280px';
 
+  const fallbackCardId = opts.cardId || (opts.stationId ? `card-${opts.stationId}` : '');
+  const fallbackEaWarningStripHtml = buildCardEAWarningStripHtml(fallbackCardId, opts.eaWarnings || latestActiveEAWarnings);
+
   card.innerHTML = `
     <div class="moor-card-header">
       <div class="moor-title-group">
@@ -1734,6 +1755,7 @@ export function createMoorFallbackCard(opts) {
       </div>
       <div class="status-pill status-alert">⚠️ TELEMETRY OFFLINE</div>
     </div>
+    ${fallbackEaWarningStripHtml}
     <div class="card-fallback-body">
       <p class="card-fallback-text"><strong>Data Degraded:</strong> Real-time sensor readings for this station could not be processed safely or telemetry is currently offline.</p>
       <div class="card-fallback-links">
@@ -1751,6 +1773,7 @@ export function createMoorFallbackCard(opts) {
 const dashboardStaffGaugeState = new Map();
 const stationFreshnessById = new Map();
 const boundStaffGaugeContainers = new WeakSet();
+let latestActiveEAWarnings = [];
 
 /** Clears cached dashboard staff-gauge panel state (intended for test isolation). */
 export function resetDashboardStaffGaugeState() {
@@ -1952,6 +1975,8 @@ export function createMoorCard(opts) {
     </div>
   ` : '';
 
+  const cardEaWarningStripHtml = buildCardEAWarningStripHtml(card.id, opts.eaWarnings || latestActiveEAWarnings);
+
   card.innerHTML = `
     <div>
       <div class="card-header">
@@ -1965,6 +1990,7 @@ export function createMoorCard(opts) {
           <span>${badgeLabel}</span>
         </div>
       </div>
+      ${cardEaWarningStripHtml}
       ${staleBannerHtml}
 
       ${opts.heroBanner || standaloneHero}

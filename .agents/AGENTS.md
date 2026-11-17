@@ -90,6 +90,11 @@ The platform is a community-driven flood telemetry tool coded by autonomous AI a
       An uncontrolled emergency overflow spillway (`OVERTOPPING`) can **NEVER** have a crest lower than or equal to a co-located controlled sluice diversion trigger (`DIVERTING`) or within `0.50m` of routine agricultural penning / baseflow (`fallback_stage_mAOD`).
     - **Ban on Fallback Tampering to Mask Falsified Thresholds:** If a proposed threshold collides with `fallback_stage_mAOD` or triggers alerts against historical non-flood median telemetry in `telemetry.db`, **the threshold hypothesis is falsified**. Agents are **STRICTLY FORBIDDEN** from lowering or mutating `fallback_stage_mAOD` (inventing synthetic baseflow numbers) to make a falsified threshold pass tests.
 
+15. **[RULE-TOK-01] Token & Context Hygiene (Tree-Sitter MCP & Quiet Tests):**
+    - **Prefer Tree-Sitter MCP for Code Structure:** For symbol lookups, AST inspection, and usage discovery in large files (`src/js/hydro_engine.js`, `src/js/app.js`, `src/js/topology.js`, `server.js`), use the `tree-sitter` MCP server (`get_symbols`, `find_usage`, `get_ast`, `find_text`) instead of dumping whole files or running broad, multi-hundred-line `grep` outputs into context.
+    - **Targeted Tests During Iteration:** During active development, run only the relevant test file(s) (`node --test tests/<file>.test.js`). Reserve full clean-room verification for pre-commit sign-off, and use `npm run test:clean:quiet` (`--test-reporter=dot`) so passing test logs do not bloat the context window with ~46KB of checkmarks.
+    - **Avoid Unnecessary Subagents:** Do not spawn subagents or swarm workers for single-file or straightforward edits that the coordinator can complete directly in 1–2 turns.
+
 ---
 
 ### Team Roles & On-Demand Skills Directory

@@ -126,12 +126,21 @@
       INITIALIZING SYSTEM TELEMETRY...
     </div>
 
-    <!-- Road Status Bridge Banner [Roads View Carve-Out] -->
-    <div id="road-status-summary-banner" class="road-status-banner banner-passable" role="region" aria-label="Roads &amp; Access Status Summary">
-      <a href="roads.html" class="road-banner-inner" id="road-banner-link">
-        <span class="road-banner-text" id="road-banner-text">🚗 <strong>Roads &amp; Access:</strong> All 8 Monitored Corridors Passable</span>
-        <span class="road-banner-action" id="road-banner-action">View Roads Status ↗</span>
-      </a>
+    <!-- Summary Banners Row: Roads & Access + Official EA Flood Warnings -->
+    <div class="header-summary-row">
+      <div id="road-status-summary-banner" class="road-status-banner banner-passable" role="region" aria-label="Roads &amp; Access Status Summary">
+        <a href="roads.html" class="road-banner-inner" id="road-banner-link">
+          <span class="road-banner-text" id="road-banner-text">🚗 <strong>Roads &amp; Access:</strong> All 8 Monitored Corridors Passable</span>
+          <span class="road-banner-action" id="road-banner-action">View Roads Status ↗</span>
+        </a>
+      </div>
+
+      <div id="ea-warning-summary-banner" class="ea-warning-banner banner-calm" role="region" aria-label="Official Environment Agency Flood Warnings Summary">
+        <button type="button" class="ea-banner-inner" id="ea-warning-banner-btn" aria-haspopup="dialog" aria-controls="ea-warnings-dialog">
+          <span class="ea-banner-text" id="ea-warning-banner-text">🏛️ <strong>Official EA Flood Warnings:</strong> None Active in Somerset Catchment</span>
+          <span class="ea-banner-action" id="ea-warning-banner-action">View Official Briefing</span>
+        </button>
+      </div>
     </div>
 
     <div class="global-timestamp-bar" id="global-timestamp-banner" role="region" aria-label="Telemetry Freshness Status">
@@ -242,6 +251,27 @@
 
       <div class="drawer-footer-note">
         <p>Telemetry updated every 15 minutes by the UK Environment Agency. Database sync runs every 5 minutes.</p>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Official EA Flood Warnings Briefing Modal Drawer [Issue #55] -->
+  <dialog class="sys-health-backdrop ea-warnings-dialog" id="ea-warnings-dialog" aria-labelledby="ea-warnings-modal-title" aria-modal="true">
+    <div class="sys-health-drawer ea-warnings-drawer">
+      <div class="drawer-header">
+        <div>
+          <h3 id="ea-warnings-modal-title">🏛️ Official Environment Agency Flood Warnings</h3>
+          <p class="drawer-subtitle" id="ea-warnings-modal-subtitle">Verbatim Flood Alerts &amp; Warnings for Somerset Levels &amp; Moors</p>
+        </div>
+        <button type="button" class="close-drawer-btn" id="ea-warnings-close" aria-label="Close official EA flood warnings briefing">✕</button>
+      </div>
+
+      <div id="ea-warnings-modal-body" class="ea-warnings-modal-body" aria-live="polite">
+        <p class="ea-warnings-loading">Loading official Environment Agency warnings...</p>
+      </div>
+
+      <div class="drawer-footer-note">
+        <p>Contains public sector information licensed under the <a href="https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/" target="_blank" rel="noopener noreferrer">Open Government Licence v3.0</a> (UK Environment Agency Flood Monitoring API).</p>
       </div>
     </div>
   </dialog>
