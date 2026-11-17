@@ -246,7 +246,10 @@ const MEASURE_IDS = [
   '52153-level-stage-i-15_min-mASD',
   // West Sedgemoor PS, West Sedgemoor Drain (Issue #54 / #69). Ingest only for now: this is a
   // pump *sump* level measure, not yet a STATION_REGISTRY / topology station.
-  '52155-level-sump_level-i-15_min-mAOD'
+  '52155-level-sump_level-i-15_min-mAOD',
+  // Hinkley Point Tide Gauge (Issue #25). Ingest only for now: coastal tide gauge measure
+  // polled/backfilled into historical_telemetry, not yet a STATION_REGISTRY / topology station.
+  '52106-level-tidal_level-i-15_min-mAOD'
 ];
 
 /**
