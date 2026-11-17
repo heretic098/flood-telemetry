@@ -115,8 +115,8 @@ export const CAMERA_CATALOG = Object.freeze([
     camName: 'Athelney Spillway Crest Gauge Board',
     chokePoint: 'cuts_road',
     assetType: 'road',
-    description: 'Close-up of the vertical metric staff gauge board (1m–7m markings) mounted on the timber fence post at Athelney Spillway crest.',
-    lookFor: 'Standing floodwater meniscus against the vertical metric staff gauge board graduations when Athelney Spillway is overtopping.'
+    description: 'Close-up of a vertical staff gauge board on a timber fence post at the Athelney Spillway, standing in dry grass. Decimetre graduations run either side of a white zero band; the zero band is not surveyed, so the marks are not metres AOD. The post appears to be on the downslope side of the embankment (not confirmed).',
+    lookFor: 'Normally dry. Floodwater reaching the post and the water edge against its decimetre marks, which only happens in extreme floods when the spillway is running. Marks are relative to an unsurveyed local zero.'
   },
   {
     id: 'baltmoor_wall',
@@ -181,19 +181,19 @@ export const CAMERA_CATALOG = Object.freeze([
     camName: 'Westonzoyland Engine Rhyne',
     chokePoint: 'northmoor',
     assetType: 'polder',
-    description: 'Overhead view of the Westonzoyland pumping station angled steel weed screen and vertical metric staff gauge board on the concrete pier.',
-    lookFor: 'Water meniscus against the vertical metric staff gauge markings and weed accumulation on the intake trash rack.'
+    description: 'Overhead view of the Westonzoyland pumping station intake: angled steel weed screen on the right of the shot, with a vertical metric staff gauge board showing the level of the drain coming into the station.',
+    lookFor: 'Drain water level against the vertical metric staff gauge board and weed accumulation on the intake trash rack.'
   },
   {
     id: 'monks_leaze_clyse',
-    name: 'Monk\'s Leaze Clyse Sluice Gate & Staff Gauge',
+    name: 'Monk\'s Leaze Clyse Sluice Gate Lift Board & Water Level Board',
     siteKey: 'monksleaze',
     campath: 'sites/monks_leaze/cam1/',
     camName: 'Monks Leaze',
     chokePoint: 'monks_leaze_clyse',
     assetType: 'sluice',
-    description: 'Close-up of the Monk\'s Leaze Clyse concrete sluice headwall, vertical lifting chain, metric staff gauge board on the left pier, and water channel entering the Sowy.',
-    lookFor: 'Water meniscus level against the vertical metric staff gauge board on the left concrete pier and surface flow turbulence passing under the clyse headwall.'
+    description: 'Close-up of the Monk\'s Leaze Clyse concrete sluice headwall and vertical lifting chain, with two metric boards: the left board shows the sluice gate height (lift position), and the right board shows the water level.',
+    lookFor: 'Left board: sluice gate height (gate lift position, not water level). Right board: water level against its graduations. Also surface flow turbulence passing under the clyse headwall.'
   },
   {
     id: 'allermoor_spillway',
@@ -280,8 +280,8 @@ export const CAMERA_CATALOG = Object.freeze([
     camName: 'West Sedgemoor Screen',
     chokePoint: 'curry_moor',
     assetType: 'polder',
-    description: 'Overhead view of the West Sedgemoor pumping station intake weed screen and vertical metric staff gauge board on the concrete wall.',
-    lookFor: 'Water meniscus against the vertical metric staff gauge board and debris build-up on the intake trash rack.'
+    description: 'Overhead view of the West Sedgemoor pumping station drain intake: angled steel weed screen on the right of the shot, with a vertical metric staff gauge board on the concrete wall.',
+    lookFor: 'Drain water level against the vertical metric staff gauge board and debris build-up on the intake trash rack.'
   }
 ]);
 

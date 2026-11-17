@@ -33,6 +33,7 @@ import { setCameraEventsCatalog, initCameraGuideTriggers } from './camera_guide.
 import { createRefreshController } from './modules/refresh_controller.js';
 import { setupOfflineBanner as setupResilienceBanner } from './modules/network_resilience.js';
 import { applyFreshnessPill } from './modules/dom_utils.js';
+import { buildStaffGaugePanel } from './modules/staff_gauge_panel.js';
 
 import {
   renderInspectorSparkline,
@@ -2048,6 +2049,11 @@ function inspectNode(nodeId, restoreFocus = false) {
       ${camGuideHtml}
       <a href="${escapeAttr(mainGovUkUrl)}" target="_blank" rel="noopener noreferrer" class="ext-link-btn" id="node-govuk-link">${escapeHTML(mainGovUkText)}</a>
     `;
+
+    // Staff gauge camera cross-check (Issue #54)
+    document.getElementById('node-staff-gauge-camera')?.remove();
+    const staffGaugePanel = buildStaffGaugePanel(node, readings);
+    if (staffGaugePanel) footerLinks.insertAdjacentElement('beforebegin', staffGaugePanel);
   }
 }
 

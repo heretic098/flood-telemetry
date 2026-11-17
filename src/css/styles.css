@@ -2554,6 +2554,46 @@ svg.inspector-sparkline-svg {
   min-height: 44px;
 }
 
+/* Staff gauge camera panel (Issue #54) */
+.staff-gauge-panel {
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  border-radius: 8px;
+  padding: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.staff-gauge-title {
+  margin: 0 0 0.5rem;
+  font-size: 0.95rem;
+  color: #f8fafc;
+}
+
+.staff-gauge-status {
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  color: #cbd5e1;
+}
+
+.staff-gauge-warning {
+  font-weight: 600;
+  color: #f8fafc;
+}
+
+.staff-gauge-frame {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 6px;
+  margin-bottom: 0.5rem;
+}
+
+.staff-gauge-load {
+  min-height: 44px;
+  width: 100%;
+}
+
 /* Accessible Focus Rings */
 .nav-btn:focus-visible,
 .filter-btn:focus-visible,

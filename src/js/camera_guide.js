@@ -164,9 +164,9 @@ export const CAMERA_FIELD_GUIDES = {
     ],
     checklist: [
       {
-        cameraName: 'Monk\'s Leaze Clyse Headwall & Pier Staff Gauge (cam1)',
-        description: 'Frames the Monk\'s Leaze Clyse concrete sluice headwall (6.70m AOD structure top, 4.20m AOD concrete sill), vertical lifting chain, metric staff gauge board on the left pier, and water channel entering the Sowy.',
-        lookFor: 'Water meniscus level against the vertical metric staff gauge board on the left concrete pier and surface flow turbulence passing under the clyse headwall when upstream stage reaches the 7.20m AOD diversion trigger.',
+        cameraName: 'Monk\'s Leaze Clyse Headwall, Gate Lift Board & Water Level Board (cam1)',
+        description: 'Frames the Monk\'s Leaze Clyse concrete sluice headwall (6.70m AOD structure top, 4.20m AOD concrete sill), vertical lifting chain, and two metric boards: the left board shows the sluice gate height (lift position) and the right board shows the water level.',
+        lookFor: 'Left board: sluice gate height (not water level). Right board: water level against its graduations. Also surface flow turbulence passing under the clyse headwall when upstream stage reaches the 7.20m AOD diversion trigger.',
         physicalLimitation: 'Submerged sluice gate apertures, underground penstock openings, and volumetric discharge (cumecs) cannot be seen or derived optically.'
       },
       {

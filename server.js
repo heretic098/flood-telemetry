@@ -30,6 +30,7 @@ import {
 } from './src/js/contracts/index.js';
 
 import { CameraBufferWorker } from './src/js/api/camera_buffer.js';
+import { STAFF_GAUGE_CAMERA_MAP } from './src/js/staff_gauge_cameras.js';
 import { TigrisArchiveStore, validateArchiveCoordinates } from './src/js/api/tigris_archive.js';
 import {
   correlateEventDecisions,
@@ -948,6 +949,61 @@ const server = http.createServer(async (req, res) => {
       console.error("[API History Error]", err);
       res.writeHead(500, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ status: "error", message: "Failed to retrieve historical telemetry" }));
+    }
+    return;
+  }
+
+  // API Route: Latest staff-gauge board camera frame (Issue #54).
+  // Serves only cameras listed in STAFF_GAUGE_CAMERA_MAP, from our own ring buffer (no hotlinking).
+  const staffGaugeMatch = pathname.match(/^\/api\/staff-gauge-cameras\/([a-z0-9_]+)\/latest(\.jpg)?$/);
+  if (staffGaugeMatch) {
+    const cameraId = staffGaugeMatch[1];
+    const wantsImage = Boolean(staffGaugeMatch[2]);
+    const STAFF_GAUGE_MAX_FRAME_AGE_MS = 3 * 60 * 60 * 1000;
+    const notFound = (message) => {
+      res.writeHead(404, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+      res.end(JSON.stringify({ status: 'error', message }));
+    };
+    if (!Object.prototype.hasOwnProperty.call(STAFF_GAUGE_CAMERA_MAP, cameraId) || !cameraBufferWorker) {
+      notFound('Unknown staff gauge camera');
+      return;
+    }
+    try {
+      const frame = cameraBufferWorker.getFrameNearestTo(cameraId, new Date().toISOString(), STAFF_GAUGE_MAX_FRAME_AGE_MS);
+      if (!frame) {
+        if (wantsImage) {
+          notFound('No recent frame available for this camera');
+        } else {
+          // Expected state (camera offline / dark): 200 so browsers do not log a console error.
+          res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' });
+          res.end(JSON.stringify({ status: 'unavailable', camera_id: cameraId }));
+        }
+        return;
+      }
+      if (wantsImage) {
+        const buf = fs.readFileSync(frame.filePath);
+        res.writeHead(200, {
+          'Content-Type': 'image/jpeg',
+          'Content-Length': buf.length,
+          'Cache-Control': 'no-cache'
+        });
+        res.end(buf);
+        return;
+      }
+      const mapping = STAFF_GAUGE_CAMERA_MAP[cameraId];
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' });
+      res.end(JSON.stringify({
+        status: 'ok',
+        camera_id: cameraId,
+        station_id: mapping.station_id,
+        captured_at: frame.timestamp,
+        age_minutes: Math.max(0, Math.round((Date.now() - new Date(frame.timestamp).getTime()) / 60000)),
+        image_url: `/api/staff-gauge-cameras/${cameraId}/latest.jpg`
+      }));
+    } catch (err) {
+      console.error('[API Staff Gauge Camera Error]', err.message);
+      res.writeHead(500, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+      res.end(JSON.stringify({ status: 'error', message: 'Failed to retrieve camera frame' }));
     }
     return;
   }
