@@ -574,7 +574,8 @@ export async function refreshLiveDashboard() {
           "E9094-level-stage-i-15_min-mAOD": "Dunball Inland KSD",
           "52163-level-tidal_level-i-15_min-mAOD": "Dunball Tidal Parrett",
           "52120-level-stage-i-15_min-mASD": "Huish Episcopi PS (River Yeo)",
-          "52153-level-stage-i-15_min-mASD": "Midelney (River Isle)"
+          "52153-level-stage-i-15_min-mASD": "Midelney (River Isle)",
+          "52155-level-sump_level-i-15_min-mAOD": "West Sedgemoor PS (Drain sump level)"
         };
 
         matrixBody.innerHTML = Object.entries(measuresSummary).map(([measureId, timeStr]) => {

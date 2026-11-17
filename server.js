@@ -243,7 +243,10 @@ const MEASURE_IDS = [
   'E9531-level-stage-i-15_min-mAOD',
   'E9094-level-stage-i-15_min-mAOD',
   '52120-level-stage-i-15_min-mASD',
-  '52153-level-stage-i-15_min-mASD'
+  '52153-level-stage-i-15_min-mASD',
+  // West Sedgemoor PS, West Sedgemoor Drain (Issue #54 / #69). Ingest only for now: this is a
+  // pump *sump* level measure, not yet a STATION_REGISTRY / topology station.
+  '52155-level-sump_level-i-15_min-mAOD'
 ];
 
 /**
