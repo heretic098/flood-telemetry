@@ -65,11 +65,14 @@ export const ASSET_CAMERA_MAP = Object.freeze({
 
   // Sowy Relief Channel & Monk's Leaze / Beer Wall
   monks_leaze_clyse: Object.freeze(['monks_leaze_clyse', 'allermoor_spillway', 'oath_lock_sluice']),
-  '52233': Object.freeze(['monks_leaze_clyse', 'allermoor_spillway']),
-  '52234': Object.freeze(['monks_leaze_clyse', 'allermoor_spillway']),
+  allermoor_spillway: Object.freeze(['allermoor_spillway', 'monks_leaze_clyse', 'oath_lock_sluice']),
+  oath_lock_sluice: Object.freeze(['oath_lock_sluice', 'monks_leaze_clyse', 'allermoor_spillway']),
+  '52233': Object.freeze(['monks_leaze_clyse', 'allermoor_spillway', 'oath_lock_sluice']),
+  '52234': Object.freeze(['monks_leaze_clyse', 'allermoor_spillway', 'oath_lock_sluice']),
   beer_wall: Object.freeze(['beer_wall', 'beer_wall_sluice_gb', 'beazeley_spillway']),
+  beazeley_spillway: Object.freeze(['beazeley_spillway', 'beer_wall', 'beer_wall_sluice_gb']),
   beer_wall_a372: Object.freeze(['beer_wall', 'beer_wall_sluice_gb', 'beazeley_spillway']),
-  '52157': Object.freeze(['beer_wall', 'beer_wall_sluice_gb']),
+  '52157': Object.freeze(['beer_wall', 'beer_wall_sluice_gb', 'beazeley_spillway']),
 
   // River Yeo & Isle / Muchelney
   muchelney_access: Object.freeze(['huish_episcopi_ps', 'midelney_ps']),

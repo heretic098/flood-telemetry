@@ -45,7 +45,7 @@ export const ROAD_CAMERA_GUIDE_MAP = {
   bicknells_bridge_access: 'currymoor',
   moorland_new_cut_road: 'saltmoor',
   stan_moor_road: 'baltmoor',
-  beer_wall_a372: 'monksleaze'
+  beer_wall_a372: 'beerwall'
 };
 
 let currentFilter = 'all';

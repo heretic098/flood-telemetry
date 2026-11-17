@@ -154,25 +154,64 @@ export const CAMERA_FIELD_GUIDES = {
 
   monksleaze: {
     siteKey: 'monksleaze',
-    title: 'Monk\'s Leaze Clyse Sluice Feeds',
+    title: 'Monk\'s Leaze Clyse, Allermoor Spillway & Oath Lock Feeds',
     cfhUrl: 'https://thecfh.org/parretttonewsom.php#monksleaze',
-    subtitle: 'River Parrett Intake Sluice, Fixed High-Level Spillway & Sowy Flood Relief Channel',
+    subtitle: 'River Parrett Intake Sluice (4.20m Sill / 7.20m Trigger), Allermoor Bankfull Spillway & Oath Lock Penning Gates',
     questions: [
       'Is floodwater being diverted from the River Parrett into the Sowy Flood Relief Channel?',
-      'Is water cascading across the fixed high-level spillway weir?'
+      'Is water cascading over the un-gated Allermoor Spillway bankfull levee (which curtails upstream tributary pumping when running)?',
+      'Are the Oath Lock twin radial gates penning the River Parrett or passing gravity flow downstream?'
     ],
     checklist: [
       {
-        cameraName: 'River Parrett Intake & Fixed Spillway Weir',
-        description: 'Frames the intake embayment from the River Parrett and the fixed concrete overflow spillway weir.',
-        lookFor: 'Flow cascading over the fixed weir crest (6.73m AOD) or rushing past the upstream clyse intake.',
-        physicalLimitation: 'Submerged sluice gate apertures, underground penstocks, and mechanical lift gear cannot be seen optically.'
+        cameraName: 'Monk\'s Leaze Clyse Headwall & Pier Staff Gauge (cam1)',
+        description: 'Frames the Monk\'s Leaze Clyse concrete sluice headwall (6.70m AOD structure top, 4.20m AOD concrete sill), vertical lifting chain, metric staff gauge board on the left pier, and water channel entering the Sowy.',
+        lookFor: 'Water meniscus level against the vertical metric staff gauge board on the left concrete pier and surface flow turbulence passing under the clyse headwall when upstream stage reaches the 7.20m AOD diversion trigger.',
+        physicalLimitation: 'Submerged sluice gate apertures, underground penstock openings, and volumetric discharge (cumecs) cannot be seen or derived optically.'
       },
       {
-        cameraName: 'Downstream Sowy Relief Channel & Clyse Headwall',
-        description: 'Frames the downstream open channel of the Sowy flood relief waterway.',
-        lookFor: 'Downstream surface water velocity, standing waves, and chop indicating active flood diversion away from the Parrett.',
-        physicalLimitation: 'Gate aperture millimeters and diversion cumecs cannot be derived from surface photos.'
+        cameraName: 'Allermoor Spillway & Sowy Relief Intake Embayment (cam2)',
+        description: 'Wide view framing the River Parrett on the left and the un-gated Allermoor Spillway bankfull overflow embankment / Sowy Relief Channel intake embayment on the right (assumed to spill at about the same Parrett stage as Beasley\'s Spillway at 7.50m AOD, EA Somerset Levels guidance; Allermoor\'s own crest level is not published).',
+        lookFor: 'River Parrett floodwater overtopping the bankfull grassed spillway into the Sowy intake embayment on the right (7.50m AOD proxy from Beasley\'s Spillway). Under EA operating protocol, water running over Allermoor Spillway triggers closure of Monk\'s Leaze Clyse and curtailment of upstream tributary pumping at Huish Episcopi, Midelney, and Long Load.',
+        physicalLimitation: 'Optical camera confirms surface overtopping contact across the grassed levee but cannot measure gate aperture millimeters, flow rate (cumecs), or unbroadcast pump electrical states.'
+      },
+      {
+        cameraName: 'Oath Lock Penning Sluice Twin Radial Gates (oath/cam1)',
+        description: 'Downstream view of the twin steel radial penning gates across the River Parrett at Oath Lock.',
+        lookFor: 'River Parrett water stage against the twin steel radial gates and turbulent white-water discharge passing beneath or over the gates.',
+        physicalLimitation: 'Exact radial gate aperture millimeters and automated actuator settings are not optically quantifiable; head differential across the reach is inferred from telemetry.'
+      }
+    ]
+  },
+
+  beerwall: {
+    siteKey: 'beerwall',
+    title: 'Beer Wall Culverts, Sluices & Beazeley Spillway Feeds',
+    cfhUrl: 'https://thecfh.org/parretttonewsom.php#Beerwall',
+    subtitle: 'Sowy Relief Channel 4-Bay A372 Box Culverts (7.30m AOD), Lang Acre Sluices & Beazeley Spillway Embankment',
+    questions: [
+      'Is Sowy / KSD floodwater passing through the 4-bay concrete box culverts beneath the A372 at Beer Wall?',
+      'What stage is visible on the Beer Wall sluice staff gauge board relative to the 6.00m tilting weir and 7.30m relief thresholds?',
+      'Is water approaching or spilling across the grassed Beazeley Spillway embankment?'
+    ],
+    checklist: [
+      {
+        cameraName: 'Beer Wall Lang Acre Rectangular Box Culverts (beerwall/cam4)',
+        description: 'Frames the twin rectangular concrete box culverts and wingwall headwall conveying Sowy / Beer Wall flood relief (7.30m AOD threshold) beneath the A372 corridor at Greylake.',
+        lookFor: 'Water elevation in the approach channel relative to the rectangular concrete box culvert soffits and wingwalls.',
+        physicalLimitation: 'Camera frames the low-level culvert headwalls and relief channel, NOT the raised A372 highway asphalt carriageway crown (>8.00m AOD). Do not infer highway closure solely from water in the culvert approach.'
+      },
+      {
+        cameraName: 'Beer Wall Sluice Culvert Bays & Staff Gauge Board (beerwall/cam8)',
+        description: 'Close-up of the Beer Wall / Lang Acre sluice concrete culvert bays and vertical metric staff gauge board on the central pier.',
+        lookFor: 'Water meniscus against the vertical metric staff gauge board markings and surface turbulence entering King\'s Sedgemoor Drain.',
+        physicalLimitation: 'Submerged tilting weir angles and internal culvert gate apertures cannot be measured optically; use Station 52157 telemetry for calibrated mAOD stage.'
+      },
+      {
+        cameraName: 'Beazeley Spillway Grassed Embankment & Sowy Channel (beazeley/cam1)',
+        description: 'Wide view along the grassed Beazeley Spillway flood embankment (7.30m AOD relief threshold) and adjacent Sowy / KSD channel.',
+        lookFor: 'High water stage in the left-hand Sowy channel approaching or spilling laterally across the grassed Beazeley Spillway crest.',
+        physicalLimitation: 'Optical camera confirms physical water contact with the grassed embankment crest but cannot measure volumetric spill rate (cumecs).'
       }
     ]
   }
@@ -184,8 +223,11 @@ const SITE_ALIASES = {
   curry_moor: 'currymoor',
   athelney: 'baltmoor',
   athelneyspillway: 'baltmoor',
-  beerwall: 'baltmoor',
+  beer_wall: 'beerwall',
+  beazeley: 'beerwall',
   monks_leaze: 'monksleaze',
+  allermoor: 'monksleaze',
+  oath: 'monksleaze',
   sowy: 'monksleaze',
   northmoor: 'saltmoor'
 };

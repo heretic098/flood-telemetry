@@ -8,10 +8,15 @@ This document establishes the inviolable domain rules, physical invariants, visu
 
 The platform is a community-driven flood telemetry tool coded by autonomous AI agents with platform engineering oversight. The human overseer is **NOT** a civil engineer, hydrologist, or Environment Agency policymaker. All collaborating agents MUST strictly uphold these foundational rules:
 
-0. **[RULE-MOD-01] Mandatory Inherited Model Tier for Subagents:**
-   - Whenever invoking subagents (`invoke_subagent`), you **MUST explicitly set `Model: 'inherit'`** so the subagent inherits the active session model (e.g., Gemini 4 Argon / Hydrogen).
-   - **NEVER** set `Model` to `'pro'`, `'flash'`, or `'flash_lite'` (as `'pro'` maps to an older 3.8 Flash model slot rather than the active parent model).
-   - All collaborative roles (`fullstack_developer`, `climate_hydrology_scientist`, `ui_ux_designer`, `code_reviewer`, `security_auditor`, `legal_eagle`, `qa_test_engineer`) require inheriting the full reasoning tier of the parent session.
+0. **[RULE-MOD-01] Model Quality Floor (Not a Ceiling) for Agents & Subagents:**
+   - **Floor:** Every agent and subagent MUST run on a model at or above the floor tier: Claude Sonnet 5.5 (Medium or higher), Claude Opus 5.5, Gemini 4 Hydrogen (any level) or Gemini 4 Argon (any level). Anything below the floor is banned for all work, including "trivial" tasks: Gemini 3.8 Flash (any level), `flash`, `flash_lite`, `pro` (maps to a 3.8 Flash slot) and GPT-OSS 120B.
+   - **No ceiling:** Pick the best-fitting model at or above the floor for the task. Do not downgrade to save effort, and do not pin everything to the top tier when a cheaper floor-tier model suffices.
+   - **Contextual selection (guidance):**
+     - Implementation, refactors, test fixing, docs: Claude Sonnet 5.5 (High) or Gemini 4 Hydrogen (High).
+     - Adversarial review and sign-off (`code_reviewer`, `security_auditor`, `climate_hydrology_scientist`, `legal_eagle`): Claude Opus 5.5 (High), Gemini 4 Argon or Gemini 4 Hydrogen (XHigh).
+     - Threshold/provenance work under `[RULE-THRESH-01]`: top of the available range, never the floor.
+     - Argon weekly quota: prefer other floor-tier models while it is exhausted, unless the task needs it.
+   - **Mechanism:** `invoke_subagent` only accepts `inherit`, `pro`, `flash` and `flash_lite`. Use `Model: 'inherit'` (never `pro`/`flash`/`flash_lite`) and the session model must itself meet the floor. To pin a specific model per role, spawn via the `swarm` tool's `add` action with an explicit `model` name that meets the floor. If the session model is below the floor, stop and ask the user to switch before delegating.
 
 1. **[RULE-HUM-01] Epistemic Humility & Ban on Simulated Authority:**
    - Do **NOT** posture as an authoritative civil engineering consultant, SCADA operator, or certified hydrologist.
@@ -76,6 +81,14 @@ The platform is a community-driven flood telemetry tool coded by autonomous AI a
 13. **[RULE-INFRA-01] Container Volume Writeability & Single-Writer Replication:**
     - Persistent volume mounts (such as `/data`) shadow build-time image directory permissions. Entrypoint scripts (`scripts/docker-entrypoint.sh`) MUST execute a pre-flight writeability probe as the runtime non-root user (`USER node`) and fail fast with an explicit diagnostic if root-shadowing occurs.
     - Replicated SQLite WAL deployments (`litestream`) MUST enforce a single-writer deployment strategy (`strategy = 'immediate'` in `fly.toml`) to prevent split-brain WAL generation divergence.
+
+14. **[RULE-THRESH-01] Threshold Provenance, Physical Operating Hierarchy & Anti-Laundering Gate:**
+    - **Ban on Self-Referential Provenance Laundering:** Numeric structural thresholds (`crest_elevation_mAOD`, `trigger_elevation_mAOD`, `crown_elevation_mAOD`, `sill_elevation_mAOD`, `alert_level_mAOD`) MUST NEVER be sourced from repo comments, camera descriptions, issue prose, or ambient `fallback_stage_mAOD` values. Assigning `Tier 1 (Surveyed)` or `Tier 2 (Trigger Plan)` provenance without a verifiable external primary citation (EA `stageScale` API field, published EA Somerset Levels Trigger Point Plan table, SRA engineering specification, or LiDAR DSM) is **STRICTLY PROHIBITED**.
+    - **Unsurveyed Structure Handling:** If a physical structure (such as an un-gated grassed spillway or embankment) lacks a verifiable surveyed elevation in primary public records, its elevation MUST remain `null` / `UNSURVEYED` (`⚠️ Pending EA Asset Survey`) and MUST NOT be wired to automated `OVERTOPPING` or `IMPASSABLE` event triggers.
+    - **Strict Physical Operating Hierarchy:** Along any shared reach or bifurcation, thresholds must strictly satisfy:
+      $$Z_{\text{invert}} < Z_{\text{normal\_penning}} < Z_{\text{controlled\_sluice\_trigger}} < Z_{\text{emergency\_spillway\_crest}} \le Z_{\text{max\_on\_record}}$$
+      An uncontrolled emergency overflow spillway (`OVERTOPPING`) can **NEVER** have a crest lower than or equal to a co-located controlled sluice diversion trigger (`DIVERTING`) or within `0.50m` of routine agricultural penning / baseflow (`fallback_stage_mAOD`).
+    - **Ban on Fallback Tampering to Mask Falsified Thresholds:** If a proposed threshold collides with `fallback_stage_mAOD` or triggers alerts against historical non-flood median telemetry in `telemetry.db`, **the threshold hypothesis is falsified**. Agents are **STRICTLY FORBIDDEN** from lowering or mutating `fallback_stage_mAOD` (inventing synthetic baseflow numbers) to make a falsified threshold pass tests.
 
 ---
 

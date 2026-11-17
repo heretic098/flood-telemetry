@@ -34,7 +34,7 @@ Before feeding telemetry into clustering, manifold learning, or correlation algo
 1. **Rates of Change (First & Second Derivatives):** $\dot{h}_i(t) = \Delta h_i / \Delta t$ (`m/hr` over `1h`, `3h`, `6h` windows) and acceleration $\ddot{h}_i(t)$.
 2. **Threshold Excess (Rectified Linear / ReLU Hinge Features):**
    $$e_i(t) = \max\big(0,\; h_i(t) - h_{\text{crest}}\big)$$
-   For example, excess above Hookbridge Spillway (`7.11m AOD`), Allermoor Spillway (`6.73m AOD`), Athelney Spillway (`7.35m AOD`), or road crown levels (`4.30m AOD`).
+   For example, excess above Hookbridge Spillway (`7.45m AOD`), Athelney Spillway (`7.35m AOD`), Baltmoor Wall (`7.80m AOD`), or road crown levels (`4.30m AOD`).
 3. **Hydraulic Head Differentials ($\Delta h$ across structures):**
    $$\Delta h_{A \to B}(t) = h_{\text{upstream}}(t) - h_{\text{downstream}}(t)$$
    Across Monks Leaze Clyse, Beer Wall Sluices, Dunball Clyse, and pumping station outfalls.
@@ -61,9 +61,9 @@ The Environment Agency does not publish live SCADA telemetry showing when sluice
 * **How it works:** Run unsupervised density clustering (**HDBSCAN** or **Gaussian Mixture Models**) on the joint distribution of upstream stage, downstream stage, and downstream rate-of-change:
   $$\big(h_{\text{Parrett at Monks Leaze}},\; h_{\text{Sowy/KSD}},\; \dot{h}_{\text{Sowy/KSD}}\big)$$
 * **What it uncovers:**
-  1. **Closed-Gate Regime:** When Monks Leaze Clyse is closed and Allermoor (`6.73m AOD`) is not overtopping, $\dot{h}_{\text{Sowy}}$ is decoupled from $h_{\text{Parrett}}$.
-  2. **Manual Sluice Diversion Regime:** When EA operators open Monks Leaze (`< 6.73m AOD`), a distinct cluster appears where Sowy stage rises rapidly in proportion to $\sqrt{h_{\text{Parrett}} - h_{\text{Sowy}}}$.
-  3. **Spillway Overtopping Regime:** Above `6.73m AOD`, a third steeper cluster appears as the 35m Allermoor fixed weir begins spilling.
+  1. **Closed-Gate Regime:** When Monks Leaze Clyse is closed (`< 7.20m AOD` trigger) and the bankfull spillways are not overtopping, $\dot{h}_{\text{Sowy}}$ is decoupled from $h_{\text{Parrett}}$.
+  2. **Manual Sluice Diversion Regime:** When EA operators open Monks Leaze (`>= 7.20m AOD`), a distinct cluster appears where Sowy stage rises rapidly in proportion to $\sqrt{h_{\text{Parrett}} - h_{\text{Sowy}}}$.
+  3. **Spillway Overtopping Regime:** At extreme bankfull flood stages (`>= 7.50m–7.80m AOD`), a third steeper cluster appears as the emergency overflow spillways begin running.
   4. **Polder Drawdown Rates:** Clustering $\dot{h}_{\text{CurryMoor}}$ during receding river conditions naturally separates **gravity drainage**, **fixed duty pumping (3 permanent pumps)**, and **high-capacity mobile pump drawdown**, giving us true empirical drawdown rates (`mm/hr`) for each mode.
 
 ### C. Empirical Wave Celerity & Lag Discovery (Windowed Cross-Correlation Matrix)
@@ -90,7 +90,7 @@ From our roadmap discussion, here is how adjacent data sources rank by **"Can we
 | Tier | Domain / Idea | Why It's Honest & Verifiable (or Why It's Deferred) | Status / Issue |
 | :--- | :--- | :--- | :--- |
 | **Tier 1: Ready & Grounded** | **Optical Event Keyframes & Mini-Timelapse Playback** | Pure ground truth: *"An event happened at 14:15; here is the looping sequence of webcam frames from `T-60m` to `T+60m`."* Zero AI guesswork. | **Active (`v2.5.0`: #22, #23, #24)** |
-| **Tier 1: Ready & Grounded** | **Southern Moors, EA Alerts & Sowy Controls** | Direct EA sensor stages (`mAOD`) and official EA warning feeds mapped to surveyed weir crests (`6.73m`, `7.35m AOD`). | **Planned (`v2.6.0`: #52, #53, #55)** |
+| **Tier 1: Ready & Grounded** | **Southern Moors, EA Alerts & Sowy Controls** | Direct EA sensor stages (`mAOD`) and official EA warning feeds mapped to surveyed weir crests (`7.35m`, `7.45m`, `7.80m AOD`). | **Planned (`v2.6.0`: #52, #53, #55)** |
 | **Tier 2: High Value & Easy to Sanity-Check** | **Upstream EA Tipping-Bucket Rain Gauges (`6h/24h/72h`)** | Same EA Hydrology API we already use. Gives 24–48h early warning before rivers even begin to rise. Easy to verify against local weather. | Candidate for `v2.7.0` |
 | **Tier 2: High Value & Easy to Sanity-Check** | **Upstream Wave / Peak Lag Tracker & Rate-of-Rise (`m/hr`)** | Simple derivative math + empirical travel times from upstream peaks (`Gawbridge` $\to$ `Langport`, `Bishops Hull` $\to$ `Hookbridge`). | Candidate for `v2.7.0` |
 | **Tier 2: High Value & Easy to Sanity-Check** | **Tide Measurements $\to$ Surge Residual & Tide-Lock Window** | Start by overlaying published Hinkley/Burnham astronomical tide times and measuring live surge residual ($h_{\text{measured}} - h_{\text{astron}}$) and Dunball/Saltmoor tide-lock duration. | **Logged (#25)** |

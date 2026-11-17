@@ -197,14 +197,14 @@ export const CAMERA_CATALOG = Object.freeze([
   },
   {
     id: 'allermoor_spillway',
-    name: 'Allermoor Fixed Spillway Weir & River Parrett Intake',
+    name: 'Allermoor Spillway & River Parrett Intake',
     siteKey: 'monksleaze',
     campath: 'sites/monks_leaze/cam2/',
     camName: 'Allermoor Spillway',
     chokePoint: 'monks_leaze_clyse',
     assetType: 'sluice',
-    description: 'Wide view framing the River Parrett on the left and the Allermoor Fixed Spillway weir (6.73m AOD) / Sowy Flood Relief Channel intake on the right.',
-    lookFor: 'River Parrett floodwater overtopping the fixed spillway weir crest into the Sowy intake embayment on the right.'
+    description: 'Wide view framing the River Parrett on the left and the Allermoor Spillway bankfull overflow embankment / Sowy Flood Relief Channel intake on the right.',
+    lookFor: 'River Parrett floodwater overtopping the bankfull spillway crest into the Sowy intake embayment on the right.'
   },
   {
     id: 'oath_lock_sluice',

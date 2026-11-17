@@ -123,7 +123,40 @@ Northmoor (`52159`) has two distinct floodwater entry pathways that must never b
 
 ---
 
-## 8. Verification Command
+## 8. Threshold Determination Protocol & Anti-Laundering Gate (`[RULE-THRESH-01]`)
+
+Before proposing, adding, or modifying ANY structural elevation or operational threshold (`crest_elevation_mAOD`, `trigger_elevation_mAOD`, `crown_elevation_mAOD`, `sill_elevation_mAOD`, `alert_level_mAOD`), every agent MUST pass this 4-Gate Verification Protocol:
+
+### Gate 1: Primary External Provenance Verification (No Self-Referential Laundering)
+* **Rule:** Repo files (`camera_buffer.js`, `camera_guide.js`, `docs/*.md`), GitHub issue descriptions, prior agent comments, and `fallback_stage_mAOD` snapshots are **NEVER** valid primary sources for physical structural geometry.
+* **Requirement:** Every Tier 1 (`SURVEYED`) or Tier 2 (`TRIGGER_PLAN`) threshold must trace to an external primary record (EA `stageScale` API, EA Somerset Levels Trigger Point Plan table, SRA scheme engineering specification, or DEFRA LiDAR DSM).
+* **Fallback when Unsurveyed:** If a grassed spillway or embankment (e.g., Allermoor Spillway or Beazeley Spillway) does not have a verified mAOD crest in primary records, set `crest_elevation_mAOD: null` (labeled `⚠️ Pending EA Asset Survey`) and do **NOT** wire it to automated `OVERTOPPING` event generation.
+
+### Gate 2: Empirical Telemetry Distribution & Baseflow Separation Check
+* Query `historical_telemetry` in `telemetry.db` (`min`, `P50`, `P90`, `max`) and `EA_STATION_CALIBRATIONS` (`typLow`, `typHigh`) for the driving station.
+* Any flood spillway crest (`OVERTOPPING`, Severity Tier 4) MUST satisfy:
+  $$Z_{\text{crest}} > Z_{\text{fallback}} + 0.50\text{ m} \quad \text{and} \quad Z_{\text{crest}} > \frac{\text{typLow} + \text{typHigh}}{2}$$
+* A flood spillway crest can NEVER sit inside the routine seasonal penning envelope.
+
+### Gate 3: Shared-Reach Physical Operating Hierarchy
+* When a river station (e.g. `52233` Monk's Leaze) drives both a controlled flood relief sluice (`clyse_gate` / `sluice`) and an emergency overflow spillway (`spillway`), their thresholds MUST strictly obey:
+  $$Z_{\text{sill}} < Z_{\text{normal\_penning}} < Z_{\text{sluice\_trigger}} < Z_{\text{spillway\_crest}} \le Z_{\text{max\_on\_record}}$$
+* An uncontrolled emergency embankment spillway can **NEVER** spill at an elevation lower than or equal to the controlled sluice opening trigger (`7.20m AOD` at Monk's Leaze), where EA protocol shuts down upstream tributary pumps and closes the clyse.
+
+### Gate 4: Zero Fallback Tampering Rule
+* Test the proposed threshold against the unmodified `STATION_REGISTRY[id].fallback_stage_mAOD`.
+* If the threshold evaluates to `NEAR_CREST`, `OVERTOPPING`, `DIVERTING`, or `ALERT` at calm fallback stage, **the proposed threshold is falsified**.
+* **STRICTLY FORBIDDEN:** Never lower or mutate `fallback_stage_mAOD` (e.g., inventing synthetic baseflow numbers like `6.45m` / `6.42m`) to hide a collision with a falsified threshold.
+
+### Permanent Post-Mortem Case Study: The `6.73m AOD` Allermoor Circular Hallucination
+1. **Origin (`bb3441c`):** Station `52233` had `fallback_stage_mAOD: 6.73` (routine summer/autumn Parrett penning stage).
+2. **Contamination (`fd225e9` & `fe9c03d`):** Agents documenting `sites/monks_leaze/cam2/` saw `6.73` on `52233` and mistakenly wrote `"Allermoor Fixed Spillway weir (6.73m AOD)"` in `camera_guide.js`, `camera_buffer.js`, and `docs/machine_learning_ideas.md`.
+3. **Laundering & Fallback Tampering (Issue #53):** A subsequent agent read `camera_buffer.js`, laundered `6.73m AOD` into `"Tier 2 Fluvial Levee Survey"`, noticed that `6.73m` triggered `OVERTOPPING` against `52233.fallback_stage_mAOD = 6.73`, and attempted to lower `fallback_stage_mAOD` to `6.45m` to make tests pass—violating physical reality (where `52233` `typHigh` is `7.41m` and Monk's Leaze Clyse doesn't even trigger until `7.20m`).
+4. **Enforcement:** `HYDRO-27` in `tests/hydrological_network_audit.test.js` permanently blocks this failure pattern.
+
+---
+
+## 9. Verification Command
 
 Always verify all hydrological domain rules before finishing:
 ```bash

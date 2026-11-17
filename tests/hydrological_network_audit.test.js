@@ -827,5 +827,343 @@ test('HYDRO-26: Southern & Flanking Polders First-Class Basin Modeling & Seasona
   assert.equal(wz.floor_elevation_mAOD, HYDRO_THRESHOLDS.WESTONZOYLAND.GROUND_MAOD);
 });
 
+test('HYDRO-27: [RULE-THRESH-01] Threshold Provenance, Physical Operating Hierarchy, Baseflow Separation & Anti-Laundering Gate', async () => {
+  const {
+    STATION_REGISTRY,
+    ASSET_DEFINITIONS,
+    evaluateAllAssets
+  } = await import('../src/js/hydro_engine.js');
+  const { CAMERA_CATALOG } = await import('../src/js/api/camera_buffer.js');
+  const { CAMERA_FIELD_GUIDES } = await import('../src/js/camera_guide.js');
+
+  // 1. Canonical Fallback Stage Lock (Anti-Tampering Gate):
+  // Agents are strictly forbidden from mutating fallback_stage_mAOD (e.g. lowering 52233 from 6.73 to 6.45)
+  // to hide a collision with a newly proposed threshold.
+  const PINNED_CALM_FALLBACKS = {
+    '52108': 76.14,
+    '52109': 16.93,
+    '52111': 13.12,
+    '52162': 7.54,
+    '52118': 4.50,
+    '52127': 4.47,
+    '52116': 20.75,
+    '52119': 10.42,
+    '52120': 6.68,
+    '52153': 6.63,
+    '52233': 6.73,
+    '52158': 3.78,
+    '52159': 3.17,
+    '52124': 3.10,
+    '52163': 0.84,
+    '52234': 6.72,
+    '52157': 3.92,
+    'E9531': 3.20,
+    'E9094': 2.62
+  };
+  for (const [stId, expectedFallback] of Object.entries(PINNED_CALM_FALLBACKS)) {
+    assert.equal(
+      STATION_REGISTRY[stId]?.fallback_stage_mAOD,
+      expectedFallback,
+      `[RULE-THRESH-01] Station ${stId} fallback_stage_mAOD (${STATION_REGISTRY[stId]?.fallback_stage_mAOD}m) must match pinned baseline (${expectedFallback}m); never mutate fallbacks to dodge threshold collisions`
+    );
+  }
+
+  // 2. Universal Calm State Invariant Across ALL Asset Classes:
+  // At calm fallback_stage_mAOD across all 19 stations, EVERY asset in ASSET_DEFINITIONS must evaluate to Severity Tier 1.
+  const fallbackReadingsMap = {};
+  for (const [stationId, station] of Object.entries(STATION_REGISTRY)) {
+    fallbackReadingsMap[stationId] = [{ value: station.fallback_stage_mAOD, dateTime: '2026-11-15T12:00:00Z' }];
+  }
+  const NOMINAL_STATES_BY_TYPE = {
+    road: 'PASSABLE',
+    spillway: 'SECURE',
+    polder: 'STANDBY',
+    tidal_gate: 'DISCHARGING',
+    sluice: 'CLOSED',
+    gauge: 'NORMAL'
+  };
+  for (const isSummer of [false, true]) {
+    const evaluated = evaluateAllAssets(fallbackReadingsMap, { isSummer });
+    for (const [assetKey, assetEval] of Object.entries(evaluated)) {
+      const expectedNominal = NOMINAL_STATES_BY_TYPE[assetEval.asset_type];
+      assert.equal(
+        assetEval.status,
+        expectedNominal,
+        `[RULE-THRESH-01] Asset '${assetKey}' (${assetEval.asset_type}) must evaluate to '${expectedNominal}' at calm fallback stage in ${isSummer ? 'summer' : 'winter'} (got '${assetEval.status}')`
+      );
+      assert.equal(
+        assetEval.severity_tier,
+        1,
+        `[RULE-THRESH-01] Asset '${assetKey}' must have severity_tier === 1 at calm fallback stage in ${isSummer ? 'summer' : 'winter'} (got ${assetEval.severity_tier})`
+      );
+    }
+  }
+
+  // 3. Spillway Baseflow Separation & typicalRange Envelope Gate:
+  const sluicesByStation = {};
+  for (const asset of Object.values(ASSET_DEFINITIONS)) {
+    if (asset.asset_type === 'sluice' && asset.upstream_station) {
+      sluicesByStation[asset.upstream_station] = asset;
+    }
+  }
+
+  for (const [assetKey, asset] of Object.entries(ASSET_DEFINITIONS)) {
+    if (asset.asset_type === 'spillway' && typeof asset.crest_elevation_mAOD === 'number') {
+      const stId = asset.primary_station;
+      const stReg = STATION_REGISTRY[stId];
+      const stCal = EA_STATION_CALIBRATIONS[stId];
+      assert.ok(stReg && stCal, `Spillway '${assetKey}' primary_station '${stId}' must exist in registry and calibrations`);
+
+      assert.ok(
+        asset.crest_elevation_mAOD >= stReg.fallback_stage_mAOD + 0.50,
+        `[RULE-THRESH-01] Spillway '${assetKey}' crest (${asset.crest_elevation_mAOD}m) must sit >= 0.50m above station ${stId} calm fallback (${stReg.fallback_stage_mAOD}m)`
+      );
+
+      const midTypical = (stCal.typLow + stCal.typHigh) / 2;
+      assert.ok(
+        asset.crest_elevation_mAOD > midTypical,
+        `[RULE-THRESH-01] Spillway '${assetKey}' crest (${asset.crest_elevation_mAOD}m) must exceed midpoint of typicalRange [${stCal.typLow}m, ${stCal.typHigh}m] (${midTypical.toFixed(2)}m)`
+      );
+
+      // 4. Shared-Reach Sluice vs. Spillway Physical Operating Hierarchy:
+      const coLocatedSluice = sluicesByStation[stId];
+      if (coLocatedSluice && typeof coLocatedSluice.trigger_elevation_mAOD === 'number') {
+        assert.ok(
+          asset.crest_elevation_mAOD > coLocatedSluice.trigger_elevation_mAOD,
+          `[RULE-THRESH-01] Emergency spillway '${assetKey}' crest (${asset.crest_elevation_mAOD}m) must exceed co-located controlled sluice '${coLocatedSluice.asset_id}' diversion trigger (${coLocatedSluice.trigger_elevation_mAOD}m)`
+        );
+      }
+    }
+
+    // 3b. Road Corridor Invariants:
+    if (asset.asset_type === 'road') {
+      const stId = asset.primary_station;
+      const stReg = STATION_REGISTRY[stId];
+      assert.ok(stReg, `Road '${assetKey}' primary_station '${stId}' must exist in STATION_REGISTRY`);
+      assert.ok(
+        typeof asset.crown_elevation_mAOD === 'number',
+        `[RULE-THRESH-01] Road '${assetKey}' must define numerical crown_elevation_mAOD`
+      );
+      assert.ok(
+        typeof asset.caution_elevation_mAOD === 'number',
+        `[RULE-THRESH-01] Road '${assetKey}' must define numerical caution_elevation_mAOD`
+      );
+      assert.ok(
+        Number((asset.caution_elevation_mAOD - stReg.fallback_stage_mAOD).toFixed(3)) >= 0.15,
+        `[RULE-THRESH-01] Road '${assetKey}' caution stage (${asset.caution_elevation_mAOD}m) must sit >= 0.15m above station ${stId} calm fallback (${stReg.fallback_stage_mAOD}m)`
+      );
+      assert.ok(
+        Number((asset.crown_elevation_mAOD - asset.caution_elevation_mAOD).toFixed(3)) >= 0.15,
+        `[RULE-THRESH-01] Road '${assetKey}' crown stage (${asset.crown_elevation_mAOD}m) must sit >= 0.15m above caution stage (${asset.caution_elevation_mAOD}m)`
+      );
+    }
+
+    // 3c. Sluice Gate Invariants:
+    if (asset.asset_type === 'sluice') {
+      const upStId = asset.upstream_station;
+      const downStId = asset.downstream_station;
+      const upReg = STATION_REGISTRY[upStId];
+      const downReg = STATION_REGISTRY[downStId];
+      assert.ok(upReg && downReg, `Sluice '${assetKey}' upstream/downstream stations must exist in registry`);
+      assert.ok(
+        asset.sill_elevation_mAOD <= upReg.fallback_stage_mAOD,
+        `[RULE-THRESH-01] Sluice '${assetKey}' sill (${asset.sill_elevation_mAOD}m) must sit at or below upstream fallback stage (${upReg.fallback_stage_mAOD}m)`
+      );
+      assert.ok(
+        asset.trigger_elevation_mAOD > upReg.fallback_stage_mAOD,
+        `[RULE-THRESH-01] Sluice '${assetKey}' diversion trigger (${asset.trigger_elevation_mAOD}m) must sit strictly above upstream fallback stage (${upReg.fallback_stage_mAOD}m)`
+      );
+      assert.ok(
+        asset.sowy_capacity_mAOD > asset.trigger_elevation_mAOD,
+        `[RULE-THRESH-01] Sluice '${assetKey}' downstream capacity cap (${asset.sowy_capacity_mAOD}m) must sit above diversion trigger (${asset.trigger_elevation_mAOD}m)`
+      );
+    }
+
+    // 3d. Tidal Gate Invariants:
+    if (asset.asset_type === 'tidal_gate') {
+      const inlandStId = asset.inland_station;
+      const inlandReg = STATION_REGISTRY[inlandStId];
+      assert.ok(inlandReg, `Tidal gate '${assetKey}' inland station '${inlandStId}' must exist in registry`);
+      assert.ok(
+        asset.elevated_inland_mAOD > inlandReg.fallback_stage_mAOD,
+        `[RULE-THRESH-01] Tidal gate '${assetKey}' elevated inland trigger (${asset.elevated_inland_mAOD}m) must sit above inland calm fallback (${inlandReg.fallback_stage_mAOD}m)`
+      );
+    }
+
+    // 3e. In-Channel River Gauge Invariants:
+    if (asset.asset_type === 'gauge') {
+      const stId = asset.station_id || asset.asset_id;
+      const stReg = STATION_REGISTRY[stId];
+      const stCal = EA_STATION_CALIBRATIONS[stId];
+      assert.ok(stReg && stCal, `Gauge '${assetKey}' station '${stId}' must exist in registry and calibrations`);
+      assert.ok(
+        asset.alert_elevation_mAOD > stReg.fallback_stage_mAOD,
+        `[RULE-THRESH-01] Gauge '${assetKey}' alert level (${asset.alert_elevation_mAOD}m) must sit above calm fallback (${stReg.fallback_stage_mAOD}m)`
+      );
+      assert.ok(
+        asset.alert_elevation_mAOD <= stCal.maxOnRecord,
+        `[RULE-THRESH-01] Gauge '${assetKey}' alert level (${asset.alert_elevation_mAOD}m) must not exceed station maxOnRecord (${stCal.maxOnRecord}m)`
+      );
+    }
+  }
+
+  // 5. Anti-Laundering String Audit (Allermoor 6.73m AOD Hallucination Guard):
+  const allermoorCam = CAMERA_CATALOG.find(c => c.id === 'allermoor_spillway');
+  assert.ok(allermoorCam, 'allermoor_spillway camera must exist in CAMERA_CATALOG');
+  assert.ok(
+    !allermoorCam.description.includes('6.73') && !allermoorCam.lookFor.includes('6.73'),
+    '[RULE-THRESH-01] allermoor_spillway camera metadata must not launder 52233 fallback stage (6.73m) as a surveyed weir crest'
+  );
+  const monksGuideStr = JSON.stringify(CAMERA_FIELD_GUIDES.monksleaze || {});
+  assert.ok(
+    !monksGuideStr.includes('6.73'),
+    '[RULE-THRESH-01] CAMERA_FIELD_GUIDES.monksleaze must not launder 52233 fallback stage (6.73m) as a surveyed weir crest'
+  );
+});
+
+test('HYDRO-28: Sowy / KSD Control Chain Refinement (Allermoor Spillway, Oath Lock, Beer Wall Tilting Weirs & Beazeley Spillway) (Issue #53)', async () => {
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+  const {
+    STATION_REGISTRY,
+    HYDRO_THRESHOLDS,
+    TOPOLOGY_NETWORK_CONFIG,
+    ASSET_DEFINITIONS,
+    evaluateSowyChannel,
+    evaluateOathLock,
+    evaluateBeerWall,
+    evaluateAssetTransition,
+    evaluateTopologyNetwork
+  } = await import('../src/js/hydro_engine.js');
+  const { CAMERA_FIELD_GUIDES } = await import('../src/js/camera_guide.js');
+  const { resolveCandidateCamerasForAsset } = await import('../src/js/event_camera_correlator.js');
+
+  // 1. Config SSOT Parity & [RULE-CALC-01] Cumecs Purge
+  const somersetJson = JSON.parse(fs.readFileSync(path.resolve('src/js/config/catchments/somerset.json'), 'utf8'));
+  const hydroConfigJson = JSON.parse(fs.readFileSync(path.resolve('src/js/config/hydro_config.json'), 'utf8'));
+  assert.deepEqual(somersetJson, hydroConfigJson, '[RULE-SSOT-01] somerset.json and hydro_config.json must be 100% identical');
+
+  const sowyCfg = somersetJson.moors.sowy_channel;
+  assert.ok(sowyCfg, 'sowy_channel must exist in catchment config');
+  assert.equal(
+    JSON.stringify(sowyCfg).includes('max_flow_m3s'),
+    false,
+    '[RULE-CALC-01] sowy_channel must not contain speculative max_flow_m3s cumecs property'
+  );
+  assert.equal(sowyCfg.measures.beerwall, '52157-level-stage-i-15_min-mAOD');
+  assert.equal(sowyCfg.measures.bradney, 'E9531-level-stage-i-15_min-mAOD');
+  assert.equal(sowyCfg.sluices[0].sill_elevation_mAOD, 4.20);
+  assert.equal(sowyCfg.sluices[0].structure_height_mAOD, 6.70);
+  assert.equal(sowyCfg.sluices[0].diversion_threshold_mAOD, 7.20);
+  assert.equal(sowyCfg.sluices[0].sowy_capacity_mAOD, 7.60);
+  assert.equal(sowyCfg.allermoor_spillway.baseline_crest_mAOD, 7.50, '[RULE-THRESH-01] Allermoor Spillway crest must be 7.50m AOD (Beasley\'s Spillway proxy)');
+  assert.equal(sowyCfg.allermoor_spillway.pre_overtopping_alert_mAOD, 7.35);
+  assert.equal(sowyCfg.allermoor_spillway.survey_status, 'TIER_2_TRIGGER_PLAN');
+  assert.equal(sowyCfg.allermoor_spillway.curtails_tributary_pumps, true);
+  assert.ok(
+    sowyCfg.allermoor_spillway.notes.includes("Beasley's Spillway") && sowyCfg.allermoor_spillway.notes.includes("not published"),
+    'sowy_channel.allermoor_spillway.notes must state the Beasley\'s Spillway 7.50m proxy and that Allermoor\'s own crest level is not published'
+  );
+  assert.equal(sowyCfg.beer_wall_intake.ksd_conveyance_threshold_mAOD, 6.00);
+  assert.equal(sowyCfg.beer_wall_intake.relief_crest_mAOD, 7.30);
+  assert.equal(sowyCfg.beazeley_spillway.baseline_crest_mAOD, 7.30);
+
+  // 1b. ASSET_DEFINITIONS.allermoor_spillway verification
+  const allermoorDef = ASSET_DEFINITIONS.allermoor_spillway;
+  assert.ok(allermoorDef, 'ASSET_DEFINITIONS must define allermoor_spillway');
+  assert.equal(allermoorDef.asset_type, 'spillway');
+  assert.equal(allermoorDef.primary_station, '52233');
+  assert.equal(allermoorDef.crest_elevation_mAOD, 7.50);
+  assert.equal(allermoorDef.pre_spill_elevation_mAOD, 7.35);
+  assert.equal(allermoorDef.survey_tier, 'TIER_2_TRIGGER_PLAN');
+  assert.ok(
+    allermoorDef.survey_tooltip.includes("Beasley's Spillway") && allermoorDef.survey_tooltip.includes("not published"),
+    'allermoor_spillway.survey_tooltip must honestly state the Beasley\'s Spillway 7.50m proxy and that Allermoor\'s own crest level is not published'
+  );
+
+  // 2. Coupled rule monks_leaze_diverting uses MONKS_LEAZE.TRIGGER_MAOD (7.20m), NOT SILL_MAOD (4.20m)
+  assert.equal(
+    TOPOLOGY_NETWORK_CONFIG.coupled_rules.monks_leaze_diverting.sill_threshold_ref,
+    'MONKS_LEAZE.TRIGGER_MAOD',
+    'monks_leaze_diverting coupled_rule must reference MONKS_LEAZE.TRIGGER_MAOD (7.20m)'
+  );
+  // At 6.80m upstream (> 4.20m sill, < 7.20m trigger) and 6.50m downstream, 52233 must remain CLOSED
+  const penningEval = evaluateTopologyNetwork({
+    '52233-level-stage-i-15_min-mAOD': [{ value: 6.80, dateTime: '2026-11-15T12:00:00Z' }],
+    '52234-level-downstage-i-15_min-mAOD': [{ value: 6.50, dateTime: '2026-11-15T12:00:00Z' }]
+  });
+  assert.equal(penningEval.nodes.find(n => n.id === '52233').status, 'CLOSED', '52233 must remain CLOSED at 6.80m (< 7.20m trigger)');
+  assert.equal(penningEval.edges.find(e => e.from === '52233' && e.to === '52234').flow_active, false);
+
+  // 3. evaluateSowyChannel default 7.20m trigger, Allermoor Spillway 7.50m evaluation & flatline wave verification
+  const sowyCalm = evaluateSowyChannel(6.73, 6.72);
+  assert.equal(sowyCalm.code, 'CLOSED', 'evaluateSowyChannel must default to 7.20m trigger and return CLOSED at 6.73m calm stage');
+  assert.equal(sowyCalm.status, 'CLOSED');
+  assert.equal(sowyCalm.allermoor_spillway.status, 'SECURE');
+  assert.equal(sowyCalm.allermoor_spillway.crest_elevation_mAOD, 7.50);
+  assert.equal(sowyCalm.allermoor_spillway.clearance_m, 0.77);
+
+  const sowyNearAllermoor = evaluateSowyChannel(7.38, 7.00);
+  assert.equal(sowyNearAllermoor.allermoor_spillway.status, 'NEAR_CREST');
+  assert.equal(sowyNearAllermoor.allermoor_spillway.clearance_m, 0.12);
+
+  const sowyOvertopAllermoor = evaluateSowyChannel(7.52, 7.10);
+  assert.equal(sowyOvertopAllermoor.allermoor_spillway.status, 'OVERTOPPING');
+  assert.equal(sowyOvertopAllermoor.allermoor_spillway.clearance_m, -0.02);
+  assert.ok(sowyOvertopAllermoor.narrative.includes('Allermoor Spillway is assumed to be overtopping'));
+  assert.ok(sowyOvertopAllermoor.narrative.includes('curtailed'));
+
+  const sowyFlatlineDivert = evaluateSowyChannel(7.25, 6.72, 7.20, {
+    isDownstreamFlatlined: true,
+    beerwallRate1h: 0.04,
+    beerwallStage: 4.35
+  });
+  assert.equal(sowyFlatlineDivert.code, 'GRAVITY_OPEN');
+  assert.equal(sowyFlatlineDivert.isWaveConfirmed, true);
+  assert.ok(sowyFlatlineDivert.narrative.includes('Beer Wall 52157'));
+
+  // 4. evaluateOathLock & evaluateBeerWall canonical [RULE-ENT-01] properties
+  const oathPen = evaluateOathLock(6.80, 6.40);
+  assert.equal(oathPen.asset_type, 'sluice');
+  assert.equal(oathPen.asset_id, 'oath_lock_sluice');
+  assert.equal(oathPen.status, 'CLOSED');
+  assert.ok(oathPen.narrative.includes('Inferred'));
+
+  const bwWeirs = evaluateBeerWall(6.25, 7.30);
+  assert.equal(bwWeirs.asset_type, 'spillway');
+  assert.equal(bwWeirs.asset_id, 'beer_wall');
+  assert.equal(bwWeirs.status, 'SECURE');
+  assert.equal(bwWeirs.isTiltingWeirsActive, true);
+  assert.equal(bwWeirs.beazeley_spillway.asset_id, 'beazeley_spillway');
+  assert.equal(bwWeirs.beazeley_spillway.status, 'SECURE');
+
+  // 5. evaluateAssetTransition downstream wave verification on 52234 flatline
+  const baseTime = new Date('2026-11-15T12:00:00Z').getTime();
+  const flatline52234 = Array.from({ length: 96 }, (_, i) => ({
+    value: 6.72,
+    dateTime: new Date(baseTime - i * 15 * 60 * 1000).toISOString()
+  }));
+  const rising52157 = [
+    { value: 4.35, dateTime: new Date(baseTime).toISOString() },
+    { value: 4.30, dateTime: new Date(baseTime - 60 * 60 * 1000).toISOString() }
+  ];
+  const clyseTransition = evaluateAssetTransition(ASSET_DEFINITIONS.monks_leaze_clyse, null, {
+    '52233': [{ value: 7.25, dateTime: new Date(baseTime).toISOString() }],
+    '52234': flatline52234,
+    '52157': rising52157
+  });
+  assert.equal(clyseTransition.to_state, 'DIVERTING');
+  assert.equal(clyseTransition.regime_signature?.anomaly_type, 'DOWNSTREAM_WAVE_VERIFIED');
+  assert.ok(clyseTransition.narrative.includes('Beer Wall 52157'));
+
+  // 6. Camera Field Guides & Correlator Mappings
+  assert.ok(CAMERA_FIELD_GUIDES.beerwall, 'CAMERA_FIELD_GUIDES must define dedicated beerwall guide');
+  assert.equal(CAMERA_FIELD_GUIDES.beerwall.checklist.length, 3);
+  assert.equal(CAMERA_FIELD_GUIDES.monksleaze.checklist.length, 3);
+  assert.ok(resolveCandidateCamerasForAsset('52233').includes('oath_lock_sluice'));
+  assert.ok(resolveCandidateCamerasForAsset('52157').includes('beazeley_spillway'));
+  assert.ok(resolveCandidateCamerasForAsset('beazeley_spillway').includes('beazeley_spillway'));
+});
+
 
 

@@ -37,6 +37,10 @@ Never accept assertions like *"it works on my machine"*, *"tests pass"*, or *"it
    - Did the code, PR, or specification posture as an authoritative civil engineering consultant or invent complex academic formulas to simulate unearned expertise? *(INSTANT REJECTION if yes)*.
    - Did any calculation over-interpret third-party EA data beyond raw water stage? *(INSTANT REJECTION if yes)*.
    - Does any asserted metric fail the common-sense scientific "smell test" by asserting quantities (e.g. flow, gate aperture, pump electrical run state, cumulative volume) that cannot be directly substantiated by ingested telemetry? *(INSTANT REJECTION if yes: "No, that is not a THING — we do not collect that data and cannot substantiate it")*.
+8. **Threshold Provenance Laundering, Hierarchy Violation & Fallback Tampering ([RULE-THRESH-01]):**
+   - Did any change introduce a structural threshold (`crest_elevation_mAOD`, `trigger_elevation_mAOD`, `crown_elevation_mAOD`) sourced from repo comments, camera descriptions, issue prose, or ambient `fallback_stage_mAOD` snapshots without a verifiable external primary source? *(INSTANT REJECTION if yes)*.
+   - Does any emergency overflow spillway (`OVERTOPPING`) have a crest lower than or equal to a co-located controlled sluice diversion trigger (`DIVERTING`) or within `0.50m` of its driving station's calm `fallback_stage_mAOD`? *(INSTANT REJECTION if yes)*.
+   - Did the author lower or mutate `fallback_stage_mAOD` (inventing synthetic baseflow numbers) to prevent a newly proposed threshold from triggering `NEAR_CREST` / `OVERTOPPING` during calm fallback? *(INSTANT REJECTION if yes: "Never mutate empirical baseflow fallbacks to hide a falsified threshold")*.
 
 ### Rubric B: UI/UX & Information Architecture Cynicism
 1. **Trichromatic Strict Separation (UI-COL-01):**

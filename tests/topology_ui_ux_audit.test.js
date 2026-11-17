@@ -902,6 +902,73 @@ test('UI/UX Audit 6.6 (Issue #52): Southern & Flanking Polder Basin Topology Int
   assert.ok(catalogIds.has('westonzoyland_ps'));
 });
 
+test('UI/UX Audit 6.7 (Issue #53): Sowy / KSD Control Chain Disambiguation, Beer Wall 52157 Edge Badge & Inspector Progressive Disclosure', async () => {
+  const { CAMERA_FIELD_GUIDES, openCameraGuide } = await import('../src/js/camera_guide.js');
+
+  // 1. Card 2 in app.js evaluates Beer Wall from 52157 (beerWallLevel), NOT 52158 (nmRiverLevel)
+  assert.ok(
+    appJs.includes('evaluateBeerWall(beerWallLevel, beerWallCrest)'),
+    'Card 2 in app.js must evaluate Beer Wall from beerWallLevel (Station 52157), not nmRiverLevel (Station 52158)'
+  );
+  assert.ok(
+    !appJs.includes('evaluateBeerWall(nmRiverLevel'),
+    'app.js must not evaluate Beer Wall from nmRiverLevel (52158)'
+  );
+
+  // 2. Card 3 in app.js disambiguates Monk\'s Leaze Clyse, Allermoor Spillway, Oath Lock, Sowy Spur Tilting Weirs, and Beer Wall / Beazeley
+  assert.ok(appJs.includes('Allermoor Spillway (Parrett ➔ Sowy)'), 'Card 3 must disambiguate Allermoor Spillway');
+  assert.ok(appJs.includes('OVERTOPPING (7.50m AOD • Upstream Pumps Curtailed)'), 'Card 3 must dynamically evaluate Allermoor Spillway against 7.50m AOD');
+  assert.ok(appJs.includes("(Proxy: Beasley's 7.50m)"), 'Card 3 must denote (Proxy: Beasley\'s 7.50m) badge');
+  assert.ok(appJs.includes("Allermoor's own crest level is not published"), 'Card 3 tooltip must state Allermoor\'s own crest level is not published');
+  assert.ok(appJs.includes('Sowy Spur &amp; Lang Acre Tilting Weirs (52157)'), 'Card 3 must disambiguate Sowy Spur & Lang Acre Tilting Weirs driven by 52157');
+  assert.ok(appJs.includes('Beer Wall Culverts &amp; Beazeley Spillway (52157)'), 'Card 3 must include Beer Wall Culverts & Beazeley Spillway driven by 52157');
+  assert.ok(appJs.includes('Beer Wall Upstream (Greylake)'), 'Card 3 gauges must include Station 52157');
+
+  // 3. Topology SVG edge badge for 52157 -> E9531 with dynamic semantic colors [UI-COL-03]
+  assert.ok(
+    topologyJs.includes("edge.from === '52157' && edge.to === 'E9531'"),
+    'topology.js must render on-canvas edge badge for 52157 -> E9531'
+  );
+  assert.ok(
+    topologyJs.includes('Beer Wall 7.30m / Weirs 6.00m'),
+    'Dormant 52157 edge badge must display Beer Wall 7.30m / Weirs 6.00m'
+  );
+  assert.ok(
+    topologyJs.includes('🔵 Tilting Weirs Active 6.00m'),
+    'Active tilting weirs state (>=6.00m) must display 🔵 Tilting Weirs Active 6.00m'
+  );
+  assert.ok(
+    topologyJs.includes('{ x: 677, y: 133, w: 142, h: 18 }'),
+    'placedLabelBoxes must pre-seed 52157 -> E9531 edge badge bounding box to prevent node label collisions'
+  );
+
+  // 4. Topology Inspector Drawer progressive disclosure for 52233, 52234, and 52157
+  assert.ok(
+    topologyJs.includes("3-Structure Control Complex (Monk's Leaze, Allermoor &amp; Oath Lock)"),
+    'Station 52233 inspector drawer must disambiguate Monk\'s Leaze Clyse, Allermoor Spillway, and Oath Lock'
+  );
+  assert.ok(
+    topologyJs.includes('Stilling-Well Ponding &amp; Downstream Wave Verification'),
+    'Station 52234 inspector drawer must explain stilling-well ponding and Beer Wall 52157 wave verification'
+  );
+  assert.ok(
+    topologyJs.includes('4-Tier Hydraulic Elevation Profile (Greylake / A372)'),
+    'Station 52157 inspector drawer must display the 4-tier hydraulic elevation profile (4.20m / 6.00m / 7.30m / >8.00m)'
+  );
+  assert.ok(
+    topologyJs.includes("'52157': 'beerwall'"),
+    'NODE_CAM_MAP in topology.js must map 52157 to beerwall camera guide'
+  );
+
+  // 5. Camera Field Guides [RULE-CAM-01]
+  assert.ok(CAMERA_FIELD_GUIDES.beerwall, 'CAMERA_FIELD_GUIDES.beerwall must exist as a first-class guide');
+  const beerwallGuideStr = JSON.stringify(CAMERA_FIELD_GUIDES.beerwall);
+  assert.ok(
+    beerwallGuideStr.includes('NOT the raised A372 highway asphalt carriageway crown'),
+    '[RULE-CAM-01] Beer Wall camera guide must explicitly distinguish low-level culvert headwalls from the >8.00m A372 road crown'
+  );
+});
+
 
 
 

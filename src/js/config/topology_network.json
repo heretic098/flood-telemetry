@@ -5,7 +5,7 @@
       "type": "clyse_diverting",
       "upstream_node_id": "52233",
       "downstream_node_id": "52234",
-      "sill_threshold_ref": "MONKS_LEAZE.SILL_MAOD",
+      "sill_threshold_ref": "MONKS_LEAZE.TRIGGER_MAOD",
       "min_delta_h_ref": "MONKS_LEAZE.MIN_DELTA_H"
     },
     "dunball_tide_locked": {

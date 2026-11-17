@@ -1,4 +1,4 @@
-import { evaluateSpillway, evaluateGateState, aggregateGlobalStatus, evaluatePumpStatus, evaluateSowyChannel, evaluateAthelneySpillway, evaluateGravityClyse, evaluateBeerWall, evaluateOathLock, evaluateDunballEmergencyPumping, getSeasonalRegime, getActiveCrestHeight, getActiveCatchmentId, loadCatchmentConfig, evaluateHuishEpiscopi, evaluateMidelney, STATION_REGISTRY, GAUGE_DATUMS, formatClearanceText, computeTrendVector, disambiguateRiverTrend, evaluateRoadNetwork, evaluateStationFreshness, getValidStageOrFallback, CANONICAL_PUMP_THRESHOLDS } from './hydro_engine.js';
+import { evaluateSpillway, evaluateGateState, aggregateGlobalStatus, evaluatePumpStatus, evaluateSowyChannel, evaluateAthelneySpillway, evaluateGravityClyse, evaluateBeerWall, evaluateOathLock, evaluateDunballEmergencyPumping, getSeasonalRegime, getActiveCrestHeight, getActiveCatchmentId, loadCatchmentConfig, evaluateHuishEpiscopi, evaluateMidelney, STATION_REGISTRY, GAUGE_DATUMS, HYDRO_THRESHOLDS, formatClearanceText, computeTrendVector, computeStageRates, disambiguateRiverTrend, evaluateRoadNetwork, evaluateStationFreshness, getValidStageOrFallback, CANONICAL_PUMP_THRESHOLDS } from './hydro_engine.js';
 import { initJargonPopovers, renderJargonTerm } from './jargon_popover.js';
 import { setCameraEventsCatalog, openVisualEvidence, initCameraGuideTriggers } from './camera_guide.js';
 import { createRefreshController } from './modules/refresh_controller.js';
@@ -376,6 +376,7 @@ const EVENT_ASSET_DISPLAY_NAMES = Object.freeze({
   northmoor: 'Northmoor & Saltmoor Basin (52159)',
   beer_wall: 'Beer Wall Spillway & Sluices (52157)',
   monks_leaze_clyse: "Monk's Leaze Clyse Sluice (52233)",
+  allermoor_spillway: 'Allermoor Spillway',
   muchelney_access: 'Muchelney Spine Road (Langport ↔ Muchelney)',
   a361_burrowbridge: 'A361 East Lyng ↔ Burrowbridge',
   new_road_curry: 'New Road (West Sedgemoor ↔ North Curry)',
@@ -571,6 +572,7 @@ export async function refreshLiveDashboard() {
           "52159-level-stage-i-15_min-mAOD": "Northmoor Main Drain",
           "52233-level-stage-i-15_min-mAOD": "Monk's Leaze Upstream",
           "52234-level-downstage-i-15_min-mAOD": "Monk's Leaze Downstream",
+          "52157-level-stage-i-15_min-mAOD": "Beer Wall Upstream (Sowy / Greylake)",
           "E9094-level-stage-i-15_min-mAOD": "Dunball Inland KSD",
           "52163-level-tidal_level-i-15_min-mAOD": "Dunball Tidal Parrett",
           "52120-level-stage-i-15_min-mASD": "Huish Episcopi PS (River Yeo)",
@@ -643,12 +645,14 @@ export async function refreshLiveDashboard() {
     const nmRiverLevel = getValidStageOrFallback(nmRiverReadings, STATION_REGISTRY['52158'].fallback_stage_mAOD);
     const nmMoorLevel = getValidStageOrFallback(nmMoorReadings, STATION_REGISTRY['52159'].fallback_stage_mAOD);
 
-    // 3. Monk's Leaze / Sowy Relief Channel Live Data (52233 Upstream & 52234 Downstream Sowy)
+    // 3. Monk's Leaze / Sowy Relief Channel Live Data (52233 Upstream, 52234 Downstream Sowy & 52157 Beer Wall Greylake)
     const monksUpReadings = (dbMeasures && dbMeasures["52233-level-stage-i-15_min-mAOD"]) || await fetchEAReadings("52233-level-stage-i-15_min-mAOD");
     const monksDownReadings = (dbMeasures && dbMeasures["52234-level-downstage-i-15_min-mAOD"]) || await fetchEAReadings("52234-level-downstage-i-15_min-mAOD");
+    const beerWallReadings = (dbMeasures && dbMeasures["52157-level-stage-i-15_min-mAOD"]) || await fetchEAReadings("52157-level-stage-i-15_min-mAOD");
 
     const monksUpLevel = getValidStageOrFallback(monksUpReadings, STATION_REGISTRY['52233'].fallback_stage_mAOD);
     const monksDownLevel = getValidStageOrFallback(monksDownReadings, STATION_REGISTRY['52234'].fallback_stage_mAOD);
+    const beerWallLevel = getValidStageOrFallback(beerWallReadings, STATION_REGISTRY['52157'].fallback_stage_mAOD);
 
     // 4. Dunball Outfall Live Data (E9094 Inland & 52163 Sea Tidal)
     const dunballInlandReadings = (dbMeasures && dbMeasures["E9094-level-stage-i-15_min-mAOD"]) || await fetchEAReadings("E9094-level-stage-i-15_min-mAOD");
@@ -686,6 +690,8 @@ export async function refreshLiveDashboard() {
 
     const monksUpFreshness = evaluateStationFreshness(monksUpReadings, { fallbackLabel: 'Monk\'s Leaze 52233 Baseline' });
     const monksDownFreshness = evaluateStationFreshness(monksDownReadings, { fallbackLabel: 'Monk\'s Leaze 52234 Baseline' });
+    const beerWallFreshness = evaluateStationFreshness(beerWallReadings, { fallbackLabel: 'Beer Wall 52157 Baseline' });
+    const beerWallRates = computeStageRates(beerWallReadings);
     const sowyIsStale = monksUpFreshness.isStale || monksDownFreshness.isStale;
     const sowyStaleInfo = monksUpFreshness.isStale ? monksUpFreshness : (monksDownFreshness.isStale ? monksDownFreshness : null);
 
@@ -722,6 +728,7 @@ export async function refreshLiveDashboard() {
     const nmMoorHistory = extractHistory(nmMoorReadings);
     const monksUpHistory = extractHistory(monksUpReadings);
     const monksDownHistory = extractHistory(monksDownReadings);
+    const beerWallHistory = extractHistory(beerWallReadings);
     const inlandHistory = extractHistory(dunballInlandReadings);
     const seaHistory = extractHistory(seaReadings);
     const huishHistory = extractHistory(huishReadings, huishDatum);
@@ -1086,7 +1093,7 @@ export async function refreshLiveDashboard() {
   const beerWallCrest = getActiveCrestHeight(beerWallConfig, new Date(), 7.30);
   const beerWallHist = beerWallConfig?.crest_history || [];
   const beerWallScheme = beerWallHist.length ? beerWallHist[beerWallHist.length - 1].notes : 'SRA Greylake Scheme';
-  const beerWallSpillway = evaluateBeerWall(nmRiverLevel, beerWallCrest);
+  const beerWallSpillway = evaluateBeerWall(beerWallLevel, beerWallCrest);
 
   const baltmoorActive = activeEventsMap.get('baltmoor_wall');
   const nmTrend = computeTrendVector(nmRiverReadings);
@@ -1138,8 +1145,8 @@ export async function refreshLiveDashboard() {
         tooltip: `📍 Athelney Crest: ${athelneyCrest.toFixed(2)}m AOD | Overspill cascade from Curry Moor into Northmoor retention storage`
       },
       {
-        html: `<strong>Beer Wall / Allens Spillway:</strong> ${beerWallSpillway.statusText}`,
-        tooltip: `📍 Beer Wall Crest: ${beerWallCrest.toFixed(2)}m AOD (${beerWallScheme})`
+        html: `<strong>Beer Wall Culverts &amp; Beazeley Spillway (52157):</strong> ${beerWallSpillway.statusText} (Sowy ${beerWallLevel.toFixed(2)}m AOD)`,
+        tooltip: `📍 Driven by Beerwall Upstream (Station 52157). 7.30m AOD box culverts & Beazeley Spillway relief threshold (${beerWallScheme}), decoupled from >8.00m A372 road crown.`
       },
       `<strong>Northmoor Gravity ${renderJargonTerm('Clyse')}:</strong> ${nmGravitySluice.statusText}`,
       {
@@ -1217,7 +1224,14 @@ export async function refreshLiveDashboard() {
 
   // Card 3: Sowy Relief Channel
   try {
-    const sowyEval = evaluateSowyChannel(monksUpLevel, monksDownLevel, 4.20);
+    const sowyTrigger = hydroConfig?.moors?.sowy_channel?.sluices?.[0]?.diversion_threshold_mAOD ?? HYDRO_THRESHOLDS.MONKS_LEAZE.TRIGGER_MAOD;
+    const monksSill = hydroConfig?.moors?.sowy_channel?.sluices?.[0]?.sill_elevation_mAOD ?? HYDRO_THRESHOLDS.MONKS_LEAZE.SILL_MAOD;
+    const sowyEval = evaluateSowyChannel(monksUpLevel, monksDownLevel, sowyTrigger, {
+      sillM: monksSill,
+      isDownstreamFlatlined: monksDownFreshness.isFlatlined,
+      beerwallRate1h: beerWallRates.rate_1h_m_per_hr,
+      beerwallStage: beerWallLevel
+    });
   if (sowyIsStale && (sowyEval.badgeClass === 'badge-secure' || sowyEval.badgeClass === 'badge-open' || sowyEval.code === 'CLOSED' || sowyEval.code === 'GRAVITY_OPEN')) {
     sowyEval.badgeClass = sowyStaleInfo.badgeClass || 'badge-stale';
     sowyEval.symbol = sowyStaleInfo.isOffline ? '⚠️' : '🕒';
@@ -1226,6 +1240,14 @@ export async function refreshLiveDashboard() {
   const headDropMeters = Number((monksUpLevel - monksDownLevel).toFixed(2));
   const headDropFormatted = formatHeadDelta(headDropMeters);
   const oathLock = evaluateOathLock(monksUpLevel, monksDownLevel);
+  const beerWallSowyEval = evaluateBeerWall(beerWallLevel, HYDRO_THRESHOLDS.BEERWALL.CREST_MAOD);
+  const allermoorCrest = hydroConfig?.moors?.sowy_channel?.allermoor_spillway?.baseline_crest_mAOD ?? 7.50;
+  const allermoorMargin = Number((allermoorCrest - monksUpLevel).toFixed(2));
+  const allermoorStatusText = monksUpLevel >= allermoorCrest
+    ? `🔴 OVERTOPPING (7.50m AOD • Upstream Pumps Curtailed)`
+    : (monksUpLevel >= 7.35
+      ? `🟡 NEAR CREST (+${allermoorMargin.toFixed(2)}m to 7.50m crest)`
+      : `🟢 SECURE (+${allermoorMargin.toFixed(2)}m to 7.50m crest)`);
 
   const sowyHeroBanner = renderHeroSpillwayBanner({
     icon: '🚰',
@@ -1233,7 +1255,7 @@ export async function refreshLiveDashboard() {
     statusBadge: sowyEval,
     mainMetricValue: headDropFormatted,
     mainMetricUnit: 'Head Drop (Parrett ➔ Sowy)',
-    clearanceText: `Intake Sill: 4.20m AOD`,
+    clearanceText: `Intake Sill: 4.20m AOD • Trigger: 7.20m AOD`,
     minLevel: 4.20,
     maxLevel: 8.00,
     currentLevel: monksUpLevel,
@@ -1257,7 +1279,7 @@ export async function refreshLiveDashboard() {
     cardId: "card-52233",
     stationId: "52233",
     cameraGuideSite: "monksleaze",
-    visualEvidenceEvent: evidenceByAsset.get('monks_leaze_clyse') || evidenceByAsset.get('beer_wall') || null,
+    visualEvidenceEvent: evidenceByAsset.get('monks_leaze_clyse') || evidenceByAsset.get('allermoor_spillway') || evidenceByAsset.get('beer_wall') || null,
     heroBanner: sowyHeroBanner,
     riverTag: `Diverts: Parrett ➔ Sedgemoor Drain (${renderJargonTerm('KSD')}) (${regime.label})`,
     eval: sowyEval,
@@ -1269,20 +1291,31 @@ export async function refreshLiveDashboard() {
     narrative: sowyEval.narrative,
     pills: [
       {
-        html: `<strong>Monk's Leaze ${renderJargonTerm('Clyse')}:</strong> ${sowyEval.pillText}`,
-        tooltip: `📍 Monk's Leaze Sill: 4.20m AOD`
+        html: `<strong>Monk's Leaze ${renderJargonTerm('Clyse')} (52233):</strong> ${sowyEval.pillText}`,
+        tooltip: `📍 Concrete Sill: 4.20m AOD • Headwall: 6.70m AOD • EA Diversion Trigger: 7.20m AOD • Sowy Cap: 7.60m AOD`
       },
-      `<strong>Monk's Leaze Intake Differential:</strong> 🟢 ${headDropFormatted} Head Drop (Parrett ➔ Sowy)`,
       {
-        html: `<strong>Oath Lock ${renderJargonTerm('Penning')} Sluice:</strong> ${oathLock.statusText}`,
-        tooltip: `📍 Oath Lock Penning Structure`
+        html: `<strong>Allermoor Spillway (Parrett ➔ Sowy):</strong> ${allermoorStatusText} <small style="color:#94a3b8;">(Proxy: Beasley's 7.50m)</small>`,
+        tooltip: `📍 Assumed to spill at about the same Parrett stage as Beasley's Spillway (7.50m AOD, EA Somerset Levels guidance). Allermoor's own crest level is not published. When running, EA protocol closes Monk's Leaze Clyse and curtails upstream tributary pumping at Huish Episcopi, Midelney & Long Load.`
       },
-      `<strong>Upstream Tributary Inflow:</strong> River Yeo: ${huishLevel.toFixed(2)}m AOD | River Isle: ${midelneyLevel.toFixed(2)}m AOD`,
-      `<strong>Beer Wall Intake (Greylake):</strong> ${monksDownLevel >= 6.00 ? '🟢 CONVEYANCE TO ' + renderJargonTerm('KSD') : '⚪ ' + renderJargonTerm('Penning') + ' LEVEL'}`
+      {
+        html: `<strong>Oath Lock ${renderJargonTerm('Penning')} Sluice:</strong> ${oathLock.statusText} (Inferred from Δh ${headDropFormatted})`,
+        tooltip: `📍 Oath Lock Twin Radial Gates: Inferred from Monk's Leaze differential head (${oathLock.narrative})`
+      },
+      {
+        html: `<strong>Sowy Spur &amp; Lang Acre Tilting Weirs (52157):</strong> ${beerWallLevel >= 6.00 ? '🔵 ACTIVE CONVEYANCE TO ' + renderJargonTerm('KSD') : '⚪ ' + renderJargonTerm('Penning') + ' LEVEL'} (Greylake ${beerWallLevel.toFixed(2)}m / 6.00m Trigger)`,
+        tooltip: `📍 Driven by Beer Wall Upstream (Station 52157). Sowy Spur & Lang Acre tilting weirs lower above 6.00m AOD to convey flows into King's Sedgemoor Drain.`
+      },
+      {
+        html: `<strong>Beer Wall Culverts &amp; Beazeley Spillway (52157):</strong> ${beerWallSowyEval.statusText} (Greylake ${beerWallLevel.toFixed(2)}m AOD / 7.30m Crest)`,
+        tooltip: `📍 4-bay A372 concrete box culverts & Beazeley Spillway embankment at 7.30m AOD (decoupled from >8.00m A372 road crown).`
+      },
+      `<strong>Upstream Tributary Inflow:</strong> River Yeo: ${huishLevel.toFixed(2)}m AOD | River Isle: ${midelneyLevel.toFixed(2)}m AOD`
     ],
     camLinks: [
       { label: "Monk's Leaze Clyse", url: "https://thecfh.org/parretttonewsom.php#monksleaze", title: "View 3-min EA Snapshot Camera at Monk's Leaze Clyse" },
-      { label: "Oath Lock Penning Sluice", url: "https://thecfh.org/parretttonewsom.php#oath", title: "View 3-min EA Snapshot Camera at Oath Lock Penning Sluice" }
+      { label: "Oath Lock Penning Sluice", url: "https://thecfh.org/parretttonewsom.php#oath", title: "View 3-min EA Snapshot Camera at Oath Lock Penning Sluice" },
+      { label: "Beer Wall & Beazeley", url: "https://thecfh.org/parretttonewsom.php#Beerwall", title: "View 3-min EA Snapshot Camera at Beer Wall Culverts & Beazeley Spillway" }
     ],
     sparkline: renderSingleSparkline(monksDownHistory, sowyIsStale ? '#f59e0b' : '#38bdf8', { streamLabel: 'Monk\'s Leaze Downstream Sowy', stationId: '52234', unit: 'mAOD' }),
     gauges: [
@@ -1302,7 +1335,16 @@ export async function refreshLiveDashboard() {
         history: monksDownHistory,
         color: monksDownFreshness.isStale ? "#f59e0b" : "#38bdf8",
         link: "https://environment.data.gov.uk/flood-monitoring/id/stations/52234.html",
-        staleTag: monksDownFreshness.isStale ? (monksDownFreshness.isOffline ? '⚠️ OFFLINE' : `⚠️ STALE (${monksDownFreshness.ageHours}h)`) : null
+        staleTag: monksDownFreshness.isStale ? (monksDownFreshness.isOffline ? '⚠️ OFFLINE' : (monksDownFreshness.isFlatlined ? '⚠️ PONDED / FLATLINE' : `⚠️ STALE (${monksDownFreshness.ageHours}h)`)) : null
+      },
+      {
+        name: "Beer Wall Upstream (Greylake)",
+        id: "52157",
+        value: `${beerWallLevel.toFixed(2)}m AOD`,
+        history: beerWallHistory,
+        color: beerWallFreshness.isStale ? "#f59e0b" : "#38bdf8",
+        link: "https://check-for-flooding.service.gov.uk/station/3067",
+        staleTag: beerWallFreshness.isStale ? (beerWallFreshness.isOffline ? '⚠️ OFFLINE' : `⚠️ STALE (${beerWallFreshness.ageHours}h)`) : null
       }
     ],
     extLinks: [

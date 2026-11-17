@@ -296,11 +296,43 @@ export function estimateClyseFlow(h_up, h_down, z_sill = 4.20, B = 4.20, Cd = 0.
   };
 }
 
-export function evaluateSowyChannel(h_up, h_down, thresholdSill = 4.20) {
+export function evaluateSowyChannel(h_up, h_down, thresholdTrigger = 7.20, options = {}) {
   const deltaH = Number((h_up - h_down).toFixed(2));
+  const sillM = options.sillM ?? 4.20;
+  const allermoorCrestM = options.allermoorCrestM ?? 7.50;
+  const allermoorPreSpillM = options.allermoorPreSpillM ?? 7.35;
+  const isDownstreamFlatlined = Boolean(options.isDownstreamFlatlined);
+  const beerwallRate1h = options.beerwallRate1h ?? null;
+  const beerwallStage = options.beerwallStage ?? null;
+  const isWaveConfirmed = Boolean(
+    (beerwallRate1h !== null && beerwallRate1h >= 0.02) ||
+    (beerwallStage !== null && beerwallStage >= 4.20)
+  );
 
-  if (h_up >= thresholdSill && deltaH > 0.10) {
+  const allermoorStatus = h_up >= allermoorCrestM
+    ? 'OVERTOPPING'
+    : (h_up >= allermoorPreSpillM ? 'NEAR_CREST' : 'SECURE');
+  const allermoor_spillway = {
+    asset_type: 'spillway',
+    asset_id: 'allermoor_spillway',
+    status: allermoorStatus,
+    crest_elevation_mAOD: allermoorCrestM,
+    clearance_m: Number((allermoorCrestM - h_up).toFixed(2))
+  };
+  const allermoorNote = allermoorStatus === 'OVERTOPPING'
+    ? ` Allermoor Spillway is assumed to be overtopping (≥${allermoorCrestM.toFixed(2)}m AOD proxy from Beasley's Spillway); under EA protocol, Monk's Leaze Clyse closes and upstream tributary pumps (Huish Episcopi, Midelney, Long Load) are curtailed.`
+    : '';
+
+  if (h_up >= thresholdTrigger && (deltaH > 0.10 || isDownstreamFlatlined)) {
+    const waveNote = isDownstreamFlatlined
+      ? (isWaveConfirmed
+        ? ` Downstream 52234 ponded/flatlined; active diversion wave verified downstream at Beer Wall 52157.`
+        : ` Downstream 52234 stilling-well ponded; evaluating from upstream 52233 trigger (${thresholdTrigger.toFixed(2)}m AOD).`)
+      : '';
     return {
+      asset_type: 'sluice',
+      asset_id: 'monks_leaze_clyse',
+      status: 'DIVERTING',
       code: "GRAVITY_OPEN",
       label: "GRAVITY FLOW",
       badgeClass: "badge-open",
@@ -308,12 +340,17 @@ export function evaluateSowyChannel(h_up, h_down, thresholdSill = 4.20) {
       pillText: "🟢 ACTIVE DIVERSION (DUAL GAUGE)",
       confidence: "HIGH_DUAL_SENSOR",
       confidenceTag: "📡 DEDICATED SENSORS",
+      isWaveConfirmed,
+      allermoor_spillway,
       metricText: `Head Drop: +${deltaH.toFixed(2)}m`,
-      clearanceText: `Intake Sill Margin: +${(h_up - thresholdSill).toFixed(2)}m`,
-      narrative: `Monk's Leaze Clyse gravity diversion active. Upstream Parrett stage (${h_up.toFixed(2)}m AOD) exceeds 4.20m sill with a +${deltaH.toFixed(2)}m head drop into the Sowy Relief Channel.`
+      clearanceText: `Intake Sill Margin: +${(h_up - sillM).toFixed(2)}m`,
+      narrative: `Monk's Leaze Clyse gravity diversion active. Upstream Parrett stage (${h_up.toFixed(2)}m AOD) exceeds ${thresholdTrigger.toFixed(2)}m AOD trigger (${sillM.toFixed(2)}m sill) with a +${deltaH.toFixed(2)}m head drop into the Sowy Relief Channel.${waveNote}${allermoorNote}`
     };
-  } else if (h_up >= thresholdSill && deltaH <= 0.10) {
+  } else if (h_up >= thresholdTrigger && deltaH <= 0.10) {
     return {
+      asset_type: 'sluice',
+      asset_id: 'monks_leaze_clyse',
+      status: 'THROTTLED',
       code: "THROTTLED",
       label: "RESTRICTED FLOW",
       badgeClass: "badge-near-crest",
@@ -321,12 +358,17 @@ export function evaluateSowyChannel(h_up, h_down, thresholdSill = 4.20) {
       pillText: "🟡 DIVERSION RESTRICTED (DUAL GAUGE)",
       confidence: "HIGH_DUAL_SENSOR",
       confidenceTag: "📡 DEDICATED SENSORS",
+      isWaveConfirmed,
+      allermoor_spillway,
       metricText: "Head Differential Neutral",
       clearanceText: "Downstream Head Equalized",
-      narrative: `Monk's Leaze Clyse throttled. Downstream Sedgemoor Drain level (${h_down.toFixed(2)}m AOD) limits diversion capacity.`
+      narrative: `Monk's Leaze Clyse throttled. Downstream Sedgemoor Drain level (${h_down.toFixed(2)}m AOD) limits diversion capacity.${allermoorNote}`
     };
   } else {
     return {
+      asset_type: 'sluice',
+      asset_id: 'monks_leaze_clyse',
+      status: 'CLOSED',
       code: "CLOSED",
       label: "PENNING / CLOSED",
       badgeClass: "badge-closed",
@@ -334,9 +376,11 @@ export function evaluateSowyChannel(h_up, h_down, thresholdSill = 4.20) {
       pillText: "⚪ PENNING / CLOSED (DUAL GAUGE)",
       confidence: "HIGH_DUAL_SENSOR",
       confidenceTag: "📡 DEDICATED SENSORS",
+      isWaveConfirmed: false,
+      allermoor_spillway,
       metricText: "Penning / No Diversion",
-      clearanceText: `${(thresholdSill - h_up).toFixed(2)}m Below Sill`,
-      narrative: `Monk's Leaze Clyse in penning mode. River level (${h_up.toFixed(2)}m AOD) is below diversion threshold (${thresholdSill.toFixed(2)}m AOD).`
+      clearanceText: `${(thresholdTrigger - h_up).toFixed(2)}m Below Trigger`,
+      narrative: `Monk's Leaze Clyse in penning mode. River level (${h_up.toFixed(2)}m AOD) is below diversion threshold (${thresholdTrigger.toFixed(2)}m AOD; concrete sill ${sillM.toFixed(2)}m AOD).`
     };
   }
 }
@@ -361,25 +405,76 @@ export function evaluateGravityClyse(h_moor, h_river, structureName = "Gravity S
   }
 }
 
-export function evaluateBeerWall(h_saltmoor, Z_crest = 7.30) {
+export function evaluateBeerWall(h_saltmoor, Z_crest = 7.30, options = {}) {
   const delta = h_saltmoor - Z_crest;
-  if (delta < -0.15) {
-    return { statusText: `🟢 SECURE (+${Math.abs(delta).toFixed(2)}m)` };
-  } else if (delta < 0) {
-    return { statusText: `🟡 NEAR CREST (${Math.abs(delta).toFixed(2)}m)` };
-  } else {
-    return { statusText: `🔴 RELIEF SPILL (SOWY)` };
+  const ksdConveyanceThreshold = options.ksdConveyanceThreshold ?? 6.00;
+  const channelAlert = options.channelAlert ?? 4.20;
+  const isTiltingWeirsActive = h_saltmoor >= ksdConveyanceThreshold;
+  const isChannelAlert = h_saltmoor >= channelAlert;
+
+  let status = 'SECURE';
+  let statusText = `🟢 SECURE (+${Math.abs(delta).toFixed(2)}m)`;
+  let narrative = `Beer Wall 4-bay box culverts & Beazeley Spillway (${Z_crest.toFixed(2)}m AOD) are secure with +${Math.abs(delta).toFixed(2)}m freeboard.`;
+
+  if (delta >= 0) {
+    status = 'OVERTOPPING';
+    statusText = `🔴 RELIEF SPILL (SOWY)`;
+    narrative = `Sowy stage at Greylake (${h_saltmoor.toFixed(2)}m AOD) has reached the ${Z_crest.toFixed(2)}m AOD Beer Wall box culverts & Beazeley Spillway relief threshold beneath the raised A372 (>8.00m AOD).`;
+  } else if (delta >= -0.15) {
+    status = 'NEAR_CREST';
+    statusText = `🟡 NEAR CREST (${Math.abs(delta).toFixed(2)}m)`;
+    narrative = `Sowy stage at Greylake (${h_saltmoor.toFixed(2)}m AOD) is within ${Math.round(Math.abs(delta) * 100)}cm of the ${Z_crest.toFixed(2)}m AOD Beer Wall culvert & Beazeley Spillway relief threshold.`;
+  } else if (isTiltingWeirsActive) {
+    narrative = `Sowy Spur & Lang Acre tilting weirs active (≥${ksdConveyanceThreshold.toFixed(2)}m AOD), routing flow into King's Sedgemoor Drain (${Math.abs(delta).toFixed(2)}m below ${Z_crest.toFixed(2)}m relief crest).`;
   }
+
+  return {
+    asset_type: 'spillway',
+    asset_id: 'beer_wall',
+    status,
+    statusText,
+    isTiltingWeirsActive,
+    isChannelAlert,
+    clearance_m: Number((-delta).toFixed(2)),
+    beazeley_spillway: {
+      asset_type: 'spillway',
+      asset_id: 'beazeley_spillway',
+      status,
+      crest_elevation_mAOD: Z_crest
+    },
+    narrative
+  };
 }
 
 export function evaluateOathLock(h_up, h_down) {
-  const deltaH = h_up - h_down;
+  const deltaH = Number((h_up - h_down).toFixed(2));
   if (deltaH >= 0.30) {
-    return { statusText: `🔒 PENNING (FORCING SOWY)` };
+    return {
+      asset_type: 'sluice',
+      asset_id: 'oath_lock_sluice',
+      status: 'CLOSED',
+      statusText: `🔒 PENNING (FORCING SOWY)`,
+      deltaH,
+      narrative: `Inferred from +${deltaH.toFixed(2)}m head differential across Monk's Leaze / Oath reach: Oath Lock twin radial gates penning River Parrett to build head for Sowy intake.`
+    };
   } else if (deltaH >= 0.05) {
-    return { statusText: `🟢 GRAVITY PASSING` };
+    return {
+      asset_type: 'sluice',
+      asset_id: 'oath_lock_sluice',
+      status: 'DIVERTING',
+      statusText: `🟢 GRAVITY PASSING`,
+      deltaH,
+      narrative: `Inferred from +${deltaH.toFixed(2)}m head differential: Oath Lock twin radial gates passing River Parrett flow downstream toward Burrowbridge.`
+    };
   } else {
-    return { statusText: `⏸️ EQUILIBRIUM` };
+    return {
+      asset_type: 'sluice',
+      asset_id: 'oath_lock_sluice',
+      status: 'THROTTLED',
+      statusText: `⏸️ EQUILIBRIUM`,
+      deltaH,
+      narrative: `Inferred from ${deltaH >= 0 ? '+' : ''}${deltaH.toFixed(2)}m head differential: near-equalized water surface across Oath Lock reach.`
+    };
   }
 }
 
@@ -770,6 +865,8 @@ export const STATION_REGISTRY = {
     datum_offset_mAOD: 0.00,
     baseline_invert_mAOD: 4.20,
     sill_elevation_mAOD: 4.20,
+    headwall_elevation_mAOD: 6.70,
+    diversion_trigger_mAOD: 7.20,
     alert_level_mAOD: 7.90,
     crest_elevation_mAOD: undefined,
     fallback_stage_mAOD: 6.73,
@@ -778,9 +875,9 @@ export const STATION_REGISTRY = {
     has_sparkline: true,
     ea_link: 'https://environment.data.gov.uk/flood-monitoring/id/stations/52233.html',
     provenance: {
-      sill: { tier: 1, label: 'Surveyed Clyse Sill', authority: 'EA Surveyed Intake Sill of Sowy Relief Channel (4.20m ODN)' },
+      sill: { tier: 1, label: 'Surveyed Clyse Sill', authority: 'EA Surveyed Intake Sill of Sowy Relief Channel (4.20m ODN; Headwall 6.70m ODN)' },
       alert: { tier: 3, label: 'EA Statistical Envelope', authority: 'EA stageScale.typicalRangeHigh' },
-      operational: { tier: 2, label: 'EA Operating Protocol', authority: 'Penstocks opened to relieve Parrett into Sowy' }
+      operational: { tier: 2, label: 'EA Operating Protocol', authority: 'EA Sowy Protocol: Clyse diversion trigger 7.20m AOD; Allermoor Spillway assumed to spill at about the same Parrett stage as Beasley\'s Spillway (7.50m AOD proxy; Allermoor\'s own crest level is not published), curtailing upstream tributary pumping (Huish Episcopi, Midelney & Long Load)' }
     }
   },
   '52158': {
@@ -907,15 +1004,17 @@ export const STATION_REGISTRY = {
     datum_offset_mAOD: 0.00,
     baseline_invert_mAOD: 2.30,
     alert_level_mAOD: 4.20,
+    ksd_conveyance_mAOD: 6.00,
     crest_elevation_mAOD: 7.30,
     sill_elevation_mAOD: undefined,
     fallback_stage_mAOD: 3.92,
     downstream_node_id: 'E9531',
     has_sparkline: true,
     provenance: {
-      crest: { tier: 1, label: 'Surveyed Culvert Crest', authority: 'EA/SRA Surveyed Concrete Relief Weir (7.30m ODN)' },
-      alert: { tier: 3, label: 'EA Statistical Envelope', authority: 'EA stageScale typical envelope' },
-      invert: { tier: 1, label: 'Channel Bed Invert', authority: 'EA Sowy Channel Bed Survey' }
+      crest: { tier: 1, label: 'Surveyed Culvert Crest', authority: 'EA/SRA Surveyed Concrete Box Culverts & Beazeley Relief Weir (7.30m ODN)' },
+      alert: { tier: 3, label: 'EA Statistical Envelope', authority: 'EA stageScale typical envelope (4.20m in-channel alert)' },
+      invert: { tier: 1, label: 'Channel Bed Invert', authority: 'EA Sowy Channel Bed Survey' },
+      operational: { tier: 2, label: 'SRA Sowy/KSD Scheme', authority: 'Sowy Spur & Lang Acre tilting weirs active ≥6.00m AOD; 4-bay A372 box culverts & Beazeley Spillway relief at 7.30m AOD' }
     }
   },
   'E9531': {
@@ -1263,6 +1362,8 @@ export const HYDRO_THRESHOLDS = {
   },
   '52233': {
     SILL_MAOD: 4.20,
+    HEADWALL_MAOD: 6.70,
+    TRIGGER_MAOD: 7.20,
     MIN_DELTA_H: 0.05,
     UPSTREAM_ALERT_MAOD: 7.90,
     DOWNSTREAM_ALERT_MAOD: 7.60,
@@ -1277,7 +1378,7 @@ export const HYDRO_THRESHOLDS = {
   '52124': { ALERT_MAOD: 6.10, DATUM_MAOD: 0.00, BASELINE_MAOD: 0.50, TYPICAL_LOW_MAOD: 1.20, MAX_ON_RECORD_MAOD: 8.09 },
   '52163': { ESTUARY_ALERT_MAOD: 6.50, ALERT_MAOD: 6.50, DATUM_MAOD: 0.00, BASELINE_MAOD: -1.50, TYPICAL_LOW_MAOD: -1.50, MAX_ON_RECORD_MAOD: 7.09 },
   '52234': { ALERT_MAOD: 7.60, DATUM_MAOD: 0.00, BASELINE_MAOD: 4.20, TYPICAL_LOW_MAOD: 6.01, MAX_ON_RECORD_MAOD: 7.90 },
-  '52157': { CREST_MAOD: 7.30, ALERT_MAOD: 4.20, DATUM_MAOD: 0.00, BASELINE_MAOD: 2.30, TYPICAL_LOW_MAOD: 2.33, MAX_ON_RECORD_MAOD: 5.07 },
+  '52157': { CREST_MAOD: 7.30, PRE_SPILL_MAOD: 7.15, KSD_CONVEYANCE_MAOD: 6.00, A372_CROWN_MAOD: 8.00, ALERT_MAOD: 4.20, DATUM_MAOD: 0.00, BASELINE_MAOD: 2.30, TYPICAL_LOW_MAOD: 2.33, MAX_ON_RECORD_MAOD: 5.07 },
   'E9531': { ALERT_MAOD: 3.50, DATUM_MAOD: 0.00, BASELINE_MAOD: 1.00, TYPICAL_LOW_MAOD: 1.00, MAX_ON_RECORD_MAOD: 4.44 },
   'E9094': { INLAND_ALERT_MAOD: 3.50, ALERT_MAOD: 3.50, DATUM_MAOD: 0.00, BASELINE_MAOD: 0.50, TYPICAL_LOW_MAOD: 1.00, MAX_ON_RECORD_MAOD: 4.07 },
 
@@ -1292,12 +1393,17 @@ export const HYDRO_THRESHOLDS = {
   },
   MONKS_LEAZE: {
     SILL_MAOD: 4.20,
+    HEADWALL_MAOD: 6.70,
+    TRIGGER_MAOD: 7.20,
     MIN_DELTA_H: 0.05,
     UPSTREAM_ALERT_MAOD: 7.90,
     DOWNSTREAM_ALERT_MAOD: 7.60
   },
   BEERWALL: {
     CREST_MAOD: 7.30,
+    PRE_SPILL_MAOD: 7.15,
+    KSD_CONVEYANCE_MAOD: 6.00,
+    A372_CROWN_MAOD: 8.00,
     ALERT_MAOD: 4.20
   },
   CURRY_MOOR: {
@@ -1411,7 +1517,7 @@ export const TOPOLOGY_NETWORK_CONFIG = {
       type: "clyse_diverting",
       upstream_node_id: "52233",
       downstream_node_id: "52234",
-      sill_threshold_ref: "MONKS_LEAZE.SILL_MAOD",
+      sill_threshold_ref: "MONKS_LEAZE.TRIGGER_MAOD",
       min_delta_h_ref: "MONKS_LEAZE.MIN_DELTA_H"
     },
     dunball_tide_locked: {
@@ -2823,12 +2929,32 @@ export const ASSET_DEFINITIONS = Object.freeze({
   beer_wall: Object.freeze({
     asset_type: 'spillway',
     asset_id: 'beer_wall',
-    name: 'Beer Wall Spillway',
+    name: 'Beer Wall Spillway & Box Culverts',
     primary_station: '52157',
     crest_elevation_mAOD: 7.30,
     pre_spill_elevation_mAOD: 7.15,
+    ksd_conveyance_mAOD: 6.00,
+    in_channel_alert_mAOD: 4.20,
     deadband_crest: HYDRO_DEADBANDS.weir_crest,
     deadband_pre_spill: HYDRO_DEADBANDS.pre_spill
+  }),
+  allermoor_spillway: Object.freeze({
+    asset_type: 'spillway',
+    asset_id: 'allermoor_spillway',
+    name: 'Allermoor Spillway',
+    primary_station: '52233',
+    crest_elevation_mAOD: 7.50,
+    pre_spill_elevation_mAOD: 7.35,
+    curtails_tributary_pumps: true,
+    driving_station_label: "River Parrett @ Monk's Leaze (52233)",
+    ea_warning_target_area: '112WAFTESR',
+    ea_target_area_name: 'East Somerset Rivers (River Sowy & KSD)',
+    survey_tier: 'TIER_2_TRIGGER_PLAN',
+    survey_label: '⚠️ PROXY THRESHOLD (Beasley\'s 7.50m AOD)',
+    survey_tooltip: 'Assumed to spill at about the same Parrett stage as Beasley\'s Spillway (7.50m AOD proxy, EA Somerset Levels guidance). Allermoor\'s own crest level is not published. Closes Monk\'s Leaze Clyse and curtails tributary pumps when running.',
+    deadband_crest: HYDRO_DEADBANDS.weir_crest,
+    deadband_pre_spill: HYDRO_DEADBANDS.pre_spill,
+    station_url: 'https://check-for-flooding.service.gov.uk/station/3066'
   }),
 
   // --- 3. POLDERS ---
@@ -2950,7 +3076,9 @@ export const ASSET_DEFINITIONS = Object.freeze({
     name: "Monk's Leaze Clyse Intake",
     upstream_station: '52233',
     downstream_station: '52234',
+    verification_station: '52157',
     sill_elevation_mAOD: 4.20,
+    headwall_elevation_mAOD: 6.70,
     trigger_elevation_mAOD: 7.20,
     sowy_capacity_mAOD: 7.60,
     min_delta_h: 0.05,
@@ -3685,7 +3813,21 @@ export function evaluateAssetTransition(assetDef, activeSession = null, readings
       } else if (evaluatedState === 'DIVERTING') {
         clearanceM = downstreamStage !== null ? Number((stage - downstreamStage).toFixed(3)) : Number((Z_trig - stage).toFixed(3));
         clearanceDescriptor = downstreamStage !== null ? 'differential head' : 'diversion trigger';
-        narrative = `Penstock gates open: actively diverting excess floodwaters into Sowy Relief Channel.`;
+        let waveVerifySuffix = '';
+        if (!isDownstreamHealthy && assetDef.verification_station && readingsWindow && typeof readingsWindow === 'object') {
+          const verifyKey = assetDef.verification_station;
+          const verifyReadings = readingsWindow[verifyKey] || readingsWindow[`${verifyKey}-level-stage-i-15_min-mAOD`] || [];
+          const verifyRates = computeStageRates(verifyReadings);
+          if (verifyRates.rate_1h_m_per_hr !== null && verifyRates.rate_1h_m_per_hr >= 0.02) {
+            regime_signature = {
+              anomaly_type: 'DOWNSTREAM_WAVE_VERIFIED',
+              confidence: 'HIGH_STAGE_RATE',
+              rate_1h_mh: verifyRates.rate_1h_m_per_hr
+            };
+            waveVerifySuffix = ` Downstream 52234 stilling-well ponded/flatlined; active diversion wave verified at Beer Wall 52157 (+${Math.round(verifyRates.rate_1h_m_per_hr * 100)}cm/h).`;
+          }
+        }
+        narrative = `Penstock gates open: actively diverting excess floodwaters into Sowy Relief Channel.${waveVerifySuffix}`;
       } else {
         clearanceM = Number((Z_trig - stage).toFixed(3));
         clearanceDescriptor = 'diversion trigger';
