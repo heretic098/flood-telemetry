@@ -74,7 +74,64 @@ const CONSTITUENTS_14D = [
   { name: 'M4', speedDegPerHr: 57.9682084 },
   { name: 'MS4', speedDegPerHr: 58.9841042 }
 ];
+const CONSTITUENTS_45D = [
+  { name: 'M2', speedDegPerHr: 28.9841042 },
+  { name: 'S2', speedDegPerHr: 30.0000000 },
+  { name: 'N2', speedDegPerHr: 28.4397295 },
+  { name: 'K1', speedDegPerHr: 15.0410686 },
+  { name: 'O1', speedDegPerHr: 13.9430356 },
+  { name: 'M4', speedDegPerHr: 57.9682084 },
+  { name: 'MS4', speedDegPerHr: 58.9841042 },
+  { name: 'MN4', speedDegPerHr: 57.4238337 }
+];
 const CONSTITUENTS = CONSTITUENTS_14D;
+
+// Causal 25-hour (two tidal cycles) low-pass residual surge at `leadHrs` before `ms`.
+// Averaging over 25h cancels residual M2/S2/K1/O1 harmonic error instead of inverting it at 6h.
+function getLowPassSurge(ms, obsMap, predictFn, weatherMap, leadHrs = 6, minObs = -Infinity) {
+  const endMs = ms - leadHrs * 3600000;
+  const startMs = endMs - 25 * 3600000;
+  let sum = 0;
+  let count = 0;
+  for (let t = startMs; t <= endMs; t += 15 * 60000) {
+    const obs = obsMap.get(t);
+    if (obs === undefined || obs < minObs) continue;
+    const w = interpWeather(weatherMap, t);
+    const ib = w ? (1013.25 - w.mslp) * 0.01 : 0;
+    sum += obs - predictFn(t) - ib;
+    count++;
+  }
+  const wNow = interpWeather(weatherMap, ms);
+  const ibNow = wNow ? (1013.25 - wNow.mslp) * 0.01 : 0;
+  const subTidal = count >= 12 ? sum / count : 0;
+  return subTidal + ibNow;
+}
+
+// Onshore wind component blowing from ~255 deg (WSW, up the Bristol Channel toward Bridgwater Bay)
+function onshoreWindStress(w) {
+  if (!w || !Number.isFinite(w.windSpeedKmh) || !Number.isFinite(w.windDirDeg)) return 0;
+  const spdMs = w.windSpeedKmh / 3.6;
+  // windDirDeg is meteorological "coming from"; 255 deg = WSW blowing toward ENE
+  const cosOnshore = Math.cos((w.windDirDeg - 255) * DEG);
+  return spdMs * Math.abs(spdMs) * cosOnshore;
+}
+
+function fitLinear1D(xs, ys) {
+  const n = xs.length;
+  if (n < 2) return { slope: 1, intercept: 0, rmse: Infinity };
+  let sx = 0, sy = 0, sxx = 0, sxy = 0;
+  for (let i = 0; i < n; i++) {
+    sx += xs[i];
+    sy += ys[i];
+    sxx += xs[i] * xs[i];
+    sxy += xs[i] * ys[i];
+  }
+  const denom = n * sxx - sx * sx;
+  const slope = Math.abs(denom) > 1e-12 ? (n * sxy - sx * sy) / denom : 1;
+  const intercept = (sy - slope * sx) / n;
+  const errs = xs.map((x, i) => slope * x + intercept - ys[i]);
+  return { slope, intercept, rmse: rmse(errs), n };
+}
 
 // Simple Gaussian elimination for normal equations (X^T X) beta = X^T y
 function solveLinearSystem(A, b) {
@@ -356,42 +413,69 @@ async function main() {
 
   console.log('\n=== PART 1B: PUBLISHED HINKLEY CONSTANTS (M2,S2,N2,K1,O1) + DOODSON PHASES ===');
   const z0Pub = hTrain.reduce((s, pt) => s + (pt.value - predictPublishedHinkley(pt.ms, 0)), 0) / hTrain.length;
+  const predPub = ms => predictPublishedHinkley(ms, z0Pub);
+
+  // Fit onshore wind coefficient on hTrain sub-tidal residual
+  const windTrainX = [];
+  const windTrainY = [];
+  for (const pt of hTrain) {
+    const w = interpWeather(weatherMap, pt.ms);
+    if (!w) continue;
+    const ib = (1013.25 - w.mslp) * 0.01;
+    windTrainX.push(onshoreWindStress(w));
+    windTrainY.push(pt.value - predPub(pt.ms) - ib);
+  }
+  const windFit = fitLinear1D(windTrainX, windTrainY);
+
   const pubErrs = [];
   const pubPersistErrs = [];
+  const pubLowPassErrs = [];
+  const pubWindErrs = [];
   for (const pt of hTest) {
-    const astro = predictPublishedHinkley(pt.ms, z0Pub);
+    const astro = predPub(pt.ms);
     const w = interpWeather(weatherMap, pt.ms);
     const ib = w ? (1013.25 - w.mslp) * 0.01 : 0;
     const t6 = pt.ms - 6 * 3600000;
     const obs6 = hinkleyMap.get(t6);
     const w6 = interpWeather(weatherMap, t6);
     const ib6 = w6 ? (1013.25 - w6.mslp) * 0.01 : 0;
-    const persist = obs6 !== undefined ? 0.75 * (obs6 - predictPublishedHinkley(t6, z0Pub) - ib6) + ib : ib;
+    const persist = obs6 !== undefined ? 0.75 * (obs6 - predPub(t6) - ib6) + ib : ib;
+    const lpSurge = getLowPassSurge(pt.ms, hinkleyMap, predPub, weatherMap, 6);
+    const windTerm = w ? windFit.slope * onshoreWindStress(w) : 0;
+
     pubErrs.push(pt.value - astro);
     pubPersistErrs.push(pt.value - (astro + persist));
+    pubLowPassErrs.push(pt.value - (astro + lpSurge));
+    pubWindErrs.push(pt.value - (astro + lpSurge + windTerm));
   }
   const pubHwErrs = [];
   const pubHwPersistErrs = [];
+  const pubHwLowPassErrs = [];
   for (const pk of hTestPeaks) {
-    let maxA = -Infinity, maxP = -Infinity;
+    let maxA = -Infinity, maxP = -Infinity, maxLP = -Infinity;
     const t6 = pk.ms - 6 * 3600000;
     const obs6 = hinkleyMap.get(t6);
     const w6 = interpWeather(weatherMap, t6);
     const ib6 = w6 ? (1013.25 - w6.mslp) * 0.01 : 0;
-    const res6 = obs6 !== undefined ? 0.75 * (obs6 - predictPublishedHinkley(t6, z0Pub) - ib6) : 0;
+    const res6 = obs6 !== undefined ? 0.75 * (obs6 - predPub(t6) - ib6) : 0;
     for (let dt = -45 * 60000; dt <= 45 * 60000; dt += 15 * 60000) {
-      const a = predictPublishedHinkley(pk.ms + dt, z0Pub);
-      const w = interpWeather(weatherMap, pk.ms + dt);
+      const t = pk.ms + dt;
+      const a = predPub(t);
+      const w = interpWeather(weatherMap, t);
       const ib = w ? (1013.25 - w.mslp) * 0.01 : 0;
+      const lp = getLowPassSurge(t, hinkleyMap, predPub, weatherMap, 6);
       if (a > maxA) maxA = a;
       if (a + ib + res6 > maxP) maxP = a + ib + res6;
+      if (a + lp > maxLP) maxLP = a + lp;
     }
     pubHwErrs.push(pk.value - maxA);
     pubHwPersistErrs.push(pk.value - maxP);
+    pubHwLowPassErrs.push(pk.value - maxLP);
   }
   console.log(`Published Z0 (mAOD from Oct 20-Nov 03 mean): ${z0Pub.toFixed(3)} m`);
   console.log(`Out-of-sample RMSE (Published Astro): ${(rmse(pubErrs) * 100).toFixed(1)} cm | (Astro + 6h Surge Persistence): ${(rmse(pubPersistErrs) * 100).toFixed(1)} cm`);
-  console.log(`Test HW Peak MAE (Published Astro): ${(mae(pubHwErrs) * 100).toFixed(1)} cm | (Astro + 6h Surge Persistence): ${(mae(pubHwPersistErrs) * 100).toFixed(1)} cm`);
+  console.log(`Out-of-sample RMSE (Published Astro + 25h Low-Pass Surge + IB): ${(rmse(pubLowPassErrs) * 100).toFixed(1)} cm | (+ Onshore Wind): ${(rmse(pubWindErrs) * 100).toFixed(1)} cm`);
+  console.log(`Test HW Peak MAE (Published Astro): ${(mae(pubHwErrs) * 100).toFixed(1)} cm | (6h Persist): ${(mae(pubHwPersistErrs) * 100).toFixed(1)} cm | (25h Low-Pass + IB): ${(mae(pubHwLowPassErrs) * 100).toFixed(1)} cm`);
 
   console.log('\n=== PART 2: HINKLEY (52106) -> DUNBALL (52163) & TIDE-LOCK WINDOW ===');
   const overlapStart = new Date('2026-10-20T00:00:00Z').getTime();
@@ -416,41 +500,67 @@ async function main() {
   console.log(`Observed HW lag Hinkley -> Dunball: mean=${avgLagMin.toFixed(1)} min (min=${Math.min(...lagsMin)}, max=${Math.max(...lagsMin)}), using ${roundedLagMs / 60000} min`);
   console.log(`Observed HW height diff (Dunball - Hinkley): mean=${(peakAmplifications.reduce((a, b) => a + b, 0) / peakAmplifications.length).toFixed(2)} m`);
 
-  // Fit simple linear transfer above river floor on train half (Oct 20 - Oct 31): dunball(t) = a * hinkley(t - lag) + b for hinkley(t - lag) > 1.0m
-  let sumX = 0, sumY = 0, sumXX = 0, sumXY = 0, nPairs = 0;
+  // Fit separate mid-tide (1.5-4.0 mAOD Dunball) flood vs ebb transfers + optimal lag on train half (Oct 20 - Oct 31)
+  function fitDirectionalMidTide(isFlood) {
+    let best = { lagMin: 0, slope: 1, intercept: 0, rmse: Infinity, n: 0 };
+    for (const lagMin of [0, 15, 30, 45]) {
+      const xs = [], ys = [];
+      for (const pt of dOverlap) {
+        if (pt.ms >= overlapSplit) continue;
+        if (pt.value < 1.5 || pt.value > 4.0) continue;
+        const tLag = pt.ms - lagMin * 60000;
+        const hVal = hinkleyMap.get(tLag);
+        const hPrev = hinkleyMap.get(tLag - 15 * 60000);
+        if (hVal === undefined || hPrev === undefined) continue;
+        const rising = hVal >= hPrev;
+        if (rising !== isFlood) continue;
+        xs.push(hVal);
+        ys.push(pt.value);
+      }
+      const fit = fitLinear1D(xs, ys);
+      if (fit.n >= 10 && fit.rmse < best.rmse) {
+        best = { lagMin, ...fit };
+      }
+    }
+    return best;
+  }
+
+  const floodMidFit = fitDirectionalMidTide(true);
+  const ebbMidFit = fitDirectionalMidTide(false);
+
+  // Also fit high-water (> 4.0 mAOD) transfer for peak height prediction
+  const hwXs = [], hwYs = [];
   for (const pt of dOverlap) {
-    if (pt.ms >= overlapSplit) continue;
+    if (pt.ms >= overlapSplit || pt.value <= 4.0) continue;
     const hVal = hinkleyMap.get(pt.ms - roundedLagMs);
-    if (hVal !== undefined && hVal >= 1.0 && pt.value >= 2.0) {
-      sumX += hVal;
-      sumY += pt.value;
-      sumXX += hVal * hVal;
-      sumXY += hVal * pt.value;
-      nPairs++;
+    if (hVal !== undefined) {
+      hwXs.push(hVal);
+      hwYs.push(pt.value);
     }
   }
-  const slope = (nPairs * sumXY - sumX * sumY) / (nPairs * sumXX - sumX * sumX);
-  const intercept = (sumY - slope * sumX) / nPairs;
-  console.log(`Fitted estuary transfer (Oct 20-31, n=${nPairs}): Dunball(t) = ${slope.toFixed(3)} * Hinkley(t - ${roundedLagMs / 60000}m) + ${intercept.toFixed(3)}m`);
+  const hwFit = fitLinear1D(hwXs, hwYs);
+  console.log(`Mid-tide flood fit (Oct 20-31, n=${floodMidFit.n}, lag=${floodMidFit.lagMin}m): Dunball = ${floodMidFit.slope.toFixed(3)} * Hinkley + ${floodMidFit.intercept.toFixed(3)}m`);
+  console.log(`Mid-tide ebb   fit (Oct 20-31, n=${ebbMidFit.n}, lag=${ebbMidFit.lagMin}m): Dunball = ${ebbMidFit.slope.toFixed(3)} * Hinkley + ${ebbMidFit.intercept.toFixed(3)}m`);
+  console.log(`High-tide (>4m) fit (Oct 20-31, n=${hwFit.n}, lag=${roundedLagMs / 60000}m): Dunball = ${hwFit.slope.toFixed(3)} * Hinkley + ${hwFit.intercept.toFixed(3)}m`);
 
-  // Out-of-sample test (Nov 1 - Nov 10): predict Dunball using (Astro + 6h Surge Persistence) + asymmetric ebb lag (+15m falling)
+  // Out-of-sample test (Nov 1 - Nov 10): Published Astro + 25h Low-Pass Surge + Directional Mid-Tide Transfer
   const dTest = dOverlap.filter(p => p.ms >= overlapSplit);
   const actualLocks = extractTideLockIntervals(dTest, ms => ksdMap.get(ms) ?? null, 0.03);
 
   const predDunballSeries = dTest.map(pt => {
-    const tShift = pt.ms - roundedLagMs;
-    const isFalling = model.predict(tShift) < model.predict(tShift - 15 * 60000);
-    const effShift = isFalling ? tShift - 15 * 60000 : tShift;
-    const astro = model.predict(effShift);
-    const w = interpWeather(weatherMap, effShift);
-    const ib = w ? (1013.25 - w.mslp) * 0.01 : 0;
-    const t6 = effShift - 6 * 3600000;
-    const obs6 = hinkleyMap.get(t6);
-    const w6 = interpWeather(weatherMap, t6);
-    const ib6 = w6 ? (1013.25 - w6.mslp) * 0.01 : 0;
-    const res6 = obs6 !== undefined ? 0.75 * (obs6 - model.predict(t6) - ib6) : 0;
-    const hPred = astro + ib + res6;
-    const dPred = Math.max(0.8, slope * hPred + intercept);
+    const isRising = predPub(pt.ms) >= predPub(pt.ms - 15 * 60000);
+    const dirFit = isRising ? floodMidFit : ebbMidFit;
+    const tMid = pt.ms - dirFit.lagMin * 60000;
+    const hMid = predPub(tMid) + getLowPassSurge(tMid, hinkleyMap, predPub, weatherMap, 6);
+    const dMid = dirFit.slope * hMid + dirFit.intercept;
+
+    const tHw = pt.ms - roundedLagMs;
+    const hHw = predPub(tHw) + getLowPassSurge(tHw, hinkleyMap, predPub, weatherMap, 6);
+    const dHw = hwFit.slope * hHw + hwFit.intercept;
+
+    // Smooth blend from mid-tide transfer (<=3.5 mAOD) to HW transfer (>=4.5 mAOD)
+    const wHw = Math.max(0, Math.min(1, (dMid - 3.5) / 1.0));
+    const dPred = Math.max(0.8, (1 - wHw) * dMid + wHw * dHw);
     return { ms: pt.ms, value: dPred };
   });
 
@@ -460,12 +570,10 @@ async function main() {
   const peakErrsCm = [];
 
   for (const act of actualLocks) {
-    // Freeze E9094 at 3 hours before actual lock start (simulating pre-tide forecast)
     const lookbackMs = act.startMs - 3 * 3600000;
     const frozenE9094 = ksdMap.get(lookbackMs) ?? ksdMap.get(act.startMs);
     if (frozenE9094 === undefined) continue;
 
-    // Extract predicted lock interval in [act.startMs - 3h, act.endMs + 3h]
     const winPred = predDunballSeries.filter(p => p.ms >= act.startMs - 3 * 3600000 && p.ms <= act.endMs + 3 * 3600000);
     const predLocks = extractTideLockIntervals(winPred, () => frozenE9094, 0.03);
     if (!predLocks.length) {
@@ -483,6 +591,42 @@ async function main() {
   console.log(`  t_close MAE: ${mae(closeErrsMin).toFixed(1)} min (mean bias: ${(closeErrsMin.reduce((a, b) => a + b, 0) / closeErrsMin.length).toFixed(1)} min)`);
   console.log(`  t_open  MAE: ${mae(openErrsMin).toFixed(1)} min (mean bias: ${(openErrsMin.reduce((a, b) => a + b, 0) / openErrsMin.length).toFixed(1)} min)`);
   console.log(`  Duration MAE: ${mae(durErrsMin).toFixed(1)} min | Dunball Peak MAE: ${mae(peakErrsCm).toFixed(1)} cm`);
+
+  console.log('\n=== PART 2B: 90-DAY DUNBALL (52163) DIRECT HARMONIC BENCHMARK (AUG 12 - NOV 10) ===');
+  // 45d train separates M2 & N2 (27.55d beat) + captures local M4/MS4/MN4 overtides above river floor (>=1.8 mAOD)
+  const dSplit90 = new Date('2026-09-26T00:00:00Z').getTime();
+  const dTrain90 = dunball.filter(p => p.ms < dSplit90 && p.value >= 1.8);
+  const dTest90 = dunball.filter(p => p.ms >= dSplit90);
+  const dModel90 = fitHarmonics(dTrain90, dTrain90[0].ms, CONSTITUENTS_45D);
+  const predDun90 = ms => dModel90.predict(ms);
+
+  const actualLocks90 = extractTideLockIntervals(dTest90, ms => ksdMap.get(ms) ?? null, 0.03);
+  const predDun90Astro = dTest90.map(pt => ({ ms: pt.ms, value: predDun90(pt.ms) }));
+  const predDun90Surge = dTest90.map(pt => ({
+    ms: pt.ms,
+    value: predDun90(pt.ms) + getLowPassSurge(pt.ms, dunballMap, predDun90, weatherMap, 6, 1.8)
+  }));
+
+  function evalLockBenchmark(label, predSeries) {
+    const cErr = [], oErr = [], dErr = [], pErr = [];
+    for (const act of actualLocks90) {
+      const frozenE9094 = ksdMap.get(act.startMs - 3 * 3600000) ?? ksdMap.get(act.startMs);
+      if (frozenE9094 === undefined) continue;
+      const win = predSeries.filter(p => p.ms >= act.startMs - 3 * 3600000 && p.ms <= act.endMs + 3 * 3600000);
+      const pl = extractTideLockIntervals(win, () => frozenE9094, 0.03);
+      if (!pl.length) continue;
+      cErr.push((pl[0].startMs - act.startMs) / 60000);
+      oErr.push((pl[0].endMs - act.endMs) / 60000);
+      dErr.push(pl[0].durationMin - act.durationMin);
+      pErr.push((pl[0].maxSea - act.maxSea) * 100);
+    }
+    const bias = arr => arr.reduce((a, b) => a + b, 0) / arr.length;
+    console.log(`  ${label} (${cErr.length}/${actualLocks90.length} cycles): t_close MAE=${mae(cErr).toFixed(1)}m (bias ${bias(cErr).toFixed(1)}m) | t_open MAE=${mae(oErr).toFixed(1)}m (bias ${bias(oErr).toFixed(1)}m) | Dur MAE=${mae(dErr).toFixed(1)}m | Peak MAE=${mae(pErr).toFixed(1)}cm`);
+  }
+
+  console.log(`Train: ${dTrain90.length} tidal pts >=1.8 mAOD (Aug 12 - Sep 26) | Test: ${actualLocks90.length} lock cycles (Sep 26 - Nov 10)`);
+  evalLockBenchmark('45d Dunball Astro only', predDun90Astro);
+  evalLockBenchmark('45d Dunball Astro + 25h Low-Pass Surge', predDun90Surge);
 
   console.log('\n=== PART 3: DUNBALL (52163) -> HOOKBRIDGE (52118) UPRIVER WAVE (90 DAYS) ===');
   const allDunballPeaks = findPeaks(dunball, 3.0);
