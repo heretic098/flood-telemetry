@@ -307,37 +307,74 @@ function interpWeather(weatherMap, ms) {
   };
 }
 
-// Extract tide-lock intervals where sea >= threshold (with optional deadband on exit)
+// Extract tide-lock intervals where sea >= threshold (with sub-15-min linear crossing interpolation)
 function extractTideLockIntervals(seaSeries, getThreshold, deadband = 0.03) {
   const intervals = [];
   let locked = false;
   let startMs = null;
   let maxSea = -Infinity;
+  let prev = null;
+  let prevThresh = null;
 
   for (const pt of seaSeries) {
     const thresh = getThreshold(pt.ms);
     if (thresh === null) continue;
+    const canInterp = prev !== null && pt.ms - prev.ms > 0 && pt.ms - prev.ms <= 30 * 60000;
+
     if (!locked) {
       if (pt.value >= thresh) {
         locked = true;
         startMs = pt.ms;
+        if (canInterp && prev.value < prevThresh) {
+          const d0 = prev.value - prevThresh;
+          const d1 = pt.value - thresh;
+          if (d1 - d0 > 1e-9) {
+            const frac = Math.max(0, Math.min(1, -d0 / (d1 - d0)));
+            startMs = prev.ms + frac * (pt.ms - prev.ms);
+          }
+        }
         maxSea = pt.value;
       }
     } else {
       if (pt.value > maxSea) maxSea = pt.value;
-      if (pt.value < thresh - deadband) {
-        intervals.push({ startMs, endMs: pt.ms, durationMin: (pt.ms - startMs) / 60000, maxSea });
+      const exitThresh = thresh - deadband;
+      if (pt.value < exitThresh) {
+        let endMs = pt.ms;
+        if (canInterp && prev.value >= prevThresh - deadband) {
+          const d0 = prev.value - (prevThresh - deadband);
+          const d1 = pt.value - exitThresh;
+          if (d0 - d1 > 1e-9) {
+            const frac = Math.max(0, Math.min(1, d0 / (d0 - d1)));
+            endMs = prev.ms + frac * (pt.ms - prev.ms);
+          }
+        }
+        intervals.push({ startMs, endMs, durationMin: (endMs - startMs) / 60000, maxSea });
         locked = false;
       }
     }
+    prev = pt;
+    prevThresh = thresh;
   }
   return intervals;
 }
 
+function mergeSeriesByMs(baseSeries, extraSeries) {
+  const byMs = new Map();
+  for (const pt of baseSeries) byMs.set(pt.ms, pt);
+  for (const pt of extraSeries) byMs.set(pt.ms, pt);
+  return [...byMs.values()].sort((a, b) => a.ms - b.ms);
+}
+
+function fmtDate(ms) {
+  return new Date(ms).toISOString().slice(0, 10);
+}
+
 async function main() {
-  const { hinkley, weather } = await loadExternalData();
+  const { hinkley: hinkleyExt, weather } = await loadExternalData();
   const db = new Database(DB_PATH, { readonly: true });
 
+  const hinkleyDb = loadSqliteSeries(db, '52106-level-tidal_level-i-15_min-mAOD');
+  const hinkley = mergeSeriesByMs(hinkleyExt, hinkleyDb);
   const dunball = loadSqliteSeries(db, '52163-level-tidal_level-i-15_min-mAOD');
   const ksdInland = loadSqliteSeries(db, 'E9094-level-stage-i-15_min-mAOD');
   const hookbridge = loadSqliteSeries(db, '52118-level-stage-i-15_min-mAOD');
@@ -349,12 +386,13 @@ async function main() {
   const weatherMap = new Map(weather.map(w => [w.ms, w]));
 
   console.log('\n=== PART 1: HINKLEY POINT (52106) ASTRONOMICAL + SURGE BASELINE ===');
-  const splitMs = new Date('2026-11-03T00:00:00Z').getTime();
+  const splitMs = hinkley[Math.floor(hinkley.length / 2)].ms;
   const hTrain = hinkley.filter(p => p.ms < splitMs);
   const hTest = hinkley.filter(p => p.ms >= splitMs);
-  const model = fitHarmonics(hTrain, hTrain[0].ms);
+  const hTrainDays = (hTrain[hTrain.length - 1].ms - hTrain[0].ms) / 86400000;
+  const model = fitHarmonics(hTrain, hTrain[0].ms, hTrainDays >= 28 ? CONSTITUENTS_45D : CONSTITUENTS_14D);
 
-  console.log(`Train: ${hTrain.length} pts (Oct 20 - Nov 03) | Out-of-sample Test: ${hTest.length} pts (Nov 03 - Nov 17)`);
+  console.log(`Train: ${hTrain.length} pts (${fmtDate(hTrain[0].ms)} - ${fmtDate(splitMs)}) | Out-of-sample Test: ${hTest.length} pts (${fmtDate(splitMs)} - ${fmtDate(hTest[hTest.length - 1].ms)})`);
   console.log(
     'Fitted amplitudes (m):',
     model.constituents.map(c => `${c.name}=${c.amplitude.toFixed(3)}`).join(', ')
@@ -478,9 +516,9 @@ async function main() {
   console.log(`Test HW Peak MAE (Published Astro): ${(mae(pubHwErrs) * 100).toFixed(1)} cm | (6h Persist): ${(mae(pubHwPersistErrs) * 100).toFixed(1)} cm | (25h Low-Pass + IB): ${(mae(pubHwLowPassErrs) * 100).toFixed(1)} cm`);
 
   console.log('\n=== PART 2: HINKLEY (52106) -> DUNBALL (52163) & TIDE-LOCK WINDOW ===');
-  const overlapStart = new Date('2026-10-20T00:00:00Z').getTime();
-  const overlapEnd = new Date('2026-11-10T21:30:00Z').getTime();
-  const overlapSplit = new Date('2026-10-31T00:00:00Z').getTime();
+  const overlapStart = Math.max(hinkley[0].ms, dunball[0].ms);
+  const overlapEnd = Math.min(hinkley[hinkley.length - 1].ms, dunball[dunball.length - 1].ms);
+  const overlapSplit = overlapStart + (overlapEnd - overlapStart) * 0.5;
 
   const dOverlap = dunball.filter(p => p.ms >= overlapStart && p.ms <= overlapEnd);
   const dPeaks = findPeaks(dOverlap, 3.0);
@@ -570,8 +608,9 @@ async function main() {
   const peakErrsCm = [];
 
   for (const act of actualLocks) {
-    const lookbackMs = act.startMs - 3 * 3600000;
-    const frozenE9094 = ksdMap.get(lookbackMs) ?? ksdMap.get(act.startMs);
+    const startSnap = toNearest15Min(act.startMs);
+    const lookbackMs = startSnap - 3 * 3600000;
+    const frozenE9094 = ksdMap.get(lookbackMs) ?? ksdMap.get(startSnap);
     if (frozenE9094 === undefined) continue;
 
     const winPred = predDunballSeries.filter(p => p.ms >= act.startMs - 3 * 3600000 && p.ms <= act.endMs + 3 * 3600000);
@@ -592,9 +631,9 @@ async function main() {
   console.log(`  t_open  MAE: ${mae(openErrsMin).toFixed(1)} min (mean bias: ${(openErrsMin.reduce((a, b) => a + b, 0) / openErrsMin.length).toFixed(1)} min)`);
   console.log(`  Duration MAE: ${mae(durErrsMin).toFixed(1)} min | Dunball Peak MAE: ${mae(peakErrsCm).toFixed(1)} cm`);
 
-  console.log('\n=== PART 2B: 90-DAY DUNBALL (52163) DIRECT HARMONIC BENCHMARK (AUG 12 - NOV 10) ===');
+  console.log('\n=== PART 2B: 90-DAY DUNBALL (52163) DIRECT HARMONIC BENCHMARK ===');
   // 45d train separates M2 & N2 (27.55d beat) + captures local M4/MS4/MN4 overtides above river floor (>=1.8 mAOD)
-  const dSplit90 = new Date('2026-09-26T00:00:00Z').getTime();
+  const dSplit90 = dunball[Math.floor(dunball.length / 2)].ms;
   const dTrain90 = dunball.filter(p => p.ms < dSplit90 && p.value >= 1.8);
   const dTest90 = dunball.filter(p => p.ms >= dSplit90);
   const dModel90 = fitHarmonics(dTrain90, dTrain90[0].ms, CONSTITUENTS_45D);
@@ -610,7 +649,8 @@ async function main() {
   function evalLockBenchmark(label, predSeries) {
     const cErr = [], oErr = [], dErr = [], pErr = [];
     for (const act of actualLocks90) {
-      const frozenE9094 = ksdMap.get(act.startMs - 3 * 3600000) ?? ksdMap.get(act.startMs);
+      const startSnap = toNearest15Min(act.startMs);
+      const frozenE9094 = ksdMap.get(startSnap - 3 * 3600000) ?? ksdMap.get(startSnap);
       if (frozenE9094 === undefined) continue;
       const win = predSeries.filter(p => p.ms >= act.startMs - 3 * 3600000 && p.ms <= act.endMs + 3 * 3600000);
       const pl = extractTideLockIntervals(win, () => frozenE9094, 0.03);
@@ -679,8 +719,8 @@ async function main() {
   console.log(`  Peak lag: mean=${(regime2LagsMin.reduce((a, b) => a + b, 0) / regime2LagsMin.length).toFixed(1)} min`);
   console.log(`  Crest MAE using flat 0.56 ratio: ${mae(regime2PredErrsCm).toFixed(1)} cm | RMSE: ${rmse(regime2PredErrsCm).toFixed(1)} cm`);
 
-  // Out-of-sample 45d train -> 45d test linear fit: rise = a * headDiff + b
-  const hookSplitMs = new Date('2026-09-26T00:00:00Z').getTime();
+  // Out-of-sample 50/50 train -> test linear fit: rise = a * headDiff + b
+  const hookSplitMs = regime2Rows[Math.floor(regime2Rows.length / 2)].ms;
   const r2Train = regime2Rows.filter(r => r.ms < hookSplitMs);
   const r2Test = regime2Rows.filter(r => r.ms >= hookSplitMs);
   let sx = 0, sy = 0, sxx = 0, sxy = 0;
