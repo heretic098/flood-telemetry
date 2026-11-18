@@ -621,7 +621,12 @@ async function main() {
     if (frozenE9094 === undefined) continue;
 
     const winPred = predDunballSeries.filter(p => p.ms >= act.startMs - 3 * 3600000 && p.ms <= act.endMs + 3 * 3600000);
-    const predLocks = extractTideLockIntervals(winPred, () => frozenE9094, 0.03);
+    // Use causal previous-tidal-cycle E9094 (t - 12.5h) to track KSD's drainage/fill cycle, falling back to frozen pre-lock E9094
+    const predLocks = extractTideLockIntervals(
+      winPred,
+      ms => ksdMap.get(toNearest15Min(ms - 12.5 * 3600000)) ?? frozenE9094,
+      0.03
+    );
     if (!predLocks.length) {
       console.log(`  Missed lock at ${new Date(act.startMs).toISOString()}`);
       continue;
@@ -660,7 +665,11 @@ async function main() {
       const frozenE9094 = ksdMap.get(startSnap - 3 * 3600000) ?? ksdMap.get(startSnap);
       if (frozenE9094 === undefined) continue;
       const win = predSeries.filter(p => p.ms >= act.startMs - 3 * 3600000 && p.ms <= act.endMs + 3 * 3600000);
-      const pl = extractTideLockIntervals(win, () => frozenE9094, 0.03);
+      const pl = extractTideLockIntervals(
+        win,
+        ms => ksdMap.get(toNearest15Min(ms - 12.5 * 3600000)) ?? frozenE9094,
+        0.03
+      );
       if (!pl.length) continue;
       cErr.push((pl[0].startMs - act.startMs) / 60000);
       oErr.push((pl[0].endMs - act.endMs) / 60000);
