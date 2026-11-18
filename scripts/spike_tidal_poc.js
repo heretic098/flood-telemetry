@@ -13,7 +13,10 @@ import fs from 'node:fs';
 import Database from 'better-sqlite3';
 
 const CACHE_PATH = '/tmp/tidal_poc_cache.json';
-const DB_PATH = new URL('../telemetry.db', import.meta.url).pathname;
+const dbArg = process.argv.find(a => a.startsWith('--db='));
+const DB_PATH = dbArg
+  ? dbArg.slice(5)
+  : process.env.POC_DB_PATH || new URL('../telemetry.db', import.meta.url).pathname;
 
 // Published multi-year Hinkley Point harmonic constants (Liverpool / Cardiff / NTSLF)
 const PUBLISHED_HINKLEY = [
