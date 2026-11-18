@@ -18,8 +18,7 @@ import readline from 'node:readline';
 import { Readable } from 'node:stream';
 import Database from 'better-sqlite3';
 
-// Keep in sync with MEASURE_IDS in server.js (all 21 Somerset measures)
-const MEASURE_IDS = new Set([
+const CANONICAL_MEASURES = [
   '52108-level-stage-i-15_min-mASD',
   '52109-level-stage-i-15_min-mASD',
   '52111-level-stage-i-15_min-mASD',
@@ -41,7 +40,13 @@ const MEASURE_IDS = new Set([
   '52153-level-stage-i-15_min-mASD',
   '52155-level-sump_level-i-15_min-mAOD',
   '52106-level-tidal_level-i-15_min-mAOD'
-]);
+];
+
+// EA archive CSVs from 2025 used `-m` on some gauges (e.g. 52163, E9094) before standardizing to `-mAOD`.
+// Match by base measure prefix (everything before the trailing unit) and store under canonical measure_id.
+const PREFIX_TO_CANONICAL = new Map(
+  CANONICAL_MEASURES.map(id => [id.replace(/-m(AOD|ASD)?$/, ''), id])
+);
 
 function parseArgs(argv) {
   const opts = {
@@ -49,7 +54,8 @@ function parseArgs(argv) {
     start: '2025-12-01',
     end: null,
     days: null,
-    delayMs: 250
+    delayMs: 250,
+    force: false
   };
   for (const arg of argv) {
     if (arg.startsWith('--db=')) opts.dbPath = arg.slice(5);
@@ -57,6 +63,7 @@ function parseArgs(argv) {
     else if (arg.startsWith('--end=')) opts.end = arg.slice(6);
     else if (arg.startsWith('--days=')) opts.days = Number(arg.slice(7));
     else if (arg.startsWith('--delay-ms=')) opts.delayMs = Number(arg.slice(11));
+    else if (arg === '--force') opts.force = true;
   }
   return opts;
 }
@@ -132,8 +139,9 @@ async function fetchAndFilterDay(day) {
     const dateTime = line.slice(0, c1);
     const measureUri = line.slice(c1 + 1, c2);
     const slash = measureUri.lastIndexOf('/');
-    const measureId = slash >= 0 ? measureUri.slice(slash + 1) : measureUri;
-    if (!MEASURE_IDS.has(measureId)) continue;
+    const rawMeasureId = slash >= 0 ? measureUri.slice(slash + 1) : measureUri;
+    const measureId = PREFIX_TO_CANONICAL.get(rawMeasureId.replace(/-m(AOD|ASD)?$/, ''));
+    if (!measureId) continue;
 
     const value = Number(line.slice(c2 + 1));
     if (!Number.isFinite(value)) continue;
@@ -167,11 +175,11 @@ async function main() {
   let insertedTotal = 0;
 
   console.log(`Archive DB: ${opts.dbPath}`);
-  console.log(`Date range: ${dates[0]} .. ${dates[dates.length - 1]} (${dates.length} days, ${MEASURE_IDS.size} target measures)`);
+  console.log(`Date range: ${dates[0]} .. ${dates[dates.length - 1]} (${dates.length} days, ${PREFIX_TO_CANONICAL.size} target measures)`);
 
   for (let i = 0; i < dates.length; i++) {
     const day = dates[i];
-    const existing = hasDayStmt.get(day);
+    const existing = !opts.force && hasDayStmt.get(day);
     if (existing) {
       skipped++;
       continue;

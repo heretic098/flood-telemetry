@@ -482,7 +482,7 @@ async function main() {
     const ib6 = w6 ? (1013.25 - w6.mslp) * 0.01 : 0;
     const persist = obs6 !== undefined ? 0.75 * (obs6 - predPub(t6) - ib6) + ib : ib;
     const lpSurge = getLowPassSurge(pt.ms, hinkleyMap, predPub, weatherMap, 6);
-    const windTerm = w ? windFit.slope * onshoreWindStress(w) : 0;
+    const windTerm = w && windFit.n >= 20 ? windFit.slope * onshoreWindStress(w) : 0;
 
     pubErrs.push(pt.value - astro);
     pubPersistErrs.push(pt.value - (astro + persist));
@@ -519,6 +519,10 @@ async function main() {
   console.log(`Test HW Peak MAE (Published Astro): ${(mae(pubHwErrs) * 100).toFixed(1)} cm | (6h Persist): ${(mae(pubHwPersistErrs) * 100).toFixed(1)} cm | (25h Low-Pass + IB): ${(mae(pubHwLowPassErrs) * 100).toFixed(1)} cm`);
 
   console.log('\n=== PART 2: HINKLEY (52106) -> DUNBALL (52163) & TIDE-LOCK WINDOW ===');
+  if (!dunball.length) {
+    console.log('No Dunball (52163) rows in selected DB; skipping Parts 2, 2B, and 3.');
+    return;
+  }
   const overlapStart = Math.max(hinkley[0].ms, dunball[0].ms);
   const overlapEnd = Math.min(hinkley[hinkley.length - 1].ms, dunball[dunball.length - 1].ms);
   const overlapSplit = overlapStart + (overlapEnd - overlapStart) * 0.5;
@@ -715,7 +719,11 @@ async function main() {
     }
   }
 
-  console.log(`Regime 1 (Dunball <= Hookbridge, n=${regime1Backups.length} tides): observed backup mean=${(regime1Backups.reduce((a, b) => a + b, 0) / regime1Backups.length * 100).toFixed(1)} cm (max=${(Math.max(...regime1Backups) * 100).toFixed(1)} cm)`);
+  console.log(`Regime 1 (Dunball <= Hookbridge, n=${regime1Backups.length} tides): observed backup mean=${regime1Backups.length ? (regime1Backups.reduce((a, b) => a + b, 0) / regime1Backups.length * 100).toFixed(1) : 'n/a'} cm (max=${regime1Backups.length ? (Math.max(...regime1Backups) * 100).toFixed(1) : 'n/a'} cm)`);
+  if (!regime2Rows.length) {
+    console.log('Regime 2 (Dunball > Hookbridge +0.3m, n=0 tides): no upriver surge-over-river events in this window.');
+    return;
+  }
   const meanRatio = regime2Ratios.reduce((a, b) => a + b, 0) / regime2Ratios.length;
   console.log(`Regime 2 (Dunball > Hookbridge +0.3m, n=${regime2Ratios.length} tides):`);
   console.log(`  Transfer ratio (rise / headDiff): mean=${meanRatio.toFixed(3)} (min=${Math.min(...regime2Ratios).toFixed(3)}, max=${Math.max(...regime2Ratios).toFixed(3)})`);
