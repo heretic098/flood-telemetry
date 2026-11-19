@@ -14,9 +14,13 @@ import Database from 'better-sqlite3';
 
 const CACHE_PATH = '/tmp/tidal_poc_cache.json';
 const dbArg = process.argv.find(a => a.startsWith('--db='));
+const mergeDbArg = process.argv.find(a => a.startsWith('--merge-db='));
+const trainFracArg = process.argv.find(a => a.startsWith('--train-frac='));
 const DB_PATH = dbArg
   ? dbArg.slice(5)
   : process.env.POC_DB_PATH || new URL('../telemetry.db', import.meta.url).pathname;
+const MERGE_DB_PATH = mergeDbArg ? mergeDbArg.slice(11) : null;
+const TRAIN_FRAC = trainFracArg ? Math.min(0.85, Math.max(0.2, Number(trainFracArg.slice(13)) || 0.5)) : 0.5;
 
 // Published multi-year Hinkley Point harmonic constants (Liverpool / Cardiff / NTSLF)
 const PUBLISHED_HINKLEY = [
@@ -87,6 +91,17 @@ const CONSTITUENTS_45D = [
   { name: 'MS4', speedDegPerHr: 58.9841042 },
   { name: 'MN4', speedDegPerHr: 57.4238337 }
 ];
+// K2 (30.082 deg/h vs S2 30.000 deg/h) and P1 (14.959 deg/h vs K1 15.041 deg/h) both have a 182.6d Rayleigh beat period.
+const CONSTITUENTS_183D = [
+  ...CONSTITUENTS_45D,
+  { name: 'K2', speedDegPerHr: 30.0821373 },
+  { name: 'P1', speedDegPerHr: 14.9589314 }
+];
+function selectConstituents(trainDays) {
+  if (trainDays >= 183) return CONSTITUENTS_183D;
+  if (trainDays >= 28) return CONSTITUENTS_45D;
+  return CONSTITUENTS_14D;
+}
 const CONSTITUENTS = CONSTITUENTS_14D;
 
 // Causal 25-hour (two tidal cycles) low-pass residual surge at `leadHrs` before `ms`.
@@ -284,7 +299,7 @@ async function loadExternalData() {
 function loadSqliteSeries(db, measureId) {
   return db
     .prepare(
-      `SELECT date_time, value FROM historical_telemetry WHERE measure_id = ? AND value IS NOT NULL ORDER BY date_time ASC`
+      `SELECT date_time, value FROM historical_telemetry WHERE measure_id = ? AND value IS NOT NULL AND value > -10 AND value < 20 ORDER BY date_time ASC`
     )
     .all(measureId)
     .map(r => ({
@@ -292,6 +307,32 @@ function loadSqliteSeries(db, measureId) {
       ms: toNearest15Min(new Date(r.date_time).getTime()),
       value: Number(r.value)
     }));
+}
+
+// Drop UTC days where a macro-tidal gauge is clearly stuck/flatlined (daily range < 1.0m or daily min > 2.5 mAOD)
+function filterStuckTidalDays(series, label) {
+  const byDay = new Map();
+  for (const pt of series) {
+    const d = new Date(pt.ms).toISOString().slice(0, 10);
+    let stat = byDay.get(d);
+    if (!stat) {
+      stat = { min: pt.value, max: pt.value, count: 0 };
+      byDay.set(d, stat);
+    }
+    if (pt.value < stat.min) stat.min = pt.value;
+    if (pt.value > stat.max) stat.max = pt.value;
+    stat.count++;
+  }
+  const badDays = new Set();
+  for (const [d, s] of byDay) {
+    if (s.count >= 12 && (s.max - s.min < 1.0 || s.min > 2.5)) {
+      badDays.add(d);
+    }
+  }
+  if (badDays.size > 0) {
+    console.log(`[QC] Excluded ${badDays.size} stuck/anomalous tidal days from ${label} (e.g. ${[...badDays].slice(0, 3).join(', ')})`);
+  }
+  return series.filter(pt => !badDays.has(new Date(pt.ms).toISOString().slice(0, 10)));
 }
 
 function interpWeather(weatherMap, ms) {
@@ -322,6 +363,12 @@ function extractTideLockIntervals(seaSeries, getThreshold, deadband = 0.03) {
   for (const pt of seaSeries) {
     const thresh = getThreshold(pt.ms);
     if (thresh === null) continue;
+    if (locked && prev !== null && pt.ms - prev.ms > 60 * 60000) {
+      // Do not bridge an open tide-lock interval across a >1h sensor/data gap
+      locked = false;
+      startMs = null;
+      maxSea = -Infinity;
+    }
     const canInterp = prev !== null && pt.ms - prev.ms > 0 && pt.ms - prev.ms <= 30 * 60000;
 
     if (!locked) {
@@ -375,12 +422,17 @@ function fmtDate(ms) {
 async function main() {
   const { hinkley: hinkleyExt, weather } = await loadExternalData();
   const db = new Database(DB_PATH, { readonly: true });
+  const mergeDb = MERGE_DB_PATH ? new Database(MERGE_DB_PATH, { readonly: true }) : null;
+  const loadSeries = id => {
+    const primary = loadSqliteSeries(db, id);
+    return mergeDb ? mergeSeriesByMs(primary, loadSqliteSeries(mergeDb, id)) : primary;
+  };
 
-  const hinkleyDb = loadSqliteSeries(db, '52106-level-tidal_level-i-15_min-mAOD');
-  const hinkley = mergeSeriesByMs(hinkleyExt, hinkleyDb);
-  const dunball = loadSqliteSeries(db, '52163-level-tidal_level-i-15_min-mAOD');
-  const ksdInland = loadSqliteSeries(db, 'E9094-level-stage-i-15_min-mAOD');
-  const hookbridge = loadSqliteSeries(db, '52118-level-stage-i-15_min-mAOD');
+  const hinkleyDb = loadSeries('52106-level-tidal_level-i-15_min-mAOD');
+  const hinkley = filterStuckTidalDays(mergeSeriesByMs(hinkleyExt, hinkleyDb), '52106');
+  const dunball = filterStuckTidalDays(loadSeries('52163-level-tidal_level-i-15_min-mAOD'), '52163');
+  const ksdInland = loadSeries('E9094-level-stage-i-15_min-mAOD');
+  const hookbridge = loadSeries('52118-level-stage-i-15_min-mAOD');
 
   const hinkleyMap = new Map(hinkley.map(p => [p.ms, p.value]));
   const dunballMap = new Map(dunball.map(p => [p.ms, p.value]));
@@ -389,11 +441,11 @@ async function main() {
   const weatherMap = new Map(weather.map(w => [w.ms, w]));
 
   console.log('\n=== PART 1: HINKLEY POINT (52106) ASTRONOMICAL + SURGE BASELINE ===');
-  const splitMs = hinkley[Math.floor(hinkley.length / 2)].ms;
+  const splitMs = hinkley[Math.floor(hinkley.length * TRAIN_FRAC)].ms;
   const hTrain = hinkley.filter(p => p.ms < splitMs);
   const hTest = hinkley.filter(p => p.ms >= splitMs);
   const hTrainDays = (hTrain[hTrain.length - 1].ms - hTrain[0].ms) / 86400000;
-  const model = fitHarmonics(hTrain, hTrain[0].ms, hTrainDays >= 28 ? CONSTITUENTS_45D : CONSTITUENTS_14D);
+  const model = fitHarmonics(hTrain, hTrain[0].ms, selectConstituents(hTrainDays));
 
   console.log(`Train: ${hTrain.length} pts (${fmtDate(hTrain[0].ms)} - ${fmtDate(splitMs)}) | Out-of-sample Test: ${hTest.length} pts (${fmtDate(splitMs)} - ${fmtDate(hTest[hTest.length - 1].ms)})`);
   console.log(
@@ -638,17 +690,21 @@ async function main() {
     peakErrsCm.push((pred.maxSea - act.maxSea) * 100);
   }
 
-  console.log(`Out-of-sample Tide-Lock Test (Nov 1-10, ${closeErrsMin.length}/${actualLocks.length} cycles matched):`);
+  const testStartLabel = actualLocks.length ? fmtDate(actualLocks[0].startMs) : 'N/A';
+  const testEndLabel = actualLocks.length ? fmtDate(actualLocks[actualLocks.length - 1].endMs) : 'N/A';
+  console.log(`Out-of-sample Tide-Lock Test (${testStartLabel} - ${testEndLabel}, ${closeErrsMin.length}/${actualLocks.length} cycles matched):`);
   console.log(`  t_close MAE: ${mae(closeErrsMin).toFixed(1)} min (mean bias: ${(closeErrsMin.reduce((a, b) => a + b, 0) / closeErrsMin.length).toFixed(1)} min)`);
   console.log(`  t_open  MAE: ${mae(openErrsMin).toFixed(1)} min (mean bias: ${(openErrsMin.reduce((a, b) => a + b, 0) / openErrsMin.length).toFixed(1)} min)`);
   console.log(`  Duration MAE: ${mae(durErrsMin).toFixed(1)} min | Dunball Peak MAE: ${mae(peakErrsCm).toFixed(1)} cm`);
 
-  console.log('\n=== PART 2B: 90-DAY DUNBALL (52163) DIRECT HARMONIC BENCHMARK ===');
-  // 45d train separates M2 & N2 (27.55d beat) + captures local M4/MS4/MN4 overtides above river floor (>=1.8 mAOD)
-  const dSplit90 = dunball[Math.floor(dunball.length / 2)].ms;
+  const dunTotalDays = Math.round((dunball[dunball.length - 1].ms - dunball[0].ms) / 86400000);
+  console.log(`\n=== PART 2B: ${dunTotalDays}-DAY DUNBALL (52163) DIRECT HARMONIC BENCHMARK ===`);
+  const dSplit90 = dunball[Math.floor(dunball.length * TRAIN_FRAC)].ms;
   const dTrain90 = dunball.filter(p => p.ms < dSplit90 && p.value >= 1.8);
   const dTest90 = dunball.filter(p => p.ms >= dSplit90);
-  const dModel90 = fitHarmonics(dTrain90, dTrain90[0].ms, CONSTITUENTS_45D);
+  const dTrain90Days = (dTrain90[dTrain90.length - 1].ms - dTrain90[0].ms) / 86400000;
+  const dModel90 = fitHarmonics(dTrain90, dTrain90[0].ms, selectConstituents(dTrain90Days));
+  console.log(`Train: ${fmtDate(dTrain90[0].ms)} - ${fmtDate(dSplit90)} (${dTrain90Days.toFixed(1)}d, ${dModel90.constituents.length} constituents) | Test: ${fmtDate(dSplit90)} - ${fmtDate(dTest90[dTest90.length - 1].ms)}`);
   const predDun90 = ms => dModel90.predict(ms);
 
   const actualLocks90 = extractTideLockIntervals(dTest90, ms => ksdMap.get(ms) ?? null, 0.03);

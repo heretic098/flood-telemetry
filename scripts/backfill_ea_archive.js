@@ -114,6 +114,9 @@ function initDb(dbPath) {
 async function fetchAndFilterDay(day) {
   const url = `https://environment.data.gov.uk/flood-monitoring/archive/readings-${day}.csv`;
   const res = await fetch(url);
+  if (res.status === 404) {
+    return { rows: [], totalLines: 0, missing: true };
+  }
   if (!res.ok) {
     throw new Error(`HTTP ${res.status} for ${url}`);
   }
@@ -186,12 +189,16 @@ async function main() {
     }
 
     const t0 = Date.now();
-    const { rows, totalLines } = await fetchAndFilterDay(day);
+    const { rows, totalLines, missing } = await fetchAndFilterDay(day);
     commitDayTx(day, rows, totalLines);
     const elapsedSec = ((Date.now() - t0) / 1000).toFixed(1);
     fetched++;
     insertedTotal += rows.length;
-    console.log(`[${i + 1}/${dates.length}] ${day}: kept ${rows.length} / ${totalLines} rows (${elapsedSec}s)`);
+    if (missing) {
+      console.log(`[${i + 1}/${dates.length}] ${day}: HTTP 404 (not published in EA archive), recorded as 0 rows (${elapsedSec}s)`);
+    } else {
+      console.log(`[${i + 1}/${dates.length}] ${day}: kept ${rows.length} / ${totalLines} rows (${elapsedSec}s)`);
+    }
 
     if (opts.delayMs > 0 && i + 1 < dates.length) {
       await new Promise(r => setTimeout(r, opts.delayMs));
