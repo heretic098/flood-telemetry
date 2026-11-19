@@ -14,6 +14,11 @@ import {
   formatEAWarningTimestamp
 } from '../src/js/modules/ea_warnings_panel.js';
 import { createMoorCard, createMoorFallbackCard } from '../src/js/app.js';
+import Database from 'better-sqlite3';
+import { runMigrations } from '../src/js/db_migrations.js';
+import { getEAWarnings } from '../src/js/ea_warning_manager.js';
+import { validateApiWarningsPayload } from '../src/js/contracts/ea_warnings_schema.js';
+import { EA_FLOOD_AREA_CATALOG } from '../src/js/hydro_engine.js';
 
 function setupMinimalDom() {
   const elementsById = new Map();
@@ -31,6 +36,7 @@ function setupMinimalDom() {
         add: (c) => { if (!this.className.split(/\s+/).includes(c)) this.className = `${this.className} ${c}`.trim(); },
         remove: (c) => { this.className = this.className.split(/\s+/).filter(x => x !== c).join(' '); }
       };
+      this.isConnected = true;
       this.showModal = () => { this.open = true; };
       this.close = () => { this.open = false; };
       if (id) elementsById.set(id, this);
@@ -272,4 +278,63 @@ test('initEAWarningsDialog clears trigger focus on card jump and openEAWarningsD
     globalThis.fetch = originalFetch;
     resetEAWarningsDialogForTests();
   }
+});
+
+test('every EA_FLOOD_AREA_CATALOG area is mapped to at least one dashboard card [Issue #55]', () => {
+  const mapped = new Set(Object.values(DASHBOARD_CARD_EA_AREAS).flatMap(c => c.targetAreas));
+  for (const notation of Object.keys(EA_FLOOD_AREA_CATALOG)) {
+    assert.ok(mapped.has(notation), `${notation} must map to a dashboard card`);
+  }
+});
+
+test('openEAWarningsDialog shows .open, renders real API narrative once-escaped, and close removes .open', async () => {
+  resetEAWarningsDialogForTests();
+  const db = new Database(':memory:');
+  runMigrations(db);
+  const rawNarrative = `Levels at Burrowbridge & "Stathe" are rising <img src=x onerror=alert(1)> don't drive.`;
+  db.prepare(`
+    INSERT INTO ea_warning_events (
+      warning_id, target_area_notation, area_name, severity_level, severity_label,
+      time_raised, narrative, trigger_snapshot_json, status
+    ) VALUES ('W-UI-1', '112FWFCUR10A', 'Curry Moor and Hay Moor', 2, 'Flood Warning',
+      '2026-11-08T10:00:00Z', ?, '{}', 'ACTIVE')
+  `).run(rawNarrative);
+  const warnings = getEAWarnings(db, { status: 'ACTIVE' });
+  db.close();
+  const payload = { status: 'ok', count: warnings.length, warnings };
+  assert.equal(validateApiWarningsPayload(payload).valid, true);
+  assert.equal(warnings[0].narrative, rawNarrative, 'API narrative must be raw text');
+
+  const { MockEl } = setupMinimalDom();
+  const listeners = new Map();
+  const dialog = new MockEl('dialog', 'ea-warnings-dialog');
+  dialog.addEventListener = (type, fn) => listeners.set(type, fn);
+  const bodyEl = new MockEl('div', 'ea-warnings-modal-body');
+  new MockEl('button', 'ea-warnings-close');
+  const trigger = new MockEl('button', 'ea-warning-banner-btn');
+  let focused = 0;
+  trigger.focus = () => { focused++; };
+  initEAWarningsDialog(new MockEl('main', 'cards-container'));
+
+  await openEAWarningsDialog({ triggerEl: trigger, preloadedWarnings: payload.warnings });
+  assert.equal(dialog.open, true);
+  assert.ok(dialog.className.split(/\s+/).includes('open'), 'dialog must carry .open (CSS hides .sys-health-backdrop:not(.open))');
+  assert.ok(bodyEl.innerHTML.includes('Burrowbridge &amp; &quot;Stathe&quot; are rising &lt;img'), 'narrative escaped exactly once');
+  assert.ok(!bodyEl.innerHTML.includes('&amp;amp;'), 'no double-escaping');
+  assert.ok(!bodyEl.innerHTML.includes('<img src=x'));
+  assert.ok(!bodyEl.innerHTML.includes('No additional briefing text'));
+
+  // Native close (Esc key path) removes .open and restores focus to a connected trigger
+  dialog.open = false;
+  listeners.get('close')();
+  assert.ok(!dialog.className.split(/\s+/).includes('open'));
+  assert.equal(focused, 1);
+
+  // Detached trigger must not be focused
+  await openEAWarningsDialog({ triggerEl: trigger, preloadedWarnings: [] });
+  trigger.isConnected = false;
+  dialog.open = false;
+  listeners.get('close')();
+  assert.equal(focused, 1);
+  resetEAWarningsDialogForTests();
 });

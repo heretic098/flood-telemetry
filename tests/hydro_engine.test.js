@@ -222,3 +222,23 @@ test('evaluateMidelney evaluates gravity discharge vs head-locked pumping and FS
   assert.equal(alert.isAlert, true);
 });
 
+test('evaluateSowyChannel guards NaN and non-finite inputs so it never emits NaNm', () => {
+  const nanUp = evaluateSowyChannel(NaN, 6.72);
+  assert.equal(nanUp.status, 'CLOSED');
+  assert.equal(nanUp.code, 'CLOSED');
+  assert.equal(nanUp.isDownstreamHealthy, false);
+  assert.equal(nanUp.deltaH, null);
+  assert.ok(!JSON.stringify(nanUp).includes('NaN'), 'evaluateSowyChannel(NaN, 6.72) must never emit NaN in any field');
+
+  const nanDown = evaluateSowyChannel(7.30, NaN);
+  assert.equal(nanDown.status, 'DIVERTING');
+  assert.equal(nanDown.isDownstreamHealthy, false);
+  assert.equal(nanDown.deltaH, null);
+  assert.ok(!JSON.stringify(nanDown).includes('NaN'), 'evaluateSowyChannel(7.30, NaN) must never emit NaN in any field');
+
+  const nanTrigger = evaluateSowyChannel(NaN, NaN, NaN, { sillM: NaN, minDeltaH: NaN, sowyCapM: NaN });
+  assert.equal(nanTrigger.status, 'CLOSED');
+  assert.ok(!JSON.stringify(nanTrigger).includes('NaN'), 'evaluateSowyChannel with all-NaN args must never emit NaN');
+});
+
+

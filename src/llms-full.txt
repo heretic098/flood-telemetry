@@ -76,12 +76,12 @@ Road corridor passability is evaluated by comparing real-time water levels from 
    - Pre-spill Warning Band: `7.65m AOD`
    - Behavior: When the River Parrett at Burrowbridge (52158) exceeds 7.80m AOD, water spills over the reinforced embankment into the Northmoor and Salt Moor storage basin.
 
-3. **Beer Wall Box Culverts, Tilting Weirs & Beazeley Spillway (Sowy Relief Channel → King's Sedgemoor Drain):**
+3. **Beer Wall Box Culverts & Tilting Weirs (Sowy Relief Channel → King's Sedgemoor Drain):**
    - Driving Station: `52157` (Beerwall Upstream at Greylake)
    - 4-Tier Hydraulic Elevation Profile:
      - `4.20m AOD`: In-channel Sowy high-water alert envelope (`stageScale.typicalRangeHigh` = 4.16m AOD).
      - `6.00m AOD`: Sowy Spur & Lang Acre tilting weirs active conveyance threshold into King's Sedgemoor Drain (KSD).
-     - `7.30m AOD`: Surveyed 4-bay A372 concrete box culverts & Beazeley Spillway embankment relief threshold (`pre_spill_elevation_mAOD` = 7.15m AOD).
+     - `7.30m AOD`: Surveyed 4-bay A372 concrete box culverts relief threshold (`pre_spill_elevation_mAOD` = 7.15m AOD; adjacent Beazeley Spillway grassed embankment crest is unsurveyed — `⚠️ Pending EA Asset Survey`, `crest_elevation_mAOD: null`).
      - `>8.00m AOD`: Raised A372 highway carriageway crown (decoupled from the 7.30m culvert relief threshold; pending as-built highways survey).
 
 ---
@@ -107,35 +107,28 @@ The Environment Agency and Somerset Drainage Boards Consortium operate high-capa
 
 ### Wet Moor Polder Basin (52120 / 52153)
 - **Basin Bed Floor:** `5.80m AOD` (Huish Episcopi & Midelney drainage floor)
-- **Winter Duty Pumping:** `6.75m AOD` (Huish Episcopi PS winter duty pumps online)
-- **Summer Duty Pumping:** `6.90m AOD` (Summer penning regime)
-- **Mobile Pumps Ordered:** `7.30m AOD` (Muchelney spine road caution stage)
-- **Mobile Pumps Active:** `7.86m AOD` (Muchelney spine road crown submergence stage)
-- **Critical Risk Stage:** `8.20m AOD` (River Yeo high head cut-off & reverse locking)
+- **Winter Fixed Pumps:** `6.30m AOD` (Lead) / `6.75m AOD` (Duty) (EA Huish Episcopi PS Winter Operating Rules)
+- **Summer Fixed Pumps:** `6.70m AOD` (Lead) / `6.90m AOD` (Duty) (EA Summer Penning Operating Rules)
+- **Receiving River Cut-off Lock:** `8.20m AOD` (Huish Episcopi permanent pumps automatically lock out when River Yeo reaches 8.20m AOD to protect River Parrett)
+- **Mobile Pump Triggers:** `null` (`UNSURVEYED` — unpublished in primary public records; decoupled from the 7.30m/7.86m AOD Muchelney Spine Road breach/crown thresholds)
 
-### West Sedgemoor Polder Basin (52233 / 52119)
+### West Sedgemoor Polder Basin (Sump 52155 Ingest-Only)
 - **Basin Bed Floor:** `3.60m AOD` (SSSI wet grassland polder floor)
-- **Winter Duty Pumping:** `7.00m AOD` (Winter low-water drainage retention)
-- **Summer Duty Pumping:** `7.10m AOD` (SSSI conservation high-penning regime)
-- **Mobile Pumps Ordered:** `7.35m AOD` (High moor water accumulation)
-- **Mobile Pumps Active:** `7.60m AOD` (Multi-pump deployment online)
-- **Critical Risk Stage:** `7.90m AOD` (SSSI boundary levee overspill threat)
+- **Survey Status:** `UNSURVEYED` (`⚠️ Pending EA Asset Survey`)
+- **Telemetry & Alert Status:** Decoupled from River Parrett (`52233`). Dedicated sump sensor (`52155-level-sump_level-i-15_min-mAOD`, baseflow ~4.63m AOD) is ingest-only; automated polder pump and rapid inrush alerts are disabled (`null`) until primary EA Trigger Point Plan thresholds for `52155` are verified.
 
 ### Stanmoor Polder Basin (52127 / 52118)
 - **Basin Bed Floor:** `2.10m AOD` (Tone confluence flank moor floor)
-- **Winter Duty Pumping:** `4.55m AOD` (Stanmoor Pumping Station winter duty)
-- **Summer Duty Pumping:** `4.90m AOD` (Summer penning level)
+- **Winter Fixed Pumps:** `4.10m AOD` (Lead) / `4.55m AOD` (Duty) (EA Trigger Point Plan — Curry Moor & Stanmoor Chapter)
+- **Summer Fixed Pumps:** `4.70m AOD` (Lead) / `4.90m AOD` (Duty) (Summer penning level)
 - **Mobile Pumps Ordered:** `5.80m AOD` (Tone backwater protection triggers)
 - **Mobile Pumps Active:** `6.10m AOD` (Mobile pumping active)
 - **Critical Risk Stage:** `7.35m AOD` (Athelney cascade overtopping elevation)
 
-### Westonzoyland Polder Basin (52159 / 52157)
+### Westonzoyland Polder Basin (Engine Rhyne)
 - **Basin Bed Floor:** `1.80m AOD` (Engine Rhyne & Northmoor flank floor)
-- **Winter Duty Pumping:** `3.75m AOD` (Westonzoyland PS winter duty pumps online)
-- **Summer Duty Pumping:** `4.25m AOD` (Summer penning regime)
-- **Mobile Pumps Ordered:** `4.80m AOD` (EA mobilizes mobile high-volume pumps)
-- **Mobile Pumps Active:** `5.20m AOD` (Emergency pumping operational)
-- **Critical Risk Stage:** `5.60m AOD` (Internal road submergence across Moorland and Westonzoyland flank)
+- **Survey Status:** `UNSURVEYED` (`⚠️ Pending EA Asset Survey`)
+- **Telemetry & Alert Status:** No dedicated EA telemetry sensor or published EA Trigger Point Plan thresholds exist in primary records; Northmoor (`52159`) is location context only, and automated polder pump alerts are disabled (`null`).
 
 ---
 
@@ -149,7 +142,7 @@ The Environment Agency and Somerset Drainage Boards Consortium operate high-capa
   1. River Parrett stage at 52233 >= 7.20m AOD.
   2. Upstream head exceeds downstream head (Δh = `h_up - h_down` >= `0.05m`).
 - **Downstream Stilling-Well Ponding & Wave Verification:** When Monk's Leaze Clyse is shut, the downstream stilling well at 52234 frequently ponds at a static flatline (~6.72m AOD). When 52234 is flagged flatlined while 52233 >= 7.20m AOD, active Sowy conveyance is cross-verified against downstream wave arrival (`dh/dt >= +0.02m/h`) at Beer Wall Upstream (`52157`).
-- **Allermoor Spillway & Tributary Pump Curtailment:** Adjacent to Monk's Leaze Clyse sits the un-gated Allermoor Spillway bankfull overflow levee (assumed to spill at about the same Parrett stage as Beasley's Spillway at `7.50m AOD`, EA Somerset Levels guidance; `7.35m AOD` pre-spill alert; Allermoor's own crest level is not published). When floodwater runs over Allermoor Spillway into the Sowy intake embayment, EA protocol closes Monk's Leaze Clyse and curtails upstream tributary pumping at Huish Episcopi, Midelney, and Long Load.
+- **Allermoor Spillway & Tributary Pump Curtailment:** Adjacent to Monk's Leaze Clyse sits the un-gated Allermoor Spillway bankfull overflow levee (`crest_elevation_mAOD: null`, `survey_tier: 'UNSURVEYED' — ⚠️ Pending EA Asset Survey`, automated `OVERTOPPING` event generation disabled; EA Somerset Levels operational guidance notes it operates at approximately the same Parrett stage as Beasley's Spillway at `~7.50m AOD` proxy because Allermoor's own crest level is not published). When floodwater runs over Allermoor Spillway into the Sowy intake embayment, EA protocol closes Monk's Leaze Clyse and curtails upstream tributary pumping at Huish Episcopi, Midelney, and Long Load.
 - **Oath Lock Penning Sluice:** Twin radial gates on the River Parrett at Oath Lock inferred from Monk's Leaze differential head (`Δh >= 0.30m` Penning / Forcing Sowy; `0.05m <= Δh < 0.30m` Gravity Passing; `Δh < 0.05m` Equilibrium).
 - **Throttling / Lock:** If downstream Sowy stage approaches `7.60m AOD`, diversion is throttled to prevent bank breaches along the Sowy channel.
 

@@ -8,15 +8,15 @@ import { escapeHTML, escapeAttr } from './dom_utils.js';
 export const DASHBOARD_CARD_EA_AREAS = Object.freeze({
   'card-52118': Object.freeze({
     title: 'Curry Moor System',
-    targetAreas: Object.freeze(['112FWFCUR10A', '112WAFTPM'])
+    targetAreas: Object.freeze(['112FWFCUR10A', '112FWFTON30A', '112WAFTPM'])
   }),
   'card-52127': Object.freeze({
     title: 'Athelney Spillway (Inter-Moor Relief)',
-    targetAreas: Object.freeze(['112FWFEAS10A', '112FWFSTA10A', '112WAFTPM'])
+    targetAreas: Object.freeze(['112FWFEAS10A', '112FWFSTA10A', '112WAFTPM', '112WAFYPL'])
   }),
   'card-52158': Object.freeze({
     title: 'Northmoor & Saltmoor',
-    targetAreas: Object.freeze(['112FWFSAL10A', '112WAFTPM'])
+    targetAreas: Object.freeze(['112FWFSAL10A', '112FWTBRI03', '112WAFTPM', '112WAFYPL'])
   }),
   'card-52233': Object.freeze({
     title: 'Sowy Relief Channel',
@@ -24,11 +24,11 @@ export const DASHBOARD_CARD_EA_AREAS = Object.freeze({
   }),
   'card-52163': Object.freeze({
     title: 'Dunball Sea Outfall',
-    targetAreas: Object.freeze(['112WAFBCR'])
+    targetAreas: Object.freeze(['112FWTCOM02', '112WAFBCR'])
   }),
   'card-52120': Object.freeze({
     title: 'Langport Confluence & Tributaries',
-    targetAreas: Object.freeze(['112FWFMTM10A', '112WAFYPM', '112WAFYPY'])
+    targetAreas: Object.freeze(['112FWFMTM10A', '112FWFPAR20A', '112FWFPAR30A', '112WAFYPM', '112WAFYPY'])
   })
 });
 
@@ -198,9 +198,10 @@ function closeEAWarningsDialog(dialog) {
   if (!dialog) return;
   if (typeof dialog.close === 'function' && dialog.open) {
     dialog.close();
-  } else {
-    dialog.classList.remove('open');
   }
+  // .sys-health-backdrop only displays when .open is present; the native
+  // 'close' event also removes it (Esc key path).
+  dialog.classList.remove('open');
 }
 
 function renderEAWarningsBody(bodyEl, warnings = [], filterArea = null) {
@@ -270,7 +271,7 @@ function renderEAWarningsBody(bodyEl, warnings = [], filterArea = null) {
         </dl>
         <div class="ea-warning-verbatim-wrap">
           <span class="ea-verbatim-label">Verbatim EA Briefing Message</span>
-          <p class="ea-warning-verbatim">${escapeHTML(w.message || 'No additional briefing text issued by the Environment Agency.')}</p>
+          <p class="ea-warning-verbatim">${escapeHTML(w.narrative || w.message || 'No additional briefing text issued by the Environment Agency.')}</p>
         </div>
         ${(cardChipsHtml || roadChipsHtml) ? `
           <div class="ea-warning-links-row" aria-label="Affected Catchment Cards and Road Corridors">
@@ -304,11 +305,12 @@ export async function openEAWarningsDialog(opts = {}) {
     activeFetchController = null;
   }
 
-  if (typeof dialog.showModal === 'function') {
-    if (!dialog.open) dialog.showModal();
-  } else {
-    dialog.classList.add('open');
+  // .sys-health-backdrop:not(.open) is display:none, so .open is required in
+  // addition to the native modal top-layer.
+  if (typeof dialog.showModal === 'function' && !dialog.open) {
+    dialog.showModal();
   }
+  dialog.classList.add('open');
 
   if (Array.isArray(opts.preloadedWarnings)) {
     renderEAWarningsBody(bodyEl, opts.preloadedWarnings, opts.filterArea || null);
@@ -396,8 +398,10 @@ export function initEAWarningsDialog(cardsContainer = null) {
     });
 
     dialog.addEventListener('close', () => {
-      if (lastTriggerElement && typeof lastTriggerElement.focus === 'function') {
-        lastTriggerElement.focus();
+      dialog.classList.remove('open');
+      const trigger = lastTriggerElement;
+      if (trigger && trigger.isConnected !== false && typeof trigger.focus === 'function') {
+        trigger.focus();
       }
     });
   }

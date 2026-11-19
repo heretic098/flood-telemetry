@@ -341,7 +341,7 @@ test('Issue #54 Dashboard: on-demand only (no auto-load), click loads frame via 
 
     const img = panel.querySelector('img.staff-gauge-frame');
     assert.ok(img, 'Loaded frame image must be rendered');
-    assert.equal(img.src, '/api/staff-gauge-cameras/monks_leaze_clyse/latest.jpg');
+    assert.match(img.src, /^\/api\/staff-gauge-cameras\/monks_leaze_clyse\/latest\.jpg\?t=/, 'frame URL carries a capture-time cache-buster');
 
     // Simulate 60s refresh: container.innerHTML = '' and re-render card
     container.innerHTML = '';
@@ -376,4 +376,65 @@ test('Issue #54 Dashboard CSS: .staff-gauge-load reuses palette and enforces >= 
   assert.ok(match, '.staff-gauge-load CSS rule must exist');
   assert.match(match[0], /min-height:\s*44px/);
   assert.match(match[0], /min-width:\s*44px/);
+});
+
+test('Issue #54 loadFrame: silent refresh keeps the frame on transient errors, guards bad age, and ignores out-of-order responses', async () => {
+  const origDoc = globalThis.document;
+  const origFetch = globalThis.fetch;
+  const dom = createMiniDom();
+  globalThis.document = dom;
+  const entry = STAFF_GAUGE_CAMERA_MAP.monks_leaze_clyse;
+  const body = dom.createElement('div');
+  const capturedAt = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+  const okPayload = (extra = {}) => ({
+    ok: true,
+    json: async () => ({
+      status: 'ok',
+      captured_at: capturedAt,
+      age_minutes: 5,
+      image_url: '/api/staff-gauge-cameras/monks_leaze_clyse/latest.jpg',
+      ...extra
+    })
+  });
+  try {
+    globalThis.fetch = async () => okPayload();
+    await loadFrame(entry, body);
+    const img = body.querySelector('img.staff-gauge-frame');
+    assert.ok(img);
+    assert.equal(img.src, `/api/staff-gauge-cameras/monks_leaze_clyse/latest.jpg?t=${encodeURIComponent(capturedAt)}`);
+
+    // Transient network failure on a silent refresh: frame stays
+    globalThis.fetch = async () => { throw new Error('network'); };
+    await loadFrame(entry, body, { silent: true });
+    assert.strictEqual(body.querySelector('img.staff-gauge-frame'), img, 'existing <img> preserved');
+
+    // HTTP 503 on a silent refresh: frame stays
+    globalThis.fetch = async () => ({ ok: false, status: 503 });
+    await loadFrame(entry, body, { silent: true });
+    assert.strictEqual(body.querySelector('img.staff-gauge-frame'), img);
+
+    // Non-silent failure still reports the error
+    await loadFrame(entry, body);
+    assert.match(body.textContent, /No recent camera frame/);
+
+    // Non-finite age_minutes must not render "NaN"
+    globalThis.fetch = async () => okPayload({ age_minutes: null });
+    await loadFrame(entry, body);
+    assert.doesNotMatch(body.textContent, /NaN|null/);
+    assert.match(body.textContent, /age of this frame is unknown/i);
+
+    // Out-of-order: slow first response must not overwrite the newer one
+    let releaseSlow;
+    const slow = new Promise(r => { releaseSlow = r; });
+    globalThis.fetch = async () => { await slow; return okPayload({ captured_at: '2020-01-01T00:00:00.000Z', age_minutes: 1 }); };
+    const first = loadFrame(entry, body, { silent: true });
+    globalThis.fetch = async () => okPayload();
+    await loadFrame(entry, body, { silent: true });
+    releaseSlow();
+    await first;
+    assert.equal(body.querySelector('img.staff-gauge-frame').dataset.capturedAt, capturedAt);
+  } finally {
+    globalThis.document = origDoc;
+    globalThis.fetch = origFetch;
+  }
 });

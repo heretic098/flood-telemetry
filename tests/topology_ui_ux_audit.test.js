@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { JARGON_DEFINITIONS, renderJargonTerm } from '../src/js/jargon_popover.js';
-import { DEFAULT_TOPOLOGY_EDGES, TOPOLOGY_NETWORK_CONFIG } from '../src/js/hydro_engine.js';
+import { DEFAULT_TOPOLOGY_EDGES, TOPOLOGY_NETWORK_CONFIG, HYDRO_THRESHOLDS } from '../src/js/hydro_engine.js';
 import { resolveCandidateCamerasForAsset } from '../src/js/event_camera_correlator.js';
 import { CAMERA_CATALOG } from '../src/js/api/camera_buffer.js';
 
@@ -917,8 +917,9 @@ test('UI/UX Audit 6.7 (Issue #53): Sowy / KSD Control Chain Disambiguation, Beer
 
   // 2. Card 3 in app.js disambiguates Monk\'s Leaze Clyse, Allermoor Spillway, Oath Lock, Sowy Spur Tilting Weirs, and Beer Wall / Beazeley
   assert.ok(appJs.includes('Allermoor Spillway (Parrett ➔ Sowy)'), 'Card 3 must disambiguate Allermoor Spillway');
-  assert.ok(appJs.includes('OVERTOPPING (7.50m AOD • Upstream Pumps Curtailed)'), 'Card 3 must dynamically evaluate Allermoor Spillway against 7.50m AOD');
-  assert.ok(appJs.includes("(Proxy: Beasley's 7.50m)"), 'Card 3 must denote (Proxy: Beasley\'s 7.50m) badge');
+  assert.ok(!appJs.includes('OVERTOPPING (7.50m AOD'), '[RULE-THRESH-01] Card 3 must NOT declare Allermoor OVERTOPPING from the unsurveyed 7.50m proxy');
+  assert.ok(appJs.includes('Crest pending EA Asset Survey'), 'Card 3 must mark Allermoor crest as pending EA Asset Survey');
+  assert.ok(appJs.includes("(Proxy: Beasley's ${allermoorProxyText ?? '7.50'}m)"), 'Card 3 must denote (Proxy: Beasley\'s <proxy>m) badge');
   assert.ok(appJs.includes("Allermoor's own crest level is not published"), 'Card 3 tooltip must state Allermoor\'s own crest level is not published');
   assert.ok(appJs.includes('Sowy Spur &amp; Lang Acre Tilting Weirs (52157)'), 'Card 3 must disambiguate Sowy Spur & Lang Acre Tilting Weirs driven by 52157');
   assert.ok(appJs.includes('Beer Wall Culverts &amp; Beazeley Spillway (52157)'), 'Card 3 must include Beer Wall Culverts & Beazeley Spillway driven by 52157');
@@ -930,11 +931,13 @@ test('UI/UX Audit 6.7 (Issue #53): Sowy / KSD Control Chain Disambiguation, Beer
     'topology.js must render on-canvas edge badge for 52157 -> E9531'
   );
   assert.ok(
-    topologyJs.includes('Beer Wall 7.30m / Weirs 6.00m'),
-    'Dormant 52157 edge badge must display Beer Wall 7.30m / Weirs 6.00m'
+    topologyJs.includes('Beer Wall ${fmtM(T_BEER.CREST_MAOD)}m / Weirs ${fmtM(T_BEER.KSD_CONVEYANCE_MAOD)}m'),
+    'Dormant 52157 edge badge must display Beer Wall <crest>m / Weirs <conveyance>m from HYDRO_THRESHOLDS [RULE-SSOT-01]'
   );
+  assert.equal(HYDRO_THRESHOLDS['52157'].CREST_MAOD.toFixed(2), '7.30');
+  assert.equal(HYDRO_THRESHOLDS['52157'].KSD_CONVEYANCE_MAOD.toFixed(2), '6.00');
   assert.ok(
-    topologyJs.includes('🔵 Tilting Weirs Active 6.00m'),
+    topologyJs.includes('🔵 Tilting Weirs Active ${fmtM(T_BEER.KSD_CONVEYANCE_MAOD)}m'),
     'Active tilting weirs state (>=6.00m) must display 🔵 Tilting Weirs Active 6.00m'
   );
   assert.ok(
@@ -973,3 +976,40 @@ test('UI/UX Audit 6.7 (Issue #53): Sowy / KSD Control Chain Disambiguation, Beer
 
 
 
+
+test('UI/UX Audit (Issue #53 review): 52234 card is reachable while DIVERTING, Oath Lock is suppressed when 52234 is degraded, and 52233 events are priority-ordered', () => {
+  const topologyJs = fs.readFileSync(path.join(process.cwd(), 'src/js/topology.js'), 'utf8');
+  assert.match(topologyJs, /useControlStructureCard = isControlStructure && node\.id !== '52234'/);
+  assert.match(topologyJs, /else if \(useControlStructureCard\)/);
+  assert.match(topologyJs, /oathDegraded/);
+  assert.match(topologyJs, /'52233': \['monks_leaze_clyse', 'allermoor_spillway', 'west_sedgemoor'\]/);
+  assert.ok(!topologyJs.includes('hydro_engine.js?v='), 'topology.js must not import hydro_engine.js with a ?v= query (duplicate module load)');
+  const panelJs = fs.readFileSync(path.join(process.cwd(), 'src/js/modules/staff_gauge_panel.js'), 'utf8');
+  assert.ok(!panelJs.includes('?v=1.2.0'));
+});
+
+
+test('UI/UX Audit (Issue #59 review): THROTTLED / REVERSE_LOCK clyse nodes never render as SECURE; narratives avoid gate-position claims', async () => {
+  const { getNodeStatusVisual, getInspectorNarrative } = await import('../src/js/topology.js');
+  const throttled = getNodeStatusVisual({ id: '52233', node_type: 'clyse_gate', status: 'THROTTLED' });
+  assert.equal(throttled.label, 'THROTTLED');
+  assert.equal(throttled.badgeClass, 'badge-near-crest');
+  assert.equal(throttled.stroke, '#f59e0b');
+  assert.notEqual(throttled.symbol, '🟢');
+  const reverse = getNodeStatusVisual({ id: '52233', node_type: 'clyse_gate', status: 'REVERSE_LOCK' });
+  assert.equal(reverse.label, 'REVERSE LOCK');
+  assert.equal(reverse.badgeClass, 'badge-overtopping');
+  assert.equal(reverse.stroke, '#ef4444');
+  assert.equal(reverse.symbol, '🔴');
+
+  for (const status of ['THROTTLED', 'REVERSE_LOCK', 'DIVERTING']) {
+    const text = getInspectorNarrative({ id: '52233', node_type: 'clyse_gate', status }, 7.4, 7.9);
+    assert.ok(!text.startsWith('NOMINAL / SECURE'), `${status} must not use the SECURE narrative`);
+    assert.match(text, /inferred/i);
+    assert.doesNotMatch(text, /gates are raised/i);
+  }
+
+  const topologyJs = fs.readFileSync(path.join(process.cwd(), 'src/js/topology.js'), 'utf8');
+  assert.match(topologyJs, /downFreshness\.isOffline \|\| downFreshness\.isStale \|\| downFreshness\.isFlatlined/);
+  assert.ok(!topologyJs.includes("Assumed to spill at about the same Parrett stage"), 'Allermoor copy must not assume a crest');
+});

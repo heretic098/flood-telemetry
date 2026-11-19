@@ -297,44 +297,82 @@ export function estimateClyseFlow(h_up, h_down, z_sill = 4.20, B = 4.20, Cd = 0.
 }
 
 export function evaluateSowyChannel(h_up, h_down, thresholdTrigger = 7.20, options = {}) {
-  const sillM = options.sillM ?? 4.20;
-  const allermoorCrestM = options.allermoorCrestM ?? 7.50;
-  const allermoorPreSpillM = options.allermoorPreSpillM ?? 7.35;
+  const sillM = (typeof options.sillM === 'number' && Number.isFinite(options.sillM)) ? options.sillM : 4.20;
+  const cleanTrigger = (typeof thresholdTrigger === 'number' && Number.isFinite(thresholdTrigger)) ? thresholdTrigger : 7.20;
+  const allermoorProxyM = (typeof options.allermoorCrestM === 'number' && Number.isFinite(options.allermoorCrestM))
+    ? options.allermoorCrestM
+    : 7.50;
+  const isUpstreamValid = typeof h_up === 'number' && Number.isFinite(h_up);
   const isDownstreamFlatlined = Boolean(options.isDownstreamFlatlined);
   const isDownstreamStale = Boolean(options.isDownstreamStale);
   const isDownstreamHealthy = (
+    isUpstreamValid &&
     h_down !== null &&
+    typeof h_down === 'number' &&
     Number.isFinite(h_down) &&
     !isDownstreamFlatlined &&
     !isDownstreamStale
   );
   const deltaH = isDownstreamHealthy ? Number((h_up - h_down).toFixed(2)) : null;
-  const minDelta = options.minDeltaH ?? ASSET_DEFINITIONS?.monks_leaze_clyse?.min_delta_h ?? 0.05;
-  const sowyCapM = options.sowyCapM ?? ASSET_DEFINITIONS?.monks_leaze_clyse?.sowy_capacity_mAOD ?? 7.60;
+  const revDeltaH = isDownstreamHealthy ? Number((h_down - h_up).toFixed(2)) : null;
+  const minDelta = (typeof options.minDeltaH === 'number' && Number.isFinite(options.minDeltaH))
+    ? options.minDeltaH
+    : (ASSET_DEFINITIONS?.monks_leaze_clyse?.min_delta_h ?? 0.05);
+  const sowyCapM = (typeof options.sowyCapM === 'number' && Number.isFinite(options.sowyCapM))
+    ? options.sowyCapM
+    : (ASSET_DEFINITIONS?.monks_leaze_clyse?.sowy_capacity_mAOD ?? 7.60);
   const dbClyse = HYDRO_DEADBANDS?.clyse_head ?? 0.05;
   const revDeadband = HYDRO_DEADBANDS?.reverse_lock ?? 0.10;
-  const beerwallRate1h = options.beerwallRate1h ?? null;
-  const beerwallStage = options.beerwallStage ?? null;
+  const beerwallRate1h = (typeof options.beerwallRate1h === 'number' && Number.isFinite(options.beerwallRate1h))
+    ? options.beerwallRate1h
+    : null;
+  const beerwallStage = (typeof options.beerwallStage === 'number' && Number.isFinite(options.beerwallStage))
+    ? options.beerwallStage
+    : null;
   const isWaveConfirmed = Boolean(
     (beerwallRate1h !== null && beerwallRate1h >= 0.02) ||
     (beerwallStage !== null && beerwallStage >= 4.20)
   );
 
-  const allermoorStatus = h_up >= allermoorCrestM
-    ? 'OVERTOPPING'
-    : (h_up >= allermoorPreSpillM ? 'NEAR_CREST' : 'SECURE');
+  // [RULE-THRESH-01] Allermoor Spillway crest is not published in primary EA records:
+  // crest_elevation_mAOD remains null (UNSURVEYED) and never triggers automated OVERTOPPING events.
   const allermoor_spillway = {
     asset_type: 'spillway',
     asset_id: 'allermoor_spillway',
-    status: allermoorStatus,
-    crest_elevation_mAOD: allermoorCrestM,
-    clearance_m: Number((allermoorCrestM - h_up).toFixed(2))
+    status: 'SECURE',
+    crest_elevation_mAOD: null,
+    proxy_trigger_mAOD: allermoorProxyM,
+    survey_tier: 'UNSURVEYED',
+    survey_label: '⚠️ Pending EA Asset Survey',
+    clearance_m: null
   };
-  const allermoorNote = allermoorStatus === 'OVERTOPPING'
-    ? ` Allermoor Spillway is assumed to be overtopping (≥${allermoorCrestM.toFixed(2)}m AOD proxy from Beasley's Spillway); under EA protocol, Monk's Leaze Clyse closes and upstream tributary pumps (Huish Episcopi, Midelney, Long Load) are curtailed.`
+  const allermoorNote = (isUpstreamValid && h_up >= allermoorProxyM)
+    ? ` Note: Parrett stage exceeds the ~${allermoorProxyM.toFixed(2)}m AOD Beasley's Spillway guidance proxy (Allermoor Spillway crest pending EA asset survey); under EA protocol, Monk's Leaze Clyse closes and upstream tributary pumps (Huish Episcopi, Midelney, Long Load) are curtailed.`
     : '';
 
-  if (isDownstreamHealthy && h_up >= (thresholdTrigger - dbClyse) && (h_down - h_up) >= revDeadband) {
+  if (!isUpstreamValid) {
+    return {
+      asset_type: 'sluice',
+      asset_id: 'monks_leaze_clyse',
+      status: 'CLOSED',
+      code: "CLOSED",
+      label: "PENNING / CLOSED",
+      badgeClass: "badge-closed",
+      symbol: "🔒",
+      pillText: "⚪ PENNING / CLOSED (TELEMETRY UNAVAILABLE)",
+      confidence: "DEGRADED_SINGLE_SENSOR",
+      confidenceTag: "⚠️ 52233 UNAVAILABLE",
+      isDownstreamHealthy: false,
+      deltaH: null,
+      isWaveConfirmed: false,
+      allermoor_spillway,
+      metricText: "Penning / Telemetry Unavailable",
+      clearanceText: `Trigger: ${cleanTrigger.toFixed(2)}m AOD (Stage Unavailable)`,
+      narrative: `Monk's Leaze Clyse in penning mode. Upstream Parrett telemetry unavailable (diversion threshold ${cleanTrigger.toFixed(2)}m AOD; concrete sill ${sillM.toFixed(2)}m AOD).`
+    };
+  }
+
+  if (isDownstreamHealthy && h_up >= (cleanTrigger - dbClyse) && revDeltaH >= revDeadband) {
     return {
       asset_type: 'sluice',
       asset_id: 'monks_leaze_clyse',
@@ -352,9 +390,9 @@ export function evaluateSowyChannel(h_up, h_down, thresholdTrigger = 7.20, optio
       allermoor_spillway,
       metricText: `Head Drop: ${deltaH >= 0 ? '+' : ''}${deltaH.toFixed(2)}m`,
       clearanceText: "Downstream Exceeds Parrett",
-      narrative: `Monk's Leaze Clyse sealed in reverse lock. Downstream Sowy tailwater (${h_down.toFixed(2)}m AOD) exceeds upstream Parrett (${h_up.toFixed(2)}m AOD) by ${(h_down - h_up).toFixed(2)}m.${allermoorNote}`
+      narrative: `Monk's Leaze Clyse sealed in reverse lock. Downstream Sowy tailwater (${h_down.toFixed(2)}m AOD) exceeds upstream Parrett (${h_up.toFixed(2)}m AOD) by ${revDeltaH.toFixed(2)}m.${allermoorNote}`
     };
-  } else if (isDownstreamHealthy && h_up >= thresholdTrigger && (h_down >= sowyCapM || deltaH < minDelta)) {
+  } else if (isDownstreamHealthy && h_up >= cleanTrigger && (h_down >= sowyCapM || deltaH < minDelta)) {
     return {
       asset_type: 'sluice',
       asset_id: 'monks_leaze_clyse',
@@ -374,11 +412,11 @@ export function evaluateSowyChannel(h_up, h_down, thresholdTrigger = 7.20, optio
       clearanceText: h_down >= sowyCapM ? `Sowy Cap/Alert: ${sowyCapM.toFixed(2)}m` : "Downstream Head Equalized",
       narrative: `Monk's Leaze Clyse throttled. Downstream Sedgemoor Drain level (${h_down.toFixed(2)}m AOD) limits diversion capacity.${allermoorNote}`
     };
-  } else if (h_up >= thresholdTrigger && (!isDownstreamHealthy || (deltaH >= minDelta && h_down < sowyCapM))) {
+  } else if (h_up >= cleanTrigger && (!isDownstreamHealthy || (deltaH >= minDelta && h_down < sowyCapM))) {
     const waveNote = !isDownstreamHealthy
       ? (isWaveConfirmed
         ? ` Downstream 52234 ${isDownstreamFlatlined ? 'ponded/flatlined' : 'unavailable/stale'}; active diversion wave verified downstream at Beer Wall 52157.`
-        : ` Downstream 52234 ${isDownstreamFlatlined ? 'stilling-well ponded/flatlined' : 'unavailable/stale'}; evaluating from upstream 52233 trigger (${thresholdTrigger.toFixed(2)}m AOD).`)
+        : ` Downstream 52234 ${isDownstreamFlatlined ? 'stilling-well ponded/flatlined' : 'unavailable/stale'}; evaluating from upstream 52233 trigger (${cleanTrigger.toFixed(2)}m AOD).`)
       : '';
     const headDropPhrase = isDownstreamHealthy
       ? ` with a +${deltaH.toFixed(2)}m head drop into the Sowy Relief Channel`
@@ -403,7 +441,7 @@ export function evaluateSowyChannel(h_up, h_down, thresholdTrigger = 7.20, optio
       allermoor_spillway,
       metricText,
       clearanceText: `Intake Sill Margin: +${(h_up - sillM).toFixed(2)}m`,
-      narrative: `Monk's Leaze Clyse gravity diversion active. Upstream Parrett stage (${h_up.toFixed(2)}m AOD) exceeds ${thresholdTrigger.toFixed(2)}m AOD trigger (${sillM.toFixed(2)}m sill)${headDropPhrase}.${waveNote}${allermoorNote}`
+      narrative: `Monk's Leaze Clyse gravity diversion active. Upstream Parrett stage (${h_up.toFixed(2)}m AOD) exceeds ${cleanTrigger.toFixed(2)}m AOD trigger (${sillM.toFixed(2)}m sill)${headDropPhrase}.${waveNote}${allermoorNote}`
     };
   } else {
     return {
@@ -422,8 +460,8 @@ export function evaluateSowyChannel(h_up, h_down, thresholdTrigger = 7.20, optio
       isWaveConfirmed: false,
       allermoor_spillway,
       metricText: "Penning / No Diversion",
-      clearanceText: `${(thresholdTrigger - h_up).toFixed(2)}m Below Trigger`,
-      narrative: `Monk's Leaze Clyse in penning mode. River level (${h_up.toFixed(2)}m AOD) is below diversion threshold (${thresholdTrigger.toFixed(2)}m AOD; concrete sill ${sillM.toFixed(2)}m AOD).`
+      clearanceText: `${(cleanTrigger - h_up).toFixed(2)}m Below Trigger`,
+      narrative: `Monk's Leaze Clyse in penning mode. River level (${h_up.toFixed(2)}m AOD) is below diversion threshold (${cleanTrigger.toFixed(2)}m AOD; concrete sill ${sillM.toFixed(2)}m AOD).`
     };
   }
 }
@@ -457,16 +495,16 @@ export function evaluateBeerWall(h_saltmoor, Z_crest = 7.30, options = {}) {
 
   let status = 'SECURE';
   let statusText = `🟢 SECURE (+${Math.abs(delta).toFixed(2)}m)`;
-  let narrative = `Beer Wall 4-bay box culverts & Beazeley Spillway (${Z_crest.toFixed(2)}m AOD) are secure with +${Math.abs(delta).toFixed(2)}m freeboard.`;
+  let narrative = `Beer Wall 4-bay box culverts (${Z_crest.toFixed(2)}m AOD) are secure with +${Math.abs(delta).toFixed(2)}m freeboard (Beazeley Spillway grassed embankment crest unsurveyed).`;
 
   if (delta >= 0) {
     status = 'OVERTOPPING';
     statusText = `🔴 RELIEF SPILL (SOWY)`;
-    narrative = `Sowy stage at Greylake (${h_saltmoor.toFixed(2)}m AOD) has reached the ${Z_crest.toFixed(2)}m AOD Beer Wall box culverts & Beazeley Spillway relief threshold beneath the raised A372 (>8.00m AOD).`;
+    narrative = `Sowy stage at Greylake (${h_saltmoor.toFixed(2)}m AOD) has reached the ${Z_crest.toFixed(2)}m AOD Beer Wall 4-bay box culverts relief threshold beneath the raised A372 (>8.00m AOD).`;
   } else if (delta >= -0.15) {
     status = 'NEAR_CREST';
     statusText = `🟡 NEAR CREST (${Math.abs(delta).toFixed(2)}m)`;
-    narrative = `Sowy stage at Greylake (${h_saltmoor.toFixed(2)}m AOD) is within ${Math.round(Math.abs(delta) * 100)}cm of the ${Z_crest.toFixed(2)}m AOD Beer Wall culvert & Beazeley Spillway relief threshold.`;
+    narrative = `Sowy stage at Greylake (${h_saltmoor.toFixed(2)}m AOD) is within ${Math.round(Math.abs(delta) * 100)}cm of the ${Z_crest.toFixed(2)}m AOD Beer Wall box culvert relief threshold.`;
   } else if (isTiltingWeirsActive) {
     narrative = `Sowy Spur & Lang Acre tilting weirs active (≥${ksdConveyanceThreshold.toFixed(2)}m AOD), routing flow into King's Sedgemoor Drain (${Math.abs(delta).toFixed(2)}m below ${Z_crest.toFixed(2)}m relief crest).`;
   }
@@ -482,8 +520,10 @@ export function evaluateBeerWall(h_saltmoor, Z_crest = 7.30, options = {}) {
     beazeley_spillway: {
       asset_type: 'spillway',
       asset_id: 'beazeley_spillway',
-      status,
-      crest_elevation_mAOD: Z_crest
+      status: 'SECURE',
+      crest_elevation_mAOD: null,
+      survey_tier: 'UNSURVEYED',
+      survey_label: '⚠️ Pending EA Asset Survey'
     },
     narrative
   };
@@ -1054,10 +1094,10 @@ export const STATION_REGISTRY = {
     downstream_node_id: 'E9531',
     has_sparkline: true,
     provenance: {
-      crest: { tier: 1, label: 'Surveyed Culvert Crest', authority: 'EA/SRA Surveyed Concrete Box Culverts & Beazeley Relief Weir (7.30m ODN)' },
+      crest: { tier: 1, label: 'Surveyed Culvert Crest', authority: 'EA/SRA Surveyed Concrete Weir Crest at Beer Wall Box Culverts (7.30m ODN)' },
       alert: { tier: 3, label: 'EA Statistical Envelope', authority: 'EA stageScale typical envelope (4.20m in-channel alert)' },
       invert: { tier: 1, label: 'Channel Bed Invert', authority: 'EA Sowy Channel Bed Survey' },
-      operational: { tier: 2, label: 'SRA Sowy/KSD Scheme', authority: 'Sowy Spur & Lang Acre tilting weirs active ≥6.00m AOD; 4-bay A372 box culverts & Beazeley Spillway relief at 7.30m AOD' }
+      operational: { tier: 2, label: 'SRA Sowy/KSD Scheme', authority: 'Sowy Spur & Lang Acre tilting weirs active ≥6.00m AOD; 4-bay A372 box culverts relief threshold at 7.30m AOD (Beazeley Spillway grassed embankment crest unsurveyed — ⚠️ Pending EA Asset Survey)' }
     }
   },
   'E9531': {
@@ -1520,32 +1560,33 @@ export const HYDRO_THRESHOLDS = {
     DUTY_PUMP_WINTER: 6.75,
     LEAD_PUMP_SUMMER: 6.70,
     DUTY_PUMP_SUMMER: 6.90,
-    MOBILE_ORDERED_MAOD: 7.30,
-    MOBILE_ACTIVE_MAOD: 7.86,
-    CRITICAL_MAOD: 8.20,
-    CRITICAL_SPILL_MAOD: 8.20
+    RIVER_CUTOFF_MAOD: 8.20,
+    MOBILE_ORDERED_MAOD: null,
+    MOBILE_ACTIVE_MAOD: null,
+    CRITICAL_MAOD: null,
+    CRITICAL_SPILL_MAOD: null
   },
   WEST_SEDGEMOOR: {
     GROUND_MAOD: 3.60,
-    LEAD_PUMP_WINTER: 6.80,
-    DUTY_PUMP_WINTER: 7.00,
-    LEAD_PUMP_SUMMER: 6.85,
-    DUTY_PUMP_SUMMER: 7.10,
-    MOBILE_ORDERED_MAOD: 7.35,
-    MOBILE_ACTIVE_MAOD: 7.60,
-    CRITICAL_MAOD: 7.90,
-    CRITICAL_SPILL_MAOD: 7.90
+    LEAD_PUMP_WINTER: null,
+    DUTY_PUMP_WINTER: null,
+    LEAD_PUMP_SUMMER: null,
+    DUTY_PUMP_SUMMER: null,
+    MOBILE_ORDERED_MAOD: null,
+    MOBILE_ACTIVE_MAOD: null,
+    CRITICAL_MAOD: null,
+    CRITICAL_SPILL_MAOD: null
   },
   WESTONZOYLAND: {
     GROUND_MAOD: 1.80,
-    LEAD_PUMP_WINTER: 3.45,
-    DUTY_PUMP_WINTER: 3.75,
-    LEAD_PUMP_SUMMER: 4.05,
-    DUTY_PUMP_SUMMER: 4.25,
-    MOBILE_ORDERED_MAOD: 4.80,
-    MOBILE_ACTIVE_MAOD: 5.20,
-    CRITICAL_MAOD: 5.60,
-    CRITICAL_SPILL_MAOD: 7.80
+    LEAD_PUMP_WINTER: null,
+    DUTY_PUMP_WINTER: null,
+    LEAD_PUMP_SUMMER: null,
+    DUTY_PUMP_SUMMER: null,
+    MOBILE_ORDERED_MAOD: null,
+    MOBILE_ACTIVE_MAOD: null,
+    CRITICAL_MAOD: null,
+    CRITICAL_SPILL_MAOD: null
   }
 };
 
@@ -2059,28 +2100,34 @@ export const TOPOLOGY_NETWORK_CONFIG = {
       name: "Wet Moor Polder Basin (Huish Episcopi & Midelney)",
       choke_point_nodes: ["52120", "52153", "52233"],
       pumping_stations: ["huish_episcopi_ps", "midelney_ps"],
-      primary_station: "52120"
+      primary_station: "52120",
+      survey_status: "TIER_2_FIXED_PUMPS_ONLY"
     },
     {
       id: "stanmoor",
       name: "Stanmoor Polder Basin",
       choke_point_nodes: ["52118", "52127", "52158"],
       pumping_stations: ["stanmoor_ps"],
-      primary_station: "52127"
+      primary_station: "52127",
+      survey_status: "TIER_2_TRIGGER_PLAN"
     },
     {
       id: "west_sedgemoor",
       name: "West Sedgemoor Polder Basin (SSSI Wet Grassland)",
       choke_point_nodes: ["52127", "52233", "52158"],
       pumping_stations: ["west_sedgemoor_ps"],
-      primary_station: "52233"
+      primary_station: null,
+      sump_measure_id: "52155-level-sump_level-i-15_min-mAOD",
+      survey_status: "UNSURVEYED"
     },
     {
       id: "westonzoyland",
       name: "Westonzoyland Polder Basin (Engine Rhyne)",
       choke_point_nodes: ["52159", "52157"],
       pumping_stations: ["westonzoyland_ps"],
-      primary_station: "52159"
+      primary_station: null,
+      nearest_context_station: "52159",
+      survey_status: "UNSURVEYED"
     }
   ]
 };
@@ -2204,6 +2251,7 @@ export function evaluateTopologyNetwork(measures = {}, config = TOPOLOGY_NETWORK
   }
 
   const coupledState = {};
+  const coupledClyseStatus = {};
   if (safeConfig.coupled_rules && typeof safeConfig.coupled_rules === 'object') {
     for (const [ruleId, rule] of Object.entries(safeConfig.coupled_rules)) {
       if (rule.type === 'clyse_diverting') {
@@ -2211,8 +2259,42 @@ export function evaluateTopologyNetwork(measures = {}, config = TOPOLOGY_NETWORK
         const downStage = stageByNodeId[rule.downstream_node_id];
         const sill = resolveThresholdRef(rule.sill_threshold_ref, thresholds);
         const minDeltaH = resolveThresholdRef(rule.min_delta_h_ref, thresholds);
-        coupledState[ruleId] = typeof sill === 'number' && typeof minDeltaH === 'number' &&
-          upStage >= sill && (upStage - downStage) > minDeltaH;
+        const sowyCapM = resolveThresholdRef(
+          rule.capacity_threshold_ref || 'MONKS_LEAZE.DOWNSTREAM_ALERT_MAOD',
+          thresholds
+        ) ?? ASSET_DEFINITIONS?.monks_leaze_clyse?.sowy_capacity_mAOD ?? 7.60;
+        const upReg = registry[rule.upstream_node_id];
+        const downReg = registry[rule.downstream_node_id];
+        const upReadings = safeMeasures[upReg?.measure_id] || safeMeasures[rule.upstream_node_id];
+        const downReadings = safeMeasures[downReg?.measure_id] || safeMeasures[rule.downstream_node_id];
+        let isDownstreamFlatlined = Boolean(safeOptions.isDownstreamFlatlined);
+        let isDownstreamStale = Boolean(safeOptions.isDownstreamStale);
+        if (Array.isArray(downReadings) && downReadings.length > 0) {
+          const downLatest = downReadings[0];
+          const downDateStr = (typeof downLatest === 'object' && downLatest !== null) ? (downLatest.dateTime || downLatest.date) : null;
+          if (downDateStr) {
+            const upLatest = Array.isArray(upReadings) && upReadings.length > 0 ? upReadings[0] : null;
+            const upDateStr = (typeof upLatest === 'object' && upLatest !== null) ? (upLatest.dateTime || upLatest.date) : null;
+            const upMs = upDateStr ? Date.parse(upDateStr) : NaN;
+            const refNowMs = safeOptions.nowMs ?? (!isNaN(upMs) ? upMs : Date.now());
+            const downFreshness = evaluateStationFreshness(downReadings, { nowMs: refNowMs });
+            isDownstreamFlatlined = isDownstreamFlatlined || downFreshness.isFlatlined;
+            isDownstreamStale = isDownstreamStale || (downFreshness.isStale && !downFreshness.isFlatlined) || downFreshness.isOffline;
+          }
+        }
+        if (typeof sill === 'number' && typeof minDeltaH === 'number') {
+          const sowyEval = evaluateSowyChannel(upStage, downStage, sill, {
+            minDeltaH,
+            sowyCapM,
+            isDownstreamFlatlined,
+            isDownstreamStale
+          });
+          coupledClyseStatus[ruleId] = sowyEval.status;
+          coupledState[ruleId] = sowyEval.status === 'DIVERTING';
+        } else {
+          coupledClyseStatus[ruleId] = 'CLOSED';
+          coupledState[ruleId] = false;
+        }
       } else if (rule.type === 'stage_gte_node') {
         coupledState[ruleId] = stageByNodeId[rule.node_id] >= stageByNodeId[rule.compare_node_id];
       }
@@ -2241,8 +2323,13 @@ export function evaluateTopologyNetwork(measures = {}, config = TOPOLOGY_NETWORK
       }
       case 'clyse_upstream': {
         const alert = resolveThresholdRef(rule.alert_threshold_ref, thresholds) ?? baseNode.alert_level_mAOD;
+        const clyseStatus = coupledClyseStatus[rule.coupled_rule];
         const isDiverting = Boolean(coupledState[rule.coupled_rule]);
-        status = stage >= alert ? 'ALERT' : (isDiverting ? 'DIVERTING' : 'CLOSED');
+        if (clyseStatus === 'REVERSE_LOCK' || clyseStatus === 'THROTTLED') {
+          status = clyseStatus;
+        } else {
+          status = stage >= alert ? 'ALERT' : (isDiverting ? 'DIVERTING' : 'CLOSED');
+        }
         break;
       }
       case 'clyse_downstream': {
@@ -2425,48 +2512,12 @@ export const CANONICAL_PUMP_THRESHOLDS = Object.freeze({
     summer: Object.freeze({
       lead: HYDRO_THRESHOLDS.WET_MOOR.LEAD_PUMP_SUMMER,
       duty: HYDRO_THRESHOLDS.WET_MOOR.DUTY_PUMP_SUMMER,
-      mobile_order: HYDRO_THRESHOLDS.WET_MOOR.MOBILE_ORDERED_MAOD,
-      mobile_active: HYDRO_THRESHOLDS.WET_MOOR.MOBILE_ACTIVE_MAOD,
-      critical_spill: HYDRO_THRESHOLDS.WET_MOOR.CRITICAL_SPILL_MAOD
+      river_cutoff: HYDRO_THRESHOLDS.WET_MOOR.RIVER_CUTOFF_MAOD
     }),
     winter: Object.freeze({
       lead: HYDRO_THRESHOLDS.WET_MOOR.LEAD_PUMP_WINTER,
       duty: HYDRO_THRESHOLDS.WET_MOOR.DUTY_PUMP_WINTER,
-      mobile_order: HYDRO_THRESHOLDS.WET_MOOR.MOBILE_ORDERED_MAOD,
-      mobile_active: HYDRO_THRESHOLDS.WET_MOOR.MOBILE_ACTIVE_MAOD,
-      critical_spill: HYDRO_THRESHOLDS.WET_MOOR.CRITICAL_SPILL_MAOD
-    })
-  }),
-  west_sedgemoor_ps: Object.freeze({
-    summer: Object.freeze({
-      lead: HYDRO_THRESHOLDS.WEST_SEDGEMOOR.LEAD_PUMP_SUMMER,
-      duty: HYDRO_THRESHOLDS.WEST_SEDGEMOOR.DUTY_PUMP_SUMMER,
-      mobile_order: HYDRO_THRESHOLDS.WEST_SEDGEMOOR.MOBILE_ORDERED_MAOD,
-      mobile_active: HYDRO_THRESHOLDS.WEST_SEDGEMOOR.MOBILE_ACTIVE_MAOD,
-      critical_spill: HYDRO_THRESHOLDS.WEST_SEDGEMOOR.CRITICAL_SPILL_MAOD
-    }),
-    winter: Object.freeze({
-      lead: HYDRO_THRESHOLDS.WEST_SEDGEMOOR.LEAD_PUMP_WINTER,
-      duty: HYDRO_THRESHOLDS.WEST_SEDGEMOOR.DUTY_PUMP_WINTER,
-      mobile_order: HYDRO_THRESHOLDS.WEST_SEDGEMOOR.MOBILE_ORDERED_MAOD,
-      mobile_active: HYDRO_THRESHOLDS.WEST_SEDGEMOOR.MOBILE_ACTIVE_MAOD,
-      critical_spill: HYDRO_THRESHOLDS.WEST_SEDGEMOOR.CRITICAL_SPILL_MAOD
-    })
-  }),
-  westonzoyland_ps: Object.freeze({
-    summer: Object.freeze({
-      lead: HYDRO_THRESHOLDS.WESTONZOYLAND.LEAD_PUMP_SUMMER,
-      duty: HYDRO_THRESHOLDS.WESTONZOYLAND.DUTY_PUMP_SUMMER,
-      mobile_order: HYDRO_THRESHOLDS.WESTONZOYLAND.MOBILE_ORDERED_MAOD,
-      mobile_active: HYDRO_THRESHOLDS.WESTONZOYLAND.MOBILE_ACTIVE_MAOD,
-      critical_spill: HYDRO_THRESHOLDS.WESTONZOYLAND.CRITICAL_SPILL_MAOD
-    }),
-    winter: Object.freeze({
-      lead: HYDRO_THRESHOLDS.WESTONZOYLAND.LEAD_PUMP_WINTER,
-      duty: HYDRO_THRESHOLDS.WESTONZOYLAND.DUTY_PUMP_WINTER,
-      mobile_order: HYDRO_THRESHOLDS.WESTONZOYLAND.MOBILE_ORDERED_MAOD,
-      mobile_active: HYDRO_THRESHOLDS.WESTONZOYLAND.MOBILE_ACTIVE_MAOD,
-      critical_spill: HYDRO_THRESHOLDS.WESTONZOYLAND.CRITICAL_SPILL_MAOD
+      river_cutoff: HYDRO_THRESHOLDS.WET_MOOR.RIVER_CUTOFF_MAOD
     })
   })
 });
@@ -2986,15 +3037,16 @@ export const ASSET_DEFINITIONS = Object.freeze({
     asset_id: 'allermoor_spillway',
     name: 'Allermoor Spillway',
     primary_station: '52233',
-    crest_elevation_mAOD: 7.50,
-    pre_spill_elevation_mAOD: 7.35,
+    crest_elevation_mAOD: null,
+    pre_spill_elevation_mAOD: null,
+    proxy_trigger_mAOD: 7.50,
     curtails_tributary_pumps: true,
     driving_station_label: "River Parrett @ Monk's Leaze (52233)",
     ea_warning_target_area: '112WAFTESR',
     ea_target_area_name: 'East Somerset Rivers (River Sowy & KSD)',
-    survey_tier: 'TIER_2_TRIGGER_PLAN',
-    survey_label: '⚠️ PROXY THRESHOLD (Beasley\'s 7.50m AOD)',
-    survey_tooltip: 'Assumed to spill at about the same Parrett stage as Beasley\'s Spillway (7.50m AOD proxy, EA Somerset Levels guidance). Allermoor\'s own crest level is not published. Closes Monk\'s Leaze Clyse and curtails tributary pumps when running.',
+    survey_tier: 'UNSURVEYED',
+    survey_label: '⚠️ Pending EA Asset Survey (Beasley\'s ~7.50m AOD Proxy)',
+    survey_tooltip: '⚠️ Pending EA Asset Survey: Allermoor\'s own crest level is not published in primary public records. EA Somerset Levels guidance notes it operates at approximately the same Parrett stage as Beasley\'s Spillway (~7.50m AOD proxy), closing Monk\'s Leaze Clyse and curtailing upstream tributary pumps. Automated OVERTOPPING event triggers are disabled [RULE-THRESH-01].',
     deadband_crest: HYDRO_DEADBANDS.weir_crest,
     deadband_pre_spill: HYDRO_DEADBANDS.pre_spill,
     station_url: 'https://check-for-flooding.service.gov.uk/station/3066'
@@ -3046,25 +3098,36 @@ export const ASSET_DEFINITIONS = Object.freeze({
     lead_pump_summer_mAOD: CANONICAL_PUMP_THRESHOLDS.huish_episcopi_ps.summer.lead,
     duty_pump_winter_mAOD: CANONICAL_PUMP_THRESHOLDS.huish_episcopi_ps.winter.duty,
     duty_pump_summer_mAOD: CANONICAL_PUMP_THRESHOLDS.huish_episcopi_ps.summer.duty,
-    mobile_ordered_mAOD: CANONICAL_PUMP_THRESHOLDS.huish_episcopi_ps.winter.mobile_order,
-    mobile_active_mAOD: CANONICAL_PUMP_THRESHOLDS.huish_episcopi_ps.winter.mobile_active,
-    critical_mAOD: HYDRO_THRESHOLDS.WET_MOOR.CRITICAL_MAOD,
+    river_cutoff_mAOD: HYDRO_THRESHOLDS.WET_MOOR.RIVER_CUTOFF_MAOD,
+    mobile_ordered_mAOD: null,
+    mobile_active_mAOD: null,
+    critical_mAOD: null,
+    rapid_inrush_threshold_mh: null,
+    survey_tier: 'TIER_2_FIXED_PUMPS_ONLY',
+    survey_label: '📋 EA Operating Rules (Huish Episcopi Fixed Pumps; Mobile Triggers Unsurveyed)',
+    authority: 'EA Huish Episcopi PS Operating Rules (Winter Duty 6.75m, Summer Duty 6.90m, River Cut-off 8.20m AOD; mobile pump triggers unpublished)',
     deadband_pump: HYDRO_DEADBANDS.polder_pump
   }),
   west_sedgemoor: Object.freeze({
     asset_type: 'polder',
     asset_id: 'west_sedgemoor',
     name: 'West Sedgemoor Polder Basin (SSSI Wet Grassland)',
-    primary_station: '52233',
-    secondary_station: '52119',
+    primary_station: null,
+    secondary_station: null,
+    sump_measure_id: '52155-level-sump_level-i-15_min-mAOD',
+    receiving_river_station: '52233',
     floor_elevation_mAOD: HYDRO_THRESHOLDS.WEST_SEDGEMOOR.GROUND_MAOD,
-    lead_pump_winter_mAOD: CANONICAL_PUMP_THRESHOLDS.west_sedgemoor_ps.winter.lead,
-    lead_pump_summer_mAOD: CANONICAL_PUMP_THRESHOLDS.west_sedgemoor_ps.summer.lead,
-    duty_pump_winter_mAOD: CANONICAL_PUMP_THRESHOLDS.west_sedgemoor_ps.winter.duty,
-    duty_pump_summer_mAOD: CANONICAL_PUMP_THRESHOLDS.west_sedgemoor_ps.summer.duty,
-    mobile_ordered_mAOD: CANONICAL_PUMP_THRESHOLDS.west_sedgemoor_ps.winter.mobile_order,
-    mobile_active_mAOD: CANONICAL_PUMP_THRESHOLDS.west_sedgemoor_ps.winter.mobile_active,
-    critical_mAOD: HYDRO_THRESHOLDS.WEST_SEDGEMOOR.CRITICAL_MAOD,
+    lead_pump_winter_mAOD: null,
+    lead_pump_summer_mAOD: null,
+    duty_pump_winter_mAOD: null,
+    duty_pump_summer_mAOD: null,
+    mobile_ordered_mAOD: null,
+    mobile_active_mAOD: null,
+    critical_mAOD: null,
+    rapid_inrush_threshold_mh: null,
+    survey_tier: 'UNSURVEYED',
+    survey_label: '⚠️ Pending EA Asset Survey (Sump 52155 Ingest-Only)',
+    survey_tooltip: 'West Sedgemoor PS sump telemetry (52155-level-sump_level-i-15_min-mAOD) is ingest-only; polder pump trigger elevations are pending EA Trigger Point Plan verification and decoupled from River Parrett (52233).',
     deadband_pump: HYDRO_DEADBANDS.polder_pump
   }),
   stanmoor: Object.freeze({
@@ -3081,22 +3144,31 @@ export const ASSET_DEFINITIONS = Object.freeze({
     mobile_ordered_mAOD: CANONICAL_PUMP_THRESHOLDS.stanmoor_ps.winter.mobile_order,
     mobile_active_mAOD: CANONICAL_PUMP_THRESHOLDS.stanmoor_ps.winter.mobile_active,
     critical_mAOD: HYDRO_THRESHOLDS.STANMOOR.CRITICAL_MAOD,
+    rapid_inrush_threshold_mh: null,
+    survey_tier: 'TIER_2_TRIGGER_PLAN',
+    survey_label: '📋 EA Trigger Point Plan (Curry Moor & Stanmoor Chapter)',
+    authority: 'EA Somerset Levels & Moors Trigger Point Plan (Curry Moor & Stanmoor Operational Chapter, Station 52127)',
     deadband_pump: HYDRO_DEADBANDS.polder_pump
   }),
   westonzoyland: Object.freeze({
     asset_type: 'polder',
     asset_id: 'westonzoyland',
     name: 'Westonzoyland Polder Basin (Engine Rhyne)',
-    primary_station: '52159',
-    secondary_station: '52157',
+    primary_station: null,
+    secondary_station: null,
+    nearest_context_station: '52159',
     floor_elevation_mAOD: HYDRO_THRESHOLDS.WESTONZOYLAND.GROUND_MAOD,
-    lead_pump_winter_mAOD: CANONICAL_PUMP_THRESHOLDS.westonzoyland_ps.winter.lead,
-    lead_pump_summer_mAOD: CANONICAL_PUMP_THRESHOLDS.westonzoyland_ps.summer.lead,
-    duty_pump_winter_mAOD: CANONICAL_PUMP_THRESHOLDS.westonzoyland_ps.winter.duty,
-    duty_pump_summer_mAOD: CANONICAL_PUMP_THRESHOLDS.westonzoyland_ps.summer.duty,
-    mobile_ordered_mAOD: CANONICAL_PUMP_THRESHOLDS.westonzoyland_ps.winter.mobile_order,
-    mobile_active_mAOD: CANONICAL_PUMP_THRESHOLDS.westonzoyland_ps.winter.mobile_active,
-    critical_mAOD: HYDRO_THRESHOLDS.WESTONZOYLAND.CRITICAL_MAOD,
+    lead_pump_winter_mAOD: null,
+    lead_pump_summer_mAOD: null,
+    duty_pump_winter_mAOD: null,
+    duty_pump_summer_mAOD: null,
+    mobile_ordered_mAOD: null,
+    mobile_active_mAOD: null,
+    critical_mAOD: null,
+    rapid_inrush_threshold_mh: null,
+    survey_tier: 'UNSURVEYED',
+    survey_label: '⚠️ Pending EA Asset Survey (Engine Rhyne Thresholds Unpublished)',
+    survey_tooltip: 'Westonzoyland PS (Engine Rhyne) has no dedicated EA telemetry sensor or published EA Trigger Point Plan thresholds in primary records; Northmoor (52159) is location context only.',
     deadband_pump: HYDRO_DEADBANDS.polder_pump
   }),
 
@@ -3399,7 +3471,7 @@ export function evaluateAssetTransition(assetDef, activeSession = null, readings
       secReadings = readingsWindow.downstream || readingsWindow[assetDef.downstream_station] || [];
     } else {
       const stationKey = assetDef.primary_station || assetDef.station_id;
-      readings = readingsWindow[stationKey] || readingsWindow.primary || [];
+      readings = (stationKey ? readingsWindow[stationKey] : null) || readingsWindow.primary || [];
       if (assetDef.secondary_station) {
         secReadings = readingsWindow[assetDef.secondary_station] || readingsWindow.secondary || [];
       }
@@ -3502,6 +3574,14 @@ export function evaluateAssetTransition(assetDef, activeSession = null, readings
   switch (assetDef.asset_type) {
     case 'spillway': {
       const Z_crest = assetDef.crest_elevation_mAOD;
+      if (Z_crest === null || Z_crest === undefined || !Number.isFinite(Z_crest) || assetDef.survey_tier === 'UNSURVEYED') {
+        evaluatedState = 'SECURE';
+        evaluatedSeverity = 1;
+        clearanceM = null;
+        clearanceDescriptor = 'pending EA crest survey';
+        narrative = `${assetDef.name}: ⚠️ Pending EA Asset Survey. Unsurveyed crest elevation is not wired to automated OVERTOPPING event triggers.`;
+        break;
+      }
       const Z_pre = assetDef.pre_spill_elevation_mAOD ?? (Z_crest - 0.15);
       const dbCrest = assetDef.deadband_crest ?? HYDRO_DEADBANDS.weir_crest;
       const dbPre = assetDef.deadband_pre_spill ?? HYDRO_DEADBANDS.pre_spill;
@@ -3613,14 +3693,27 @@ export function evaluateAssetTransition(assetDef, activeSession = null, readings
       const Z_critical = assetDef.critical_mAOD;
       const dbPump = assetDef.deadband_pump ?? HYDRO_DEADBANDS.polder_pump;
 
-      if (currentSt === 'CRITICAL') {
+      if (assetDef.survey_tier === 'UNSURVEYED' || Z_duty === null || Z_duty === undefined || !Number.isFinite(Z_duty)) {
+        evaluatedState = 'STANDBY';
+        evaluatedSeverity = 1;
+        clearanceM = null;
+        clearanceDescriptor = 'pending EA threshold survey';
+        narrative = `${assetDef.name}: ⚠️ Pending EA Asset Survey. Automated polder pump and inrush alerts are disabled until verified EA Trigger Point Plan thresholds are available.`;
+        break;
+      }
+
+      const hasCritical = typeof Z_critical === 'number' && Number.isFinite(Z_critical);
+      const hasActive = typeof Z_active === 'number' && Number.isFinite(Z_active);
+      const hasOrdered = typeof Z_ordered === 'number' && Number.isFinite(Z_ordered);
+
+      if (currentSt === 'CRITICAL' && hasCritical) {
         if (stage >= Z_critical - dbPump) {
           evaluatedState = 'CRITICAL';
           evaluatedSeverity = 4;
-        } else if (stage >= Z_active - dbPump) {
+        } else if (hasActive && stage >= Z_active - dbPump) {
           evaluatedState = 'MOBILE_ACTIVE';
           evaluatedSeverity = 3;
-        } else if (stage >= Z_ordered - dbPump) {
+        } else if (hasOrdered && stage >= Z_ordered - dbPump) {
           evaluatedState = 'MOBILE_ORDERED';
           evaluatedSeverity = 3;
         } else if (stage >= Z_duty - dbPump) {
@@ -3630,14 +3723,14 @@ export function evaluateAssetTransition(assetDef, activeSession = null, readings
           evaluatedState = 'STANDBY';
           evaluatedSeverity = 1;
         }
-      } else if (currentSt === 'MOBILE_ACTIVE') {
-        if (stage >= Z_critical) {
+      } else if (currentSt === 'MOBILE_ACTIVE' && hasActive) {
+        if (hasCritical && stage >= Z_critical) {
           evaluatedState = 'CRITICAL';
           evaluatedSeverity = 4;
         } else if (stage >= Z_active - dbPump) {
           evaluatedState = 'MOBILE_ACTIVE';
           evaluatedSeverity = 3;
-        } else if (stage >= Z_ordered - dbPump) {
+        } else if (hasOrdered && stage >= Z_ordered - dbPump) {
           evaluatedState = 'MOBILE_ORDERED';
           evaluatedSeverity = 3;
         } else if (stage >= Z_duty - dbPump) {
@@ -3647,11 +3740,11 @@ export function evaluateAssetTransition(assetDef, activeSession = null, readings
           evaluatedState = 'STANDBY';
           evaluatedSeverity = 1;
         }
-      } else if (currentSt === 'MOBILE_ORDERED') {
-        if (stage >= Z_critical) {
+      } else if (currentSt === 'MOBILE_ORDERED' && hasOrdered) {
+        if (hasCritical && stage >= Z_critical) {
           evaluatedState = 'CRITICAL';
           evaluatedSeverity = 4;
-        } else if (stage >= Z_active) {
+        } else if (hasActive && stage >= Z_active) {
           evaluatedState = 'MOBILE_ACTIVE';
           evaluatedSeverity = 3;
         } else if (stage >= Z_ordered - dbPump) {
@@ -3665,13 +3758,13 @@ export function evaluateAssetTransition(assetDef, activeSession = null, readings
           evaluatedSeverity = 1;
         }
       } else if (currentSt === 'DUTY_PUMPING') {
-        if (stage >= Z_critical) {
+        if (hasCritical && stage >= Z_critical) {
           evaluatedState = 'CRITICAL';
           evaluatedSeverity = 4;
-        } else if (stage >= Z_active) {
+        } else if (hasActive && stage >= Z_active) {
           evaluatedState = 'MOBILE_ACTIVE';
           evaluatedSeverity = 3;
-        } else if (stage >= Z_ordered) {
+        } else if (hasOrdered && stage >= Z_ordered) {
           evaluatedState = 'MOBILE_ORDERED';
           evaluatedSeverity = 3;
         } else if (stage >= Z_duty - dbPump) {
@@ -3682,13 +3775,13 @@ export function evaluateAssetTransition(assetDef, activeSession = null, readings
           evaluatedSeverity = 1;
         }
       } else {
-        if (stage >= Z_critical) {
+        if (hasCritical && stage >= Z_critical) {
           evaluatedState = 'CRITICAL';
           evaluatedSeverity = 4;
-        } else if (stage >= Z_active) {
+        } else if (hasActive && stage >= Z_active) {
           evaluatedState = 'MOBILE_ACTIVE';
           evaluatedSeverity = 3;
-        } else if (stage >= Z_ordered) {
+        } else if (hasOrdered && stage >= Z_ordered) {
           evaluatedState = 'MOBILE_ORDERED';
           evaluatedSeverity = 3;
         } else if (stage >= Z_duty) {
@@ -3715,8 +3808,15 @@ export function evaluateAssetTransition(assetDef, activeSession = null, readings
       }
 
       // Polder Diagnostic Signatures: Sump Ceiling Breach & Rapid Inrush [Issue #42]
-      const rapidThreshold = assetDef.rapid_inrush_threshold_mh ?? 0.10;
-      const isRapidInrush = (currentRate1h !== null && currentRate1h >= rapidThreshold && currentRate15m !== null && currentRate15m > 0);
+      const rapidThreshold = assetDef.rapid_inrush_threshold_mh === undefined ? 0.10 : assetDef.rapid_inrush_threshold_mh;
+      const isRapidInrush = (
+        typeof rapidThreshold === 'number' &&
+        Number.isFinite(rapidThreshold) &&
+        currentRate1h !== null &&
+        currentRate1h >= rapidThreshold &&
+        currentRate15m !== null &&
+        currentRate15m > 0
+      );
       const sumpCeiling = assetDef.sump_ceiling_mAOD;
       const isCeilingBreach = (sumpCeiling !== undefined && stage > sumpCeiling && currentRate3h !== null && currentRate3h >= 0.02);
 
@@ -3822,15 +3922,14 @@ export function evaluateAssetTransition(assetDef, activeSession = null, readings
       const revDeadband = assetDef.reverse_lock_deadband ?? HYDRO_DEADBANDS.reverse_lock ?? 0.10;
 
       // Downstream Sensor Health & Flatline Inspection
-      const secDateStr = (typeof secLatest === 'object' && secLatest !== null) ? (secLatest.dateTime || secLatest.date) : null;
-      const secReadingMs = secDateStr ? new Date(secDateStr).getTime() : NaN;
-      const secFreshness = evaluateStationFreshness(secReadings, { nowMs: !isNaN(secReadingMs) ? secReadingMs : Date.now() });
-      const isDownstreamHealthy = downstreamStage !== null && !secFreshness.isFlatlined;
+      const secFreshness = evaluateStationFreshness(secReadings, { nowMs: options.nowMs ?? Date.now() });
+      const isDownstreamHealthy = downstreamStage !== null && !secFreshness.isFlatlined && !secFreshness.isStale && !secFreshness.isOffline;
 
-      const deltaH = downstreamStage !== null ? (stage - downstreamStage) : 0;
+      const deltaH = downstreamStage !== null ? Number((stage - downstreamStage).toFixed(2)) : 0;
+      const revDeltaH = downstreamStage !== null ? Number((downstreamStage - stage).toFixed(2)) : 0;
       const isUpstreamElevated = (stage >= Z_trig - dbClyse) || currentSt === 'DIVERTING' || currentSt === 'REVERSE_LOCK';
 
-      if (isDownstreamHealthy && isUpstreamElevated && (downstreamStage - stage >= revDeadband)) {
+      if (isDownstreamHealthy && isUpstreamElevated && (revDeltaH >= revDeadband)) {
         evaluatedState = 'REVERSE_LOCK';
         evaluatedSeverity = 3;
       } else if (isDownstreamHealthy && stage >= Z_trig && (downstreamStage >= Z_cap || deltaH < minDelta)) {

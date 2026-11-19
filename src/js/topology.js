@@ -19,26 +19,33 @@ import {
   DEFAULT_TOPOLOGY_NODES,
   DEFAULT_TOPOLOGY_EDGES,
   STATION_REGISTRY,
+  HYDRO_THRESHOLDS,
   GAUGE_DATUMS,
   STATION_BASELINES,
   computeTrendVector,
   computeStageRates,
   disambiguateRiverTrend,
   formatClearanceText,
-  ASSET_DEFINITIONS
-} from './hydro_engine.js?v=1.2.0';
+  ASSET_DEFINITIONS,
+  evaluateStationFreshness
+} from './hydro_engine.js';
 
 import { initJargonPopovers, renderJargonTerm } from './jargon_popover.js';
 import { setCameraEventsCatalog, initCameraGuideTriggers } from './camera_guide.js';
 import { createRefreshController } from './modules/refresh_controller.js';
 import { setupOfflineBanner as setupResilienceBanner } from './modules/network_resilience.js';
 import { applyFreshnessPill } from './modules/dom_utils.js';
-import { buildStaffGaugePanel } from './modules/staff_gauge_panel.js';
+import { buildStaffGaugePanel, loadFrame } from './modules/staff_gauge_panel.js';
 
 import {
   renderInspectorSparkline,
   bindInspectorSparklineEvents
 } from './sparkline.js';
+
+// Threshold labels derived from the single source of truth [RULE-SSOT-01]
+const T_MONKS = HYDRO_THRESHOLDS['52233'] || {};
+const T_BEER = HYDRO_THRESHOLDS['52157'] || {};
+const fmtM = (v) => (typeof v === 'number' ? v.toFixed(2) : '—');
 
 let topologyData = null;
 let statusData = null;
@@ -854,9 +861,9 @@ function renderSVGNetwork() {
     } else if (edge.type === 'polder_overflow' || (edge.from === '52127' && edge.to === '52159')) {
       edgeTitle = `Athelney Spillway (Curry Moor ➔ Northmoor Cascade): Overtopping from Curry Moor into Northmoor when stage ≥ 7.35m AOD (Status: ${isFlowActive ? 'ACTIVE OVERFLOW' : 'STANDBY / DRY'})`;
     } else if (edge.from === '52233' && edge.to === '52234') {
-      edgeTitle = `Monk's Leaze Clyse: Controlled gravity diversion from River Parrett into Sowy Relief Channel (Sill: 4.20m AOD • Trigger: 7.20m AOD, Status: ${isFlowActive ? 'DIVERTING' : 'CLOSED'})`;
+      edgeTitle = `Monk's Leaze Clyse: Controlled gravity diversion from River Parrett into Sowy Relief Channel (Sill: ${fmtM(T_MONKS.SILL_MAOD)}m AOD • Trigger: ${fmtM(T_MONKS.TRIGGER_MAOD)}m AOD, Status: ${isFlowActive ? 'DIVERTING' : 'CLOSED'})`;
     } else if (edge.from === '52157' && edge.to === 'E9531') {
-      edgeTitle = `Beer Wall Culverts & Sowy Spur Tilting Weirs: Sowy Relief Channel into King's Sedgemoor Drain (Tilting Weirs: 6.00m AOD • Box Culverts & Beazeley Spillway: 7.30m AOD)`;
+      edgeTitle = `Beer Wall Culverts & Sowy Spur Tilting Weirs: Sowy Relief Channel into King's Sedgemoor Drain (Tilting Weirs: ${fmtM(T_BEER.KSD_CONVEYANCE_MAOD)}m AOD • Box Culverts: ${fmtM(T_BEER.CREST_MAOD)}m AOD • Beazeley Spillway crest: Pending EA Asset Survey)`;
     }
 
     svgContent += `
@@ -916,12 +923,12 @@ function renderSVGNetwork() {
       `;
     } else if (edge.from === '52233' && edge.to === '52234') {
       const bX = 760, bY = 356, bW = 124;
-      const bLabel = isFlowActive ? '🔵 Monk\'s Leaze Diverting 7.20m' : 'Monk\'s Leaze Clyse 4.20m';
+      const bLabel = isFlowActive ? `🔵 Monk's Leaze Diverting ${fmtM(T_MONKS.TRIGGER_MAOD)}m` : `Monk's Leaze Clyse ${fmtM(T_MONKS.SILL_MAOD)}m`;
       const bBg = isFlowActive ? 'rgba(12, 74, 110, 0.95)' : 'rgba(15, 23, 42, 0.92)';
       const bStroke = isFlowActive ? '#0284c7' : '#475569';
       const bTextFill = isFlowActive ? '#38bdf8' : '#cbd5e1';
       edgeBadgesHTML += `
-        <g class="topology-edge-badge ${dimmed ? 'dimmed' : ''}" data-target-node="52233" tabindex="0" role="button" aria-label="Monk's Leaze Clyse Sluice Gate at 4.20m AOD">
+        <g class="topology-edge-badge ${dimmed ? 'dimmed' : ''}" data-target-node="52233" tabindex="0" role="button" aria-label="Monk's Leaze Clyse Sluice Gate at ${fmtM(T_MONKS.SILL_MAOD)}m AOD">
           <rect x="${bX - bW/2}" y="${bY - 9}" width="${bW}" height="18" rx="4" fill="${bBg}" stroke="${bStroke}" stroke-width="1.2" />
           <text x="${bX}" y="${bY}" fill="${bTextFill}" font-size="8.2" font-weight="600" text-anchor="middle" dominant-baseline="central" letter-spacing="0.02em">${bLabel}</text>
           <rect x="${bX - bW/2 - 8}" y="${bY - 18}" width="${bW + 16}" height="36" fill="transparent" pointer-events="all" />
@@ -930,29 +937,29 @@ function renderSVGNetwork() {
       `;
     } else if (edge.from === '52157' && edge.to === 'E9531') {
       const bX = 748, bY = 142, bW = 142;
-      const stage52157 = typeof fromNode?.stage_mAOD === 'number' ? fromNode.stage_mAOD : 3.92;
-      let bLabel = 'Beer Wall 7.30m / Weirs 6.00m';
+      const stage52157 = typeof fromNode?.stage_mAOD === 'number' ? fromNode.stage_mAOD : STATION_REGISTRY['52157']?.fallback_stage_mAOD;
+      let bLabel = `Beer Wall ${fmtM(T_BEER.CREST_MAOD)}m / Weirs ${fmtM(T_BEER.KSD_CONVEYANCE_MAOD)}m`;
       let bBg = 'rgba(15, 23, 42, 0.92)';
       let bStroke = '#475569';
       let bTextFill = '#cbd5e1';
-      if (stage52157 >= 7.30) {
-        bLabel = '▲ Beer Wall Relief 7.30m';
+      if (stage52157 >= T_BEER.CREST_MAOD) {
+        bLabel = `▲ Beer Wall Relief ${fmtM(T_BEER.CREST_MAOD)}m`;
         bBg = 'rgba(127, 29, 29, 0.95)';
         bStroke = '#ef4444';
         bTextFill = '#fca5a5';
       } else if (stage52157 >= 7.15) {
-        bLabel = '⚠️ Beer Wall Near Crest 7.30m';
+        bLabel = `⚠️ Beer Wall Near Crest ${fmtM(T_BEER.CREST_MAOD)}m`;
         bBg = 'rgba(120, 53, 15, 0.95)';
         bStroke = '#f59e0b';
         bTextFill = '#fde68a';
-      } else if (stage52157 >= 6.00) {
-        bLabel = '🔵 Tilting Weirs Active 6.00m';
+      } else if (stage52157 >= T_BEER.KSD_CONVEYANCE_MAOD) {
+        bLabel = `🔵 Tilting Weirs Active ${fmtM(T_BEER.KSD_CONVEYANCE_MAOD)}m`;
         bBg = 'rgba(12, 74, 110, 0.95)';
         bStroke = '#0284c7';
         bTextFill = '#38bdf8';
       }
       edgeBadgesHTML += `
-        <g class="topology-edge-badge ${dimmed ? 'dimmed' : ''}" data-target-node="52157" tabindex="0" role="button" aria-label="Beer Wall Culverts &amp; Beazeley Spillway at 7.30m AOD and Sowy Spur Tilting Weirs at 6.00m AOD">
+        <g class="topology-edge-badge ${dimmed ? 'dimmed' : ''}" data-target-node="52157" tabindex="0" role="button" aria-label="Beer Wall Box Culverts at ${fmtM(T_BEER.CREST_MAOD)}m AOD (Beazeley Spillway crest pending EA Asset Survey) and Sowy Spur Tilting Weirs at ${fmtM(T_BEER.KSD_CONVEYANCE_MAOD)}m AOD">
           <rect x="${bX - bW/2}" y="${bY - 9}" width="${bW}" height="18" rx="4" fill="${bBg}" stroke="${bStroke}" stroke-width="1.2" />
           <text x="${bX}" y="${bY}" fill="${bTextFill}" font-size="8.0" font-weight="600" text-anchor="middle" dominant-baseline="central" letter-spacing="0.02em">${bLabel}</text>
           <rect x="${bX - bW/2 - 8}" y="${bY - 18}" width="${bW + 16}" height="36" fill="transparent" pointer-events="all" />
@@ -1217,7 +1224,7 @@ function getNodeCoordinates(nodeId, nodes, edges, visited = new Set()) {
   return { x: 480, y: 300, labelPos: 'top' };
 }
 
-function getNodeStatusVisual(node) {
+export function getNodeStatusVisual(node) {
   if (node.node_type === 'tidal_outfall') {
     if (node.status === 'ALERT') {
       return { stroke: '#f59e0b', fill: '#78350f', symbol: '⚠️', label: 'STORM SURGE ALERT', badgeClass: 'badge-near-crest', sparklineColor: '#f59e0b' };
@@ -1250,6 +1257,10 @@ function getNodeStatusVisual(node) {
       return { stroke: '#ef4444', fill: '#7f1d1d', symbol: '🔴', label: 'CRITICAL', badgeClass: 'badge-overtopping' };
     case 'DIVERTING':
       return { stroke: '#0284c7', fill: '#0c4a6e', symbol: '🔵', label: 'DIVERTING', badgeClass: 'badge-open' };
+    case 'THROTTLED':
+      return { stroke: '#f59e0b', fill: '#78350f', symbol: '⚠️', label: 'THROTTLED', badgeClass: 'badge-near-crest' };
+    case 'REVERSE_LOCK':
+      return { stroke: '#ef4444', fill: '#7f1d1d', symbol: '🔴', label: 'REVERSE LOCK', badgeClass: 'badge-overtopping' };
     case 'SLACK_RESTRICTED':
     case 'TIDE_LOCKED':
       return { stroke: '#64748b', fill: '#1e293b', symbol: '🕒', label: 'TIDE-LOCKED', badgeClass: 'badge-tide-locked', sparklineColor: node.id === 'E9094' ? '#38bdf8' : '#0284c7' };
@@ -1271,6 +1282,9 @@ function isNodeMatchingFilter(node) {
   if (activeStatusFilter) {
     if (activeStatusFilter === 'CLOSED') {
       if (node.status !== 'CLOSED' && node.status !== 'SLACK_RESTRICTED' && node.status !== 'TIDE_LOCKED') return false;
+    } else if (activeStatusFilter === 'ALERT') {
+      // Throttled / reverse-lock clyse states are amber / red conditions, so surface them under Alert
+      if (!['ALERT', 'THROTTLED', 'REVERSE_LOCK'].includes(node.status)) return false;
     } else if (node.status !== activeStatusFilter) {
       return false;
     }
@@ -1423,14 +1437,23 @@ function inspectNode(nodeId, restoreFocus = false) {
 
   // Active event session lookup [Progressive Disclosure Level 1 & 2]
   const activeEvents = statusData?.active_events || [];
-  const activeEvent = activeEvents.find(e => {
+  // Priority-ordered asset lists for nodes that can match several events, so a more
+  // specific structure (e.g. Monk's Leaze Clyse) is never shadowed by a catch-all one.
+  const ACTIVE_EVENT_PRIORITY = {
+    '52233': ['monks_leaze_clyse', 'allermoor_spillway', 'west_sedgemoor']
+  };
+  const prioritisedAssets = ACTIVE_EVENT_PRIORITY[node.id];
+  const prioritisedEvent = prioritisedAssets
+    ? prioritisedAssets.map(id => activeEvents.find(e => e.asset_id === id)).find(Boolean)
+    : null;
+  const activeEvent = prioritisedEvent || activeEvents.find(e => {
+    if (prioritisedAssets) return false;
     if (node.id === '52118') return e.asset_id === 'hookbridge' || e.asset_id === 'stanmoor';
     if (node.id === '52158') return e.asset_id === 'baltmoor_wall';
     if (node.id === '52157') return e.asset_id === 'beer_wall' || e.asset_id === 'westonzoyland';
     if (node.id === '52127') return e.asset_id === 'curry_moor' || e.asset_id === 'stanmoor' || e.asset_id === 'cuts_road';
     if (node.id === '52159') return e.asset_id === 'northmoor' || e.asset_id === 'westonzoyland';
     if (node.id === '52163') return e.asset_id === 'dunball_outfall';
-    if (node.id === '52233') return e.asset_id === 'monks_leaze_clyse' || e.asset_id === 'allermoor_spillway' || e.asset_id === 'west_sedgemoor';
     if (node.id === '52120') return e.asset_id === 'muchelney_access' || e.asset_id === 'wet_moor';
     if (node.id === '52153') return e.asset_id === 'wet_moor';
     return false;
@@ -1521,6 +1544,9 @@ function inspectNode(nodeId, restoreFocus = false) {
   // Stats Grid: Displays duration for spillways/clyses, pumping station status for polders, and surveyed datums for gauges
   const statsGrid = document.getElementById('node-stats-grid');
   const isControlStructure = ['spillway', 'clyse_gate', 'clyse_tailwater', 'spillway_channel', 'outfall_estuary', 'outfall_inland'].includes(node.node_type) || node.status === 'OVERSPILLING' || node.status === 'DIVERTING';
+  // 52234 has its own ponding / Beer Wall wave-check card; it must not fall into the generic
+  // control-structure branch when its status is DIVERTING.
+  const useControlStructureCard = isControlStructure && node.id !== '52234';
 
   let activeEventCardHTML = '';
   if (activeEvent) {
@@ -1652,7 +1678,7 @@ function inspectNode(nodeId, restoreFocus = false) {
           </div>
         `;
       }
-    } else if (isControlStructure) {
+    } else if (useControlStructureCard) {
       let durText = '⏱️ Inactive';
       if (node.status === 'OVERSPILLING') {
         const cardData = statusData?.spillways?.[node.id];
@@ -1699,13 +1725,28 @@ function inspectNode(nodeId, restoreFocus = false) {
         `;
       } else if (node.id === '52233') {
         const downNode = topologyData?.nodes?.find(n => n.id === '52234');
-        const downStage = typeof downNode?.stage_mAOD === 'number' ? downNode.stage_mAOD : 6.72;
-        const oathEval = evaluateOathLock(stage ?? 6.73, downStage);
+        const downStage = typeof downNode?.stage_mAOD === 'number' ? downNode.stage_mAOD : STATION_REGISTRY['52234']?.fallback_stage_mAOD;
+        const upStageForOath = stage ?? STATION_REGISTRY['52233']?.fallback_stage_mAOD;
+        // Oath Lock is inferred from the 52233 - 52234 head difference. Suppress the inference
+        // when either reading is a cached fallback or the downstream sensor is offline / stale.
+        const downMeasureKey = Object.keys(statusData?.measures || {}).find(k => k.startsWith('52234-'));
+        const downReadings = (downMeasureKey && (statusData?.measures?.[downMeasureKey] || historyData?.measures?.[downMeasureKey])) || [];
+        const downFreshness = evaluateStationFreshness(downReadings);
+        const oathDegraded = node.telemetry_source === 'cached_fallback' ||
+          downNode?.telemetry_source === 'cached_fallback' ||
+          !Number.isFinite(downStage) || !Number.isFinite(upStageForOath) ||
+          Boolean(downFreshness.isOffline || downFreshness.isStale || downFreshness.isFlatlined);
+        const oathEval = oathDegraded
+          ? {
+              statusText: '⚠️ NOT ASSESSED (52234 reading unavailable)',
+              narrative: 'Not assessed: the downstream Monk\'s Leaze reading (52234) is offline, stale or a cached fallback, so no head difference can be inferred.'
+            }
+          : evaluateOathLock(upStageForOath, downStage);
         statsGrid.innerHTML = `
           ${activeEventCardHTML}
           <div class="stat-card">
             <span class="stat-title">Monk's Leaze ${renderJargonTerm('Clyse')} Sluice</span>
-            <strong class="stat-val" style="font-size:0.78rem; font-family:monospace; color:#38bdf8;">Sill: 4.20m • Trigger: 7.20m AOD</strong>
+            <strong class="stat-val" style="font-size:0.78rem; font-family:monospace; color:#38bdf8;">Sill: ${fmtM(T_MONKS.SILL_MAOD)}m • Trigger: ${fmtM(T_MONKS.TRIGGER_MAOD)}m AOD</strong>
           </div>
           <div class="stat-card">
             <span class="stat-title">Oath Lock ${renderJargonTerm('Penning')} (Inferred)</span>
@@ -1714,31 +1755,35 @@ function inspectNode(nodeId, restoreFocus = false) {
           <div class="stat-card" style="grid-column: span 2;">
             <span class="stat-title">3-Structure Control Complex (Monk's Leaze, Allermoor &amp; Oath Lock)</span>
             <strong class="stat-val" style="font-size:0.78rem; font-weight:normal; color:#cbd5e1; line-height:1.45;">
-              1. <strong>Monk's Leaze ${renderJargonTerm('Clyse')} Sluice:</strong> Concrete Sill 4.20m AOD • Headwall 6.70m AOD • EA Diversion Trigger 7.20m AOD • Sowy Cap 7.60m AOD.<br/>
-              2. <strong>Allermoor Spillway:</strong> Assumed to spill at about the same Parrett stage as Beasley's Spillway (7.50m AOD, EA Somerset Levels guidance; 7.35m pre-spill alert). Allermoor's own crest level is not published. When running, EA protocol closes Monk's Leaze ${renderJargonTerm('Clyse')} and curtails upstream tributary pumping at Huish Episcopi, Midelney &amp; Long Load.<br/>
+              1. <strong>Monk's Leaze ${renderJargonTerm('Clyse')} Sluice:</strong> Concrete Sill ${fmtM(T_MONKS.SILL_MAOD)}m AOD • Headwall ${fmtM(T_MONKS.HEADWALL_MAOD)}m AOD • EA Diversion Trigger ${fmtM(T_MONKS.TRIGGER_MAOD)}m AOD • Sowy Cap ${fmtM(T_MONKS.DOWNSTREAM_ALERT_MAOD)}m AOD.<br/>
+              2. <strong>Allermoor Spillway:</strong> ⚠️ Crest pending EA Asset Survey. Allermoor's own crest level is not published; ~7.50m AOD is Beasley's Spillway guidance used only as a proxy and is not used to declare overtopping. When running, EA protocol closes Monk's Leaze ${renderJargonTerm('Clyse')} and curtails upstream tributary pumping at Huish Episcopi, Midelney &amp; Long Load.<br/>
               3. <strong>Oath Lock Twin Radial Gates:</strong> ${oathEval.narrative}
             </strong>
           </div>
         `;
       } else if (node.id === '52157') {
-        const bwEval = evaluateBeerWall(stage ?? 3.92, 7.30);
+        const bwReg = STATION_REGISTRY['52157'] || {};
+        const bwEval = evaluateBeerWall(stage ?? bwReg.fallback_stage_mAOD, bwReg.crest_elevation_mAOD, {
+          ksdConveyanceThreshold: bwReg.ksd_conveyance_mAOD,
+          channelAlert: bwReg.alert_level_mAOD
+        });
         statsGrid.innerHTML = `
           ${activeEventCardHTML}
           <div class="stat-card">
             <span class="stat-title">Sowy Spur &amp; Lang Acre Tilting Weirs</span>
-            <strong class="stat-val" style="font-size:0.78rem; font-family:monospace; color:${bwEval.isTiltingWeirsActive ? '#38bdf8' : '#cbd5e1'};">${bwEval.isTiltingWeirsActive ? '🔵 ACTIVE CONVEYANCE (≥6.00m)' : '⚪ PENNING (<6.00m AOD)'}</strong>
+            <strong class="stat-val" style="font-size:0.78rem; font-family:monospace; color:${bwEval.isTiltingWeirsActive ? '#38bdf8' : '#cbd5e1'};">${bwEval.isTiltingWeirsActive ? `🔵 ACTIVE CONVEYANCE (≥${fmtM(T_BEER.KSD_CONVEYANCE_MAOD)}m)` : `⚪ PENNING (<${fmtM(T_BEER.KSD_CONVEYANCE_MAOD)}m AOD)`}</strong>
           </div>
           <div class="stat-card">
             <span class="stat-title">Beer Wall Culverts &amp; Beazeley Spillway</span>
-            <strong class="stat-val" style="font-size:0.78rem; font-family:monospace;">${bwEval.statusText} (7.30m AOD)</strong>
+            <strong class="stat-val" style="font-size:0.78rem; font-family:monospace;">${bwEval.statusText} (${fmtM(T_BEER.CREST_MAOD)}m AOD)</strong>
           </div>
           <div class="stat-card" style="grid-column: span 2;">
             <span class="stat-title">4-Tier Hydraulic Elevation Profile (Greylake / A372)</span>
             <strong class="stat-val" style="font-size:0.78rem; font-weight:normal; color:#cbd5e1; line-height:1.45;">
-              • <strong>4.20m AOD:</strong> In-channel Sowy high-water alert envelope.<br/>
-              • <strong>6.00m AOD:</strong> Sowy Spur &amp; Lang Acre tilting weirs lower into ${renderJargonTerm('KSD')} conveyance.<br/>
-              • <strong>7.30m AOD:</strong> 4-bay A372 concrete box culverts &amp; Beazeley Spillway embankment relief threshold.<br/>
-              • <strong>&gt;8.00m AOD:</strong> Raised A372 highway carriageway crown (⚠️ Pending As-Built Highways Survey).
+              • <strong>${fmtM(T_BEER.ALERT_MAOD)}m AOD:</strong> In-channel Sowy high-water alert envelope.<br/>
+              • <strong>${fmtM(T_BEER.KSD_CONVEYANCE_MAOD)}m AOD:</strong> Sowy Spur &amp; Lang Acre tilting weirs lower into ${renderJargonTerm('KSD')} conveyance.<br/>
+              • <strong>${fmtM(T_BEER.CREST_MAOD)}m AOD:</strong> 4-bay A372 concrete box culverts relief threshold (Beazeley Spillway crest: ⚠️ Pending EA Asset Survey).<br/>
+              • <strong>&gt;${fmtM(T_BEER.A372_CROWN_MAOD)}m AOD:</strong> Raised A372 highway carriageway crown (⚠️ Pending As-Built Highways Survey).
             </strong>
           </div>
         `;
@@ -1753,15 +1798,15 @@ function inspectNode(nodeId, restoreFocus = false) {
       }
     } else if (node.id === '52234') {
       const bwNode = topologyData?.nodes?.find(n => n.id === '52157');
-      const bwStage = typeof bwNode?.stage_mAOD === 'number' ? bwNode.stage_mAOD : 3.92;
+      const bwStage = typeof bwNode?.stage_mAOD === 'number' ? bwNode.stage_mAOD : STATION_REGISTRY['52157']?.fallback_stage_mAOD;
       const bwReadings = historyData?.measures?.['52157-level-stage-i-15_min-mAOD'] || statusData?.measures?.['52157-level-stage-i-15_min-mAOD'] || [];
       const bwRates = computeStageRates(bwReadings);
-      const waveDetected = (bwRates.rate_1h_m_per_hr !== null && bwRates.rate_1h_m_per_hr >= 0.02) || bwStage >= 4.20;
+      const waveDetected = (bwRates.rate_1h_m_per_hr !== null && bwRates.rate_1h_m_per_hr >= 0.02) || bwStage >= T_BEER.ALERT_MAOD;
       statsGrid.innerHTML = `
         ${activeEventCardHTML}
         <div class="stat-card">
           <span class="stat-title">Sowy Intake Channel Envelope</span>
-          <strong class="stat-val" style="font-size:0.78rem; font-family:monospace;">Bed: 4.20m • Cap: 7.60m AOD</strong>
+          <strong class="stat-val" style="font-size:0.78rem; font-family:monospace;">Bed: ${fmtM(T_MONKS.SILL_MAOD)}m • Cap: ${fmtM(T_MONKS.DOWNSTREAM_ALERT_MAOD)}m AOD</strong>
         </div>
         <div class="stat-card">
           <span class="stat-title">Beer Wall (52157) Wave Check</span>
@@ -1770,7 +1815,7 @@ function inspectNode(nodeId, restoreFocus = false) {
         <div class="stat-card" style="grid-column: span 2;">
           <span class="stat-title">Stilling-Well Ponding &amp; Downstream Wave Verification</span>
           <strong class="stat-val" style="font-size:0.78rem; font-weight:normal; color:#cbd5e1; line-height:1.45;">
-            When Monk's Leaze ${renderJargonTerm('Clyse')} is shut, the downstream Sowy intake stilling well (52234) frequently ponds at a static flatline (~6.72m AOD). Active Sowy conveyance is cross-verified against downstream wave arrival (dh/dt &ge; +0.02m/h) at Beer Wall Upstream (Station 52157).
+            When Monk's Leaze ${renderJargonTerm('Clyse')} is shut, the downstream Sowy intake stilling well (52234) frequently ponds at a static flatline (~${fmtM(STATION_REGISTRY['52234']?.fallback_stage_mAOD)}m AOD). Active Sowy conveyance is cross-verified against downstream wave arrival (dh/dt &ge; +0.02m/h) at Beer Wall Upstream (Station 52157).
           </strong>
         </div>
       `;
@@ -2051,9 +2096,25 @@ function inspectNode(nodeId, restoreFocus = false) {
     `;
 
     // Staff gauge camera cross-check (Issue #54)
-    document.getElementById('node-staff-gauge-camera')?.remove();
-    const staffGaugePanel = buildStaffGaugePanel(node, readings);
-    if (staffGaugePanel) footerLinks.insertAdjacentElement('beforebegin', staffGaugePanel);
+    // An already-opened panel for the same node (frame loaded or loading) is kept across
+    // refreshes so it is not torn down and re-fetched; only its age caption is refreshed.
+    const existingPanel = document.getElementById('node-staff-gauge-camera');
+    const keepOpenPanel = Boolean(
+      existingPanel &&
+      existingPanel.dataset?.nodeId === String(node.id) &&
+      existingPanel._staffGaugeEntry &&
+      !existingPanel.querySelector('.staff-gauge-load')
+    );
+    if (keepOpenPanel) {
+      const body = existingPanel.querySelector('.staff-gauge-body');
+      if (body && body.querySelector('img.staff-gauge-frame')) {
+        loadFrame(existingPanel._staffGaugeEntry, body, { silent: true });
+      }
+    } else {
+      existingPanel?.remove();
+      const staffGaugePanel = buildStaffGaugePanel(node, readings);
+      if (staffGaugePanel) footerLinks.insertAdjacentElement('beforebegin', staffGaugePanel);
+    }
   }
 }
 
@@ -2064,7 +2125,7 @@ function getCatchmentLabel(c) {
   return 'Somerset Catchment';
 }
 
-function getInspectorNarrative(node, stage, crest) {
+export function getInspectorNarrative(node, stage, crest) {
   const isPolder = node.node_type === 'polder_basin';
   const hasCrest = !!node.crest_elevation_mAOD && !isPolder;
   const crestStr = typeof crest === 'number' ? `${crest.toFixed(2)} ${renderJargonTerm('mAOD', 'm AOD')}` : 'threshold';
@@ -2086,7 +2147,13 @@ function getInspectorNarrative(node, stage, crest) {
       : `ALERT: Water elevation (${stageStr}) has reached the high water alert threshold (${crestStr}).`;
   }
   if (node.status === 'DIVERTING') {
-    return `ACTIVE DIVERSION: Sluice gates are raised, routing headwater discharge from the River Parrett into the Sowy Relief Channel.`;
+    return `ACTIVE DIVERSION (inferred): River Parrett stage (${stageStr}) is above the EA diversion trigger with a positive head difference into the Sowy Relief Channel, so flow is expected to pass through Monk's Leaze Clyse. Gate position is not broadcast.`;
+  }
+  if (node.status === 'THROTTLED') {
+    return `THROTTLED (inferred): River Parrett stage (${stageStr}) is above the diversion trigger, but the Sowy level is at its capacity threshold or the head difference is below the minimum, so diversion is expected to be restricted. Gate position is not broadcast.`;
+  }
+  if (node.status === 'REVERSE_LOCK') {
+    return `REVERSE LOCK (inferred): the Sowy level (52234) is above the River Parrett level (52233) at Monk's Leaze Clyse, so the clyse is expected to be shut against back-flow. Stage now ${stageStr}. Gate position is not broadcast.`;
   }
   if (node.status === 'SLACK_RESTRICTED') {
     return `TIDE-LOCKED: High estuarine sea tide in Parrett Estuary exceeds inland drain level. Flap sluices shut tightly under hydrostatic backpressure.`;

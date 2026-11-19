@@ -1173,7 +1173,7 @@ export async function refreshLiveDashboard() {
       },
       {
         html: `<strong>Beer Wall Culverts &amp; Beazeley Spillway (52157):</strong> ${beerWallSpillway.statusText} (Sowy ${beerWallLevel.toFixed(2)}m AOD)`,
-        tooltip: `📍 Driven by Beerwall Upstream (Station 52157). 7.30m AOD box culverts & Beazeley Spillway relief threshold (${beerWallScheme}), decoupled from >8.00m A372 road crown.`
+        tooltip: `📍 Driven by Beerwall Upstream (Station 52157). ${HYDRO_THRESHOLDS.BEERWALL.CREST_MAOD.toFixed(2)}m AOD box culverts relief threshold (${beerWallScheme}). Beazeley Spillway crest: pending EA Asset Survey, decoupled from >${HYDRO_THRESHOLDS.BEERWALL.A372_CROWN_MAOD.toFixed(2)}m A372 road crown.`
       },
       `<strong>Northmoor Gravity ${renderJargonTerm('Clyse')}:</strong> ${nmGravitySluice.statusText}`,
       {
@@ -1269,18 +1269,20 @@ export async function refreshLiveDashboard() {
   const headDropMeters = hasHealthyDownstream ? Number((monksUpLevel - monksDownLevel).toFixed(2)) : null;
   const headDropFormatted = hasHealthyDownstream
     ? formatHeadDelta(headDropMeters)
-    : (monksDownFreshness.isFlatlined ? 'Unavailable (52234 Flatlined)' : 'Unavailable');
+    : (monksDownFreshness.isFlatlined ? 'Unavailable (52234 reading static)' : 'Unavailable');
   const oathLock = hasHealthyDownstream
     ? evaluateOathLock(monksUpLevel, monksDownLevel)
-    : { statusText: '⚪ UNCONFIRMED (52234 Degraded)', narrative: 'Downstream Sowy sensor (52234) is flatlined/stale; Oath Lock differential head cannot be verified.' };
+    : { statusText: '⚪ UNCONFIRMED (52234 Degraded)', narrative: 'Downstream Sowy sensor (52234) is reading static, stale or offline; Oath Lock differential head cannot be verified.' };
   const beerWallSowyEval = evaluateBeerWall(beerWallLevel, HYDRO_THRESHOLDS.BEERWALL.CREST_MAOD);
-  const allermoorCrest = hydroConfig?.moors?.sowy_channel?.allermoor_spillway?.baseline_crest_mAOD ?? 7.50;
-  const allermoorMargin = Number((allermoorCrest - monksUpLevel).toFixed(2));
-  const allermoorStatusText = monksUpLevel >= allermoorCrest
-    ? `🔴 OVERTOPPING (7.50m AOD • Upstream Pumps Curtailed)`
-    : (monksUpLevel >= 7.35
-      ? `🟡 NEAR CREST (+${allermoorMargin.toFixed(2)}m to 7.50m crest)`
-      : `🟢 SECURE (+${allermoorMargin.toFixed(2)}m to 7.50m crest)`);
+  // [RULE-THRESH-01] Allermoor's own crest is unsurveyed: the ~7.50m figure is Beasley's Spillway
+  // guidance used as a proxy only, so no OVERTOPPING / NEAR CREST / SECURE status is declared.
+  const allermoorProxy = sowyEval.allermoor_spillway?.proxy_trigger_mAOD;
+  const allermoorProxyText = Number.isFinite(allermoorProxy) ? allermoorProxy.toFixed(2) : null;
+  const allermoorStatusText = allermoorProxyText === null
+    ? '⚠️ Crest pending EA Asset Survey'
+    : (monksUpLevel >= allermoorProxy
+      ? `⚠️ Crest pending EA Asset Survey • Parrett is above the ~${allermoorProxyText}m AOD guidance proxy`
+      : `⚠️ Crest pending EA Asset Survey • Parrett is ${Number((allermoorProxy - monksUpLevel).toFixed(2)).toFixed(2)}m below the ~${allermoorProxyText}m AOD guidance proxy`);
 
   const sowyHeroBanner = renderHeroSpillwayBanner({
     icon: '🚰',
@@ -1297,7 +1299,7 @@ export async function refreshLiveDashboard() {
     isAlert: false,
     staleInfo: sowyStaleInfo,
     stats: [
-      { label: 'Gate Position', htmlValue: sowyEval.code === 'GRAVITY_OPEN' ? '🔵 DIVERTING' : '🔒 PENNING / CLOSED' },
+      { label: 'Inferred Clyse State', htmlValue: getSluiceHeroStateText(sowyEval.status) },
       { label: 'Intake Head Drop', value: hasHealthyDownstream ? `${headDropMeters >= 0 ? '+' : ''}${headDropMeters.toFixed(2)}m` : 'Unavailable' }
     ],
     camLink: {
@@ -1340,20 +1342,20 @@ export async function refreshLiveDashboard() {
         tooltip: `📍 Concrete Sill: 4.20m AOD • Headwall: 6.70m AOD • EA Diversion Trigger: 7.20m AOD • Sowy Cap: 7.60m AOD`
       },
       {
-        html: `<strong>Allermoor Spillway (Parrett ➔ Sowy):</strong> ${allermoorStatusText} <small style="color:#94a3b8;">(Proxy: Beasley's 7.50m)</small>`,
-        tooltip: `📍 Assumed to spill at about the same Parrett stage as Beasley's Spillway (7.50m AOD, EA Somerset Levels guidance). Allermoor's own crest level is not published. When running, EA protocol closes Monk's Leaze Clyse and curtails upstream tributary pumping at Huish Episcopi, Midelney & Long Load.`
+        html: `<strong>Allermoor Spillway (Parrett ➔ Sowy):</strong> ${allermoorStatusText} <small style="color:#94a3b8;">(Proxy: Beasley's ${allermoorProxyText ?? '7.50'}m)</small>`,
+        tooltip: `📍 The ~7.50m AOD figure is Beasley's Spillway guidance, used only as a proxy and not to declare overtopping. Allermoor's own crest level is not published (pending EA Asset Survey). Under EA protocol, when running, EA protocol closes Monk's Leaze Clyse and curtails upstream tributary pumping at Huish Episcopi, Midelney & Long Load.`
       },
       {
         html: `<strong>Oath Lock ${renderJargonTerm('Penning')} Sluice:</strong> ${oathLock.statusText} (Inferred from Δh ${headDropFormatted})`,
         tooltip: `📍 Oath Lock Twin Radial Gates: Inferred from Monk's Leaze differential head (${oathLock.narrative})`
       },
       {
-        html: `<strong>Sowy Spur &amp; Lang Acre Tilting Weirs (52157):</strong> ${beerWallLevel >= 6.00 ? '🔵 ACTIVE CONVEYANCE TO ' + renderJargonTerm('KSD') : '⚪ ' + renderJargonTerm('Penning') + ' LEVEL'} (Greylake ${beerWallLevel.toFixed(2)}m / 6.00m Trigger)`,
-        tooltip: `📍 Driven by Beer Wall Upstream (Station 52157). Sowy Spur & Lang Acre tilting weirs lower above 6.00m AOD to convey flows into King's Sedgemoor Drain.`
+        html: `<strong>Sowy Spur &amp; Lang Acre Tilting Weirs (52157):</strong> ${beerWallLevel >= HYDRO_THRESHOLDS.BEERWALL.KSD_CONVEYANCE_MAOD ? '🔵 ACTIVE CONVEYANCE TO ' + renderJargonTerm('KSD') : '⚪ ' + renderJargonTerm('Penning') + ' LEVEL'} (Greylake ${beerWallLevel.toFixed(2)}m / ${HYDRO_THRESHOLDS.BEERWALL.KSD_CONVEYANCE_MAOD.toFixed(2)}m Trigger)`,
+        tooltip: `📍 Driven by Beer Wall Upstream (Station 52157). Sowy Spur & Lang Acre tilting weirs lower above ${HYDRO_THRESHOLDS.BEERWALL.KSD_CONVEYANCE_MAOD.toFixed(2)}m AOD to convey flows into King's Sedgemoor Drain.`
       },
       {
-        html: `<strong>Beer Wall Culverts &amp; Beazeley Spillway (52157):</strong> ${beerWallSowyEval.statusText} (Greylake ${beerWallLevel.toFixed(2)}m AOD / 7.30m Crest)`,
-        tooltip: `📍 4-bay A372 concrete box culverts & Beazeley Spillway embankment at 7.30m AOD (decoupled from >8.00m A372 road crown).`
+        html: `<strong>Beer Wall Culverts &amp; Beazeley Spillway (52157):</strong> ${beerWallSowyEval.statusText} (Greylake ${beerWallLevel.toFixed(2)}m AOD / ${HYDRO_THRESHOLDS.BEERWALL.CREST_MAOD.toFixed(2)}m Box Culverts)`,
+        tooltip: `📍 4-bay A372 concrete box culverts at ${HYDRO_THRESHOLDS.BEERWALL.CREST_MAOD.toFixed(2)}m AOD (decoupled from >${HYDRO_THRESHOLDS.BEERWALL.A372_CROWN_MAOD.toFixed(2)}m A372 road crown). Beazeley Spillway crest: pending EA Asset Survey.`
       },
       `<strong>Upstream Tributary Inflow:</strong> River Yeo: ${huishLevel.toFixed(2)}m AOD | River Isle: ${midelneyLevel.toFixed(2)}m AOD`
     ],
@@ -1799,6 +1801,28 @@ export function resetDashboardStaffGaugeState() {
   stationFreshnessById.clear();
 }
 
+/**
+ * Re-derives the freshness notice for an (possibly cached) dashboard staff-gauge panel so it
+ * never shows a notice that was true when the panel was first opened but is stale now.
+ */
+function syncDashboardStaffGaugeNotice(panel, entry, stationId) {
+  const freshness = stationFreshnessById.get(String(stationId)) || { isOffline: false, isStale: false, isFlatlined: false };
+  const mode = getStaffGaugePanelMode(entry, freshness);
+  let noticeP = panel.querySelector?.('.staff-gauge-notice') || null;
+  if (!mode.notice) {
+    if (noticeP) noticeP.remove();
+    return;
+  }
+  if (!noticeP) {
+    noticeP = document.createElement('p');
+    noticeP.className = 'staff-gauge-status staff-gauge-warning staff-gauge-notice';
+    const copyP = panel.querySelector?.('.staff-gauge-copy');
+    if (copyP && typeof panel.insertBefore === 'function') panel.insertBefore(noticeP, copyP);
+    else panel.appendChild(noticeP);
+  }
+  noticeP.textContent = mode.notice;
+}
+
 function createDashboardStaffGaugePanel(entry, stationId) {
   const freshness = stationFreshnessById.get(String(stationId)) || { isOffline: false, isStale: false, isFlatlined: false };
   const mode = getStaffGaugePanelMode(entry, freshness);
@@ -1807,17 +1831,11 @@ function createDashboardStaffGaugePanel(entry, stationId) {
   panel.className = 'staff-gauge-panel';
   panel.setAttribute('aria-label', 'Staff gauge camera view');
 
-  if (mode.notice) {
-    const noticeP = document.createElement('p');
-    noticeP.className = 'staff-gauge-status staff-gauge-warning';
-    noticeP.textContent = mode.notice;
-    panel.appendChild(noticeP);
-  }
-
   const copyP = document.createElement('p');
-  copyP.className = 'staff-gauge-status';
+  copyP.className = 'staff-gauge-status staff-gauge-copy';
   copyP.textContent = getStaffGaugePanelCopy(entry);
   panel.appendChild(copyP);
+  syncDashboardStaffGaugeNotice(panel, entry, stationId);
 
   const body = document.createElement('div');
   body.className = 'staff-gauge-body';
@@ -1864,8 +1882,12 @@ export function initDashboardStaffGaugeTriggers(container) {
         slot.appendChild(state.panel);
       }
       btn.setAttribute('aria-expanded', 'true');
+      syncDashboardStaffGaugeNotice(state.panel, entry, stationId);
       if (!state.body.querySelector?.('img.staff-gauge-frame')) {
         loadFrame(entry, state.body);
+      } else {
+        // Refresh the "captured X ago" caption on re-open without a loading flash
+        loadFrame(entry, state.body, { silent: true });
       }
     } else {
       if (state.panel.parentNode === slot) {
@@ -2073,8 +2095,12 @@ export function createMoorCard(opts) {
         const btn = slot.querySelector('.staff-gauge-load');
         if (btn) btn.setAttribute('aria-expanded', 'true');
         // Re-check the camera on each 60s refresh so the "captured X ago" caption never goes stale
-        const entry = getStaffGaugeCameraForStation(slot.getAttribute('data-station-id'));
-        if (entry) loadFrame(entry, state.body, { silent: true });
+        const stationId = slot.getAttribute('data-station-id');
+        const entry = getStaffGaugeCameraForStation(stationId);
+        if (entry) {
+          syncDashboardStaffGaugeNotice(state.panel, entry, stationId);
+          loadFrame(entry, state.body, { silent: true });
+        }
       }
     });
   }
@@ -2429,6 +2455,38 @@ export function renderPumpTriggerGauge(pumpEval, drivingInfo) {
   `;
 }
 
+/**
+ * Hero-stat text for the four canonical sluice states. The state is inferred from the
+ * Parrett / Sowy gauge levels; gate position is not broadcast, so it is never claimed.
+ */
+export function getSluiceHeroStateText(status) {
+  switch (status) {
+    case 'DIVERTING': return '🔵 DIVERTING';
+    case 'THROTTLED': return '🟡 THROTTLED';
+    case 'REVERSE_LOCK': return '🔴 REVERSE LOCK';
+    case 'CLOSED': return '🔒 CLOSED · PENNING';
+    default: return '⚪ UNCONFIRMED';
+  }
+}
+
+/**
+ * Describes a degraded station freshness for the sluice gauge, or null when healthy.
+ * Wording is neutral: a static reading is not called a sensor fault.
+ */
+function describeSluiceStationDegradation(freshness, stage) {
+  const f = freshness || {};
+  if (f.isOffline) return { tag: '⚠️ Offline', reason: 'offline' };
+  if (f.isFlatlined) {
+    const staticVal = Number.isFinite(stage) ? `${stage.toFixed(2)}m` : null;
+    return { tag: `⚠️ Reading static${staticVal ? ` (${staticVal})` : ''}`, reason: 'reading static' };
+  }
+  if (f.isStale) {
+    const ageLabel = f.ageHours !== undefined && f.ageHours !== null ? `${f.ageHours}h` : 'stale';
+    return { tag: `🕒 Stale (${ageLabel})`, reason: 'stale' };
+  }
+  return null;
+}
+
 export function renderSluiceOperationalGauge(sowyEval, opts = {}) {
   if (!sowyEval) return '';
 
@@ -2445,6 +2503,8 @@ export function renderSluiceOperationalGauge(sowyEval, opts = {}) {
   const upStage = Number.isFinite(opts.upStage) ? opts.upStage : regUp.fallback_stage_mAOD;
   const downStage = Number.isFinite(opts.downStage) ? opts.downStage : null;
   const downFreshness = opts.downFreshness || {};
+  const upFreshness = opts.upFreshness || {};
+  const upDegradation = describeSluiceStationDegradation(upFreshness, upStage);
   const isDownstreamHealthy = Boolean(
     sowyEval.isDownstreamHealthy &&
     downStage !== null &&
@@ -2509,20 +2569,9 @@ export function renderSluiceOperationalGauge(sowyEval, opts = {}) {
     deltaHtml = `<span class="sluice-delta-pill">➔ Δh: ${deltaSign}${deltaH.toFixed(2)}m</span>`;
     downstreamValHtml = `<code class="sluice-attr-val">${downStage.toFixed(2)}m AOD</code> <span class="sluice-cap-tag">(Cap/Alert ${downAlert.toFixed(2)}m)</span>`;
   } else {
-    let downStatusTag = '⚠️ Unavailable';
-    let downReason = 'unavailable';
-    if (downFreshness.isOffline) {
-      downStatusTag = '⚠️ Offline';
-      downReason = 'offline';
-    } else if (downFreshness.isFlatlined) {
-      const staticVal = downStage !== null ? `${downStage.toFixed(2)}m static` : 'static';
-      downStatusTag = `⚠️ Flatlined (${staticVal})`;
-      downReason = 'flatlined';
-    } else if (downFreshness.isStale) {
-      const ageLabel = downFreshness.ageHours !== undefined && downFreshness.ageHours !== null ? `${downFreshness.ageHours}h` : 'stale';
-      downStatusTag = `🕒 Stale (${ageLabel})`;
-      downReason = 'stale';
-    }
+    const downDegradation = describeSluiceStationDegradation(downFreshness, downStage);
+    const downStatusTag = downDegradation?.tag || '⚠️ Unavailable';
+    const downReason = downDegradation?.reason || 'unavailable';
     deltaHtml = `<span class="sluice-delta-pill sluice-delta-unavailable" role="status">➔ Head Drop: Unavailable</span>`;
     downstreamValHtml = `<span class="stage-stale-tag">${escapeHTML(downStatusTag)}</span> <span class="sluice-cap-tag">(Cap/Alert ${downAlert.toFixed(2)}m)</span>`;
     degradedNoteHtml = `<p class="gauge-explainer-sub sluice-degraded-note">⚠️ Downstream Sowy gauge (52234) is currently ${escapeHTML(downReason)}; head drop cannot be verified and status is inferred from upstream Parrett (52233) only.</p>`;
@@ -2542,7 +2591,10 @@ export function renderSluiceOperationalGauge(sowyEval, opts = {}) {
       <div class="sluice-dual-attribution" role="group" aria-label="Upstream and downstream sensor comparison">
         <div class="sluice-attr-node">
           <span class="sluice-attr-role">Upstream · Parrett (52233)</span>
-          <code class="sluice-attr-val">${upStage.toFixed(2)}m AOD</code>
+          <span class="sluice-attr-val-wrap">
+            <code class="sluice-attr-val">${upStage.toFixed(2)}m AOD</code>
+            ${upDegradation ? `<span class="stage-stale-tag">${escapeHTML(upDegradation.tag)}</span>` : ''}
+          </span>
         </div>
         <div class="sluice-attr-delta">
           ${deltaHtml}
@@ -2556,6 +2608,7 @@ export function renderSluiceOperationalGauge(sowyEval, opts = {}) {
       <div class="gauge-explainer-callout">
         <p>ℹ️ <strong>How this works:</strong> Operational status is inferred from River Parrett stage (52233) relative to the EA Somerset Levels Trigger Point Plan, as live penstock actuator SCADA is not broadcast publicly.</p>
         ${degradedNoteHtml}
+        ${upDegradation ? `<p class="gauge-explainer-sub sluice-degraded-note">⚠️ Upstream Parrett gauge (52233) is currently ${escapeHTML(upDegradation.reason)}; the stage shown may not be current, so the inferred clyse state is unconfirmed.</p>` : ''}
       </div>
 
       <div class="gauge-track-container sluice-track">

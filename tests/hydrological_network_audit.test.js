@@ -500,12 +500,13 @@ test('HYDRO-17: Monk\'s Leaze Clyse evaluates true REVERSE_LOCK during high floo
   const sluice = ASSET_DEFINITIONS.monks_leaze_clyse;
 
   // Real flood scenario: Parrett 7.30m (elevated above 7.20m trigger), Sowy 7.45m (backpressure delta >= 0.10m)
+  const sampleTime = '2026-11-07T12:15:00Z';
   const readings = {
-    upstream: [{ dateTime: '2026-11-07T12:15:00Z', value: 7.30 }],
-    downstream: [{ dateTime: '2026-11-07T12:15:00Z', value: 7.45 }]
+    upstream: [{ dateTime: sampleTime, value: 7.30 }],
+    downstream: [{ dateTime: sampleTime, value: 7.45 }]
   };
 
-  const res = evaluateAssetTransition(sluice, null, readings);
+  const res = evaluateAssetTransition(sluice, null, readings, null, { nowMs: Date.parse(sampleTime) });
   assert.equal(res.to_state, 'REVERSE_LOCK', 'Must evaluate to REVERSE_LOCK when elevated Parrett is reverse-locked by Sowy tailwater');
   assert.equal(res.severity_tier, 3, 'Severity must be elevated alert (Tier 3)');
   assert.equal(res.clearance_m, -0.15, 'Clearance must reflect reverse head delta (7.30 - 7.45 = -0.15m)');
@@ -716,7 +717,7 @@ test('HYDRO-26: Southern & Flanking Polders First-Class Basin Modeling & Seasona
 
   const polderKeys = ['wet_moor', 'west_sedgemoor', 'stanmoor', 'westonzoyland'];
 
-  // 1. First-class polder asset verification [RULE-ENT-01]
+  // 1. First-class polder asset verification & [RULE-THRESH-01] provenance gate
   for (const key of polderKeys) {
     const polder = ASSET_DEFINITIONS[key];
     assert.ok(polder, `ASSET_DEFINITIONS must define ${key}`);
@@ -724,67 +725,90 @@ test('HYDRO-26: Southern & Flanking Polders First-Class Basin Modeling & Seasona
     assert.equal(polder.asset_id, key, `${key} must have matching asset_id`);
     assert.equal(typeof polder.name, 'string');
     assert.equal(typeof polder.floor_elevation_mAOD, 'number');
-    assert.equal(typeof polder.lead_pump_winter_mAOD, 'number');
-    assert.equal(typeof polder.lead_pump_summer_mAOD, 'number');
-    assert.equal(typeof polder.duty_pump_winter_mAOD, 'number');
-    assert.equal(typeof polder.duty_pump_summer_mAOD, 'number');
-    assert.equal(typeof polder.mobile_ordered_mAOD, 'number');
-    assert.equal(typeof polder.mobile_active_mAOD, 'number');
-    assert.equal(typeof polder.critical_mAOD, 'number');
     assert.equal(typeof polder.deadband_pump, 'number');
 
-    // Seasonal monotonic progression
-    assert.ok(
-      polder.floor_elevation_mAOD < polder.lead_pump_winter_mAOD,
-      `${key}: floor < winter lead pump trigger`
-    );
-    assert.ok(
-      polder.lead_pump_winter_mAOD <= polder.duty_pump_winter_mAOD,
-      `${key}: winter lead <= winter duty trigger`
-    );
-    assert.ok(
-      polder.lead_pump_summer_mAOD <= polder.duty_pump_summer_mAOD,
-      `${key}: summer lead <= summer duty trigger`
-    );
-    assert.ok(
-      polder.lead_pump_winter_mAOD <= polder.lead_pump_summer_mAOD,
-      `${key}: winter lead <= summer lead (penning storage)`
-    );
-    assert.ok(
-      polder.duty_pump_winter_mAOD <= polder.duty_pump_summer_mAOD,
-      `${key}: winter duty <= summer duty`
-    );
-    assert.ok(
-      polder.duty_pump_summer_mAOD < polder.mobile_ordered_mAOD,
-      `${key}: summer duty < mobile ordered trigger`
-    );
-    assert.ok(
-      polder.mobile_ordered_mAOD <= polder.mobile_active_mAOD,
-      `${key}: mobile ordered <= mobile active trigger`
-    );
-    assert.ok(
-      polder.mobile_active_mAOD <= polder.critical_mAOD,
-      `${key}: mobile active <= critical storage trigger`
-    );
+    if (polder.survey_tier === 'UNSURVEYED') {
+      // Unsurveyed polders (west_sedgemoor, westonzoyland) must have null pump triggers and never trigger automated alerts
+      assert.equal(polder.primary_station, null, `${key}: unsurveyed polder must have primary_station: null`);
+      assert.equal(polder.lead_pump_winter_mAOD, null);
+      assert.equal(polder.lead_pump_summer_mAOD, null);
+      assert.equal(polder.duty_pump_winter_mAOD, null);
+      assert.equal(polder.duty_pump_summer_mAOD, null);
+      assert.equal(polder.mobile_ordered_mAOD, null);
+      assert.equal(polder.mobile_active_mAOD, null);
+      assert.equal(polder.critical_mAOD, null);
+      assert.equal(polder.rapid_inrush_threshold_mh, null);
+    } else {
+      // Surveyed / Trigger Plan polders (stanmoor, wet_moor) must obey seasonal monotonic progression on fixed pump triggers
+      assert.equal(typeof polder.lead_pump_winter_mAOD, 'number');
+      assert.equal(typeof polder.lead_pump_summer_mAOD, 'number');
+      assert.equal(typeof polder.duty_pump_winter_mAOD, 'number');
+      assert.equal(typeof polder.duty_pump_summer_mAOD, 'number');
+      assert.ok(
+        polder.floor_elevation_mAOD < polder.lead_pump_winter_mAOD,
+        `${key}: floor < winter lead pump trigger`
+      );
+      assert.ok(
+        polder.lead_pump_winter_mAOD <= polder.duty_pump_winter_mAOD,
+        `${key}: winter lead <= winter duty trigger`
+      );
+      assert.ok(
+        polder.lead_pump_summer_mAOD <= polder.duty_pump_summer_mAOD,
+        `${key}: summer lead <= summer duty trigger`
+      );
+      assert.ok(
+        polder.lead_pump_winter_mAOD <= polder.lead_pump_summer_mAOD,
+        `${key}: winter lead <= summer lead (penning storage)`
+      );
+      assert.ok(
+        polder.duty_pump_winter_mAOD <= polder.duty_pump_summer_mAOD,
+        `${key}: winter duty <= summer duty`
+      );
+      if (typeof polder.mobile_ordered_mAOD === 'number') {
+        assert.ok(
+          polder.duty_pump_summer_mAOD < polder.mobile_ordered_mAOD,
+          `${key}: summer duty < mobile ordered trigger`
+        );
+        assert.ok(
+          polder.mobile_ordered_mAOD <= polder.mobile_active_mAOD,
+          `${key}: mobile ordered <= mobile active trigger`
+        );
+        assert.ok(
+          polder.mobile_active_mAOD <= polder.critical_mAOD,
+          `${key}: mobile active <= critical storage trigger`
+        );
+      }
+    }
   }
 
-  // 2. Wet Moor seasonal pump inference
+  // 2. Wet Moor seasonal fixed-pump inference (no repurposed road thresholds as mobile pump triggers)
   const wm = ASSET_DEFINITIONS.wet_moor;
+  assert.equal(wm.mobile_ordered_mAOD, null, 'Wet Moor must not repurpose Muchelney 7.30m road breach as mobile_ordered_mAOD');
+  assert.equal(wm.mobile_active_mAOD, null, 'Wet Moor must not repurpose Muchelney 7.86m road crown as mobile_active_mAOD');
+  assert.equal(wm.critical_mAOD, null, 'Wet Moor must not repurpose 8.20m river cut-off as polder critical_mAOD');
   const wmReadings = [{ value: 6.80, dateTime: '2026-11-15T12:00:00Z' }];
   const wmWinter = evaluateAssetTransition(wm, null, wmReadings, { isSummer: false });
   assert.equal(wmWinter.to_state, 'DUTY_PUMPING', 'Wet Moor 6.80m is DUTY_PUMPING in winter (>= 6.75m)');
   const wmSummer = evaluateAssetTransition(wm, null, wmReadings, { isSummer: true });
   assert.equal(wmSummer.to_state, 'STANDBY', 'Wet Moor 6.80m is STANDBY under summer penning (< 6.90m)');
+  // High Yeo stage (7.90m) must remain DUTY_PUMPING on wet_moor, never fabricating MOBILE_ORDERED / MOBILE_ACTIVE
+  const wmHigh = evaluateAssetTransition(wm, null, [{ value: 7.90, dateTime: '2026-11-15T12:00:00Z' }], { isSummer: false });
+  assert.equal(wmHigh.to_state, 'DUTY_PUMPING');
 
-  // 3. West Sedgemoor seasonal pump inference
+  // 3. West Sedgemoor decoupled from River Parrett 52233 (no automated alerts until 52155 sump thresholds verified)
   const ws = ASSET_DEFINITIONS.west_sedgemoor;
-  const wsReadings = [{ value: 7.05, dateTime: '2026-11-15T12:00:00Z' }];
-  const wsWinter = evaluateAssetTransition(ws, null, wsReadings, { isSummer: false });
-  assert.equal(wsWinter.to_state, 'DUTY_PUMPING', 'West Sedgemoor 7.05m is DUTY_PUMPING in winter (>= 7.00m)');
-  const wsSummer = evaluateAssetTransition(ws, null, wsReadings, { isSummer: true });
-  assert.equal(wsSummer.to_state, 'STANDBY', 'West Sedgemoor 7.05m is STANDBY under summer penning (< 7.10m)');
+  assert.equal(ws.primary_station, null, 'west_sedgemoor must be decoupled from River Parrett 52233');
+  assert.equal(ws.sump_measure_id, '52155-level-sump_level-i-15_min-mAOD');
+  const wsSurgeReadings = [
+    { value: 7.45, dateTime: '2026-11-15T12:00:00Z' },
+    { value: 7.15, dateTime: '2026-11-15T11:00:00Z' }
+  ];
+  const wsTransition = evaluateAssetTransition(ws, null, wsSurgeReadings, { isSummer: false });
+  assert.equal(wsTransition.to_state, 'STANDBY', 'west_sedgemoor must remain STANDBY and never trigger POLDER_INRUSH or MOBILE_ORDERED from Parrett stage');
+  assert.equal(wsTransition.severity_tier, 1);
+  assert.equal(wsTransition.regime_signature, null);
 
-  // 4. Stanmoor seasonal pump inference
+  // 4. Stanmoor seasonal pump inference (verified EA Trigger Point Plan on 52127)
   const sm = ASSET_DEFINITIONS.stanmoor;
   const smReadings = [{ value: 4.60, dateTime: '2026-11-15T12:00:00Z' }];
   const smWinter = evaluateAssetTransition(sm, null, smReadings, { isSummer: false });
@@ -792,13 +816,13 @@ test('HYDRO-26: Southern & Flanking Polders First-Class Basin Modeling & Seasona
   const smSummer = evaluateAssetTransition(sm, null, smReadings, { isSummer: true });
   assert.equal(smSummer.to_state, 'STANDBY', 'Stanmoor 4.60m is STANDBY under summer penning (< 4.90m)');
 
-  // 5. Westonzoyland seasonal pump inference
+  // 5. Westonzoyland unsurveyed protection (no unverified +0.05m offsets on 52159)
   const wz = ASSET_DEFINITIONS.westonzoyland;
-  const wzReadings = [{ value: 3.80, dateTime: '2026-11-15T12:00:00Z' }];
+  assert.equal(wz.primary_station, null, 'westonzoyland must not drive automated alerts from unverified 52159 offsets');
+  const wzReadings = [{ value: 5.00, dateTime: '2026-11-15T12:00:00Z' }];
   const wzWinter = evaluateAssetTransition(wz, null, wzReadings, { isSummer: false });
-  assert.equal(wzWinter.to_state, 'DUTY_PUMPING', 'Westonzoyland 3.80m is DUTY_PUMPING in winter (>= 3.75m)');
-  const wzSummer = evaluateAssetTransition(wz, null, wzReadings, { isSummer: true });
-  assert.equal(wzSummer.to_state, 'STANDBY', 'Westonzoyland 3.80m is STANDBY under summer penning (< 4.25m)');
+  assert.equal(wzWinter.to_state, 'STANDBY', 'Unsurveyed Westonzoyland must remain STANDBY without automated alerts');
+  assert.equal(wzWinter.severity_tier, 1);
 
   // 6. Parity with CANONICAL_PUMP_THRESHOLDS and HYDRO_THRESHOLDS
   assert.equal(wm.lead_pump_winter_mAOD, CANONICAL_PUMP_THRESHOLDS.huish_episcopi_ps.winter.lead);
@@ -811,15 +835,8 @@ test('HYDRO-26: Southern & Flanking Polders First-Class Basin Modeling & Seasona
   assert.equal(sm.lead_pump_summer_mAOD, CANONICAL_PUMP_THRESHOLDS.stanmoor_ps.summer.lead);
   assert.equal(sm.duty_pump_summer_mAOD, CANONICAL_PUMP_THRESHOLDS.stanmoor_ps.summer.duty);
 
-  assert.equal(ws.lead_pump_winter_mAOD, CANONICAL_PUMP_THRESHOLDS.west_sedgemoor_ps.winter.lead);
-  assert.equal(ws.duty_pump_winter_mAOD, CANONICAL_PUMP_THRESHOLDS.west_sedgemoor_ps.winter.duty);
-  assert.equal(ws.lead_pump_summer_mAOD, CANONICAL_PUMP_THRESHOLDS.west_sedgemoor_ps.summer.lead);
-  assert.equal(ws.duty_pump_summer_mAOD, CANONICAL_PUMP_THRESHOLDS.west_sedgemoor_ps.summer.duty);
-
-  assert.equal(wz.lead_pump_winter_mAOD, CANONICAL_PUMP_THRESHOLDS.westonzoyland_ps.winter.lead);
-  assert.equal(wz.duty_pump_winter_mAOD, CANONICAL_PUMP_THRESHOLDS.westonzoyland_ps.winter.duty);
-  assert.equal(wz.lead_pump_summer_mAOD, CANONICAL_PUMP_THRESHOLDS.westonzoyland_ps.summer.lead);
-  assert.equal(wz.duty_pump_summer_mAOD, CANONICAL_PUMP_THRESHOLDS.westonzoyland_ps.summer.duty);
+  assert.equal(CANONICAL_PUMP_THRESHOLDS.west_sedgemoor_ps, undefined, 'Unsurveyed west_sedgemoor_ps must not appear in CANONICAL_PUMP_THRESHOLDS');
+  assert.equal(CANONICAL_PUMP_THRESHOLDS.westonzoyland_ps, undefined, 'Unsurveyed westonzoyland_ps must not appear in CANONICAL_PUMP_THRESHOLDS');
 
   assert.equal(wm.floor_elevation_mAOD, HYDRO_THRESHOLDS.WET_MOOR.GROUND_MAOD);
   assert.equal(sm.floor_elevation_mAOD, HYDRO_THRESHOLDS.STANMOOR.GROUND_MAOD);
@@ -1056,9 +1073,10 @@ test('HYDRO-28: Sowy / KSD Control Chain Refinement (Allermoor Spillway, Oath Lo
   assert.equal(sowyCfg.sluices[0].structure_height_mAOD, 6.70);
   assert.equal(sowyCfg.sluices[0].diversion_threshold_mAOD, 7.20);
   assert.equal(sowyCfg.sluices[0].sowy_capacity_mAOD, 7.60);
-  assert.equal(sowyCfg.allermoor_spillway.baseline_crest_mAOD, 7.50, '[RULE-THRESH-01] Allermoor Spillway crest must be 7.50m AOD (Beasley\'s Spillway proxy)');
-  assert.equal(sowyCfg.allermoor_spillway.pre_overtopping_alert_mAOD, 7.35);
-  assert.equal(sowyCfg.allermoor_spillway.survey_status, 'TIER_2_TRIGGER_PLAN');
+  assert.equal(sowyCfg.allermoor_spillway.baseline_crest_mAOD, null, '[RULE-THRESH-01] Unsurveyed Allermoor Spillway baseline_crest_mAOD must be null in catchment config');
+  assert.equal(sowyCfg.allermoor_spillway.pre_overtopping_alert_mAOD, null);
+  assert.equal(sowyCfg.allermoor_spillway.proxy_trigger_mAOD, 7.50);
+  assert.equal(sowyCfg.allermoor_spillway.survey_status, 'UNSURVEYED');
   assert.equal(sowyCfg.allermoor_spillway.curtails_tributary_pumps, true);
   assert.ok(
     sowyCfg.allermoor_spillway.notes.includes("Beasley's Spillway") && sowyCfg.allermoor_spillway.notes.includes("not published"),
@@ -1066,19 +1084,32 @@ test('HYDRO-28: Sowy / KSD Control Chain Refinement (Allermoor Spillway, Oath Lo
   );
   assert.equal(sowyCfg.beer_wall_intake.ksd_conveyance_threshold_mAOD, 6.00);
   assert.equal(sowyCfg.beer_wall_intake.relief_crest_mAOD, 7.30);
-  assert.equal(sowyCfg.beazeley_spillway.baseline_crest_mAOD, 7.30);
+  assert.equal(sowyCfg.beazeley_spillway.baseline_crest_mAOD, null, '[RULE-THRESH-01] Unsurveyed Beazeley Spillway baseline_crest_mAOD must be null in catchment config');
+  assert.equal(sowyCfg.beazeley_spillway.survey_status, 'UNSURVEYED');
 
-  // 1b. ASSET_DEFINITIONS.allermoor_spillway verification
+  // 1b. ASSET_DEFINITIONS.allermoor_spillway verification ([RULE-THRESH-01]: unsurveyed crest_elevation_mAOD: null)
   const allermoorDef = ASSET_DEFINITIONS.allermoor_spillway;
   assert.ok(allermoorDef, 'ASSET_DEFINITIONS must define allermoor_spillway');
   assert.equal(allermoorDef.asset_type, 'spillway');
   assert.equal(allermoorDef.primary_station, '52233');
-  assert.equal(allermoorDef.crest_elevation_mAOD, 7.50);
-  assert.equal(allermoorDef.pre_spill_elevation_mAOD, 7.35);
-  assert.equal(allermoorDef.survey_tier, 'TIER_2_TRIGGER_PLAN');
+  assert.equal(allermoorDef.crest_elevation_mAOD, null, '[RULE-THRESH-01] Unsurveyed Allermoor Spillway must set crest_elevation_mAOD: null');
+  assert.equal(allermoorDef.pre_spill_elevation_mAOD, null);
+  assert.equal(allermoorDef.proxy_trigger_mAOD, 7.50);
+  assert.equal(allermoorDef.survey_tier, 'UNSURVEYED');
   assert.ok(
     allermoorDef.survey_tooltip.includes("Beasley's Spillway") && allermoorDef.survey_tooltip.includes("not published"),
     'allermoor_spillway.survey_tooltip must honestly state the Beasley\'s Spillway 7.50m proxy and that Allermoor\'s own crest level is not published'
+  );
+  // Automated OVERTOPPING event generation must be disabled for unsurveyed Allermoor Spillway
+  const allermoorTransition = evaluateAssetTransition(allermoorDef, null, [{ value: 7.80, dateTime: '2026-11-15T12:00:00Z' }]);
+  assert.equal(allermoorTransition.to_state, 'SECURE', '[RULE-THRESH-01] Unsurveyed allermoor_spillway must never generate automated OVERTOPPING events');
+  assert.equal(allermoorTransition.severity_tier, 1);
+  assert.equal(allermoorTransition.action, 'NONE');
+
+  // 1c. STATION_REGISTRY['52157'].provenance.crest must cite surveyed Beer Wall Box Culverts without bundling unsurveyed Beazeley Spillway into Tier 1
+  assert.ok(
+    !STATION_REGISTRY['52157'].provenance.crest.authority.includes('Beazeley'),
+    '[RULE-THRESH-01] STATION_REGISTRY[52157].provenance.crest (Tier 1) must not bundle unsurveyed Beazeley Spillway into Tier 1 surveyed geometry'
   );
 
   // 2. Coupled rule monks_leaze_diverting uses MONKS_LEAZE.TRIGGER_MAOD (7.20m), NOT SILL_MAOD (4.20m)
@@ -1095,22 +1126,19 @@ test('HYDRO-28: Sowy / KSD Control Chain Refinement (Allermoor Spillway, Oath Lo
   assert.equal(penningEval.nodes.find(n => n.id === '52233').status, 'CLOSED', '52233 must remain CLOSED at 6.80m (< 7.20m trigger)');
   assert.equal(penningEval.edges.find(e => e.from === '52233' && e.to === '52234').flow_active, false);
 
-  // 3. evaluateSowyChannel default 7.20m trigger, Allermoor Spillway 7.50m evaluation & flatline wave verification
+  // 3. evaluateSowyChannel default 7.20m trigger, unsurveyed Allermoor Spillway & flatline wave verification
   const sowyCalm = evaluateSowyChannel(6.73, 6.72);
   assert.equal(sowyCalm.code, 'CLOSED', 'evaluateSowyChannel must default to 7.20m trigger and return CLOSED at 6.73m calm stage');
   assert.equal(sowyCalm.status, 'CLOSED');
   assert.equal(sowyCalm.allermoor_spillway.status, 'SECURE');
-  assert.equal(sowyCalm.allermoor_spillway.crest_elevation_mAOD, 7.50);
-  assert.equal(sowyCalm.allermoor_spillway.clearance_m, 0.77);
-
-  const sowyNearAllermoor = evaluateSowyChannel(7.38, 7.00);
-  assert.equal(sowyNearAllermoor.allermoor_spillway.status, 'NEAR_CREST');
-  assert.equal(sowyNearAllermoor.allermoor_spillway.clearance_m, 0.12);
+  assert.equal(sowyCalm.allermoor_spillway.crest_elevation_mAOD, null);
+  assert.equal(sowyCalm.allermoor_spillway.survey_tier, 'UNSURVEYED');
+  assert.equal(sowyCalm.allermoor_spillway.clearance_m, null);
 
   const sowyOvertopAllermoor = evaluateSowyChannel(7.52, 7.10);
-  assert.equal(sowyOvertopAllermoor.allermoor_spillway.status, 'OVERTOPPING');
-  assert.equal(sowyOvertopAllermoor.allermoor_spillway.clearance_m, -0.02);
-  assert.ok(sowyOvertopAllermoor.narrative.includes('Allermoor Spillway is assumed to be overtopping'));
+  assert.equal(sowyOvertopAllermoor.allermoor_spillway.status, 'SECURE');
+  assert.equal(sowyOvertopAllermoor.allermoor_spillway.crest_elevation_mAOD, null);
+  assert.ok(sowyOvertopAllermoor.narrative.includes("Beasley's Spillway guidance proxy"));
   assert.ok(sowyOvertopAllermoor.narrative.includes('curtailed'));
 
   const sowyFlatlineDivert = evaluateSowyChannel(7.25, 6.72, 7.20, {
@@ -1136,6 +1164,8 @@ test('HYDRO-28: Sowy / KSD Control Chain Refinement (Allermoor Spillway, Oath Lo
   assert.equal(bwWeirs.isTiltingWeirsActive, true);
   assert.equal(bwWeirs.beazeley_spillway.asset_id, 'beazeley_spillway');
   assert.equal(bwWeirs.beazeley_spillway.status, 'SECURE');
+  assert.equal(bwWeirs.beazeley_spillway.crest_elevation_mAOD, null);
+  assert.equal(bwWeirs.beazeley_spillway.survey_tier, 'UNSURVEYED');
 
   // 5. evaluateAssetTransition downstream wave verification on 52234 flatline
   const baseTime = new Date('2026-11-15T12:00:00Z').getTime();
@@ -1151,7 +1181,7 @@ test('HYDRO-28: Sowy / KSD Control Chain Refinement (Allermoor Spillway, Oath Lo
     '52233': [{ value: 7.25, dateTime: new Date(baseTime).toISOString() }],
     '52234': flatline52234,
     '52157': rising52157
-  });
+  }, null, { nowMs: baseTime });
   assert.equal(clyseTransition.to_state, 'DIVERTING');
   assert.equal(clyseTransition.regime_signature?.anomaly_type, 'DOWNSTREAM_WAVE_VERIFIED');
   assert.ok(clyseTransition.narrative.includes('Beer Wall 52157'));

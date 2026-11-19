@@ -14,6 +14,7 @@ process.env.CAMERA_BUFFER_DIR = path.join(tmpDir, 'camera_buffer');
 const { server } = await import('../server.js');
 const { getStaffGaugePanelCopy } = await import('../src/js/modules/staff_gauge_panel.js');
 const { STAFF_GAUGE_CAMERA_MAP } = await import('../src/js/staff_gauge_cameras.js');
+const { validateStaffGaugeCameraPayload } = await import('../src/js/contracts/staff_gauge_camera_schema.js');
 
 const JPEG_BYTES = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0xff, 0xd9]);
 
@@ -50,6 +51,7 @@ test('/api/staff-gauge-cameras: serves latest frame for mapped cameras only', as
     assert.equal(json.station_id, '52120');
     assert.ok(json.age_minutes >= 9 && json.age_minutes <= 12, `age ${json.age_minutes}`);
     assert.equal(json.image_url, '/api/staff-gauge-cameras/huish_episcopi_ps/latest.jpg');
+    assert.deepEqual(validateStaffGaugeCameraPayload(json), { valid: true, errors: [] });
 
     const img = await get(port, json.image_url);
     assert.equal(img.status, 200);
@@ -64,6 +66,7 @@ test('/api/staff-gauge-cameras: serves latest frame for mapped cameras only', as
     const none = await get(port, '/api/staff-gauge-cameras/midelney_ps/latest');
     assert.equal(none.status, 200);
     assert.equal(JSON.parse(none.body.toString()).status, 'unavailable');
+    assert.deepEqual(validateStaffGaugeCameraPayload(JSON.parse(none.body.toString())), { valid: true, errors: [] });
     assert.equal((await get(port, '/api/staff-gauge-cameras/midelney_ps/latest.jpg')).status, 404);
     // Traversal-style ids never match the route
     assert.notEqual((await get(port, '/api/staff-gauge-cameras/..%2F..%2Fetc/latest.jpg')).status, 200);

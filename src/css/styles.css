@@ -1522,8 +1522,18 @@ svg.micro-sparkline {
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   padding-top: 0.85rem;
   font-size: 0.8rem;
-  color: #64748b;
+  color: #94a3b8;
   text-align: center;
+}
+
+.drawer-footer-note a {
+  color: #38bdf8;
+  text-decoration: underline;
+}
+
+.drawer-footer-note a:hover,
+.drawer-footer-note a:focus-visible {
+  color: #7dd3fc;
 }
 
 /* Stepped Horizontal Pumping Trigger Gauge */
@@ -1752,10 +1762,11 @@ svg.micro-sparkline {
 }
 
 .sluice-dual-attribution {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
+  /* Two readings side by side; the head-drop pill sits on its own row beneath so
+     role labels and values never wrap awkwardly in 3-column desktop cards. */
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: start;
   gap: 0.5rem 0.75rem;
   padding: 0.6rem 0.75rem;
   margin-bottom: 0.65rem;
@@ -1768,7 +1779,13 @@ svg.micro-sparkline {
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
-  min-width: 115px;
+  min-width: 0;
+}
+
+.sluice-attr-delta {
+  grid-column: 1 / -1;
+  order: 3;
+  justify-self: center;
 }
 
 .sluice-attr-right {
@@ -1781,13 +1798,14 @@ svg.micro-sparkline {
   color: #cbd5e1;
   font-weight: 600;
   letter-spacing: 0.02em;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .sluice-attr-val {
   color: #e2e8f0;
   font-weight: 700;
   font-size: 0.85rem;
+  white-space: nowrap;
 }
 
 .sluice-attr-val-wrap {
@@ -1801,6 +1819,7 @@ svg.micro-sparkline {
 .sluice-cap-tag {
   font-size: 0.7rem;
   color: #cbd5e1;
+  white-space: nowrap;
 }
 
 .sluice-delta-pill {
@@ -1863,7 +1882,11 @@ svg.micro-sparkline {
 }
 
 .sluice-track .gauge-tick.tick-top .tick-label {
-  text-shadow: 0 1px 4px #0f172a, 0 0 6px #0f172a;
+  /* Opaque plate so the pin stem passes behind the label instead of cutting through its text */
+  background: #0f172a;
+  padding: 1px 4px;
+  border-radius: 3px;
+  text-shadow: none;
 }
 
 .gauge-tick.tick-edge-start {
@@ -1932,13 +1955,21 @@ svg.micro-sparkline {
 
 @media (max-width: 600px) {
   .sluice-track .tick-label {
-    font-size: 0.63rem;
+    font-size: 0.58rem;
+  }
+
+  .sluice-track .gauge-tick.tick-top .tick-label {
+    padding: 1px 2px;
   }
 
   .sluice-dual-attribution {
-    flex-direction: column;
-    align-items: flex-start;
+    grid-template-columns: minmax(0, 1fr);
     gap: 0.4rem;
+  }
+
+  .sluice-attr-delta {
+    order: 0;
+    justify-self: start;
   }
 
   .sluice-attr-right {

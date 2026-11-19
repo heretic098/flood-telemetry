@@ -16,8 +16,7 @@ import {
   STATION_REGISTRY,
   sanitizeStageValue,
   computeStageRates,
-  computeTrendVector,
-  escapeHTML
+  computeTrendVector
 } from './hydro_engine.js';
 import { buildStationReadingsMap } from './event_manager.js';
 import { validateEAWarningsIngestPayload } from './contracts/ea_warnings_schema.js';
@@ -57,18 +56,21 @@ export function resetWarningManagerState() {
 }
 
 /**
- * Sanitizes upstream EA narrative text:
+ * Sanitizes upstream EA narrative text (raw-text contract):
  * 1. Strips non-printable ASCII control characters.
- * 2. Escapes HTML entities to prevent stored XSS.
- * 3. Enforces a 2,048-character length limit.
+ * 2. Trims and enforces a 2,048-character length limit.
+ *
+ * Deliberately does NOT HTML-escape: /api/warnings returns the verbatim EA text and
+ * every renderer MUST escape at render time (escapeHTML) so nothing is double-escaped.
+ * Rows stored before this contract may still hold escaped text; active ones are
+ * rewritten on the next sync because the stored value differs from the raw text.
  * 
  * @param {string} raw
  * @returns {string}
  */
 export function sanitizeEANarrative(raw) {
   if (typeof raw !== 'string') return '';
-  const clean = raw.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '').trim().slice(0, 2048);
-  return escapeHTML(clean);
+  return raw.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '').trim().slice(0, 2048);
 }
 
 /**

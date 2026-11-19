@@ -383,14 +383,16 @@ test('Telemetry Events: Tidal Gate evaluates DISCHARGING vs TIDE_LOCKED with hea
   assert.equal(t2.severity_tier, 2);
 });
 
-test('Telemetry Events: Sluice evaluates CLOSED, DIVERTING, THROTTLED, REVERSE_LOCK', () => {
+test('Telemetry Events: Sluice evaluates CLOSED, DIVERTING, THROTTLED, REVERSE_LOCK with IEEE-754 and stale-age parity', async () => {
+  const { evaluateSowyChannel, evaluateTopologyNetwork } = await import('../src/js/hydro_engine.js');
   const sluice = ASSET_DEFINITIONS.monks_leaze_clyse; // Trigger 7.20m, Capacity 7.60m
+  const baseMs = Date.parse('2026-11-01T12:45:00Z');
 
   // 1. Normal penning / closed (Parrett: 6.50m, Sowy: 4.80m)
   const s1 = evaluateAssetTransition(sluice, null, {
     upstream: [{ dateTime: '2026-11-01T12:00:00Z', value: 6.50 }],
     downstream: [{ dateTime: '2026-11-01T12:00:00Z', value: 4.80 }]
-  });
+  }, null, { nowMs: baseMs });
   assert.equal(s1.action, 'NONE');
   assert.equal(s1.to_state, 'CLOSED');
   assert.equal(s1.severity_tier, 1);
@@ -399,26 +401,66 @@ test('Telemetry Events: Sluice evaluates CLOSED, DIVERTING, THROTTLED, REVERSE_L
   const s2 = evaluateAssetTransition(sluice, null, {
     upstream: [{ dateTime: '2026-11-01T12:15:00Z', value: 7.40 }],
     downstream: [{ dateTime: '2026-11-01T12:15:00Z', value: 5.50 }]
-  });
+  }, null, { nowMs: baseMs });
   assert.equal(s2.action, 'OPEN');
   assert.equal(s2.to_state, 'DIVERTING');
   assert.equal(s2.severity_tier, 2);
+
+  // 2b. Exact 0.05m head-differential boundary (7.25m vs 7.20m, IEEE-754 7.25 - 7.20 = 0.04999999999999982)
+  // Must evaluate to DIVERTING across evaluateSowyChannel, evaluateAssetTransition, and evaluateTopologyNetwork
+  const sBoundary = evaluateAssetTransition(sluice, null, {
+    upstream: [{ dateTime: '2026-11-01T12:20:00Z', value: 7.25 }],
+    downstream: [{ dateTime: '2026-11-01T12:20:00Z', value: 7.20 }]
+  }, null, { nowMs: baseMs });
+  const sowyBoundary = evaluateSowyChannel(7.25, 7.20, 7.20);
+  const topoBoundary = evaluateTopologyNetwork({
+    '52233-level-stage-i-15_min-mAOD': [{ dateTime: '2026-11-01T12:20:00Z', value: 7.25 }],
+    '52234-level-downstage-i-15_min-mAOD': [{ dateTime: '2026-11-01T12:20:00Z', value: 7.20 }]
+  });
+  assert.equal(sowyBoundary.status, 'DIVERTING');
+  assert.equal(sBoundary.to_state, 'DIVERTING');
+  assert.equal(topoBoundary.nodes.find(n => n.id === '52233').status, 'DIVERTING');
 
   // 3. Throttled by high tailwater (Parrett: 7.63m, Sowy: 7.61m capacity full, delta < 0.05m)
   const s3 = evaluateAssetTransition(sluice, { status: 'ACTIVE', to_state: 'DIVERTING', severity_tier: 2, start_time: '2026-11-01T12:15:00Z', trigger_stage_mAOD: 7.40, peak_stage_mAOD: 7.40 }, {
     upstream: [{ dateTime: '2026-11-01T12:30:00Z', value: 7.63 }],
     downstream: [{ dateTime: '2026-11-01T12:30:00Z', value: 7.61 }]
+  }, null, { nowMs: baseMs });
+  const topoThrottled = evaluateTopologyNetwork({
+    '52233-level-stage-i-15_min-mAOD': [{ dateTime: '2026-11-01T12:30:00Z', value: 7.63 }],
+    '52234-level-downstage-i-15_min-mAOD': [{ dateTime: '2026-11-01T12:30:00Z', value: 7.61 }]
   });
   assert.equal(s3.to_state, 'THROTTLED');
   assert.equal(s3.severity_tier, 3);
+  assert.equal(topoThrottled.nodes.find(n => n.id === '52233').status, 'THROTTLED');
 
   // 4. Reverse Lock (downstream higher than upstream: Sowy 7.65m > Parrett 7.50m)
   const s4 = evaluateAssetTransition(sluice, null, {
     upstream: [{ dateTime: '2026-11-01T12:45:00Z', value: 7.50 }],
     downstream: [{ dateTime: '2026-11-01T12:45:00Z', value: 7.65 }]
+  }, null, { nowMs: baseMs });
+  const topoReverse = evaluateTopologyNetwork({
+    '52233-level-stage-i-15_min-mAOD': [{ dateTime: '2026-11-01T12:45:00Z', value: 7.50 }],
+    '52234-level-downstage-i-15_min-mAOD': [{ dateTime: '2026-11-01T12:45:00Z', value: 7.65 }]
   });
   assert.equal(s4.to_state, 'REVERSE_LOCK');
   assert.equal(s4.severity_tier, 3);
+  assert.equal(topoReverse.nodes.find(n => n.id === '52233').status, 'REVERSE_LOCK');
+
+  // 5. Stale 48h downstream 52234 at 7.65m with 52233 = 7.35m must suppress false REVERSE_LOCK and evaluate to DIVERTING
+  const stale48hIso = new Date(baseMs - 48 * 3600 * 1000).toISOString();
+  const sStaleDown = evaluateAssetTransition(sluice, null, {
+    upstream: [{ dateTime: '2026-11-01T12:45:00Z', value: 7.35 }],
+    downstream: [{ dateTime: stale48hIso, value: 7.65 }]
+  }, null, { nowMs: baseMs });
+  const sowyStaleDown = evaluateSowyChannel(7.35, 7.65, 7.20, { isDownstreamStale: true });
+  const topoStaleDown = evaluateTopologyNetwork({
+    '52233-level-stage-i-15_min-mAOD': [{ dateTime: '2026-11-01T12:45:00Z', value: 7.35 }],
+    '52234-level-downstage-i-15_min-mAOD': [{ dateTime: stale48hIso, value: 7.65 }]
+  }, undefined, { nowMs: baseMs });
+  assert.equal(sStaleDown.to_state, 'DIVERTING', '48h stale 52234 must not trigger false REVERSE_LOCK');
+  assert.equal(sowyStaleDown.status, 'DIVERTING');
+  assert.equal(topoStaleDown.nodes.find(n => n.id === '52233').status, 'DIVERTING', 'evaluateTopologyNetwork must suppress false REVERSE_LOCK when 52234 is stale');
 });
 
 test('Telemetry Events: all evaluated states belong strictly to the 19 closed canonical dictionary states', () => {

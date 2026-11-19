@@ -103,9 +103,10 @@
           "id": "westonzoyland_ps",
           "name": "Westonzoyland PS",
           "total_pumps": 2,
+          "survey_status": "UNSURVEYED",
           "thresholds": {
-            "summer": { "lead": 4.05, "duty": 4.25, "mobile_order": 4.80, "mobile_active": 5.20, "critical_spill": 7.80 },
-            "winter": { "lead": 3.45, "duty": 3.75, "mobile_order": 4.80, "mobile_active": 5.20, "critical_spill": 7.80 }
+            "summer": { "lead": null, "duty": null, "mobile_order": null, "mobile_active": null, "critical_spill": null },
+            "winter": { "lead": null, "duty": null, "mobile_order": null, "mobile_active": null, "critical_spill": null }
           }
         }
       ]
@@ -140,11 +141,12 @@
       ],
       "allermoor_spillway": {
         "name": "Allermoor Spillway",
-        "baseline_crest_mAOD": 7.50,
-        "pre_overtopping_alert_mAOD": 7.35,
-        "survey_status": "TIER_2_TRIGGER_PLAN",
+        "baseline_crest_mAOD": null,
+        "pre_overtopping_alert_mAOD": null,
+        "proxy_trigger_mAOD": 7.50,
+        "survey_status": "UNSURVEYED",
         "curtails_tributary_pumps": true,
-        "notes": "Assumed to spill at about the same Parrett stage as Beasley's Spillway (7.50m AOD proxy, EA Somerset Levels guidance). Allermoor's own crest level is not published. When running, EA protocol closes Monk's Leaze Clyse and curtails upstream tributary pumps."
+        "notes": "Pending EA Asset Survey: Allermoor's own crest level is not published in primary public records. Assumed to operate at approximately the same Parrett stage as Beasley's Spillway (~7.50m AOD proxy, EA Somerset Levels guidance). When running, EA protocol closes Monk's Leaze Clyse and curtails upstream tributary pumps."
       },
       "beer_wall_intake": {
         "name": "Beer Wall Box Culverts & Tilting Weirs (Greylake)",
@@ -155,8 +157,10 @@
       },
       "beazeley_spillway": {
         "name": "Beazeley Spillway Embankment",
-        "baseline_crest_mAOD": 7.30,
-        "pre_overtopping_alert_mAOD": 7.15
+        "baseline_crest_mAOD": null,
+        "pre_overtopping_alert_mAOD": null,
+        "survey_status": "UNSURVEYED",
+        "notes": "Pending EA Asset Survey: Grassed relief embankment along Sowy reach; surveyed crest elevation is not published in primary EA public records."
       }
     },
     "dunball_outfall": {
@@ -225,6 +229,7 @@
       "catchment": "River Yeo & River Isle Flank",
       "river_tag": "Catchment: Yeo & Isle Flank",
       "subtitle": "Southern polder basin protecting Muchelney and Huish Episcopi via Huish Episcopi PS and Midelney PS",
+      "survey_status": "TIER_2_FIXED_PUMPS_ONLY",
       "measures": {
         "moor": "52120-level-stage-i-15_min-mASD",
         "river": "52153-level-stage-i-15_min-mASD"
@@ -235,8 +240,8 @@
           "name": "Huish Episcopi PS",
           "total_pumps": 4,
           "thresholds": {
-            "summer": { "lead": 6.70, "duty": 6.90, "mobile_order": 7.30, "mobile_active": 7.86, "critical_spill": 8.20 },
-            "winter": { "lead": 6.30, "duty": 6.75, "mobile_order": 7.30, "mobile_active": 7.86, "critical_spill": 8.20 }
+            "summer": { "lead": 6.70, "duty": 6.90, "river_cutoff": 8.20, "mobile_order": null, "mobile_active": null, "critical_spill": null },
+            "winter": { "lead": 6.30, "duty": 6.75, "river_cutoff": 8.20, "mobile_order": null, "mobile_active": null, "critical_spill": null }
           }
         }
       ]
@@ -246,19 +251,21 @@
       "name": "West Sedgemoor Polder Basin (SSSI)",
       "catchment": "River Parrett Flank (SSSI)",
       "river_tag": "Catchment: River Parrett Flank",
-      "subtitle": "SSSI wet grassland polder basin managed for seasonal penning and flood retention",
+      "subtitle": "SSSI wet grassland polder basin (sump telemetry 52155 ingest-only; pump thresholds pending EA Trigger Point Plan verification)",
+      "survey_status": "UNSURVEYED",
       "measures": {
-        "moor": "52233-level-stage-i-15_min-mAOD",
-        "river": "52119-level-stage-i-15_min-mASD"
+        "sump": "52155-level-sump_level-i-15_min-mAOD",
+        "receiving_river": "52233-level-stage-i-15_min-mAOD"
       },
       "pumping_stations": [
         {
           "id": "west_sedgemoor_ps",
           "name": "West Sedgemoor PS",
           "total_pumps": 2,
+          "survey_status": "UNSURVEYED",
           "thresholds": {
-            "summer": { "lead": 6.85, "duty": 7.10, "mobile_order": 7.35, "mobile_active": 7.60, "critical_spill": 7.90 },
-            "winter": { "lead": 6.80, "duty": 7.00, "mobile_order": 7.35, "mobile_active": 7.60, "critical_spill": 7.90 }
+            "summer": { "lead": null, "duty": null, "mobile_order": null, "mobile_active": null, "critical_spill": null },
+            "winter": { "lead": null, "duty": null, "mobile_order": null, "mobile_active": null, "critical_spill": null }
           }
         }
       ]
@@ -269,6 +276,7 @@
       "catchment": "River Tone & Parrett Flank",
       "river_tag": "Catchment: Tone / Parrett Flank",
       "subtitle": "Flanks Curry Moor and River Tone confluence; drained via Stanmoor PS",
+      "survey_status": "TIER_2_TRIGGER_PLAN",
       "measures": {
         "moor": "52127-level-stage-i-15_min-mAOD",
         "river": "52118-level-stage-i-15_min-mAOD"
@@ -290,19 +298,20 @@
       "name": "Westonzoyland Polder Basin (Engine Rhyne)",
       "catchment": "Northmoor & Sowy Flank",
       "river_tag": "Catchment: Northmoor / Sowy Flank",
-      "subtitle": "Flanks Northmoor and Sowy Relief Channel; drained via Westonzoyland PS",
+      "subtitle": "Flanks Northmoor and Sowy Relief Channel; Engine Rhyne thresholds pending EA survey",
+      "survey_status": "UNSURVEYED",
       "measures": {
-        "moor": "52159-level-stage-i-15_min-mAOD",
-        "river": "52157-level-stage-i-15_min-mAOD"
+        "nearest_context": "52159-level-stage-i-15_min-mAOD"
       },
       "pumping_stations": [
         {
           "id": "westonzoyland_ps",
           "name": "Westonzoyland PS",
           "total_pumps": 2,
+          "survey_status": "UNSURVEYED",
           "thresholds": {
-            "summer": { "lead": 4.05, "duty": 4.25, "mobile_order": 4.80, "mobile_active": 5.20, "critical_spill": 7.80 },
-            "winter": { "lead": 3.45, "duty": 3.75, "mobile_order": 4.80, "mobile_active": 5.20, "critical_spill": 7.80 }
+            "summer": { "lead": null, "duty": null, "mobile_order": null, "mobile_active": null, "critical_spill": null },
+            "winter": { "lead": null, "duty": null, "mobile_order": null, "mobile_active": null, "critical_spill": null }
           }
         }
       ]

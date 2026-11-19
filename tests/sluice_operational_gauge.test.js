@@ -1,8 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
 
 import { evaluateSowyChannel } from '../src/js/hydro_engine.js';
-import { renderSluiceOperationalGauge } from '../src/js/app.js';
+import { renderSluiceOperationalGauge, getSluiceHeroStateText } from '../src/js/app.js';
 
 test('evaluateSowyChannel enforces min_delta_h=0.05m, sowyCap=7.60m, and reverse_lock=0.10m parity', () => {
   // 0.05m boundary: 7.25 vs 7.20 -> DIVERTING
@@ -68,7 +70,7 @@ test('renderSluiceOperationalGauge renders verified ticks, canonical data-status
   assert.ok(html.includes('7.90m'));
   assert.ok(html.includes('Cap/Alert 7.60m'));
   assert.ok(html.includes('Head Drop: Unavailable'));
-  assert.ok(html.includes('Flatlined (6.73m static)'));
+  assert.ok(html.includes('Reading static (6.73m)'));
   assert.ok(!html.includes('Δh:'));
   assert.ok(html.includes('live penstock actuator SCADA is not broadcast publicly'));
 });
@@ -110,4 +112,38 @@ test('renderSluiceOperationalGauge renders Approaching Trigger, Diverting, Throt
   });
   assert.ok(reverseHtml.includes('data-status="REVERSE_LOCK"'));
   assert.ok(reverseHtml.includes('🔴 REVERSE LOCK'));
+});
+
+test('renderSluiceOperationalGauge surfaces degraded upstream 52233 state via opts.upFreshness', () => {
+  const sowyEval = evaluateSowyChannel(7.30, 6.90, 7.20);
+  const html = renderSluiceOperationalGauge(sowyEval, {
+    upStage: 7.30,
+    downStage: 6.90,
+    upFreshness: { isFlatlined: false, isStale: true, isOffline: false, ageHours: 3.5 },
+    downFreshness: { isFlatlined: false, isStale: false, isOffline: false },
+    triggerM: 7.20,
+    sillM: 4.20
+  });
+  assert.ok(html.includes('Stale (3.5h)'));
+  assert.ok(html.includes('Upstream Parrett gauge (52233) is currently stale'));
+  assert.ok(!/flatlined/i.test(html), 'neutral wording: never "Flatlined"');
+
+  const healthy = renderSluiceOperationalGauge(sowyEval, {
+    upStage: 7.30,
+    downStage: 6.90,
+    upFreshness: { isFlatlined: false, isStale: false, isOffline: false },
+    downFreshness: { isFlatlined: false, isStale: false, isOffline: false },
+    triggerM: 7.20,
+    sillM: 4.20
+  });
+  assert.ok(!healthy.includes('Upstream Parrett gauge (52233)'));
+});
+
+test('getSluiceHeroStateText covers all four canonical sluice states without claiming gate position', () => {
+  assert.equal(getSluiceHeroStateText('DIVERTING'), '🔵 DIVERTING');
+  assert.equal(getSluiceHeroStateText('THROTTLED'), '🟡 THROTTLED');
+  assert.equal(getSluiceHeroStateText('REVERSE_LOCK'), '🔴 REVERSE LOCK');
+  assert.equal(getSluiceHeroStateText('CLOSED'), '🔒 CLOSED · PENNING');
+  const appJs = fs.readFileSync(path.join(process.cwd(), 'src/js/app.js'), 'utf8');
+  assert.ok(!appJs.includes("'Gate Position'"));
 });

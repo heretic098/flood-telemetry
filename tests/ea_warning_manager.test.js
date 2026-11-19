@@ -83,11 +83,12 @@ test('Migration v7: Provisions ea_warning_events schema and indices', () => {
   db.close();
 });
 
-test('Sanitization & Labels: sanitizeEANarrative strips control characters and escapes HTML', () => {
-  const dirty = 'River Tone <script>alert("xss")</script>\x00\x08 rising fast at Hookbridge.';
+test('Sanitization & Labels: sanitizeEANarrative strips control characters and returns RAW text (render-time escaping)', () => {
+  const dirty = 'River Tone <script>alert("xss")</script>\x00\x08 rising fast at Hookbridge; Monk\'s & Co.';
   const clean = sanitizeEANarrative(dirty);
-  assert.ok(!clean.includes('<script>'), 'Must escape HTML tags');
-  assert.ok(clean.includes('&lt;script&gt;'), 'Must encode HTML entities');
+  assert.ok(clean.includes('<script>'), 'Must NOT pre-escape: renderers escape once at render time');
+  assert.ok(!clean.includes('&lt;') && !clean.includes('&amp;') && !clean.includes('&#39;'), 'Must not contain HTML entities (no double-escaping)');
+  assert.ok(clean.includes("Monk's & Co."), 'Apostrophes and ampersands preserved verbatim');
   assert.ok(!clean.includes('\x00'), 'Must strip null bytes');
   assert.ok(!clean.includes('\x08'), 'Must strip backspace control char');
 

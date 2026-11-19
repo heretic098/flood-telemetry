@@ -32,10 +32,10 @@ Every threshold utilized in backend calculations, database records, chart lines,
 | **52111** | Taunton Market | `gauge` | Datum Offset<br>Bed Invert<br>Alert Level | +12.47m<br>12.67m<br>14.24m | **Tier 1**<br>**Tier 1**<br>**Tier 3** | EA Gauge Survey (ODN)<br>EA Bed Invert Survey<br>EA `stageScale.typicalRangeHigh` (1.77m stage) |
 | **52162** | Bathpool Outfall | `gauge` | Datum Offset<br>Bed Invert<br>Alert Level | +0.00m (mAOD)<br>7.50m<br>9.50m | **Tier 1**<br>**Tier 1**<br>**Tier 3** | Direct mAOD station stream<br>Channel Bed Invert Survey<br>EA Typical High Flood Boundary |
 | **52118** | Hookbridge Spillway | `spillway` | Spillway Crest<br>Near-Crest Buffer<br>Alert Level<br>Bed Invert | 7.45m<br>7.30m<br>7.15m<br>3.30m | **Tier 1**<br>**Tier 4**<br>**Tier 3**<br>**Tier 1** | EA / SRA Survey: Concrete Broad-Crested Relief Weir<br>Platform 15cm Pre-Overtopping Buffer<br>EA `stageScale.typicalRangeHigh`<br>Tone Channel Bed Invert |
-| **52127** | Curry Moor Basin | `polder_basin` | Spillway Crest<br>Alert Level<br>Duty Pumps ON<br>Mobile Pumps Order<br>Mobile Pumps Active<br>Ground Bed Floor | 7.45m<br>6.50m<br>4.30m<br>5.80m<br>6.10m<br>2.10m | **Tier 1**<br>**Tier 3**<br>**Tier 2**<br>**Tier 2**<br>**Tier 2**<br>**Tier 1** | Hookbridge Weir Overspill Inflow Elevation<br>EA Flood Alert Warning Stage<br>EA Somerset Levels Trigger Point Plan (Duty Pump)<br>EA Somerset Levels Trigger Point Plan (Currymoor PS)<br>EA Somerset Levels Trigger Point Plan (Currymoor PS)<br>Surveyed Mean Basin Floor Elevation (ODN) |
+| **52127** | Curry Moor Basin | `polder_basin` | Spillway Crest<br>Alert Level<br>Duty Pumps ON<br>Mobile Pumps Order<br>Mobile Pumps Active<br>Ground Bed Floor | 7.45m<br>6.50m<br>4.55m<br>5.80m<br>6.10m<br>2.10m | **Tier 1**<br>**Tier 3**<br>**Tier 2**<br>**Tier 2**<br>**Tier 2**<br>**Tier 1** | Hookbridge Weir Overspill Inflow Elevation<br>EA Flood Alert Warning Stage<br>EA Somerset Levels Trigger Point Plan (Winter Duty 4.55m / Summer 4.80m)<br>EA Somerset Levels Trigger Point Plan (Currymoor & Stanmoor PS)<br>EA Somerset Levels Trigger Point Plan (Currymoor & Stanmoor PS)<br>Surveyed Mean Basin Floor Elevation (ODN) |
 | **52116** | Chiselborough (Upper Parrett) | `gauge` | Datum Offset<br>Bed Invert<br>Alert Level | +20.70m<br>20.70m<br>22.50m | **Tier 1**<br>**Tier 1**<br>**Tier 3** | EA Gauge Survey (ODN)<br>EA Bed Invert Survey<br>EA `stageScale.typicalRangeHigh` (1.80m stage) |
 | **52119** | Gaw Bridge (Mid Parrett) | `gauge` | Datum Offset<br>Bed Invert<br>Alert Level | +10.00m<br>10.16m<br>12.80m | **Tier 1**<br>**Tier 1**<br>**Tier 3** | EA Gauge Survey (ODN)<br>EA Bed Invert Survey<br>EA `stageScale.typicalRangeHigh` (2.80m stage) |
-| **52120** | Huish Episcopi PS (Yeo) | `gauge` | Datum Offset<br>Bed Invert<br>Winter Duty Pumps<br>Summer Duty Pumps<br>River Cut-off Lock<br>Alert Level | +5.00m<br>5.80m<br>6.50m<br>6.90m<br>8.20m<br>8.48m | **Tier 1**<br>**Tier 1**<br>**Tier 2**<br>**Tier 2**<br>**Tier 2**<br>**Tier 3** | EA Gauge Survey (ODN)<br>Yeo Channel Bed Invert<br>EA Winter Pumping Operating Rules<br>EA Summer Penning Operating Rules<br>EA Operating Rule: Pumps cut off to protect Parrett<br>EA `stageScale.typicalRangeHigh` (3.48m stage) |
+| **52120** | Huish Episcopi PS (Yeo) | `gauge` | Datum Offset<br>Bed Invert<br>Winter Duty Pumps<br>Summer Duty Pumps<br>River Cut-off Lock<br>Alert Level | +5.00m<br>5.80m<br>6.75m<br>6.90m<br>8.20m<br>8.48m | **Tier 1**<br>**Tier 1**<br>**Tier 2**<br>**Tier 2**<br>**Tier 2**<br>**Tier 3** | EA Gauge Survey (ODN)<br>Yeo Channel Bed Invert<br>EA Winter Pumping Operating Rules (Lead 6.30m, Duty 6.75m)<br>EA Summer Penning Operating Rules (Lead 6.70m, Duty 6.90m)<br>EA Operating Rule: Pumps cut off to protect Parrett<br>EA `stageScale.typicalRangeHigh` (3.48m stage) |
 | **52153** | Midelney (River Isle) | `gauge` | Datum Offset<br>Bed Invert<br>FSA Duty Pumping<br>FSA Head-Lock Alert<br>Alert Level | +5.185m<br>5.50m<br>6.70m<br>8.20m<br>8.20m | **Tier 1**<br>**Tier 1**<br>**Tier 2**<br>**Tier 2**<br>**Tier 3** | EA Gauge Survey (ODN)<br>Isle Channel Bed Invert<br>West Moor FSA Operating Strategy<br>Reverse Flap Lock Threshold (Head-locked to Parrett)<br>EA `stageScale.typicalRangeHigh` (3.01m stage) |
 | **52233** | Monk's Leaze Clyse (Upstream) | `clyse_gate` | Concrete Intake Sill<br>Operational Diversion<br>Intake Alert Level<br>Bed Invert | 4.20m<br>7.20m<br>7.90m<br>4.20m | **Tier 1**<br>**Tier 2**<br>**Tier 3**<br>**Tier 1** | Surveyed Intake Sill of Sowy Relief Channel<br>EA Operating Protocol: Penstocks opened to relieve Parrett<br>EA `stageScale.typicalRangeHigh`<br>Parrett River Bed at Intake |
 | **52234** | Monk's Leaze Clyse (Downstream) | `gauge` | Channel Bed<br>Alert Level | 4.20m<br>7.60m | **Tier 1**<br>**Tier 3** | Sowy Channel Invert at Clyse Tailwater<br>EA `stageScale.typicalRangeHigh` |
@@ -53,17 +53,17 @@ Every threshold utilized in backend calculations, database records, chart lines,
 
 All pumping operational stages are inferred strictly from moor basin water elevation ($h_{\text{mAOD}}$) using published agency plans. The platform **never asserts SCADA pump electrical run telemetry** ([RULE-SUB-01], [RULE-PROV-01]).
 
-### 2.1 Curry Moor & Currymoor Pumping Station (`52127`)
-* **Governing Plan:** Environment Agency *Somerset Levels & Moors Trigger Point Plan* (Currymoor Operational Chapter).
+### 2.1 Curry Moor, Currymoor PS & Stanmoor PS (`52127`)
+* **Governing Plan:** Environment Agency *Somerset Levels & Moors Trigger Point Plan* (Currymoor & Stanmoor Operational Chapter).
 * **Basin Floor:** $2.10\text{m AOD}$ (Dry pasture).
-* **Summer Penning Target:** $4.30\text{m} - 4.45\text{m AOD}$ (Routine ditch agricultural penning).
+* **Summer Penning Target:** $4.30\text{m} - 4.48\text{m AOD}$ (Routine ditch agricultural penning; Currymoor PS Summer Lead $4.60\text{m}$ / Duty $4.80\text{m}$; Stanmoor PS Summer Lead $4.70\text{m}$ / Duty $4.90\text{m}$).
 * **Winter Baseflow Evacuation:**
-  - $h \ge 4.00\text{m AOD}$: Permanent Lead Pump starts.
-  - $h \ge 4.30\text{m AOD}$: Permanent Duty Pumps run (Full station duty, 2 pumps).
+  - $h \ge 4.00\text{m AOD}$ (Currymoor PS) / $4.10\text{m AOD}$ (Stanmoor PS): Permanent Lead Pump starts.
+  - $h \ge 4.55\text{m AOD}$: Permanent Duty Pumps run (Full station duty, 2 pumps per station).
 * **Emergency Mobilization:**
   - $h \ge 5.80\text{m AOD}$: **Mobile Pumps Ordered / Mobilizing** (EA contractor standby & transport to site).
   - $h \ge 6.10\text{m AOD}$: **Emergency Mobile Pumps Active** (Tractor/diesel high-volume pump operation).
-  - $h \ge 6.50\text{m AOD}$: **Critical Overfill Risk** (Moor capacity reaching $85\%$; severe risk of inter-moor cascade across Cuts Road).
+  - $h \ge 6.50\text{m AOD}$: **Critical Overfill Risk** (Moor capacity reaching $85\%$; severe risk of inter-moor cascade across Cuts Road at $7.35\text{m AOD}$).
 
 ### 2.2 Northmoor & Saltmoor Pumping Stations (`52159`)
 * **Governing Plan:** Environment Agency *Somerset Levels & Moors Trigger Point Plan* (Northmoor & Saltmoor Chapter).
@@ -75,6 +75,17 @@ All pumping operational stages are inferred strictly from moor basin water eleva
   - $h \ge 4.80\text{m AOD}$: **Mobile Pumps Ordered / Mobilizing**.
   - $h \ge 5.20\text{m AOD}$: **Emergency Mobile Pumps Active**.
   - $h \ge 5.60\text{m AOD}$: **Critical Storage Reserve Exhausted** (Moor reaches high retention).
+
+### 2.3 Southern & Flanking Polders & Unsurveyed Spillways (`[RULE-THRESH-01]`)
+* **Wet Moor (`52120` Huish Episcopi PS & `52153` Midelney PS):**
+  - **Tier 2 Fixed Pump Operating Rules:** Winter Lead $6.30\text{m AOD}$, Winter Duty $6.75\text{m AOD}$; Summer Lead $6.70\text{m AOD}$, Summer Duty $6.90\text{m AOD}$; Receiving River Cut-off Interlock $8.20\text{m AOD}$ (permanent pumps shut off when River Yeo reaches $8.20\text{m AOD}$ to protect River Parrett).
+  - **Mobile Pump Triggers:** `null` (`UNSURVEYED` — temporary mobile pump trigger elevations are unpublished in primary public records and are strictly decoupled from the $7.30\text{m}$ / $7.86\text{m AOD}$ Muchelney Spine Road breach/crown thresholds).
+* **West Sedgemoor (`52155` Sump Ingest-Only):**
+  - **Status:** `UNSURVEYED` (`⚠️ Pending EA Asset Survey`). Decoupled from River Parrett (`52233`). Dedicated sump telemetry (`52155-level-sump_level-i-15_min-mAOD`, baseflow $\approx 4.63\text{m AOD}$) is ingest-only; automated polder pump and rapid inrush alerts are disabled (`null`) until primary EA Trigger Point Plan thresholds for `52155` are verified.
+* **Westonzoyland (`Engine Rhyne`):**
+  - **Status:** `UNSURVEYED` (`⚠️ Pending EA Asset Survey`). No dedicated EA telemetry sensor or published EA Trigger Point Plan thresholds exist in primary records; Northmoor (`52159`) is location context only, and automated polder alerts are disabled (`null`).
+* **Allermoor Spillway & Beazeley Spillway:**
+  - **Status:** `crest_elevation_mAOD: null` (`UNSURVEYED — ⚠️ Pending EA Asset Survey`). Neither grassed spillway has a surveyed mAOD crest elevation published in primary EA records. Automated `OVERTOPPING` event generation is disabled (Allermoor displays the $\approx 7.50\text{m AOD}$ Beasley's Spillway Parrett stage as advisory operational guidance only).
 
 ---
 

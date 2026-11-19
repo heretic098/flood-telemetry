@@ -19,6 +19,7 @@ import {
   evaluateTopologyNetwork,
   extractStationStage,
   evaluateRoadNetwork,
+  evaluateSowyChannel,
   computeBatchStageRates
 } from './src/js/hydro_engine.js';
 
@@ -48,6 +49,7 @@ import {
   isWarningSyncActive
 } from './src/js/ea_warning_manager.js';
 import { validateApiWarningsPayload } from './src/js/contracts/ea_warnings_schema.js';
+import { validateStaffGaugeCameraPayload } from './src/js/contracts/staff_gauge_camera_schema.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -627,8 +629,17 @@ function renderSummaryMarkdown(stored = getStoredTelemetry(), dbInstance = db) {
   const latestEaReadingAt = normalizeToIsoString(safeStored.latest_ea_reading_at);
 
   const isTideLocked = seaStage >= dunballInlandStage;
-  const isMonksDiverting = monksUpStage >= HYDRO_THRESHOLDS.MONKS_LEAZE.SILL_MAOD &&
-    (monksUpStage - monksDownStage) > HYDRO_THRESHOLDS.MONKS_LEAZE.MIN_DELTA_H;
+  // Monk's Leaze Clyse: same evaluator + thresholds as Dashboard/Topology (diversion trigger 7.20m, not the 4.20m concrete sill).
+  const sowyEval = evaluateSowyChannel(
+    monksUpStage,
+    monksDownStage,
+    HYDRO_THRESHOLDS.MONKS_LEAZE.TRIGGER_MAOD,
+    {
+      sillM: HYDRO_THRESHOLDS.MONKS_LEAZE.SILL_MAOD,
+      minDeltaH: HYDRO_THRESHOLDS.MONKS_LEAZE.MIN_DELTA_H,
+      beerwallStage
+    }
+  );
 
   const regime = getSeasonalRegime(now);
   let activeEvents = [];
@@ -682,8 +693,7 @@ function renderSummaryMarkdown(stored = getStoredTelemetry(), dbInstance = db) {
         : (northMoorStage >= northMoorDuty ? 'DUTY_PUMPING' : 'STANDBY')));
 
   const dunballStatus = isTideLocked ? 'TIDE_LOCKED' : 'DISCHARGING';
-  const monksStatus = isMonksDiverting ? 'DIVERTING'
-    : (monksUpStage >= HYDRO_THRESHOLDS.MONKS_LEAZE.UPSTREAM_ALERT_MAOD ? 'THROTTLED' : 'CLOSED');
+  const monksStatus = sowyEval.status;
 
   // Road Corridor Lines
   const roadRows = (roadNetwork.corridors_list || []).map(r => {
@@ -720,7 +730,7 @@ ${roadRows}
 | Athelney Spillway & Cuts Rd | **${athelneyStatus}** | ${curryMoorStage.toFixed(2)} mAOD | ${athelneyCrest.toFixed(2)} mAOD | ${formatClearance(athelneyCrest, curryMoorStage)} | Curry Moor → Cuts Road Carriageway |
 | Baltmoor Wall Spillway | **${baltmoorStatus}** | ${baltmoorStage.toFixed(2)} mAOD | ${baltmoorCrest.toFixed(2)} mAOD | ${formatClearance(baltmoorCrest, baltmoorStage)} | River Parrett → Northmoor Polder Basin |
 | Beer Wall Spillway | **${beerwallStatus}** | ${beerwallStage.toFixed(2)} mAOD | ${beerwallCrest.toFixed(2)} mAOD | ${formatClearance(beerwallCrest, beerwallStage)} | Sowy Relief Channel → King's Sedgemoor Drain |
-| Monk's Leaze Clyse Sluice | **${monksStatus}** | Up: ${monksUpStage.toFixed(2)} mAOD / Down: ${monksDownStage.toFixed(2)} mAOD | Sill: ${HYDRO_THRESHOLDS.MONKS_LEAZE.SILL_MAOD.toFixed(2)} mAOD | Δh: ${(monksUpStage - monksDownStage).toFixed(2)}m | Parrett Relief Diversion into Sowy Channel |
+| Monk's Leaze Clyse Sluice | **${monksStatus}** | Up: ${monksUpStage.toFixed(2)} mAOD / Down: ${monksDownStage.toFixed(2)} mAOD | Diversion Trigger: ${HYDRO_THRESHOLDS.MONKS_LEAZE.TRIGGER_MAOD.toFixed(2)} mAOD | Δh: ${(monksUpStage - monksDownStage).toFixed(2)}m | Parrett Relief Diversion into Sowy Channel |
 
 ## Lowland Storage Polder Basins
 | Polder Basin | Operational State | Water Stage | Basin Floor | Critical Level | Operational Trigger Context |
@@ -981,8 +991,13 @@ const server = http.createServer(async (req, res) => {
           notFound('No recent frame available for this camera');
         } else {
           // Expected state (camera offline / dark): 200 so browsers do not log a console error.
+          const unavailablePayload = { status: 'unavailable', camera_id: cameraId };
+          const unavailableValidation = validateStaffGaugeCameraPayload(unavailablePayload);
+          if (!unavailableValidation.valid) {
+            console.warn('[Contract Warning] /api/staff-gauge-cameras:', unavailableValidation.errors.join('; '));
+          }
           res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' });
-          res.end(JSON.stringify({ status: 'unavailable', camera_id: cameraId }));
+          res.end(JSON.stringify(unavailablePayload));
         }
         return;
       }
@@ -997,15 +1012,20 @@ const server = http.createServer(async (req, res) => {
         return;
       }
       const mapping = STAFF_GAUGE_CAMERA_MAP[cameraId];
-      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' });
-      res.end(JSON.stringify({
+      const okPayload = {
         status: 'ok',
         camera_id: cameraId,
         station_id: mapping.station_id,
         captured_at: frame.timestamp,
         age_minutes: Math.max(0, Math.round((Date.now() - new Date(frame.timestamp).getTime()) / 60000)),
         image_url: `/api/staff-gauge-cameras/${cameraId}/latest.jpg`
-      }));
+      };
+      const okValidation = validateStaffGaugeCameraPayload(okPayload);
+      if (!okValidation.valid) {
+        console.warn('[Contract Warning] /api/staff-gauge-cameras:', okValidation.errors.join('; '));
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' });
+      res.end(JSON.stringify(okPayload));
     } catch (err) {
       console.error('[API Staff Gauge Camera Error]', err.message);
       res.writeHead(500, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });

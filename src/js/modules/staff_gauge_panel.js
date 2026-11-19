@@ -14,7 +14,7 @@
  */
 
 import { getStaffGaugeCameraForStation } from '../staff_gauge_cameras.js';
-import { evaluateStationFreshness } from '../hydro_engine.js?v=1.2.0';
+import { evaluateStationFreshness } from '../hydro_engine.js';
 
 const OLD_FRAME_MINUTES = 60;
 
@@ -47,9 +47,11 @@ export function getStaffGaugePanelMode(entry, freshness) {
 }
 
 function formatAge(minutes) {
-  if (minutes < 60) return `${minutes} min ago`;
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
+  if (!Number.isFinite(minutes) || minutes < 0) return 'at an unknown time';
+  const total = Math.round(minutes);
+  if (total < 60) return `${total} min ago`;
+  const h = Math.floor(total / 60);
+  const m = total % 60;
   return `${h}h ${m}m ago`;
 }
 
@@ -60,33 +62,53 @@ function el(tag, className, text) {
   return node;
 }
 
+/** Appends a cache-busting capture-time query to a frame URL (keeps any existing query). */
+function frameUrl(imageUrl, capturedAt) {
+  const sep = String(imageUrl).includes('?') ? '&' : '?';
+  return `${imageUrl}${sep}t=${encodeURIComponent(capturedAt)}`;
+}
+
 /**
  * Loads the latest frame into `body`.
  * @param {object} entry - staff gauge camera entry (needs camera_id)
  * @param {HTMLElement} body
  * @param {{silent?: boolean}} [options] - silent: refresh an already-open panel without a
  *   "Loading…" flash. If the frame is unchanged only the age caption is updated, so the
- *   "captured X ago" text never goes stale while a panel stays open.
+ *   "captured X ago" text never goes stale while a panel stays open. On a transient error
+ *   a silent refresh keeps whatever is already displayed.
  */
 export async function loadFrame(entry, body, options = {}) {
-  if (!options.silent) {
+  const silent = Boolean(options.silent);
+  // Responses can arrive out of order (manual click vs silent refresh); only the latest wins.
+  const seq = (body._staffGaugeSeq = (body._staffGaugeSeq || 0) + 1);
+  const isCurrent = () => body._staffGaugeSeq === seq;
+  const hasFrame = () => Boolean(body.querySelector && body.querySelector('img.staff-gauge-frame'));
+
+  if (!silent) {
     body.replaceChildren(el('p', 'staff-gauge-status', 'Loading latest camera frame…'));
   }
   try {
     const res = await fetch(`/api/staff-gauge-cameras/${encodeURIComponent(entry.camera_id)}/latest`);
     const data = res.ok ? await res.json() : null;
-    if (!data || data.status !== 'ok') {
+    if (!isCurrent()) return;
+    if (!data || data.status !== 'ok' || !data.image_url || !data.captured_at) {
+      if (silent && hasFrame()) return;
       body.replaceChildren(el('p', 'staff-gauge-status', 'No recent camera frame is available. Camera may be offline or dark.'));
       return;
     }
 
-    const caption = el('p', 'staff-gauge-status', `Captured ${formatAge(data.age_minutes)} (${new Date(data.captured_at).toLocaleString('en-GB')}).`);
+    const ageKnown = Number.isFinite(data.age_minutes);
+    const capturedDate = new Date(data.captured_at);
+    const capturedText = Number.isNaN(capturedDate.getTime()) ? data.captured_at : capturedDate.toLocaleString('en-GB');
+    const caption = el('p', 'staff-gauge-status', `Captured ${formatAge(data.age_minutes)} (${capturedText}).`);
     const notes = [caption];
-    if (data.age_minutes > OLD_FRAME_MINUTES) {
-      notes.push(el('p', 'staff-gauge-status staff-gauge-warning', '⚠️ This frame is more than an hour old and may not show current conditions.'));
+    if (!ageKnown || data.age_minutes > OLD_FRAME_MINUTES) {
+      notes.push(el('p', 'staff-gauge-status staff-gauge-warning', ageKnown
+        ? '⚠️ This frame is more than an hour old and may not show current conditions.'
+        : '⚠️ The age of this frame is unknown. It may not show current conditions.'));
     }
 
-    const existing = options.silent ? body.querySelector('img.staff-gauge-frame') : null;
+    const existing = silent ? body.querySelector('img.staff-gauge-frame') : null;
     if (existing && existing.dataset.capturedAt === data.captured_at) {
       body.replaceChildren(existing, ...notes);
       return;
@@ -96,9 +118,11 @@ export async function loadFrame(entry, body, options = {}) {
     img.alt = `Latest frame from the staff gauge camera near this station, captured ${formatAge(data.age_minutes)}`;
     img.loading = 'lazy';
     img.dataset.capturedAt = data.captured_at;
-    img.src = data.image_url;
+    img.src = frameUrl(data.image_url, data.captured_at);
     body.replaceChildren(img, ...notes);
   } catch (err) {
+    if (!isCurrent()) return;
+    if (silent && hasFrame()) return;
     body.replaceChildren(el('p', 'staff-gauge-status', 'Could not load the camera frame.'));
   }
 }
@@ -118,6 +142,8 @@ export function buildStaffGaugePanel(node, readings) {
 
   const panel = el('section', 'staff-gauge-panel');
   panel.id = 'node-staff-gauge-camera';
+  panel.dataset.nodeId = String(node.id);
+  panel._staffGaugeEntry = entry;
   panel.setAttribute('aria-label', 'Staff gauge camera view');
   panel.appendChild(el('h4', 'staff-gauge-title', '📷 Camera view of the metric board'));
   if (mode.notice) {
