@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
+import fs from 'node:fs';
+import path from 'node:path';
 import { server, tigrisArchiveStore } from '../server.js';
 
 let testPort;
@@ -351,6 +353,27 @@ test('Static Asset ETag: returns strong ETag, 304 on strong/weak W/ and * If-Non
   assert.equal(mismatchRes.status, 200);
   assert.equal(mismatchRes.headers.etag, etag);
   assert.equal(mismatchRes.body, initialRes.body);
+});
+
+test('Static HTML injects versioned asset tags and ES module importmap matching package.json version', async () => {
+  const pkg = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf8'));
+  const ver = encodeURIComponent(pkg.version);
+
+  for (const route of ['/', '/topology.html']) {
+    const res = await httpGet(route);
+    assert.equal(res.status, 200);
+    assert.ok(res.body.includes(`href="css/styles.css?v=${ver}"`), `${route} must version css/styles.css`);
+    assert.ok(res.body.includes(`<script type="importmap">`), `${route} must inject ES module importmap`);
+    const match = res.body.match(/<script type="importmap">([\s\S]*?)<\/script>/);
+    assert.ok(match, `${route} importmap JSON must be parseable`);
+    const importMap = JSON.parse(match[1]);
+    assert.equal(importMap.imports['/js/hydro_engine.js'], `/js/hydro_engine.js?v=${ver}`);
+    assert.equal(importMap.imports['/somerset/js/hydro_engine.js'], `/somerset/js/hydro_engine.js?v=${ver}`);
+    assert.ok(
+      res.body.indexOf('<script type="importmap">') < res.body.indexOf('<script type="module"'),
+      `${route} importmap must appear before any module script`
+    );
+  }
 });
 
 

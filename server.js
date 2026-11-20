@@ -70,6 +70,33 @@ const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = path.join(__dirname, 'src');
 const PARTIALS_DIR = path.join(PUBLIC_DIR, 'partials');
 const DB_PATH = process.env.DB_PATH || path.join(__dirname, 'telemetry.db');
+const APP_VERSION = JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf-8')).version || '1.0.0';
+const ASSET_VERSION = encodeURIComponent(APP_VERSION);
+
+function collectRelativeJsFiles(dir, prefix = '') {
+  if (!fs.existsSync(dir)) return [];
+  const entries = fs.readdirSync(dir, { withFileTypes: true });
+  const results = [];
+  for (const entry of entries) {
+    const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
+    if (entry.isDirectory()) {
+      results.push(...collectRelativeJsFiles(path.join(dir, entry.name), rel));
+    } else if (entry.isFile() && entry.name.endsWith('.js')) {
+      results.push(rel);
+    }
+  }
+  return results;
+}
+
+const CLIENT_JS_FILES = collectRelativeJsFiles(path.join(PUBLIC_DIR, 'js')).sort();
+const IMPORT_MAP_TAG = `<script type="importmap">${JSON.stringify({
+  imports: Object.fromEntries(
+    CLIENT_JS_FILES.flatMap(rel => [
+      [`/js/${rel}`, `/js/${rel}?v=${ASSET_VERSION}`],
+      [`/somerset/js/${rel}`, `/somerset/js/${rel}?v=${ASSET_VERSION}`]
+    ])
+  )
+})}</script>`;
 
 // In-memory cache for server-side HTML partials
 const partialsCache = new Map();
@@ -209,7 +236,7 @@ function renderHead(targetPage = 'index.html') {
 function renderHtmlWithPartials(htmlContent, targetPage = 'index.html') {
   let rendered = htmlContent;
   if (/<!--\s*INCLUDE:\s*head\s*-->/.test(rendered)) {
-    rendered = rendered.replace(/<!--\s*INCLUDE:\s*head\s*-->/g, renderHead(targetPage));
+    rendered = rendered.replace(/<!--\s*INCLUDE:\s*head\s*-->/g, `${renderHead(targetPage)}\n  ${IMPORT_MAP_TAG}`);
   }
   if (/<!--\s*INCLUDE:\s*nav\s*-->/.test(rendered)) {
     rendered = rendered.replace(/<!--\s*INCLUDE:\s*nav\s*-->/g, renderNav(targetPage));
@@ -217,6 +244,11 @@ function renderHtmlWithPartials(htmlContent, targetPage = 'index.html') {
   if (/<!--\s*INCLUDE:\s*footer\s*-->/.test(rendered)) {
     rendered = rendered.replace(/<!--\s*INCLUDE:\s*footer\s*-->/g, getFooterPartial());
   }
+  // Stamp local JS/CSS script and stylesheet tags with APP_VERSION to prevent CDN module skew across deploys.
+  rendered = rendered.replace(
+    /(<(?:script|link)\b[^>]*?\b(?:src|href)=["'])((?:\/)?(?:js|css)\/[^"?]+\.(?:js|css))(?:\?v=[^"']*)?(["'])/g,
+    `$1$2?v=${ASSET_VERSION}$3`
+  );
   return rendered;
 }
 
