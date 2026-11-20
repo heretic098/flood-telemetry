@@ -11,3 +11,4 @@ export * from './api_topology_schema.js';
 export * from './api_history_schema.js';
 export * from './ea_warnings_schema.js';
 export * from './staff_gauge_camera_schema.js';
+export * from './api_rainfall_schema.js';

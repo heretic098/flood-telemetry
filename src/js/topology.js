@@ -27,7 +27,11 @@ import {
   disambiguateRiverTrend,
   formatClearanceText,
   ASSET_DEFINITIONS,
-  evaluateStationFreshness
+  evaluateStationFreshness,
+  TOPOLOGY_NETWORK_CONFIG,
+  PRECIPITATION_PALETTE,
+  RAINGAUGE_REGISTRY,
+  RAINGAUGE_PROVENANCE
 } from './hydro_engine.js';
 
 import { initJargonPopovers, renderJargonTerm } from './jargon_popover.js';
@@ -50,6 +54,8 @@ const fmtM = (v) => (typeof v === 'number' ? v.toFixed(2) : '—');
 let topologyData = null;
 let statusData = null;
 let historyData = null;
+let rainfallData = null;
+let rainfallLayerActive = true;
 let eventsData = [];
 let activeFilter = 'all';
 let activeStatusFilter = null;
@@ -203,6 +209,7 @@ async function initTopology() {
   }
 
   setupFilterListeners();
+  setupRainfallLayerToggle();
   setupAreaFocusListeners();
   setupLegendListeners();
   setupSVGDelegation();
@@ -235,7 +242,7 @@ async function initTopology() {
   refreshController.start();
 }
 
-function setupAreaFocusListeners() {
+export function setupAreaFocusListeners() {
   const areaButtons = document.querySelectorAll('.area-pill-btn');
   areaButtons.forEach(btn => {
     btn.addEventListener('click', () => {
@@ -265,7 +272,7 @@ function setupAreaFocusListeners() {
       // Switch catchment button if area is associated with specific catchment
       if (area.catchment && area.catchment !== activeFilter) {
         activeFilter = area.catchment;
-        const filterBtns = document.querySelectorAll('.filter-buttons .filter-btn');
+        const filterBtns = document.querySelectorAll('.filter-buttons .filter-btn[data-catchment]');
         filterBtns.forEach(fb => {
           const match = fb.getAttribute('data-catchment') === activeFilter;
           fb.classList.toggle('active', match);
@@ -485,6 +492,14 @@ function setupSVGDelegation() {
       if (targetId) {
         inspectNode(targetId, false);
       }
+      return;
+    }
+    const rainBadge = e.target.closest('.upland-rainfall-badge');
+    if (rainBadge) {
+      const targetId = rainBadge.getAttribute('data-target-node');
+      if (targetId) {
+        inspectNode(targetId, false);
+      }
     }
   });
 
@@ -504,13 +519,35 @@ function setupSVGDelegation() {
         if (targetId) {
           inspectNode(targetId, true);
         }
+        return;
+      }
+      const rainBadge = e.target.closest('.upland-rainfall-badge');
+      if (rainBadge) {
+        e.preventDefault();
+        const targetId = rainBadge.getAttribute('data-target-node');
+        if (targetId) {
+          inspectNode(targetId, true);
+        }
       }
     }
   });
 }
 
-function setupFilterListeners() {
-  const filterBtns = document.querySelectorAll('.filter-btn');
+export function setupRainfallLayerToggle() {
+  const btn = document.getElementById('btn-rainfall-layer');
+  if (!btn) return;
+  btn.classList.toggle('active', rainfallLayerActive);
+  btn.setAttribute('aria-pressed', String(rainfallLayerActive));
+  btn.addEventListener('click', () => {
+    rainfallLayerActive = !rainfallLayerActive;
+    btn.classList.toggle('active', rainfallLayerActive);
+    btn.setAttribute('aria-pressed', String(rainfallLayerActive));
+    renderSVGNetwork();
+  });
+}
+
+export function setupFilterListeners() {
+  const filterBtns = document.querySelectorAll('.filter-btn[data-catchment]');
   filterBtns.forEach(btn => {
     if (btn.getAttribute('data-catchment') === activeFilter) {
       filterBtns.forEach(b => {
@@ -565,7 +602,8 @@ async function loadTopologyData(isSilentRefresh = false) {
       fetch('/api/topology'),
       fetch('/api/status'),
       fetch(`/api/history?range=${currentActiveRange}`),
-      fetch('/api/events?limit=30')
+      fetch('/api/events?limit=30'),
+      fetch('/api/rainfall')
     ]);
 
     if (results[0].status === 'fulfilled' && results[0].value.ok) {
@@ -589,6 +627,10 @@ async function loadTopologyData(isSilentRefresh = false) {
       if (Array.isArray(evJson?.events)) {
         eventsData = evJson.events;
       }
+    }
+
+    if (results[4]?.status === 'fulfilled' && results[4].value.ok) {
+      rainfallData = await results[4].value.json();
     }
 
     const activeEvents = Array.isArray(statusData?.active_events) ? statusData.active_events : [];
@@ -682,6 +724,9 @@ function renderSVGNetwork() {
       </marker>
       <marker id="arrow-muted" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
         <path d="M 0 1 L 10 5 L 0 9 z" fill="#64748b" />
+      </marker>
+      <marker id="arrow-rainfall" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+        <path d="M 0 1 L 10 5 L 0 9 z" fill="rgba(129, 140, 248, 0.75)" />
       </marker>
       
       <!-- Linear Gradients for Rivers -->
@@ -973,6 +1018,10 @@ function renderSVGNetwork() {
   svgContent += `<g class="topology-edge-badges">${edgeBadgesHTML}</g>`;
   svgContent += `<g class="topology-nodes">`;
 
+  const uplandOrigins = Array.isArray(topologyData?.upland_rainfall_origins)
+    ? topologyData.upland_rainfall_origins
+    : (TOPOLOGY_NETWORK_CONFIG.upland_rainfall_origins || []);
+
   const placedLabelBoxes = [
     { x: 130, y: 38, w: 180, h: 26 },
     { x: 215, y: 145, w: 90, h: 26 },
@@ -981,7 +1030,10 @@ function renderSVGNetwork() {
     { x: 705, y: 385, w: 80, h: 26 },
     { x: 745, y: 470, w: 80, h: 26 },
     { x: 365, y: 335, w: 75, h: 24 },
-    { x: 677, y: 133, w: 142, h: 18 }
+    { x: 677, y: 133, w: 142, h: 18 },
+    ...uplandOrigins
+      .filter(o => o && o.svg_anchor)
+      .map(o => ({ x: o.svg_anchor.x, y: o.svg_anchor.y, w: o.svg_anchor.w, h: o.svg_anchor.h }))
   ];
 
   // Draw Nodes
@@ -1048,6 +1100,9 @@ function renderSVGNetwork() {
   });
 
   svgContent += `</g>`;
+  if (rainfallLayerActive) {
+    svgContent += renderUplandRainfallLayer(uplandOrigins);
+  }
   svg.innerHTML = svgContent;
 }
 
@@ -1567,7 +1622,9 @@ function inspectNode(nodeId, restoreFocus = false) {
       const huishEval = evaluateHuishEpiscopi(stage, regime.isSummer);
       const isCutoff = huishEval.isPumpsCutoff;
       const isAlert = huishEval.code === 'ALERT';
-      const pumpText = isCutoff ? '🔒 PUMPS LOCKED (RIVER FULL - ≥8.20m Cut-off)' : (huishEval.pumpStatus === 'DUTY_PUMPING' ? '⚡ ABOVE DUTY TRIGGER (Inferred from EA Plan)' : (huishEval.pumpStatus === 'LEAD_PUMPING' ? '⚡ ABOVE LEAD TRIGGER (Inferred from EA Plan)' : '🟢 STANDBY (GRAVITY DRAIN)'));
+      const pumpText = isCutoff
+        ? '🔒 PUMPS LOCKED (RIVER FULL - ≥8.20m Cut-off)'
+        : (isAlert ? '▲ FLOOD ALERT (≥8.48m AOD)' : '🟢 STANDBY (GRAVITY DRAIN - <8.20m Cut-off)');
       statsGrid.innerHTML = `
         ${activeEventCardHTML}
         <div class="stat-card">
@@ -1579,7 +1636,7 @@ function inspectNode(nodeId, restoreFocus = false) {
           <strong class="stat-val" style="color: ${isAlert ? '#ef4444' : '#10b981'}">${stage !== null ? (8.48 - stage >= 0 ? `+${(8.48 - stage).toFixed(2)}m margin` : `▲ FLOOD ALERT`) : '--'}</strong>
         </div>
         <div class="stat-card" style="grid-column: span 2;">
-          <span class="stat-title">Huish Episcopi Pumping Station (Inferred Regime)</span>
+          <span class="stat-title">Huish Episcopi Pumping Station (8.20m River Cut-off Interlock)</span>
           <strong class="stat-val" style="font-size:0.8rem; font-family:monospace;">${pumpText}</strong>
         </div>
       `;
@@ -1865,6 +1922,53 @@ function inspectNode(nodeId, restoreFocus = false) {
       }).join('');
     } else {
       tribChainEl.classList.add('hidden');
+    }
+  }
+
+  // Correlated Upland TBR Hyetograph (Stacked Above River Stage Hydrograph) [Issue #67]
+  const hyetoSection = document.getElementById('node-hyetograph-section');
+  const hyetoBadge = document.getElementById('node-hyetograph-badge');
+  const hyetoSummary = document.getElementById('node-hyetograph-summary');
+  const hyetoBox = document.getElementById('node-hyetograph-box');
+  const hyetoProv = document.getElementById('node-hyetograph-provenance');
+  if (hyetoSection && hyetoBox) {
+    const correlated = resolveCorrelatedUplandTbr(node.id, rainfallData);
+    if (correlated && correlated.station) {
+      const tbr = correlated.station;
+      const peerSuffix = correlated.peerCount > 0 ? ` (+${correlated.peerCount} gauge)` : '';
+      hyetoSection.classList.remove('hidden');
+      if (hyetoBadge) {
+        const shortName = tbr.ea_label || tbr.name || tbr.id;
+        hyetoBadge.innerText = `TBR ${tbr.id} • ${shortName}${peerSuffix}`;
+      }
+      if (hyetoSummary) {
+        const isStaleOrEmpty = Boolean(tbr.is_stale) || (tbr.valid_reading_count ?? 0) === 0;
+        if (isStaleOrEmpty) {
+          hyetoSummary.innerHTML = `
+            <span class="hyetograph-stat-pill stale">Awaiting live TBR sync</span>
+            <span class="hyetograph-stat-pill stale">24h: —</span>
+          `;
+        } else {
+          const r1h = typeof tbr.last_1h_mm === 'number' ? tbr.last_1h_mm.toFixed(1) : '0.0';
+          const r6h = typeof tbr.last_6h_mm === 'number' ? tbr.last_6h_mm.toFixed(1) : '0.0';
+          const r24h = typeof tbr.last_24h_mm === 'number' ? tbr.last_24h_mm.toFixed(1) : '0.0';
+          hyetoSummary.innerHTML = `
+            <span class="hyetograph-stat-pill">1h: ${escapeHTML(r1h)} mm</span>
+            <span class="hyetograph-stat-pill">6h: ${escapeHTML(r6h)} mm</span>
+            <span class="hyetograph-stat-pill">24h: ${escapeHTML(r24h)} mm</span>
+            <span class="hyetograph-stat-pill">${escapeHTML(tbr.rate_label || 'Dry (0.0 mm/h)')}</span>
+          `;
+        }
+      }
+      hyetoBox.innerHTML = renderInspectorHyetograph(tbr);
+      bindInspectorHyetographEvents(hyetoBox, { refreshController });
+      if (hyetoProv) {
+        const attrText = rainfallData?.provenance?.attribution || RAINGAUGE_PROVENANCE.attribution;
+        hyetoProv.innerText = `${attrText} • 15-min TBR depth (mm). Collector elevation unsurveyed.`;
+      }
+    } else {
+      hyetoSection.classList.add('hidden');
+      hyetoBox.innerHTML = '';
     }
   }
 
@@ -2190,6 +2294,425 @@ function formatPolderPumpSummary(stage, def, stationName, pumpCount, isSummer) {
     }
   }
   return `🟢 Standby (Lead ${leadThresh.toFixed(2)}m, Duty ${dutyThresh.toFixed(2)}m)`;
+}
+
+/**
+ * Evaluates whether an upland watershed origin badge matches the active catchment/area filter.
+ *
+ * @param {object} origin
+ * @returns {boolean}
+ */
+function isUplandOriginMatchingFilter(origin) {
+  if (!origin) return false;
+  if (activeAreaFilter && AREA_MAPPINGS[activeAreaFilter]) {
+    const areaStations = AREA_MAPPINGS[activeAreaFilter].stations || [];
+    const correlated = Array.isArray(origin.correlated_river_station_ids) ? origin.correlated_river_station_ids : [];
+    const matchesArea = areaStations.includes(origin.entry_node_id) || correlated.some(id => areaStations.includes(id));
+    if (!matchesArea) return false;
+  }
+  if (activeFilter === 'all') return true;
+  return origin.catchment_filter === activeFilter;
+}
+
+/**
+ * Builds null-safe display data for a decoupled upland headwater rainfall badge.
+ * Never fabricates live mm totals when the DB is empty or all upland gauges are stale.
+ *
+ * @param {object} origin
+ * @param {object|null|undefined} rainfallPayload
+ * @returns {{ hasLive: boolean, primaryText: string, subText: string, ariaLabel: string, tooltip: string }}
+ */
+export function buildUplandRainfallBadgeModel(origin, rainfallPayload) {
+  const label = origin?.label || origin?.id || 'Upland';
+  const fullLabel = origin?.full_label || label;
+  const river = origin?.river || 'Catchment';
+  const catchment = rainfallPayload?.catchments?.[origin?.id] || null;
+  const stationCount = catchment?.station_count ?? (Array.isArray(origin?.tbr_station_ids) ? origin.tbr_station_ids.length : 0);
+
+  if (!rainfallPayload) {
+    const primaryText = `🌧️ ${label}: — (24h)`;
+    const subText = 'Rainfall feed unavailable';
+    return {
+      hasLive: false,
+      primaryText,
+      subText,
+      ariaLabel: `${fullLabel} (${river}) upland rainfall origin: ${subText}. Click to inspect headwater river gauge.`,
+      tooltip: `${fullLabel} (${river})\nRainfall feed unavailable (awaiting /api/rainfall)`
+    };
+  }
+
+  if (!catchment || catchment.all_stale || catchment.active_station_count === 0) {
+    const primaryText = `🌧️ ${label}: — (24h)`;
+    const subText = `Awaiting live gauge sync (0/${stationCount})`;
+    return {
+      hasLive: false,
+      primaryText,
+      subText,
+      ariaLabel: `${fullLabel} (${river}) upland rainfall origin: awaiting live gauge sync. Click to inspect headwater river gauge.`,
+      tooltip: `${fullLabel} (${river})\n0 of ${stationCount} TBR gauges currently live (stale or empty).`
+    };
+  }
+
+  const mean24 = (typeof catchment.mean_24h_mm === 'number' && Number.isFinite(catchment.mean_24h_mm))
+    ? catchment.mean_24h_mm
+    : 0;
+  const mean1 = (typeof catchment.mean_1h_mm === 'number' && Number.isFinite(catchment.mean_1h_mm))
+    ? catchment.mean_1h_mm
+    : 0;
+  const mean6 = (typeof catchment.mean_6h_mm === 'number' && Number.isFinite(catchment.mean_6h_mm))
+    ? catchment.mean_6h_mm
+    : 0;
+  const primaryText = `🌧️ ${label}: ${mean24.toFixed(1)} mm (24h)`;
+  const rateLabel = catchment.rate_label || 'Dry (0.0 mm/h)';
+  const subText = `${rateLabel} • ${catchment.active_station_count}/${stationCount} live`;
+  const peakNote = catchment.peak_station
+    ? `\nPeak 24h: ${Number(catchment.peak_24h_mm ?? 0).toFixed(1)} mm at ${catchment.peak_station}`
+    : '';
+
+  return {
+    hasLive: true,
+    primaryText,
+    subText,
+    ariaLabel: `${fullLabel} (${river}) upland rainfall: ${mean24.toFixed(1)} mm in 24 hours, ${rateLabel}. Click to inspect headwater river gauge.`,
+    tooltip: `${fullLabel} (${river})\nMeans — 1h: ${mean1.toFixed(1)} mm | 6h: ${mean6.toFixed(1)} mm | 24h: ${mean24.toFixed(1)} mm${peakNote}\nEA 15-min TBR (OGL v3.0)`
+  };
+}
+
+function renderUplandRainfallLayer(uplandOrigins) {
+  if (!Array.isArray(uplandOrigins) || uplandOrigins.length === 0) return '';
+  let layerHTML = '<g class="upland-rainfall-layer">';
+
+  for (const origin of uplandOrigins) {
+    const anchor = origin?.svg_anchor;
+    if (!anchor) continue;
+    const dimmed = !isUplandOriginMatchingFilter(origin);
+    const model = buildUplandRainfallBadgeModel(origin, rainfallData);
+    const { x, y, w, h, connector_from: cFrom, connector_to: cTo } = anchor;
+
+    if (cFrom && cTo) {
+      layerHTML += `
+        <path d="M ${cFrom.x} ${cFrom.y} L ${cTo.x} ${cTo.y}"
+              class="upland-rainfall-connector ${dimmed ? 'dimmed' : ''}"
+              stroke="rgba(99, 102, 241, 0.45)"
+              stroke-width="1.5"
+              stroke-dasharray="3, 3"
+              fill="none"
+              marker-end="url(#arrow-rainfall)"
+              aria-hidden="true"
+              pointer-events="none" />
+      `;
+    }
+
+    const hitY = Math.min(y, y - (44 - h) / 2);
+    const hitH = Math.max(44, h + 6);
+    layerHTML += `
+      <g class="upland-rainfall-badge ${dimmed ? 'dimmed' : ''}"
+         data-origin-id="${escapeAttr(origin.id)}"
+         data-target-node="${escapeAttr(origin.entry_node_id)}"
+         tabindex="0"
+         role="button"
+         aria-label="${escapeAttr(model.ariaLabel)}">
+        <title>${escapeHTML(model.tooltip)}</title>
+        <rect x="${x - 4}" y="${hitY}" width="${w + 8}" height="${hitH}" fill="transparent" pointer-events="all" />
+        <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="10"
+              class="upland-badge-rect"
+              fill="rgba(30, 27, 75, 0.7)"
+              stroke="rgba(99, 102, 241, 0.4)"
+              stroke-width="1.4" />
+        <text x="${x + w / 2}" y="${y + 16}"
+              text-anchor="middle"
+              fill="#f8fafc"
+              font-size="9.5"
+              font-weight="700"
+              letter-spacing="0.01em"
+              pointer-events="none">${escapeHTML(model.primaryText)}</text>
+        <text x="${x + w / 2}" y="${y + 31}"
+              text-anchor="middle"
+              fill="#c7d2fe"
+              font-size="7.8"
+              font-weight="500"
+              pointer-events="none">${escapeHTML(model.subText)}</text>
+      </g>
+    `;
+  }
+
+  layerHTML += '</g>';
+  return layerHTML;
+}
+
+/**
+ * Resolves the primary correlated upland tipping-bucket raingauge (TBR) for a river station node.
+ *
+ * @param {string} nodeId
+ * @param {object|null|undefined} rainfallPayload
+ * @param {Record<string, object>} [registry=RAINGAUGE_REGISTRY]
+ * @returns {{ station: object, peerCount: number, peers: Array<object> }|null}
+ */
+export function resolveCorrelatedUplandTbr(nodeId, rainfallPayload, registry = RAINGAUGE_REGISTRY) {
+  if (!nodeId) return null;
+  const sourceStations = Array.isArray(rainfallPayload?.stations) && rainfallPayload.stations.length > 0
+    ? rainfallPayload.stations
+    : Object.values(registry || {});
+
+  const candidates = sourceStations.filter(
+    st => st && st.correlated_river_station_id === nodeId && st.pillar === 'upland'
+  );
+  if (candidates.length === 0) return null;
+
+  const sorted = [...candidates].sort((a, b) => {
+    const aLive = !a.is_stale && (a.valid_reading_count ?? 0) > 0 ? 1 : 0;
+    const bLive = !b.is_stale && (b.valid_reading_count ?? 0) > 0 ? 1 : 0;
+    if (aLive !== bLive) return bLive - aLive;
+    const a24 = typeof a.last_24h_mm === 'number' ? a.last_24h_mm : 0;
+    const b24 = typeof b.last_24h_mm === 'number' ? b.last_24h_mm : 0;
+    if (a24 !== b24) return b24 - a24;
+    return 0;
+  });
+
+  return {
+    station: sorted[0],
+    peerCount: sorted.length - 1,
+    peers: sorted.slice(1)
+  };
+}
+
+function getHyetographBarColor(rainfallMm) {
+  if (typeof rainfallMm !== 'number' || !Number.isFinite(rainfallMm) || rainfallMm <= 0) {
+    return PRECIPITATION_PALETTE.DRY.hex;
+  }
+  const ratePerHr = rainfallMm * 4;
+  if (ratePerHr < 2.5) return PRECIPITATION_PALETTE.LIGHT.hex;
+  if (ratePerHr < 10.0) return PRECIPITATION_PALETTE.MODERATE.hex;
+  if (ratePerHr < 25.0) return PRECIPITATION_PALETTE.HEAVY.hex;
+  return PRECIPITATION_PALETTE.TORRENTIAL.hex;
+}
+
+/**
+ * Renders an interactive discrete-bar TBR hyetograph SVG (with cumulative mass curve)
+ * using the orthogonal indigo/violet PRECIPITATION_PALETTE.
+ *
+ * @param {object|null|undefined} tbrStation
+ * @returns {string}
+ */
+export function renderInspectorHyetograph(tbrStation) {
+  const series = Array.isArray(tbrStation?.series_15min) ? tbrStation.series_15min : [];
+  if (series.length === 0) {
+    const msg = tbrStation?.is_stale
+      ? 'Awaiting live 15-min TBR readings (stale or empty)'
+      : 'No 24h precipitation tips recorded';
+    return `<div style="padding:0.75rem; text-align:center; color:#c7d2fe; font-size:0.76rem;">${escapeHTML(msg)}</div>`;
+  }
+
+  const width = 300;
+  const height = 88;
+  const marginTop = 10;
+  const marginBottom = 14;
+  const marginLeft = 6;
+  const marginRight = 44;
+  const drawWidth = width - marginLeft - marginRight;
+  const drawHeight = height - marginTop - marginBottom;
+
+  const safeMm = (pt) => (pt && typeof pt.rainfall_mm === 'number' && Number.isFinite(pt.rainfall_mm) && pt.rainfall_mm > 0 ? pt.rainfall_mm : 0);
+  const safeCum = (pt) => (pt && typeof pt.cumulative_mm === 'number' && Number.isFinite(pt.cumulative_mm) && pt.cumulative_mm >= 0 ? pt.cumulative_mm : 0);
+
+  const maxIntervalMm = series.reduce((m, pt) => Math.max(m, safeMm(pt)), 0.4);
+  const maxCumMm = series.reduce((m, pt) => Math.max(m, safeCum(pt)), 0.4);
+  const count = series.length;
+  const stepW = drawWidth / Math.max(1, count);
+  const barW = Math.max(1.5, stepW - 0.6);
+
+  let barsHTML = '';
+  const cumPts = [];
+  const compactSeries = [];
+
+  for (let i = 0; i < count; i++) {
+    const pt = series[i];
+    const mm = safeMm(pt);
+    const cum = safeCum(pt);
+    const barX = marginLeft + i * stepW;
+    const barH = mm > 0 ? Math.max(2, (mm / maxIntervalMm) * drawHeight) : 1;
+    const barY = height - marginBottom - barH;
+    const fill = getHyetographBarColor(mm);
+
+    barsHTML += `<rect x="${barX.toFixed(1)}" y="${barY.toFixed(1)}" width="${barW.toFixed(1)}" height="${barH.toFixed(1)}" fill="${fill}" rx="0.6" />`;
+
+    const centerX = barX + barW / 2;
+    const cumY = height - marginBottom - ((cum / maxCumMm) * drawHeight);
+    cumPts.push(`${centerX.toFixed(1)},${cumY.toFixed(1)}`);
+    compactSeries.push({
+      t: pt?.timestamp || '',
+      mm: Number(mm.toFixed(2)),
+      cum: Number(cum.toFixed(2))
+    });
+  }
+
+  const serialized = escapeAttr(JSON.stringify(compactSeries));
+  const stationLabel = escapeAttr(tbrStation.ea_label || tbrStation.name || tbrStation.id || 'Upland TBR');
+
+  return `
+    <div class="hyetograph-wrapper"
+         tabindex="0"
+         role="region"
+         aria-label="${stationLabel} 24h hyetograph. Use Left and Right Arrow keys to inspect 15-minute rainfall intervals.">
+      <svg class="inspector-hyetograph-svg"
+           viewBox="0 0 ${width} ${height}"
+           preserveAspectRatio="none"
+           data-series="${serialized}"
+           data-max-mm="${maxIntervalMm}">
+        <line x1="${marginLeft}" y1="${marginTop}" x2="${width - marginRight}" y2="${marginTop}" stroke="rgba(129, 140, 248, 0.25)" stroke-dasharray="3 3" />
+        <line x1="${marginLeft}" y1="${height - marginBottom}" x2="${width - marginRight}" y2="${height - marginBottom}" stroke="rgba(129, 140, 248, 0.35)" />
+        ${barsHTML}
+        <polyline fill="none" stroke="${PRECIPITATION_PALETTE.CUMULATIVE_LINE.hex}" stroke-width="1.4" stroke-opacity="0.75" points="${cumPts.join(' ')}" />
+        <text x="${width - marginRight + 4}" y="${marginTop + 4}" fill="#c7d2fe" font-size="8" font-family="monospace">${maxIntervalMm.toFixed(1)}mm</text>
+        <text x="${width - marginRight + 4}" y="${height - marginBottom}" fill="#94a3b8" font-size="8" font-family="monospace">0.0mm</text>
+        <line class="hyetograph-crosshair" x1="${marginLeft}" y1="${marginTop}" x2="${marginLeft}" y2="${height - marginBottom}" />
+        <circle class="hyetograph-dot-highlight" cx="0" cy="0" r="3.5" />
+        <rect class="hyetograph-touch-overlay" x="${marginLeft}" y="0" width="${drawWidth}" height="${height}" fill="transparent" style="touch-action:none; cursor:crosshair;" />
+      </svg>
+      <div class="hyetograph-tooltip"></div>
+    </div>
+  `;
+}
+
+function formatHyetographTime(isoStr) {
+  if (!isoStr) return 'Unknown';
+  const d = new Date(isoStr);
+  if (Number.isNaN(d.getTime())) return String(isoStr);
+  const hh = String(d.getUTCHours()).padStart(2, '0');
+  const mm = String(d.getUTCMinutes()).padStart(2, '0');
+  const day = String(d.getUTCDate()).padStart(2, '0');
+  const mon = d.toLocaleString('en-GB', { month: 'short', timeZone: 'UTC' });
+  return `${day} ${mon} ${hh}:${mm} UTC`;
+}
+
+/**
+ * Binds pointer, touch, and keyboard scrubbing on an inspector hyetograph wrapper.
+ *
+ * @param {HTMLElement} container
+ * @param {object} [options={}]
+ */
+export function bindInspectorHyetographEvents(container, options = {}) {
+  const wrapper = container?.querySelector?.('.hyetograph-wrapper');
+  const svg = wrapper?.querySelector?.('svg.inspector-hyetograph-svg');
+  const overlay = wrapper?.querySelector?.('.hyetograph-touch-overlay');
+  if (!wrapper || !svg || !overlay) return;
+
+  let series = [];
+  try {
+    series = JSON.parse(svg.dataset.series || '[]');
+  } catch (_) {
+    series = [];
+  }
+  if (!Array.isArray(series) || series.length === 0) return;
+
+  const maxMm = parseFloat(svg.dataset.maxMm || '1') || 1;
+  const width = 300;
+  const height = 88;
+  const marginTop = 10;
+  const marginBottom = 14;
+  const marginLeft = 6;
+  const marginRight = 44;
+  const drawWidth = width - marginLeft - marginRight;
+  const drawHeight = height - marginTop - marginBottom;
+
+  const crosshair = svg.querySelector('.hyetograph-crosshair');
+  const dot = svg.querySelector('.hyetograph-dot-highlight');
+  const tooltip = wrapper.querySelector('.hyetograph-tooltip');
+  let activeIdx = null;
+  let clearTimer = null;
+
+  const setActive = (idx) => {
+    if (clearTimer) {
+      clearTimeout(clearTimer);
+      clearTimer = null;
+    }
+    if (idx === null || idx < 0 || idx >= series.length) {
+      activeIdx = null;
+      wrapper.classList.remove('crosshair-active');
+      if (options.refreshController) options.refreshController.setScrubbing(false);
+      return;
+    }
+    activeIdx = idx;
+    wrapper.classList.add('crosshair-active');
+    if (options.refreshController) options.refreshController.setScrubbing(true);
+
+    const pt = series[idx];
+    const ptMm = pt && typeof pt.mm === 'number' && Number.isFinite(pt.mm) && pt.mm > 0 ? pt.mm : 0;
+    const ptCum = pt && typeof pt.cum === 'number' && Number.isFinite(pt.cum) && pt.cum >= 0 ? pt.cum : 0;
+    const stepW = drawWidth / Math.max(1, series.length);
+    const targetX = marginLeft + idx * stepW + stepW / 2;
+    const barH = ptMm > 0 ? Math.max(2, (ptMm / maxMm) * drawHeight) : 0;
+    const targetY = height - marginBottom - barH;
+
+    if (crosshair) {
+      crosshair.setAttribute('x1', targetX.toFixed(1));
+      crosshair.setAttribute('x2', targetX.toFixed(1));
+    }
+    if (dot) {
+      dot.setAttribute('cx', targetX.toFixed(1));
+      dot.setAttribute('cy', targetY.toFixed(1));
+    }
+    if (tooltip) {
+      tooltip.innerText = `${formatHyetographTime(pt?.t)} • ${ptMm.toFixed(1)}mm (Sum ${ptCum.toFixed(1)}mm)`;
+      const rawPct = (targetX / width) * 100;
+      const wrapperW = wrapper.clientWidth || 0;
+      const tipW = tooltip.offsetWidth || 0;
+      if (wrapperW > 0 && tipW > 0) {
+        const centerPx = (targetX / width) * wrapperW;
+        const maxLeft = Math.max(0, wrapperW - tipW);
+        const clampedPx = Math.max(0, Math.min(maxLeft, centerPx - tipW / 2));
+        tooltip.style.left = `${clampedPx.toFixed(1)}px`;
+        tooltip.style.right = 'auto';
+        tooltip.style.transform = 'none';
+      } else if (rawPct <= 25) {
+        tooltip.style.left = '0';
+        tooltip.style.right = 'auto';
+        tooltip.style.transform = 'none';
+      } else if (rawPct >= 75) {
+        tooltip.style.left = 'auto';
+        tooltip.style.right = '0';
+        tooltip.style.transform = 'none';
+      } else {
+        tooltip.style.left = `${rawPct.toFixed(1)}%`;
+        tooltip.style.right = 'auto';
+        tooltip.style.transform = 'translateX(-50%)';
+      }
+    }
+  };
+
+  const handlePointer = (e) => {
+    const clientX = e.touches?.[0]?.clientX ?? e.clientX;
+    if (typeof clientX !== 'number') return;
+    const rect = svg.getBoundingClientRect();
+    if (!rect.width) return;
+    const relX = ((clientX - rect.left) / rect.width) * width;
+    const ratio = Math.max(0, Math.min(1, (relX - marginLeft) / drawWidth));
+    const idx = Math.min(series.length - 1, Math.max(0, Math.floor(ratio * series.length)));
+    setActive(idx);
+  };
+
+  overlay.addEventListener('pointermove', handlePointer);
+  overlay.addEventListener('touchmove', handlePointer, { passive: true });
+  overlay.addEventListener('pointerleave', () => {
+    clearTimer = setTimeout(() => setActive(null), 1200);
+  });
+  wrapper.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      setActive(activeIdx === null ? series.length - 1 : Math.max(0, activeIdx - 1));
+    } else if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      setActive(activeIdx === null ? 0 : Math.min(series.length - 1, activeIdx + 1));
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      setActive(0);
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      setActive(series.length - 1);
+    } else if (e.key === 'Escape') {
+      setActive(null);
+    }
+  });
 }
 
 // Auto-boot if in browser context

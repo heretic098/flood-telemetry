@@ -30,7 +30,10 @@ import {
   renderCrestGuide,
   renderSingleSparkline,
   renderDualSparkline,
-  renderInspectorSparkline
+  renderInspectorSparkline,
+  normalizeRainfallSeries,
+  renderHyetographSparkline,
+  PRECIPITATION_PALETTE
 } from '../src/js/sparkline.js';
 
 test('Sparkline: normalizePoints normalizes numbers and various object shapes', () => {
@@ -275,4 +278,74 @@ test('DOM Utils: formatFreshnessPill and applyFreshnessPill enforce triple-encod
   assert.equal(stubEl.textContent, '📡 Telemetry: 15m ago');
   assert.equal(stubEl.innerText, '📡 Telemetry: 15m ago');
   assert.equal(stubEl.className, 'telemetry-freshness-pill freshness-fresh');
+});
+
+test('Hyetograph: normalizeRainfallSeries enforces monotonic cumulative totals and sanitizes inputs', () => {
+  const series = normalizeRainfallSeries([
+    { timestamp: '2026-11-19T10:00:00Z', rainfall_mm: 0.2, cumulative_mm: 0.2 },
+    { timestamp: '2026-11-19T10:15:00Z', rainfall_mm: 1.4, cumulative_mm: 1.6 },
+    { timestamp: '2026-11-19T10:30:00Z', rainfall_mm: -0.5 }, // ignored negative
+    { timestamp: '2026-11-19T10:45:00Z', rainfall_mm: 7.0 } // missing cumulative -> computed monotonically
+  ]);
+  assert.equal(series.count, 3);
+  assert.deepEqual(series.bars, [0.2, 1.4, 7.0]);
+  assert.deepEqual(series.cumulative, [0.2, 1.6, 8.6]);
+  assert.equal(series.totalCumulativeMm, 8.6);
+  assert.equal(series.maxBarMm, 7.0);
+  assert.deepEqual(normalizeRainfallSeries([]).count, 0);
+  assert.deepEqual(normalizeRainfallSeries(null).count, 0);
+});
+
+test('Hyetograph: renderHyetographSparkline renders upward discrete bars, cumulative mass curve, and orthogonal palette', () => {
+  const html = renderHyetographSparkline([
+    { timestamp: '2026-11-19T10:00:00Z', rainfall_mm: 0.2, cumulative_mm: 0.2 },
+    { timestamp: '2026-11-19T10:15:00Z', rainfall_mm: 1.4, cumulative_mm: 1.6 },
+    { timestamp: '2026-11-19T10:30:00Z', rainfall_mm: 3.2, cumulative_mm: 4.8 },
+    { timestamp: '2026-11-19T10:45:00Z', rainfall_mm: 7.0, cumulative_mm: 11.8 }
+  ], { title: 'Test Uplands Hyetograph' });
+
+  assert.ok(html.includes('hyetograph-wrapper'));
+  assert.ok(html.includes('class="hyetograph-svg"'));
+  assert.ok(html.includes('tabindex="0"'));
+  assert.ok(html.includes('role="region"'));
+  assert.ok(html.includes('class="hyetograph-bar"'));
+  assert.ok(html.includes('class="hyetograph-cumulative-line"'));
+  assert.ok(html.includes(PRECIPITATION_PALETTE.LIGHT.hex), 'Light rain must use #a5b4fc');
+  assert.ok(html.includes(PRECIPITATION_PALETTE.MODERATE.hex), 'Moderate rain must use #818cf8');
+  assert.ok(html.includes(PRECIPITATION_PALETTE.HEAVY.hex), 'Heavy rain must use #6366f1');
+  assert.ok(html.includes(PRECIPITATION_PALETTE.TORRENTIAL.hex), 'Torrential rain must use #c084fc');
+  assert.ok(html.includes(PRECIPITATION_PALETTE.CUMULATIVE_LINE.hex), 'Cumulative mass curve must use #e0e7ff');
+
+  // Strict UI-COL-01/02 orthogonal separation: never estuarine blue or flood red/amber
+  assert.ok(!html.includes('#0284c7'), 'Hyetograph must never use estuarine deep blue #0284c7');
+  assert.ok(!html.includes('#ef4444'), 'Hyetograph must never use emergency red #ef4444');
+  assert.ok(!html.includes('#f59e0b'), 'Hyetograph must never use warning amber #f59e0b');
+
+  // Dry series collapses cleanly to single reassuring Dry 0.0mm guide
+  const dryHtml = renderHyetographSparkline([
+    { timestamp: '2026-11-19T10:00:00Z', rainfall_mm: 0, cumulative_mm: 0 },
+    { timestamp: '2026-11-19T10:15:00Z', rainfall_mm: 0, cumulative_mm: 0 }
+  ]);
+  assert.ok(dryHtml.includes('Dry 0.0mm'));
+  assert.ok(!dryHtml.includes('hyetograph-cumulative-line'));
+
+  // Empty series renders clean empty box without NaN
+  const emptyHtml = renderHyetographSparkline([]);
+  assert.ok(emptyHtml.includes('hyetograph-empty-state'));
+  assert.ok(!emptyHtml.includes('NaN'));
+});
+
+test('Hyetograph: renderHyetographSparkline escapes HTML attribute breakout payloads in data-timestamps', () => {
+  const maliciousTs = `' onload='alert(1)' " autofocus="onfocus=alert(2)" ><svg onload=alert(3)>`;
+  const html = renderHyetographSparkline([
+    { timestamp: maliciousTs, rainfall_mm: 0.4, cumulative_mm: 0.4 }
+  ], { title: 'XSS Check' });
+
+  // Double-quoted escaped attributes must contain no raw attribute breakout
+  assert.match(html, /data-points="\[0\.4\]"/);
+  assert.match(html, /data-cumulative-points="\[0\.4\]"/);
+  assert.match(html, /data-timestamps="\[&quot;&#39; onload=&#39;alert\(1\)&#39;/);
+  assert.ok(!html.includes("data-timestamps='"), 'Must not use single-quoted raw JSON attributes');
+  assert.ok(!html.includes('<svg onload=alert(3)>'), 'Must not inject raw <svg> elements');
+  assert.ok(!/data-timestamps="[^"]*"\s+onload=/i.test(html), 'Must not break out into an event handler attribute');
 });

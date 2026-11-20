@@ -534,8 +534,10 @@
       "name": "Wet Moor Polder Basin (Huish Episcopi & Midelney)",
       "choke_point_nodes": ["52120", "52153", "52233"],
       "pumping_stations": ["huish_episcopi_ps", "midelney_ps"],
-      "primary_station": "52120",
-      "survey_status": "TIER_2_FIXED_PUMPS_ONLY"
+      "primary_station": null,
+      "receiving_river_station": "52120",
+      "secondary_river_station": "52153",
+      "survey_status": "UNSURVEYED"
     },
     {
       "id": "stanmoor",
@@ -562,6 +564,62 @@
       "primary_station": null,
       "nearest_context_station": "52159",
       "survey_status": "UNSURVEYED"
+    }
+  ],
+  "upland_rainfall_origins": [
+    {
+      "id": "tone_upland",
+      "label": "Blackdowns",
+      "full_label": "Blackdowns & Brendon Hills",
+      "river": "River Tone",
+      "catchment_filter": "tone",
+      "entry_node_id": "52108",
+      "correlated_river_station_ids": ["52108", "52109", "52111", "52162", "52118"],
+      "tbr_station_ids": ["52100", "45168", "52101", "45232", "E14620"],
+      "svg_anchor": {
+        "x": 18,
+        "y": 546,
+        "w": 224,
+        "h": 42,
+        "connector_from": { "x": 80, "y": 546 },
+        "connector_to": { "x": 80, "y": 518 }
+      }
+    },
+    {
+      "id": "parrett_upland",
+      "label": "Dorset Hills",
+      "full_label": "Dorset Hills (Upper Parrett)",
+      "river": "River Parrett",
+      "catchment_filter": "parrett",
+      "entry_node_id": "52116",
+      "correlated_river_station_ids": ["52116", "52119", "52120", "52233"],
+      "tbr_station_ids": ["52148", "52103"],
+      "svg_anchor": {
+        "x": 456,
+        "y": 546,
+        "w": 216,
+        "h": 42,
+        "connector_from": { "x": 672, "y": 564 },
+        "connector_to": { "x": 713, "y": 545 }
+      }
+    },
+    {
+      "id": "isle_upland",
+      "label": "Isle Headwaters",
+      "full_label": "Isle Headwaters (Chard & Blackdown East)",
+      "river": "River Isle",
+      "catchment_filter": "tributaries",
+      "entry_node_id": "52153",
+      "correlated_river_station_ids": ["52153"],
+      "tbr_station_ids": ["52129"],
+      "svg_anchor": {
+        "x": 344,
+        "y": 484,
+        "w": 222,
+        "h": 42,
+        "connector_from": { "x": 566, "y": 500 },
+        "connector_to": { "x": 576, "y": 432 }
+      }
     }
   ]
 }

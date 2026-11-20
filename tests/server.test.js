@@ -22,9 +22,9 @@ test.after(async () => {
   });
 });
 
-function httpGet(path) {
+function httpGet(path, headers = {}) {
   return new Promise((resolve, reject) => {
-    http.get(`${baseUrl}${path}`, (res) => {
+    http.get(`${baseUrl}${path}`, { headers }, (res) => {
       let data = '';
       res.on('data', chunk => data += chunk);
       res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, body: data }));
@@ -169,6 +169,21 @@ test('GET /api/status includes active_events list and omits legacy cards diction
   assert.equal(json.status, 'ok');
   assert.ok(Array.isArray(json.active_events));
   assert.equal(json.cards, undefined, 'Legacy redundant cards dictionary must be omitted from /api/status');
+  assert.ok(json.rainfall_summary && typeof json.rainfall_summary === 'object', 'rainfall_summary must be present in /api/status');
+  assert.equal(typeof json.rainfall_summary.basin_24h_mean_mm, 'number');
+  assert.equal(typeof json.rainfall_summary.upland_peak_24h_mm, 'number');
+  assert.ok(['DRY', 'LIGHT', 'MODERATE', 'HEAVY', 'TORRENTIAL'].includes(json.rainfall_summary.rate_category));
+});
+
+test('GET /api/rainfall returns 200 and OGL v3.0 catchment & station rainfall payload', async () => {
+  const res = await httpGet('/api/rainfall');
+  assert.equal(res.status, 200);
+  assert.ok(res.headers['content-type'].includes('application/json'));
+  const json = JSON.parse(res.body);
+  assert.equal(json.status, 'ok');
+  assert.ok(json.catchments && json.catchments.tone_upland && json.catchments.moors_lowland);
+  assert.ok(Array.isArray(json.stations) && json.stations.length === 12);
+  assert.match(json.provenance.licence, /Open Government Licence v3\.0/);
 });
 
 test('GET /api/status includes evaluated roads and road_corridors for all 8 corridors', async () => {
@@ -304,6 +319,38 @@ test('GET /api/events/:eventId/frames/:cameraId/:filename enforces cameraId allo
   assert.equal(validRes.headers['cache-control'], 'public, max-age=31536000, immutable');
   assert.equal(validRes.buffer.length, syntheticJpeg.length);
   assert.equal(Buffer.compare(validRes.buffer, syntheticJpeg), 0);
+});
+
+test('Static Asset ETag: returns strong ETag, 304 on strong/weak W/ and * If-None-Match, and 200 on mismatch', async () => {
+  const initialRes = await httpGet('/css/styles.css');
+  assert.equal(initialRes.status, 200);
+  const etag = initialRes.headers.etag;
+  assert.ok(etag && /^"[0-9a-f]{16}"$/.test(etag), `expected quoted 16-hex ETag, got ${etag}`);
+  assert.ok(initialRes.body.length > 0);
+
+  // Strong match -> 304
+  const strongMatchRes = await httpGet('/css/styles.css', { 'If-None-Match': etag });
+  assert.equal(strongMatchRes.status, 304);
+  assert.equal(strongMatchRes.headers.etag, etag);
+  assert.equal(strongMatchRes.body, '');
+
+  // RFC 9110 §13.1.2 weak W/ match (proxy-weakened ETag inside comma-separated header) -> 304
+  const weakMatchRes = await httpGet('/css/styles.css', { 'If-None-Match': `"stale-tag", W/${etag}` });
+  assert.equal(weakMatchRes.status, 304);
+  assert.equal(weakMatchRes.headers.etag, etag);
+  assert.equal(weakMatchRes.body, '');
+
+  // Wildcard * -> 304
+  const wildcardRes = await httpGet('/css/styles.css', { 'If-None-Match': '*' });
+  assert.equal(wildcardRes.status, 304);
+  assert.equal(wildcardRes.headers.etag, etag);
+  assert.equal(wildcardRes.body, '');
+
+  // Mismatch -> 200 with full body
+  const mismatchRes = await httpGet('/css/styles.css', { 'If-None-Match': 'W/"0000000000000000"' });
+  assert.equal(mismatchRes.status, 200);
+  assert.equal(mismatchRes.headers.etag, etag);
+  assert.equal(mismatchRes.body, initialRes.body);
 });
 
 

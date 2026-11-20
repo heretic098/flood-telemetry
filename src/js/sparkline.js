@@ -10,7 +10,8 @@
  */
 
 import { escapeHTML, escapeAttr, formatRelativeAge, formatSpanUnit } from './modules/dom_utils.js';
-export { escapeHTML, escapeAttr, formatRelativeAge, formatSpanUnit };
+import { PRECIPITATION_PALETTE, classifyRainfallIntensity } from './hydro_engine.js';
+export { escapeHTML, escapeAttr, formatRelativeAge, formatSpanUnit, PRECIPITATION_PALETTE };
 
 /**
  * Normalizes input telemetry points into numerical values and ISO timestamps.
@@ -986,7 +987,8 @@ const globalHoverTimerRef = { id: null };
  * @param {Object} [options={}] - Optional callbacks (`stickyDelay`, `refreshController`, `onHoverChange`)
  */
 export function bindSparklineEvents(container = document, options = {}) {
-  const wrappers = container.querySelectorAll('.sparkline-wrapper');
+  const wrappers = Array.from(container.querySelectorAll('.sparkline-wrapper'))
+    .filter(w => !w.classList.contains('hyetograph-wrapper'));
   const stickyDelay = options.stickyDelay ?? 1200;
   const dims = getSparklineDimensions({
     width: 300, height: 75, marginLeft: 8, marginRight: 65, marginTop: 16, marginBottom: 16
@@ -1099,6 +1101,286 @@ export function bindSparklineEvents(container = document, options = {}) {
         }
       },
       onUpdate: setGlobalSparklineHover
+    });
+  });
+}
+
+/**
+ * Normalizes a 15-minute rainfall series into discrete interval depths (mm),
+ * monotonic cumulative totals (mm), and ISO timestamps.
+ *
+ * @param {Array<object>} seriesInput
+ * @returns {{
+ *   bars: number[],
+ *   cumulative: number[],
+ *   timestamps: string[],
+ *   totalCumulativeMm: number,
+ *   maxBarMm: number,
+ *   count: number
+ * }}
+ */
+export function normalizeRainfallSeries(seriesInput) {
+  if (!Array.isArray(seriesInput) || seriesInput.length === 0) {
+    return { bars: [], cumulative: [], timestamps: [], totalCumulativeMm: 0, maxBarMm: 0, count: 0 };
+  }
+
+  const bars = [];
+  const cumulative = [];
+  const timestamps = [];
+  let runningSum = 0;
+
+  for (let i = 0; i < seriesInput.length; i++) {
+    const item = seriesInput[i];
+    if (!item || typeof item !== 'object') continue;
+    const rawRain = item.rainfall_mm !== undefined ? item.rainfall_mm : item.value;
+    if (typeof rawRain !== 'number' || !Number.isFinite(rawRain) || rawRain < 0) continue;
+
+    const cleanBar = Number(rawRain.toFixed(2));
+    runningSum = Number((runningSum + cleanBar).toFixed(2));
+    const rawCum = typeof item.cumulative_mm === 'number' && Number.isFinite(item.cumulative_mm) && item.cumulative_mm >= runningSum
+      ? Number(item.cumulative_mm.toFixed(2))
+      : runningSum;
+    runningSum = rawCum;
+
+    bars.push(cleanBar);
+    cumulative.push(rawCum);
+    timestamps.push(item.timestamp || item.dateTime || item.isoTime || item.time || '');
+  }
+
+  const maxBarMm = bars.length > 0 ? Math.max(...bars) : 0;
+  const totalCumulativeMm = cumulative.length > 0 ? cumulative[cumulative.length - 1] : 0;
+
+  return {
+    bars,
+    cumulative,
+    timestamps,
+    totalCumulativeMm,
+    maxBarMm,
+    count: bars.length
+  };
+}
+
+/**
+ * Renders a discrete upward-rising bar hyetograph SVG with a superimposed cumulative
+ * mass curve using the orthogonal indigo/violet PRECIPITATION_PALETTE (UI-COL-01).
+ * Supports interactive pointer, touch, and keyboard crosshair scrubbing (UI-INT-01).
+ *
+ * @param {Array<object>} seriesInput - Array of { timestamp, rainfall_mm, cumulative_mm }
+ * @param {Object} [options={}]
+ * @returns {string}
+ */
+export function renderHyetographSparkline(seriesInput, options = {}) {
+  const width = options.width || 320;
+  const height = options.height || 84;
+  const marginTop = options.marginTop !== undefined ? options.marginTop : 14;
+  const marginBottom = options.marginBottom !== undefined ? options.marginBottom : 14;
+  const marginLeft = options.marginLeft !== undefined ? options.marginLeft : 8;
+  const marginRight = options.marginRight !== undefined ? options.marginRight : 68;
+  const dims = getSparklineDimensions({ width, height, marginTop, marginBottom, marginLeft, marginRight });
+
+  const { bars, cumulative, timestamps, totalCumulativeMm, maxBarMm, count } = normalizeRainfallSeries(seriesInput);
+  const titleText = options.title || '24h 15-min Rainfall Hyetograph';
+  const emptyMessage = options.emptyMessage || 'Awaiting 15-min rainfall readings';
+
+  if (count === 0) {
+    return `
+      <div class="sparkline-wrapper hyetograph-wrapper hyetograph-empty-state" role="region" aria-label="${escapeAttr(titleText)}">
+        <div class="sparkline-header">
+          <div class="sparkline-title-group">
+            <span class="stream-dot" style="background:${PRECIPITATION_PALETTE.LIGHT.hex}; color:${PRECIPITATION_PALETTE.LIGHT.hex}"></span>
+            <span class="sparkline-title">${escapeHTML(titleText)}</span>
+          </div>
+          <div class="sparkline-stats-bar">
+            <span class="sparkline-stat-pill precip-stat-pill">No recent tips</span>
+          </div>
+        </div>
+        <div class="hyetograph-empty-box">${escapeHTML(emptyMessage)}</div>
+      </div>
+    `;
+  }
+
+  const isDryWindow = maxBarMm === 0 && totalCumulativeMm === 0;
+  const barMax = Math.max(2.0, maxBarMm * 1.15);
+  const cumMax = Math.max(1.0, totalCumulativeMm * 1.08);
+  const baselineY = dims.height - dims.marginBottom;
+  const n = bars.length;
+  const slotW = dims.drawWidth / Math.max(1, n);
+  const barW = Math.max(1.4, Math.min(8, slotW * 0.72));
+
+  const barRects = bars.map((mm, idx) => {
+    if (mm <= 0) return '';
+    const centerX = n === 1
+      ? dims.marginLeft + dims.drawWidth / 2
+      : dims.marginLeft + (idx / Math.max(1, n - 1)) * dims.drawWidth;
+    const x = Math.max(dims.marginLeft, Math.min(dims.marginLeft + dims.drawWidth - barW, centerX - barW / 2));
+    const barH = Math.max(2, (mm / barMax) * dims.drawHeight);
+    const y = baselineY - barH;
+    const tier = classifyRainfallIntensity(mm * 4);
+    return `<rect class="hyetograph-bar" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${barH.toFixed(1)}" rx="0.8" fill="${tier.color_hex}" fill-opacity="0.9" />`;
+  }).join('');
+
+  const cumCoords = cumulative.map((cumVal, idx) => {
+    const x = n === 1
+      ? dims.marginLeft + dims.drawWidth / 2
+      : dims.marginLeft + (idx / Math.max(1, n - 1)) * dims.drawWidth;
+    const y = baselineY - ((cumVal / cumMax) * dims.drawHeight);
+    return { x, y, value: cumVal };
+  });
+  const cumPoints = buildSvgPoints(cumCoords);
+
+  const gridMarkup = isDryWindow
+    ? `<line x1="${dims.marginLeft}" y1="${baselineY}" x2="${dims.width - dims.marginRight + 4}" y2="${baselineY}" stroke="rgba(165, 180, 252, 0.3)" stroke-dasharray="3,3" stroke-width="1" />`
+    : `
+      <line x1="${dims.marginLeft}" y1="${dims.marginTop}" x2="${dims.width - dims.marginRight + 4}" y2="${dims.marginTop}" stroke="rgba(165, 180, 252, 0.16)" stroke-dasharray="3,3" stroke-width="1" />
+      <line x1="${dims.marginLeft}" y1="${baselineY}" x2="${dims.width - dims.marginRight + 4}" y2="${baselineY}" stroke="rgba(165, 180, 252, 0.28)" stroke-width="1" />
+    `;
+
+  const yLabelsMarkup = isDryWindow
+    ? `
+      <g class="y-label-group" transform="translate(${dims.width - 4}, ${baselineY - 2})">
+        <rect x="-64" y="-10" width="64" height="13" rx="2" fill="rgba(15, 23, 42, 0.88)" stroke="rgba(129, 140, 248, 0.35)" stroke-width="0.5" />
+        <text x="-2" y="0" text-anchor="end" class="sparkline-y-label" fill="${PRECIPITATION_PALETTE.LIGHT.hex}" font-weight="600">Dry 0.0mm</text>
+      </g>
+    `
+    : `
+      <g class="y-label-group" transform="translate(${dims.width - 4}, ${dims.marginTop + 3})">
+        <rect x="-64" y="-10" width="64" height="13" rx="2" fill="rgba(15, 23, 42, 0.88)" />
+        <text x="-2" y="0" text-anchor="end" class="sparkline-y-label" fill="${PRECIPITATION_PALETTE.CUMULATIVE_LINE.hex}" font-weight="600">Σ ${totalCumulativeMm.toFixed(1)}mm</text>
+      </g>
+      <g class="y-label-group" transform="translate(${dims.width - 4}, ${baselineY + 3})">
+        <rect x="-64" y="-10" width="64" height="13" rx="2" fill="rgba(15, 23, 42, 0.88)" />
+        <text x="-2" y="0" text-anchor="end" class="sparkline-y-label" fill="${PRECIPITATION_PALETTE.LIGHT.hex}">Pk ${maxBarMm.toFixed(1)}mm</text>
+      </g>
+    `;
+
+  return `
+    <div class="sparkline-wrapper hyetograph-wrapper" tabindex="0" role="region" aria-label="${escapeAttr(titleText)}. Use Left and Right Arrow keys to inspect 15-minute rainfall bars and cumulative total.">
+      <div class="sparkline-header">
+        <div class="sparkline-title-group">
+          <span class="stream-dot" style="background:${PRECIPITATION_PALETTE.HEAVY.hex}; color:${PRECIPITATION_PALETTE.HEAVY.hex}"></span>
+          <span class="sparkline-title">${escapeHTML(titleText)}</span>
+        </div>
+        <div class="sparkline-stats-bar">
+          <span class="sparkline-stat-pill precip-stat-pill" title="24-hour cumulative rainfall">Σ <strong>${totalCumulativeMm.toFixed(1)} mm</strong></span>
+          <span class="sparkline-stat-pill precip-stat-pill" title="Peak 15-minute interval">Peak: <strong>${maxBarMm.toFixed(1)} mm/15m</strong></span>
+        </div>
+      </div>
+      <svg class="hyetograph-svg"
+           viewBox="0 0 ${dims.width} ${dims.height}"
+           preserveAspectRatio="none"
+           data-points="${escapeAttr(JSON.stringify(bars))}"
+           data-cumulative-points="${escapeAttr(JSON.stringify(cumulative))}"
+           data-timestamps="${escapeAttr(JSON.stringify(timestamps))}"
+           data-ymin="0"
+           data-ymax="${cumMax}"
+           data-bar-max="${barMax}"
+           data-unit="mm"
+           aria-label="${escapeAttr(titleText)}. 24-hour total ${totalCumulativeMm.toFixed(1)}mm, peak 15-minute interval ${maxBarMm.toFixed(1)}mm.">
+        ${gridMarkup}
+        ${barRects}
+        ${!isDryWindow ? `<polyline class="hyetograph-cumulative-line" fill="none" stroke="${PRECIPITATION_PALETTE.CUMULATIVE_LINE.hex}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" points="${cumPoints}" />` : ''}
+        <line class="sparkline-crosshair" x1="${dims.marginLeft}" y1="${dims.marginTop}" x2="${dims.marginLeft}" y2="${baselineY}" />
+        <circle class="sparkline-dot-halo" cx="0" cy="0" r="7" />
+        <circle class="sparkline-dot-highlight" cx="0" cy="0" r="4.5" />
+        ${yLabelsMarkup}
+        <rect class="sparkline-touch-overlay" x="${dims.marginLeft}" y="0" width="${dims.drawWidth}" height="${dims.height}" fill="transparent" style="cursor: crosshair; touch-action: none;" />
+      </svg>
+      <div class="sparkline-tooltip" role="status" aria-live="polite"></div>
+    </div>
+  `;
+}
+
+const hyetographHoverTimerRef = { id: null };
+
+/**
+ * Binds interactive pointer, touch, and keyboard crosshair scrubbing for all
+ * `.hyetograph-wrapper` elements within `container`, keeping synchronized crosshairs
+ * across hyetographs inside that container (UI-INT-01).
+ *
+ * @param {HTMLElement|Document} [container=document]
+ * @param {Object} [options={}]
+ * @returns {Function[]} Array of teardown functions
+ */
+export function bindHyetographEvents(container = document, options = {}) {
+  if (!container || typeof container.querySelectorAll !== 'function') return [];
+  const wrappers = Array.from(container.querySelectorAll('.hyetograph-wrapper'));
+  if (wrappers.length === 0) return [];
+
+  const stickyDelay = options.stickyDelay ?? 1200;
+  const dims = getSparklineDimensions({
+    width: 320, height: 84, marginLeft: 8, marginRight: 68, marginTop: 14, marginBottom: 14
+  });
+  let activeRatio = null;
+
+  const updateWrapper = (wrapper, ratio) => {
+    const svg = wrapper.querySelector('svg.hyetograph-svg');
+    if (!svg) return;
+
+    let bars = [];
+    let cumulative = [];
+    let timestamps = [];
+    try {
+      bars = JSON.parse(svg.dataset.points || '[]');
+      cumulative = JSON.parse(svg.dataset.cumulativePoints || '[]');
+      timestamps = JSON.parse(svg.dataset.timestamps || '[]');
+    } catch {
+      return;
+    }
+    if (!Array.isArray(bars) || bars.length === 0) return;
+
+    const index = calculateSparklineScrubIndex(ratio, bars.length);
+    const barVal = bars[index] ?? 0;
+    const cumVal = cumulative[index] ?? 0;
+    const cumMax = parseFloat(svg.dataset.ymax) || 1;
+    const targetX = dims.marginLeft + ratio * dims.drawWidth;
+    const targetY = (dims.height - dims.marginBottom) - ((cumVal / cumMax) * dims.drawHeight);
+
+    updateCrosshairSvgElements(svg, targetX, targetY);
+
+    const tooltip = wrapper.querySelector('.sparkline-tooltip');
+    if (tooltip) {
+      const leftPct = Math.max(18, Math.min(82, (targetX / dims.width) * 100));
+      tooltip.style.left = `${leftPct.toFixed(1)}%`;
+      const formatted = formatTimestampTooltip(timestamps[index]);
+      const timeLabel = formatted.isValid ? `${formatted.dateStr} ${formatted.timeStr}` : `Step ${index + 1}`;
+      const intensity = classifyRainfallIntensity(barVal * 4);
+      tooltip.innerHTML = `<span class="tooltip-time">${escapeHTML(timeLabel)}</span><span class="tooltip-val">${barVal.toFixed(1)}mm/15m (${escapeHTML(intensity.label)}) · Σ ${cumVal.toFixed(1)}mm</span>`;
+    }
+  };
+
+  const syncAll = (ratio) => {
+    activeRatio = ratio;
+    if (options.refreshController) options.refreshController.setScrubbing(ratio !== null);
+    if (options.onHoverChange) options.onHoverChange(ratio);
+    wrappers.forEach((w) => {
+      if (ratio === null) {
+        w.classList.remove('crosshair-active');
+      } else {
+        w.classList.add('crosshair-active');
+        updateWrapper(w, ratio);
+      }
+    });
+  };
+
+  return wrappers.map((wrapper) => {
+    const svg = wrapper.querySelector('svg.hyetograph-svg');
+    const overlay = wrapper.querySelector('.sparkline-touch-overlay');
+    if (!svg || !overlay) return () => {};
+
+    return bindInteractiveScrubbing(wrapper, {
+      svg,
+      dimensions: dims,
+      stickyDelay,
+      timerRef: hyetographHoverTimerRef,
+      getActiveRatio: () => activeRatio,
+      stepCount: () => {
+        try {
+          return Math.max(1, (JSON.parse(svg.dataset.points || '[]').length || 96) - 1);
+        } catch {
+          return 95;
+        }
+      },
+      onUpdate: syncAll
     });
   });
 }

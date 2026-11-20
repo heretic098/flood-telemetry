@@ -3,13 +3,13 @@ import assert from 'node:assert/strict';
 import Database from 'better-sqlite3';
 import { runMigrations, CANONICAL_ASSET_TYPES, CANONICAL_STATES, MIGRATIONS } from '../src/js/db_migrations.js';
 
-test('Database Migrations: runMigrations cleanly upgrades fresh database from 0 to 7', () => {
+test('Database Migrations: runMigrations cleanly upgrades fresh database from 0 to 9', () => {
   const db = new Database(':memory:');
   assert.equal(db.pragma('user_version', { simple: true }), 0);
 
   const finalVersion = runMigrations(db);
-  assert.equal(finalVersion, 7);
-  assert.equal(db.pragma('user_version', { simple: true }), 7);
+  assert.equal(finalVersion, 9);
+  assert.equal(db.pragma('user_version', { simple: true }), 9);
 
   // Verify all expected tables exist
   const tables = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all().map(r => r.name);
@@ -18,16 +18,17 @@ test('Database Migrations: runMigrations cleanly upgrades fresh database from 0 
   assert.ok(tables.includes('camera_analysis'));
   assert.ok(tables.includes('telemetry_events'));
   assert.ok(tables.includes('ea_warning_events'));
+  assert.ok(tables.includes('historical_rainfall'));
 
   // Verify legacy spill_events has been dropped [RULE-CALC-01, RULE-ENT-01]
   assert.ok(!tables.includes('spill_events'), 'spill_events must be dropped in migration 3');
 
   // Calling runMigrations again is idempotent
   const secondRun = runMigrations(db);
-  assert.equal(secondRun, 7);
+  assert.equal(secondRun, 9);
 });
 
-test('Database Migrations: upgrades cleanly from version 1 to version 7', () => {
+test('Database Migrations: upgrades cleanly from version 1 to version 9', () => {
   const db = new Database(':memory:');
   
   // Apply only migration 1
@@ -40,18 +41,19 @@ test('Database Migrations: upgrades cleanly from version 1 to version 7', () => 
   assert.ok(tablesV1.includes('spill_events'));
   assert.ok(!tablesV1.includes('telemetry_events'));
 
-  // Now runMigrations - should upgrade to 7
+  // Now runMigrations - should upgrade to 9
   const upgradedVersion = runMigrations(db);
-  assert.equal(upgradedVersion, 7);
-  assert.equal(db.pragma('user_version', { simple: true }), 7);
+  assert.equal(upgradedVersion, 9);
+  assert.equal(db.pragma('user_version', { simple: true }), 9);
 
   const tablesV3 = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all().map(r => r.name);
   assert.ok(tablesV3.includes('telemetry_events'));
   assert.ok(tablesV3.includes('ea_warning_events'));
+  assert.ok(tablesV3.includes('historical_rainfall'));
   assert.ok(!tablesV3.includes('spill_events'), 'spill_events must be dropped after migration 3');
 });
 
-test('Database Migrations: upgrades cleanly from version 2 to version 7', () => {
+test('Database Migrations: upgrades cleanly from version 2 to version 9', () => {
   const db = new Database(':memory:');
   
   // Apply migrations 1 and 2
@@ -65,30 +67,31 @@ test('Database Migrations: upgrades cleanly from version 2 to version 7', () => 
   assert.ok(tablesV2.includes('spill_events'));
   assert.ok(tablesV2.includes('telemetry_events'));
 
-  // Now runMigrations - should upgrade to 7 and drop spill_events
+  // Now runMigrations - should upgrade to 9 and drop spill_events
   const upgradedVersion = runMigrations(db);
-  assert.equal(upgradedVersion, 7);
-  assert.equal(db.pragma('user_version', { simple: true }), 7);
+  assert.equal(upgradedVersion, 9);
+  assert.equal(db.pragma('user_version', { simple: true }), 9);
 
   const tablesV3 = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all().map(r => r.name);
   assert.ok(tablesV3.includes('telemetry_events'));
   assert.ok(tablesV3.includes('ea_warning_events'));
+  assert.ok(tablesV3.includes('historical_rainfall'));
   assert.ok(!tablesV3.includes('spill_events'), 'spill_events must be dropped after migration 3');
 });
 
 test('Database Migrations: migration 3 drop table is idempotent', () => {
   const db = new Database(':memory:');
   runMigrations(db);
-  assert.equal(db.pragma('user_version', { simple: true }), 7);
+  assert.equal(db.pragma('user_version', { simple: true }), 9);
 
   // Directly running migration 3 up function again must not throw
   assert.doesNotThrow(() => {
     MIGRATIONS[2].up(db);
   });
 
-  // Calling runMigrations again on v7 must remain 7
+  // Calling runMigrations again on v9 must remain 9
   const rerun = runMigrations(db);
-  assert.equal(rerun, 7);
+  assert.equal(rerun, 9);
 });
 
 test('Database Migrations: migration 4 purges spurious monks_leaze_clyse baseflow REVERSE_LOCK events', () => {
@@ -116,10 +119,10 @@ test('Database Migrations: migration 4 purges spurious monks_leaze_clyse baseflo
 
   assert.equal(db.prepare("SELECT count(*) as c FROM telemetry_events").get().c, 3);
 
-  // Run migrations up to 7
+  // Run migrations up to 9
   const finalVersion = runMigrations(db);
-  assert.equal(finalVersion, 7);
-  assert.equal(db.pragma('user_version', { simple: true }), 7);
+  assert.equal(finalVersion, 9);
+  assert.equal(db.pragma('user_version', { simple: true }), 9);
 
   const remaining = db.prepare("SELECT * FROM telemetry_events ORDER BY id ASC").all();
   assert.equal(remaining.length, 2, 'Spurious baseflow event must be deleted; valid flood & other events preserved');
@@ -156,10 +159,10 @@ test('Database Migrations: migration 6 purges spurious curry_moor dry-weather du
 
   assert.equal(db.prepare("SELECT count(*) as c FROM telemetry_events").get().c, 4);
 
-  // Run migration 6 and 7
+  // Run migration 6, 7, 8, and 9
   const finalVersion = runMigrations(db);
-  assert.equal(finalVersion, 7);
-  assert.equal(db.pragma('user_version', { simple: true }), 7);
+  assert.equal(finalVersion, 9);
+  assert.equal(db.pragma('user_version', { simple: true }), 9);
 
   const remaining = db.prepare("SELECT * FROM telemetry_events ORDER BY id ASC").all();
   assert.equal(remaining.length, 2, 'Both spurious events (< 4.55m) must be deleted; legitimate event & other asset preserved');
@@ -170,6 +173,46 @@ test('Database Migrations: migration 6 purges spurious curry_moor dry-weather du
   assert.doesNotThrow(() => {
     insertStmt.run('polder', 'curry_moor', 'DUTY_PUMPING', 2, '2026-11-08T00:00:00Z', 4.58, 4.62, 'New flood event', 'ACTIVE');
   });
+});
+
+test('Database Migrations: migration 8 purges spurious bicknells_bridge_access, wet_moor, and routine dunball_outfall tide-lock events', () => {
+  const db = new Database(':memory:');
+  // Run up to version 7
+  for (let i = 0; i < 7; i++) {
+    MIGRATIONS[i].up(db);
+  }
+  db.pragma('user_version = 7');
+
+  const insertStmt = db.prepare(`
+    INSERT INTO telemetry_events (
+      asset_type, asset_id, to_state, severity_tier, start_time,
+      trigger_stage_mAOD, peak_stage_mAOD, narrative, status
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  // 1. Spurious bicknells_bridge_access ENCROACHING event at 7.05m AOD
+  insertStmt.run('road', 'bicknells_bridge_access', 'ENCROACHING', 3, '2026-11-18T12:00:00Z', 7.01, 7.12, 'Spurious road encroachment', 'CLOSED');
+  // 2. Spurious wet_moor ACTIVE DUTY_PUMPING event at 6.84m AOD
+  insertStmt.run('polder', 'wet_moor', 'DUTY_PUMPING', 2, '2026-11-18T14:00:00Z', 6.78, 7.02, 'Spurious Yeo river baseflow duty pumping', 'ACTIVE');
+  // 3. Routine semi-diurnal dunball_outfall TIDE_LOCKED event (peak 5.67m < 6.50m, severity 2)
+  insertStmt.run('tidal_gate', 'dunball_outfall', 'TIDE_LOCKED', 2, '2026-11-18T16:00:00Z', 3.21, 5.67, 'Routine high tide', 'CLOSED');
+  // 4. Genuine storm surge dunball_outfall TIDE_LOCKED event (peak 6.72m >= 6.50m)
+  insertStmt.run('tidal_gate', 'dunball_outfall', 'TIDE_LOCKED', 2, '2026-11-17T08:00:00Z', 6.52, 6.72, 'Storm surge tide lock', 'CLOSED');
+  // 5. Genuine extended tide-lock dunball_outfall event (severity 3)
+  insertStmt.run('tidal_gate', 'dunball_outfall', 'TIDE_LOCKED', 3, '2026-11-16T08:00:00Z', 4.10, 5.80, 'Extended tide-lock >14h', 'CLOSED');
+  // 6. Legitimate muchelney_access road event
+  insertStmt.run('road', 'muchelney_access', 'ENCROACHING', 3, '2026-11-18T18:00:00Z', 7.35, 7.45, 'Lawyers Mill breach', 'CLOSED');
+
+  assert.equal(db.prepare("SELECT count(*) as c FROM telemetry_events").get().c, 6);
+
+  const finalVersion = runMigrations(db);
+  assert.equal(finalVersion, 9);
+
+  const remaining = db.prepare("SELECT * FROM telemetry_events ORDER BY id ASC").all();
+  assert.equal(remaining.length, 3, 'Spurious bicknells_bridge_access, wet_moor, and routine dunball_outfall events must be deleted');
+  assert.equal(remaining[0].peak_stage_mAOD, 6.72, 'Storm surge dunball_outfall event preserved');
+  assert.equal(remaining[1].severity_tier, 3, 'Extended tide-lock dunball_outfall event preserved');
+  assert.equal(remaining[2].asset_id, 'muchelney_access', 'Legitimate muchelney_access event preserved');
 });
 
 test('Database Migrations: migration 5 adds rate columns to historical_telemetry and telemetry_events and backfills peak_time', () => {
@@ -188,9 +231,9 @@ test('Database Migrations: migration 5 adds rate columns to historical_telemetry
     ) VALUES ('road', 'cuts_road', 'IMPASSABLE', 4, '2026-11-06T08:30:00Z', 6.20, 6.45, 'Inundated', 'ACTIVE')
   `).run();
 
-  // Run migration 5, 6, and 7
+  // Run migration 5, 6, 7, and 8
   const finalVersion = runMigrations(db);
-  assert.equal(finalVersion, 7);
+  assert.equal(finalVersion, 9);
 
   // Verify historical_telemetry columns
   const histCols = db.prepare("PRAGMA table_info(historical_telemetry)").all().map(c => c.name);

@@ -295,20 +295,13 @@
               <td>3.50m AOD</td>
             </tr>
             <tr>
-              <td rowspan="2"><strong>Huish Episcopi PS</strong></td>
-              <td rowspan="2">Huish Episcopi (52120)</td>
-              <td>☀️ Summer (Apr 15 - Oct 15)</td>
-              <td>6.70m AOD</td>
-              <td>6.90m AOD</td>
-              <td>7.30m AOD (Road)</td>
-              <td>8.20m AOD (Cut-off)</td>
-            </tr>
-            <tr>
-              <td>❄️ Winter (Oct 16 - Apr 14)</td>
-              <td>6.30m AOD</td>
-              <td>6.75m AOD</td>
-              <td>7.30m AOD (Road)</td>
-              <td>8.20m AOD (Cut-off)</td>
+              <td><strong>Huish Episcopi PS (Wet Moor)</strong></td>
+              <td>River Yeo @ Huish (52120 — Receiving River)</td>
+              <td>Annual Receiving-River Interlock</td>
+              <td><code>UNSURVEYED</code></td>
+              <td><code>UNSURVEYED</code></td>
+              <td><code>UNSURVEYED</code></td>
+              <td>8.20m AOD (Receiving-River Cut-off Only)</td>
             </tr>
             <tr>
               <td><strong>Midelney PS</strong></td>
@@ -506,6 +499,57 @@
       </table>
     </section>
 
+    <!-- Section 4B: Tipping-Bucket Rainfall (TBR) Sensor Physics & Epistemic Boundaries -->
+    <section class="doc-section" id="rainfall-sensor-methodology">
+      <h3 class="section-heading"><span class="heading-icon">🌧️</span> 4B. Tipping-Bucket Rainfall (TBR) Sensor Physics, Provenance &amp; Epistemic Boundaries</h3>
+      <p>
+        Upstream catchment rainfall telemetry (in millimetres) provides early-warning meteorological context across the Somerset Levels headwaters (Brendon Hills, Blackdown Hills, and upper Yeo/Parrett ridges). Because tipping-bucket raingauges (TBRs) are mechanical point collectors rather than continuous water-level sensors, their readings carry distinct physical quantization effects, aerodynamic biases, and epistemic limits.
+      </p>
+
+      <div class="equation-card">
+        <h4>A. Physical Sensor Mechanics &amp; 0.20 mm Quantization</h4>
+        <p>
+          Environment Agency tipping-bucket raingauges funnel precipitation onto a balanced twin-compartment see-saw bucket calibrated to tip once every <strong>0.20 mm of liquid equivalent</strong>, closing a magnetic reed-switch contact for each tip.
+        </p>
+        <ul class="doc-list">
+          <li><strong>0.20 mm Discrete Quantization:</strong> Every 15-minute telemetry record reports an integer multiple of the calibrated tip increment (<code>N &times; 0.20 mm</code>). Light drizzle below 0.20 mm accumulates inside the resting bucket across intervals until a full tip threshold is reached.</li>
+          <li><strong>Discrete 15-Minute Interval Accumulation vs. Continuous River Stage:</strong> Unlike in-channel stage transducers that sample instantaneous water surface elevation (<code>mAOD</code>), a TBR reading represents a <em>discrete accumulated count</em> over the preceding 15-minute window.</li>
+          <li><strong>Residual Moisture &ldquo;Ghost Tips&rdquo; at Event Onset:</strong> Residual condensation, morning dew, wind vibration, or water retained in a partially filled bucket from a prior shower can trigger an isolated <code>0.20 mm</code> tip at storm onset or after rain has ceased. Single isolated <code>0.20 mm</code> tips therefore do not confirm active catchment-wide rainfall.</li>
+        </ul>
+      </div>
+
+      <div class="grid-2col">
+        <div class="info-card" style="border-left: 4px solid #38bdf8;">
+          <h4>🌬️ B. Environmental &amp; Orographic Undercatch (15%&ndash;25%)</h4>
+          <p>
+            During strong <strong>South-West Atlantic gales</strong> sweeping across exposed upland ridges such as the <strong>Brendon Hills</strong> and <strong>Blackdown Hills</strong>, accelerated airflow over unshielded gauge rims deflects falling raindrops horizontally past the funnel aperture.
+          </p>
+          <p>
+            Under high-wind orographic conditions, aerodynamic wind undercatch routinely reduces measured TBR totals by <strong>15% to 25%</strong> (and potentially more during fine wind-driven drizzle). Because wind speed, drop-size spectra, and local micro-turbulence are not co-measured at EA raingauge stations, we display <strong>raw empirical EA data verbatim</strong> rather than applying speculative correction multipliers.
+          </p>
+        </div>
+
+        <div class="info-card" style="border-left: 4px solid #f59e0b;">
+          <h4>❄️ C. Unheated Funnels &amp; Freezing / Snow Blindness Hazard</h4>
+          <p>
+            Rural EA tipping-bucket raingauges across Somerset rely on <strong>unheated gravity-fed funnels</strong>. During sub-zero weather, sleet, hail, or snowfall, solid precipitation causes snow-capping or frozen funnel blockages inside the collector cone instead of draining onto the bucket.
+          </p>
+          <p>
+            This creates a two-stage <strong>&ldquo;snow blindness&rdquo;</strong> artefact: a <strong>false zero</strong> (<code>0.00 mm</code>) while snow accumulates on the catchment, followed by a <strong>delayed meltwater spike</strong> when temperatures rise above freezing and trapped snow/ice drains rapidly through the bucket—mimicking a sudden storm burst that is not occurring in real time.
+          </p>
+        </div>
+      </div>
+
+      <div class="equation-card">
+        <h4>D. OGL v3.0 Provenance &amp; Strict Epistemic Boundaries</h4>
+        <ul class="doc-list">
+          <li><strong>Third-Party Data Stewardship (OGL v3.0):</strong> All rainfall interval measurements (<code>mm</code>) are ingested directly from the UK Environment Agency open telemetry API (<code>rainfall</code> measures) and republished under the <a href="https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/" target="_blank" rel="noopener noreferrer" class="table-link">Open Government Licence v3.0 ↗</a> (<em>Contains Environment Agency information &copy; Crown copyright and database right</em>). We act strictly as a transparent community conduit for raw public readings.</li>
+          <li><strong>Ambient Environmental Sensors (Not Civil State-Machine Entities):</strong> Raingauges operate strictly as <em>ambient environmental sensors</em> providing catchment weather context. They are not civil hydraulic state-machine entities (such as roads, spillways, polders, sluices, tidal gates, or river gauges) and never generate automated infrastructure alerts or passability transitions.</li>
+          <li><strong>No Volumetric Runoff or Catchment Discharge Calculations:</strong> Point rainfall depth (<code>mm</code>) does not measure soil moisture deficit, infiltration capacity, evapotranspiration, or open-channel rating curves. Inferring, integrating, or asserting volumetric runoff or catchment discharge quantities (cubic metres per second) from millimetre rainfall accumulations is strictly prohibited.</li>
+        </ul>
+      </div>
+    </section>
+
     <!-- Section 5: Dynamic Spillway Crest Tracking & Future Innovations -->
     <section class="doc-section">
       <h3 class="section-heading"><span class="heading-icon">📡</span> 5. Dynamic Crest History & Future Remote Sensing Innovations</h3>
@@ -638,10 +682,10 @@
             <tr>
               <td><strong>Bicknell's Bridge Approach</strong><br><small style="color: #94a3b8;">Huish Level lanes (bicknells_bridge_access)</small></td>
               <td>River Yeo @ Huish (<code>52120</code>)</td>
-              <td>7.00m AOD (2.00m)</td>
-              <td>7.30m AOD (2.30m)</td>
+              <td><code>UNSURVEYED</code> (Disabled)</td>
+              <td><code>UNSURVEYED</code> (Disabled)</td>
               <td><code>112FWFMTM10A</code><br><small>Muchelney Properties</small></td>
-              <td><span class="prov-pill prov-tier-3">📊 TIER 3: EMPIRICAL</span><br><small>⚠️ Approaches Pending Topographic Survey</small></td>
+              <td><span class="prov-pill prov-tier-3">⚠️ UNSURVEYED</span><br><small>⚠️ Approaches Pending Topographic Survey (automated stage triggers disabled)</small></td>
             </tr>
             <tr>
               <td><strong>Moorland &amp; New Cut</strong><br><small style="color: #94a3b8;">Northmoor internal roads (moorland_new_cut_road)</small></td>

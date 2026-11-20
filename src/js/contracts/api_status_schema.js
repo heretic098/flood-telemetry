@@ -19,20 +19,20 @@ import {
   object,
   optional,
   nullable,
+  FORBIDDEN_CALC_KEYS,
   assertNoForbiddenKeys,
   validate
 } from './schema_validator.js';
 
+import {
+  rainfallSummarySchema,
+  RAINFALL_FORBIDDEN_CALC_KEYS,
+  validateRainfallSummaryInvariants
+} from './api_rainfall_schema.js';
+
 import { CANONICAL_ASSET_TYPES, CANONICAL_STATES } from '../db_migrations.js';
 
-export const FORBIDDEN_CALC_KEYS = Object.freeze([
-  'cumecs',
-  'discharge_m3s',
-  'm3s',
-  'flow_rate',
-  'volumetric_flow',
-  'megalitres_per_day'
-]);
+export { FORBIDDEN_CALC_KEYS };
 
 /**
  * Camera Evidence Keyframe Schema
@@ -159,6 +159,7 @@ export const apiStatusSchema = object({
     is_tide_locked: boolean()
   }),
   ea_warnings: optional(eaWarningsSummarySchema),
+  rainfall_summary: optional(rainfallSummarySchema),
   active_events: array(activeEventSchema),
   roads: object({
     counts: optional(roadCountsSchema),
@@ -195,6 +196,18 @@ export function validateApiStatusPayload(payload) {
   // 2. Enforce deep recursive ban on volumetric discharge keys [RULE-CALC-01]
   const forbiddenErrors = assertNoForbiddenKeys(payload, FORBIDDEN_CALC_KEYS, 'api_status');
   errors.push(...forbiddenErrors);
+
+  if (payload.rainfall_summary !== undefined && payload.rainfall_summary !== null) {
+    errors.push(...validateRainfallSummaryInvariants(payload.rainfall_summary, 'api_status.rainfall_summary'));
+    const rainfallForbidden = assertNoForbiddenKeys(
+      payload.rainfall_summary,
+      RAINFALL_FORBIDDEN_CALC_KEYS,
+      'api_status.rainfall_summary'
+    );
+    for (const err of rainfallForbidden) {
+      if (!errors.includes(err)) errors.push(err);
+    }
+  }
 
   return {
     valid: errors.length === 0,

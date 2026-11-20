@@ -56,7 +56,7 @@ Road corridor passability is evaluated by comparing real-time water levels from 
 | `beer_wall_a372` | A372 at Beer Wall | Aller ↔ Othery | 52157 (River Sowy) | 8.00 | 7.30 | `112WAFTESR` (East Somerset Rivers / Sowy & KSD) | Tier 1 Weir / Tier 2 Road | Weir surveyed at 7.30m ODN; raised carriageway crown pending as-built survey (>8.00m ODN). |
 | `new_road_curry` | New Road | West Lyng ↔ North Curry | 52127 (Curry Moor) | 7.10 | 6.20 | `112FWFCUR10A` (Curry Moor & Hay Moor) | Tier 2 Trigger Plan | Correlated to moor water levels and council emergency flood gate closure stages. Topographic survey pending. |
 | `a361_burrowbridge` | A361 Strategic Arterial | East Lyng ↔ Burrowbridge | 52158 (Baltmoor) / 52127 | 7.80 | 7.35 | `112FWFEAS10A` (A361 East Lyng to Burrowbridge) | Tier 2 Trigger Plan | Correlated to Baltmoor levee overtopping and Curry Moor cascade. Highways survey pending. |
-| `bicknells_bridge_access`| Bicknell's Bridge & Huish Level | Langport ↔ Muchelney | 52120 (River Yeo) | 7.30 | 7.00 | `112FWFMTM10A` (Muchelney, Thorney & properties) | Tier 3 Empirical | Low-lying approach dip vulnerable to Yeo/Parrett backwater. Approach survey pending. |
+| `bicknells_bridge_access`| Bicknell's Bridge & Huish Level | Langport ↔ Muchelney | 52120 (River Yeo) | `UNSURVEYED` (`null`) | `UNSURVEYED` (`null`) | `112FWFMTM10A` (Muchelney, Thorney & properties) | `UNSURVEYED` | ⚠️ Pending Topographic Survey. Automated stage triggers disabled (`[RULE-THRESH-01]`); prior unverified empirical values fell inside normal River Yeo winter flow (`52120` typicalRange 6.44m–8.48m AOD). |
 | `moorland_new_cut_road` | Moorland New Cut Road | Northmoor Polder Interior | 52159 (Northmoor) | 4.80 | 3.80 | `112FWFSAL10A` (Salt Moor & North Moor) | Tier 2 Trigger Plan | Internal polder road network behind Baltmoor Wall embankment. Topographic survey pending. |
 | `stan_moor_road` | Stan Moor Road | Curload ↔ Athelney | 52118 (Tone) / 52127 | 7.30 | 7.15 | `112FWFSTA10A` (Stan Moor Curload/Athelney) | Tier 2 Trigger Plan | River Tone embankment bank road subject to wave action and levee seepage at elevated stages. |
 
@@ -105,12 +105,11 @@ The Environment Agency and Somerset Drainage Boards Consortium operate high-capa
 - **Mobile Pumps Active:** `5.20m AOD` (Emergency pumping operational)
 - **Critical Risk Stage:** `5.60m AOD` (Internal road submergence across Moorland and Fordgate)
 
-### Wet Moor Polder Basin (52120 / 52153)
-- **Basin Bed Floor:** `5.80m AOD` (Huish Episcopi & Midelney drainage floor)
-- **Winter Fixed Pumps:** `6.30m AOD` (Lead) / `6.75m AOD` (Duty) (EA Huish Episcopi PS Winter Operating Rules)
-- **Summer Fixed Pumps:** `6.70m AOD` (Lead) / `6.90m AOD` (Duty) (EA Summer Penning Operating Rules)
-- **Receiving River Cut-off Lock:** `8.20m AOD` (Huish Episcopi permanent pumps automatically lock out when River Yeo reaches 8.20m AOD to protect River Parrett)
-- **Mobile Pump Triggers:** `null` (`UNSURVEYED` — unpublished in primary public records; decoupled from the 7.30m/7.86m AOD Muchelney Spine Road breach/crown thresholds)
+### Wet Moor Polder Basin (`UNSURVEYED` — Receiving Rivers 52120 / 52153)
+- **Survey & Sensor Status:** `UNSURVEYED` (`⚠️ Pending EA Asset Survey` — Wet Moor internal rhyne/sump stage is not broadcast by an in-polder EA sensor; station `52120` measures the receiving River Yeo channel, not internal polder levels).
+- **Basin Bed Floor:** `5.80m AOD` (Reference channel invert / drainage floor)
+- **Fixed & Mobile Pump Triggers:** `null` (`UNSURVEYED` — automated polder duty-pumping and mobile pump event triggers are disabled until dedicated internal moor thresholds are verified under `[RULE-THRESH-01]`).
+- **Receiving River Cut-off Lock:** `8.20m AOD` (Huish Episcopi permanent pumps lock out when receiving River Yeo `52120` reaches `8.20m AOD`, with `8.48m AOD` EA statistical flood alert envelope).
 
 ### West Sedgemoor Polder Basin (Sump 52155 Ingest-Only)
 - **Basin Bed Floor:** `3.60m AOD` (SSSI wet grassland polder floor)
@@ -155,15 +154,42 @@ The Environment Agency and Somerset Drainage Boards Consortium operate high-capa
 
 ---
 
-## 7. Strict Domain Governance & Prohibitions
+## 7. Tipping-Bucket Rainfall (TBR) Sensor Physics, Limitations & Provenance
+
+Upstream tipping-bucket raingauge (TBR) telemetry provides early-warning catchment precipitation context (`mm`) across the Somerset Levels headwaters (including the Brendon Hills, Blackdown Hills, and upper Yeo/Parrett uplands). Because TBR sensors are mechanical point collectors, their readings obey distinct physical constraints and epistemic boundaries:
+
+### A. Physical Sensor Mechanics & 0.20 mm Quantization
+- **Calibrated Tip Increment:** Each EA tipping-bucket mechanism is calibrated to tip once per **0.20 mm of liquid equivalent**, closing a magnetic reed-switch contact.
+- **Discrete 15-Minute Accumulation vs. Continuous River Stage:** Unlike continuous river stage sensors (`mAOD`), each 15-minute EA rainfall record reports a quantized integer count of bucket tips (`N × 0.20 mm`) accumulated across the preceding 15-minute window. Drizzle below 0.20 mm per 15 minutes accumulates inside the bucket until a full tip occurs.
+- **Residual Moisture "Ghost Tips":** Trace condensation, morning dew, wind vibration, or residual water sitting in a partially filled bucket from an earlier shower can trigger isolated `0.20 mm` "ghost tips" at event onset or after rainfall stops; single isolated tips do not represent catchment-wide storm onset.
+
+### B. Environmental & Orographic Limitations (Wind Undercatch)
+- **15%–25% Aerodynamic Wind Undercatch:** Across exposed upland ridges in the **Brendon Hills** and **Blackdown Hills**, strong **South-West Atlantic gales** accelerate airflow across unshielded gauge rims, deflecting raindrops horizontally past the collector orifice and reducing measured totals by roughly **15% to 25%** (or more in wind-driven drizzle).
+- **Raw Empirical Display (`[RULE-HUM-01]`):** Because local wind speed, drop-size spectra, and micro-exposure are not co-measured at EA raingauge sites, the platform displays raw empirical EA millimetre accumulations verbatim rather than applying speculative correction multipliers.
+
+### C. Unheated Funnels & Freezing / Snow Blindness Hazard
+- **Snow-Capping & Frozen Funnels:** Most rural EA tipping-bucket raingauges are **unheated** gravity-fed mechanical funnels. During sub-zero weather, sleet, hail, or snow, solid precipitation accumulates inside the frozen funnel instead of draining through the bucket.
+- **False Zero Followed by Melt Spike:** Snow blindness produces two sequential artefacts: (1) false `0.00 mm` readings during active freezing precipitation, followed by (2) a delayed meltwater spike when temperatures rise above freezing and trapped snow/ice drains rapidly through the bucket.
+
+### D. OGL v3.0 Provenance & Epistemic Boundaries (`[RULE-PROV-01]`, `[RULE-CALC-01]`, `[RULE-ENT-01]`)
+- **OGL v3.0 Stewardship (`[RULE-PROV-01]`):** All rainfall interval measurements (`mm`) are sourced directly from the UK Environment Agency Real Time flood monitoring API (`rainfall` measures) and republished under the **Open Government Licence v3.0 (OGL v3.0)** (*Contains Environment Agency information © Crown copyright and database right*).
+- **Ambient Environmental Sensors (`[RULE-ENT-01]`):** Raingauges are classified strictly as **ambient environmental sensors** providing meteorological context. They are **not** civil state-machine entities (`road`, `spillway`, `polder`, `tidal_gate`, `sluice`, `gauge`) and do not emit canonical infrastructure alerts or state transitions.
+- **No Volumetric Runoff or Discharge Inference (`[RULE-CALC-01]`):** Point rainfall depth (`mm`) does not measure soil moisture deficit, infiltration capacity, evapotranspiration, or open-channel rating curves. Inferring or reporting volumetric runoff or catchment discharge quantities (cubic metres per second) from millimetre rainfall totals is strictly prohibited.
+
+---
+
+## 8. Strict Domain Governance & Prohibitions
 
 1. **[RULE-HUM-01] Epistemic Humility:**
    All road passability classifications, overtopping assertions, and pumping states are mathematical deductions from upstream telemetry. The platform does NOT assert visual ground truth. Non-reliance legal insulation applies under the UK *Hedley Byrne* doctrine. Always verify road conditions with Somerset Council / Travel Somerset. Never drive through floodwater.
 
-2. **[RULE-CALC-01] Prohibited Discharge Modeling:**
-   The platform strictly prohibits estimating, computing, or displaying volumetric discharge flow rates or volume quantities. Environment Agency telemetry provides stage ($m$), not open-channel rating curves, gate apertures, or pump telemetry. Asserting volumetric quantities without telemetry violates platform safety policy.
+2. **[RULE-PROV-01] Third-Party Data Stewardship:**
+   All upstream river stage, tidal, and rainfall telemetry belongs to the UK Environment Agency under OGL v3.0. The platform displays raw public readings transparently without fabricating missing parameters or applying uncalibrated multipliers.
 
-3. **[RULE-ENT-01] Canonical Entity Status Dictionary:**
+3. **[RULE-CALC-01] Prohibited Discharge Modeling:**
+   The platform strictly prohibits estimating, computing, or displaying volumetric discharge flow rates, runoff volumes, or catchment discharge quantities. Environment Agency telemetry provides stage ($m$) and point rainfall depth ($mm$), not open-channel rating curves, gate apertures, soil saturation models, or pump telemetry. Asserting volumetric quantities without telemetry violates platform safety policy.
+
+4. **[RULE-ENT-01] Canonical Entity Status Dictionary:**
    All records, database rows, APIs, and UI cards must adhere to the 19 finite status tokens:
    - `road`: `PASSABLE`, `ENCROACHING`, `IMPASSABLE`
    - `spillway`: `SECURE`, `NEAR_CREST`, `OVERTOPPING`
@@ -171,10 +197,11 @@ The Environment Agency and Somerset Drainage Boards Consortium operate high-capa
    - `tidal_gate`: `DISCHARGING`, `TIDE_LOCKED`
    - `sluice`: `CLOSED`, `DIVERTING`, `THROTTLED`, `REVERSE_LOCK`
    - `gauge`: `NORMAL`, `ALERT`
+   *(Note: Tipping-bucket raingauges are ambient environmental sensors outside the civil asset state machine.)*
 
 ---
 
-## 8. Open Source & Licensing
+## 9. Open Source & Licensing
 
 - Upstream Hydrological Data: UK Environment Agency under the Open Government Licence v3.0 (OGL v3.0). Contains Environment Agency information © Crown copyright and database right.
 - Platform Code & Schemas: Released under the Apache License 2.0.

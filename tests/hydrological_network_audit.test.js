@@ -455,8 +455,19 @@ test('HYDRO-15: Road passability model strictly applies surveyed geodetic datum 
   assert.equal(muchelney.status, 'PASSABLE');
 
   assert.equal(bicknells.stage_mAOD, 6.68, 'Bicknells bridge stage must convert 1.68m mASD to 6.68m AOD');
-  assert.equal(bicknells.clearance_m, 0.62, 'Clearance to 7.30m crown must be 0.62m');
+  assert.equal(bicknells.crown_elevation_mAOD, null, '[RULE-THRESH-01] Unsurveyed Bicknells bridge must set crown_elevation_mAOD: null');
+  assert.equal(bicknells.caution_elevation_mAOD, null, '[RULE-THRESH-01] Unsurveyed Bicknells bridge must set caution_elevation_mAOD: null');
+  assert.equal(bicknells.clearance_m, null, '[RULE-THRESH-01] Unsurveyed Bicknells bridge must report clearance_m: null');
   assert.equal(bicknells.status, 'PASSABLE');
+
+  // Routine winter flow on 52120 (2.12m mASD = 7.12m AOD) must NOT trigger ENCROACHING on unsurveyed Bicknells bridge
+  const mockMeasuresRoutineWinter = {
+    '52120-level-stage-i-15_min-mASD': [{ value: 2.12, dateTime: new Date().toISOString() }],
+    '52127-level-stage-i-15_min-mAOD': [{ value: 4.48, dateTime: new Date().toISOString() }]
+  };
+  const resRoutineWinter = evaluateRoadNetwork(mockMeasuresRoutineWinter);
+  assert.equal(resRoutineWinter.corridors.bicknells_bridge_access.stage_mAOD, 7.12);
+  assert.equal(resRoutineWinter.corridors.bicknells_bridge_access.status, 'PASSABLE', '[RULE-THRESH-01] Unsurveyed bicknells_bridge_access must not trigger ENCROACHING at 7.12m AOD routine winter flow');
 
   // Encroachment scenario: Huish stage 2.35m mASD = 7.35m AOD (exceeds 7.30m Lawyers Mill breach)
   const mockMeasuresEncroaching = {
@@ -781,19 +792,28 @@ test('HYDRO-26: Southern & Flanking Polders First-Class Basin Modeling & Seasona
     }
   }
 
-  // 2. Wet Moor seasonal fixed-pump inference (no repurposed road thresholds as mobile pump triggers)
+  // 2. Wet Moor decoupled from River Yeo 52120 (no automated DUTY_PUMPING from receiving river baseflow)
   const wm = ASSET_DEFINITIONS.wet_moor;
+  assert.equal(wm.primary_station, null, 'Wet Moor must be decoupled from receiving River Yeo gauge 52120');
+  assert.equal(wm.receiving_river_station, '52120');
+  assert.equal(wm.secondary_river_station, '52153');
+  assert.equal(wm.survey_tier, 'UNSURVEYED');
+  assert.equal(wm.lead_pump_winter_mAOD, null);
+  assert.equal(wm.duty_pump_winter_mAOD, null);
+  assert.equal(wm.lead_pump_summer_mAOD, null);
+  assert.equal(wm.duty_pump_summer_mAOD, null);
   assert.equal(wm.mobile_ordered_mAOD, null, 'Wet Moor must not repurpose Muchelney 7.30m road breach as mobile_ordered_mAOD');
   assert.equal(wm.mobile_active_mAOD, null, 'Wet Moor must not repurpose Muchelney 7.86m road crown as mobile_active_mAOD');
   assert.equal(wm.critical_mAOD, null, 'Wet Moor must not repurpose 8.20m river cut-off as polder critical_mAOD');
   const wmReadings = [{ value: 6.80, dateTime: '2026-11-15T12:00:00Z' }];
   const wmWinter = evaluateAssetTransition(wm, null, wmReadings, { isSummer: false });
-  assert.equal(wmWinter.to_state, 'DUTY_PUMPING', 'Wet Moor 6.80m is DUTY_PUMPING in winter (>= 6.75m)');
+  assert.equal(wmWinter.to_state, 'STANDBY', '[RULE-THRESH-01] Wet Moor must remain STANDBY at 6.80m River Yeo winter baseflow');
+  assert.equal(wmWinter.severity_tier, 1);
+  assert.equal(wmWinter.action, 'NONE');
   const wmSummer = evaluateAssetTransition(wm, null, wmReadings, { isSummer: true });
-  assert.equal(wmSummer.to_state, 'STANDBY', 'Wet Moor 6.80m is STANDBY under summer penning (< 6.90m)');
-  // High Yeo stage (7.90m) must remain DUTY_PUMPING on wet_moor, never fabricating MOBILE_ORDERED / MOBILE_ACTIVE
+  assert.equal(wmSummer.to_state, 'STANDBY');
   const wmHigh = evaluateAssetTransition(wm, null, [{ value: 7.90, dateTime: '2026-11-15T12:00:00Z' }], { isSummer: false });
-  assert.equal(wmHigh.to_state, 'DUTY_PUMPING');
+  assert.equal(wmHigh.to_state, 'STANDBY');
 
   // 3. West Sedgemoor decoupled from River Parrett 52233 (no automated alerts until 52155 sump thresholds verified)
   const ws = ASSET_DEFINITIONS.west_sedgemoor;
@@ -825,16 +845,12 @@ test('HYDRO-26: Southern & Flanking Polders First-Class Basin Modeling & Seasona
   assert.equal(wzWinter.severity_tier, 1);
 
   // 6. Parity with CANONICAL_PUMP_THRESHOLDS and HYDRO_THRESHOLDS
-  assert.equal(wm.lead_pump_winter_mAOD, CANONICAL_PUMP_THRESHOLDS.huish_episcopi_ps.winter.lead);
-  assert.equal(wm.duty_pump_winter_mAOD, CANONICAL_PUMP_THRESHOLDS.huish_episcopi_ps.winter.duty);
-  assert.equal(wm.lead_pump_summer_mAOD, CANONICAL_PUMP_THRESHOLDS.huish_episcopi_ps.summer.lead);
-  assert.equal(wm.duty_pump_summer_mAOD, CANONICAL_PUMP_THRESHOLDS.huish_episcopi_ps.summer.duty);
-
   assert.equal(sm.lead_pump_winter_mAOD, CANONICAL_PUMP_THRESHOLDS.stanmoor_ps.winter.lead);
   assert.equal(sm.duty_pump_winter_mAOD, CANONICAL_PUMP_THRESHOLDS.stanmoor_ps.winter.duty);
   assert.equal(sm.lead_pump_summer_mAOD, CANONICAL_PUMP_THRESHOLDS.stanmoor_ps.summer.lead);
   assert.equal(sm.duty_pump_summer_mAOD, CANONICAL_PUMP_THRESHOLDS.stanmoor_ps.summer.duty);
 
+  assert.equal(CANONICAL_PUMP_THRESHOLDS.huish_episcopi_ps, undefined, 'Unsurveyed huish_episcopi_ps polder drain triggers must not appear in CANONICAL_PUMP_THRESHOLDS');
   assert.equal(CANONICAL_PUMP_THRESHOLDS.west_sedgemoor_ps, undefined, 'Unsurveyed west_sedgemoor_ps must not appear in CANONICAL_PUMP_THRESHOLDS');
   assert.equal(CANONICAL_PUMP_THRESHOLDS.westonzoyland_ps, undefined, 'Unsurveyed westonzoyland_ps must not appear in CANONICAL_PUMP_THRESHOLDS');
 
@@ -842,6 +858,53 @@ test('HYDRO-26: Southern & Flanking Polders First-Class Basin Modeling & Seasona
   assert.equal(sm.floor_elevation_mAOD, HYDRO_THRESHOLDS.STANMOOR.GROUND_MAOD);
   assert.equal(ws.floor_elevation_mAOD, HYDRO_THRESHOLDS.WEST_SEDGEMOOR.GROUND_MAOD);
   assert.equal(wz.floor_elevation_mAOD, HYDRO_THRESHOLDS.WESTONZOYLAND.GROUND_MAOD);
+
+  // 7. HYDRO_THRESHOLDS.HUISH_EPISCOPI / 52120, somerset.json langport_confluence.huish_episcopi_ps,
+  // and app.js getPumpEvaluation unloaded hydroConfig regression gate [RULE-SSOT-01, RULE-THRESH-01]
+  assert.equal(HYDRO_THRESHOLDS.HUISH_EPISCOPI.LEAD_PUMP_WINTER, null);
+  assert.equal(HYDRO_THRESHOLDS.HUISH_EPISCOPI.DUTY_PUMP_WINTER, null);
+  assert.equal(HYDRO_THRESHOLDS.HUISH_EPISCOPI.LEAD_PUMP_SUMMER, null);
+  assert.equal(HYDRO_THRESHOLDS.HUISH_EPISCOPI.DUTY_PUMP_SUMMER, null);
+  assert.equal(HYDRO_THRESHOLDS.HUISH_EPISCOPI.RIVER_CUTOFF_MAOD, 8.20);
+  assert.equal(HYDRO_THRESHOLDS.HUISH_EPISCOPI.ALERT_MAOD, 8.48);
+  assert.equal(HYDRO_THRESHOLDS['52120'].LEAD_PUMP_WINTER, null);
+  assert.equal(HYDRO_THRESHOLDS['52120'].DUTY_PUMP_WINTER, null);
+  assert.equal(HYDRO_THRESHOLDS['52120'].LEAD_PUMP_SUMMER, null);
+  assert.equal(HYDRO_THRESHOLDS['52120'].DUTY_PUMP_SUMMER, null);
+
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+  const somersetCfg = JSON.parse(fs.readFileSync(path.resolve('src/js/config/catchments/somerset.json'), 'utf8'));
+  const langportHuish = somersetCfg.moors.langport_confluence.huish_episcopi_ps;
+  assert.equal(langportHuish.survey_status, 'UNSURVEYED');
+  assert.equal(langportHuish.thresholds.winter.lead, null);
+  assert.equal(langportHuish.thresholds.winter.duty, null);
+  assert.equal(langportHuish.thresholds.winter.river_cutoff, 8.20);
+  assert.equal(langportHuish.thresholds.winter.alert_level, 8.48);
+  assert.equal(langportHuish.thresholds.summer.lead, null);
+  assert.equal(langportHuish.thresholds.summer.duty, null);
+  assert.equal(langportHuish.thresholds.summer.river_cutoff, 8.20);
+  assert.equal(langportHuish.thresholds.summer.alert_level, 8.48);
+
+  const { getPumpEvaluation, renderPumpTriggerGauge } = await import('../src/js/app.js');
+  // Unloaded hydroConfig (null) at calm 6.68m River Yeo baseflow MUST NEVER fall back to currymoor_ps (stage 3)
+  const unloadedCalm = getPumpEvaluation('huish_episcopi_ps', 6.68, 'langport_confluence', 'Huish Episcopi PS', 4, null);
+  assert.equal(unloadedCalm.stage, 0, 'Unloaded hydroConfig at 6.68m baseflow must evaluate stage: 0 (never currymoor_ps stage: 3)');
+  assert.equal(unloadedCalm.mode, 'STANDBY');
+  assert.equal(unloadedCalm.isPumpsCutoff, false);
+  assert.equal(unloadedCalm.thresholds, null);
+  assert.equal(renderPumpTriggerGauge(unloadedCalm), '');
+
+  // Loaded hydroConfig at calm 6.68m and 7.35m must also remain stage: 0 (STANDBY) until 8.20m river cut-off
+  const loadedCalm = getPumpEvaluation('huish_episcopi_ps', 6.68, 'langport_confluence', 'Huish Episcopi PS', 4, somersetCfg);
+  assert.equal(loadedCalm.stage, 0);
+  assert.equal(loadedCalm.mode, 'STANDBY');
+  assert.equal(loadedCalm.isPumpsCutoff, false);
+
+  const loadedCutoff = getPumpEvaluation('huish_episcopi_ps', 8.25, 'langport_confluence', 'Huish Episcopi PS', 4, somersetCfg);
+  assert.equal(loadedCutoff.stage, 0);
+  assert.equal(loadedCutoff.mode, 'CUT_OFF');
+  assert.equal(loadedCutoff.isPumpsCutoff, true);
 });
 
 test('HYDRO-27: [RULE-THRESH-01] Threshold Provenance, Physical Operating Hierarchy, Baseflow Separation & Anti-Laundering Gate', async () => {
@@ -957,22 +1020,35 @@ test('HYDRO-27: [RULE-THRESH-01] Threshold Provenance, Physical Operating Hierar
       const stId = asset.primary_station;
       const stReg = STATION_REGISTRY[stId];
       assert.ok(stReg, `Road '${assetKey}' primary_station '${stId}' must exist in STATION_REGISTRY`);
-      assert.ok(
-        typeof asset.crown_elevation_mAOD === 'number',
-        `[RULE-THRESH-01] Road '${assetKey}' must define numerical crown_elevation_mAOD`
-      );
-      assert.ok(
-        typeof asset.caution_elevation_mAOD === 'number',
-        `[RULE-THRESH-01] Road '${assetKey}' must define numerical caution_elevation_mAOD`
-      );
-      assert.ok(
-        Number((asset.caution_elevation_mAOD - stReg.fallback_stage_mAOD).toFixed(3)) >= 0.15,
-        `[RULE-THRESH-01] Road '${assetKey}' caution stage (${asset.caution_elevation_mAOD}m) must sit >= 0.15m above station ${stId} calm fallback (${stReg.fallback_stage_mAOD}m)`
-      );
-      assert.ok(
-        Number((asset.crown_elevation_mAOD - asset.caution_elevation_mAOD).toFixed(3)) >= 0.15,
-        `[RULE-THRESH-01] Road '${assetKey}' crown stage (${asset.crown_elevation_mAOD}m) must sit >= 0.15m above caution stage (${asset.caution_elevation_mAOD}m)`
-      );
+      if (asset.survey_tier === 'UNSURVEYED') {
+        assert.equal(
+          asset.crown_elevation_mAOD,
+          null,
+          `[RULE-THRESH-01] Unsurveyed road '${assetKey}' must set crown_elevation_mAOD: null`
+        );
+        assert.equal(
+          asset.caution_elevation_mAOD,
+          null,
+          `[RULE-THRESH-01] Unsurveyed road '${assetKey}' must set caution_elevation_mAOD: null`
+        );
+      } else {
+        assert.ok(
+          typeof asset.crown_elevation_mAOD === 'number',
+          `[RULE-THRESH-01] Road '${assetKey}' must define numerical crown_elevation_mAOD`
+        );
+        assert.ok(
+          typeof asset.caution_elevation_mAOD === 'number',
+          `[RULE-THRESH-01] Road '${assetKey}' must define numerical caution_elevation_mAOD`
+        );
+        assert.ok(
+          Number((asset.caution_elevation_mAOD - stReg.fallback_stage_mAOD).toFixed(3)) >= 0.15,
+          `[RULE-THRESH-01] Road '${assetKey}' caution stage (${asset.caution_elevation_mAOD}m) must sit >= 0.15m above station ${stId} calm fallback (${stReg.fallback_stage_mAOD}m)`
+        );
+        assert.ok(
+          Number((asset.crown_elevation_mAOD - asset.caution_elevation_mAOD).toFixed(3)) >= 0.15,
+          `[RULE-THRESH-01] Road '${assetKey}' crown stage (${asset.crown_elevation_mAOD}m) must sit >= 0.15m above caution stage (${asset.caution_elevation_mAOD}m)`
+        );
+      }
     }
 
     // 3c. Sluice Gate Invariants:

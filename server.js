@@ -1,6 +1,7 @@
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { fileURLToPath } from 'url';
 import Database from 'better-sqlite3';
 
@@ -20,14 +21,16 @@ import {
   extractStationStage,
   evaluateRoadNetwork,
   evaluateSowyChannel,
-  computeBatchStageRates
+  computeBatchStageRates,
+  RAINGAUGE_PROVENANCE
 } from './src/js/hydro_engine.js';
 
 import {
   validateEAIngestPayload,
   validateApiStatusPayload,
   validateApiTopologyPayload,
-  validateApiHistoryPayload
+  validateApiHistoryPayload,
+  validateApiRainfallPayload
 } from './src/js/contracts/index.js';
 
 import { CameraBufferWorker } from './src/js/api/camera_buffer.js';
@@ -50,6 +53,15 @@ import {
 } from './src/js/ea_warning_manager.js';
 import { validateApiWarningsPayload } from './src/js/contracts/ea_warnings_schema.js';
 import { validateStaffGaugeCameraPayload } from './src/js/contracts/staff_gauge_camera_schema.js';
+import {
+  DEFAULT_RAINGAUGE_SYNC_LIMIT,
+  getRainfallMeasureIds,
+  isRainfallMeasureId,
+  ingestRainfallBatch,
+  fetchAndIngestRainfallMeasure,
+  syncRainfallMeasure,
+  getRainfallTelemetrySnapshot
+} from './src/js/api/rainfall_ingest.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -266,13 +278,17 @@ export function shouldTriggerBackfill(envVar = process.env.BACKFILL_TELEMETRY ||
 /**
  * Asynchronous background telemetry backfill worker
  */
-export async function syncBackfillTelemetry(dbInstance = db, measures = MEASURE_IDS, fetchFn = globalThis.fetch, sinceDate = null) {
+export async function syncBackfillTelemetry(dbInstance = db, measures = null, fetchFn = globalThis.fetch, sinceDate = null) {
   if (!sinceDate) {
     const d = new Date(Date.now() - 28 * 24 * 60 * 60 * 1000);
     sinceDate = d.toISOString();
   }
 
-  console.log(`[Backfill Worker] Starting 28-day telemetry backfill for ${measures.length} measures (since ${sinceDate})...`);
+  const targetMeasures = Array.isArray(measures)
+    ? measures
+    : [...MEASURE_IDS, ...getRainfallMeasureIds()];
+
+  console.log(`[Backfill Worker] Starting 28-day telemetry backfill for ${targetMeasures.length} measures (since ${sinceDate})...`);
 
   const stmt = dbInstance.prepare(`
     INSERT INTO historical_telemetry (measure_id, date_time, value, delta_15m_m, rate_1h_m_per_hr, rate_3h_m_per_hr)
@@ -302,9 +318,22 @@ export async function syncBackfillTelemetry(dbInstance = db, measures = MEASURE_
 
   let totalInserted = 0;
 
-  for (const id of measures) {
+  for (const id of targetMeasures) {
     const url = `https://environment.data.gov.uk/flood-monitoring/id/measures/${id}/readings?since=${sinceDate}&_sorted&_limit=10000`;
     try {
+      if (isRainfallMeasureId(id)) {
+        const rainfallRes = await fetchAndIngestRainfallMeasure(
+          dbInstance,
+          id,
+          url,
+          fetchFn,
+          '[Backfill Worker Rainfall]'
+        );
+        totalInserted += rainfallRes.inserted;
+        await new Promise(r => setTimeout(r, 100));
+        continue;
+      }
+
       const res = await fetchFn(url);
       if (!res.ok) {
         console.warn(`[Backfill Worker Warning] HTTP ${res.status} for measure ${id}`);
@@ -347,10 +376,18 @@ export async function syncBackfillTelemetry(dbInstance = db, measures = MEASURE_
   return totalInserted;
 }
 
-async function syncMeasure(measureId, limit = 96, fetchFn = globalThis.fetch) {
+export async function syncMeasure(measureId, limit = 96, fetchFn = globalThis.fetch, dbInstance = db) {
+  if (isRainfallMeasureId(measureId)) {
+    return syncRainfallMeasure(measureId, limit, fetchFn, dbInstance);
+  }
+
   const url = `https://environment.data.gov.uk/flood-monitoring/id/measures/${measureId}/readings?_sorted&_limit=${limit}`;
   try {
     const res = await fetchFn(url);
+    if (!res || res.ok === false) {
+      console.warn(`[SQLite Ingest Warning] HTTP ${res ? res.status : 'unknown'} for ${measureId}`);
+      return null;
+    }
     const data = await res.json();
     const validation = validateEAIngestPayload(data, measureId);
     if (!validation.valid) {
@@ -359,11 +396,11 @@ async function syncMeasure(measureId, limit = 96, fetchFn = globalThis.fetch) {
     }
 
     if (data.items && data.items.length > 0) {
-      const stmt = db.prepare("INSERT OR REPLACE INTO telemetry (measure_id, readings_json, updated_at) VALUES (?, ?, datetime('now'))");
+      const stmt = dbInstance.prepare("INSERT OR REPLACE INTO telemetry (measure_id, readings_json, updated_at) VALUES (?, ?, datetime('now'))");
       stmt.run(measureId, JSON.stringify(data.items));
 
       const enrichedItems = computeBatchStageRates(data.items);
-      const histStmt = db.prepare(`
+      const histStmt = dbInstance.prepare(`
         INSERT INTO historical_telemetry (measure_id, date_time, value, delta_15m_m, rate_1h_m_per_hr, rate_3h_m_per_hr)
         VALUES (?, ?, ?, ?, ?, ?)
         ON CONFLICT(measure_id, date_time) DO UPDATE SET
@@ -371,7 +408,7 @@ async function syncMeasure(measureId, limit = 96, fetchFn = globalThis.fetch) {
           rate_1h_m_per_hr = COALESCE(historical_telemetry.rate_1h_m_per_hr, excluded.rate_1h_m_per_hr),
           rate_3h_m_per_hr = COALESCE(historical_telemetry.rate_3h_m_per_hr, excluded.rate_3h_m_per_hr)
       `);
-      const histTx = db.transaction((items) => {
+      const histTx = dbInstance.transaction((items) => {
         for (const item of items) {
           const cleanVal = sanitizeStageValue(item.value);
           histStmt.run(
@@ -405,7 +442,12 @@ export async function syncAllTelemetry(overrideLimit = null, fetchFn = globalThi
   try {
     const isBackfill = shouldTriggerBackfill();
     const limit = overrideLimit || (isBackfill ? 2688 : 96);
-    await Promise.all(MEASURE_IDS.map(id => syncMeasure(id, limit, fetchFn)));
+    const rainfallMeasureIds = getRainfallMeasureIds();
+    const rainfallLimit = overrideLimit || (isBackfill ? 2688 : DEFAULT_RAINGAUGE_SYNC_LIMIT);
+    await Promise.all([
+      ...MEASURE_IDS.map(id => syncMeasure(id, limit, fetchFn)),
+      ...rainfallMeasureIds.map(id => syncMeasure(id, rainfallLimit, fetchFn))
+    ]);
 
     // Process canonical telemetry events & correlate camera keyframes (Issue #23)
     try {
@@ -863,6 +905,46 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // API Route: Catchment & Station Rainfall Telemetry (Issue #65)
+  if (pathname === '/api/rainfall' || pathname === '/api/rainfall/') {
+    try {
+      const nowMs = Date.now();
+      const snapshot = getRainfallTelemetrySnapshot(db, { nowMs });
+
+      const rainfallPayload = {
+        status: 'ok',
+        source: 'sqlite',
+        updated_at: snapshot.updated_at,
+        latest_rainfall_reading_at: snapshot.latest_rainfall_reading_at,
+        provenance: RAINGAUGE_PROVENANCE,
+        rainfall_summary: snapshot.rainfall_summary,
+        catchments: snapshot.catchments,
+        stations: snapshot.stations
+      };
+
+      const rainfallValidation = validateApiRainfallPayload(rainfallPayload);
+      if (!rainfallValidation.valid) {
+        console.error('[Contract Violation] /api/rainfall:', rainfallValidation.errors);
+        if (rainfallValidation.errors.some(e => e.includes('strictly prohibited') || e.includes('[RULE-CALC-01]'))) {
+          res.writeHead(500, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+          res.end(JSON.stringify({ status: 'error', message: 'Domain contract violation: prohibited keys' }));
+          return;
+        }
+      }
+
+      res.writeHead(200, {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'public, max-age=60, s-maxage=60, stale-while-revalidate=120'
+      });
+      res.end(JSON.stringify(rainfallPayload));
+    } catch (err) {
+      console.error('[API Rainfall Error]', err);
+      res.writeHead(500, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+      res.end(JSON.stringify({ status: 'error', message: 'Failed to retrieve rainfall telemetry' }));
+    }
+    return;
+  }
+
 
   // API Route: List catchments
   if (pathname === '/api/catchments' || pathname === '/api/catchments/') {
@@ -1206,6 +1288,7 @@ const server = http.createServer(async (req, res) => {
     const eaWarningStates = getActiveEAWarningStatesMap(db);
     const roadNetwork = evaluateRoadNetwork(measures, activeEvents, { nowMs, eaWarnings: eaWarningStates });
     const eaWarningsSummary = getEAWarningsSummary(db);
+    const rainfallSnapshot = getRainfallTelemetrySnapshot(db, { nowMs });
 
     const statusPayload = {
       status: "ok",
@@ -1223,6 +1306,7 @@ const server = http.createServer(async (req, res) => {
       },
       active_events: activeEvents,
       ea_warnings: eaWarningsSummary,
+      rainfall_summary: rainfallSnapshot.rainfall_summary,
       roads: roadNetwork,
       road_corridors: roadNetwork.corridors_list,
       measures_summary: stored.measures_summary,
@@ -1270,7 +1354,7 @@ const server = http.createServer(async (req, res) => {
 
   const ext = path.extname(safePath).toLowerCase();
   const contentType = MIME_TYPES[ext] || 'application/octet-stream';
-  const cacheControl = (ext === '.html') ? 'public, max-age=300' : ((ext === '.js' || ext === '.css') ? 'no-cache' : 'public, max-age=86400');
+  const cacheControl = (ext === '.html') ? 'public, max-age=300' : ((ext === '.js' || ext === '.css') ? 'no-cache, must-revalidate' : 'public, max-age=86400');
 
   fs.readFile(safePath, (err, content) => {
     if (err) {
@@ -1282,16 +1366,34 @@ const server = http.createServer(async (req, res) => {
         res.end('500 Internal Server Error');
       }
     } else {
-      res.writeHead(200, { 
-        'Content-Type': contentType,
-        'Cache-Control': cacheControl
-      });
-      if (ext === '.html') {
-        const injected = renderHtmlWithPartials(content.toString('utf-8'), path.basename(safePath));
-        res.end(injected, 'utf-8');
-      } else {
-        res.end(content);
+      const body = ext === '.html'
+        ? Buffer.from(renderHtmlWithPartials(content.toString('utf-8'), path.basename(safePath)), 'utf-8')
+        : content;
+      const etag = `"${crypto.createHash('sha1').update(body).digest('hex').slice(0, 16)}"`;
+      const rawIfNoneMatch = req.headers['if-none-match'];
+      const ifNoneMatch = Array.isArray(rawIfNoneMatch) ? rawIfNoneMatch.join(',') : rawIfNoneMatch;
+      if (typeof ifNoneMatch === 'string' && ifNoneMatch.trim().length > 0) {
+        // RFC 9110 §13.1.2 weak comparison: accept `*` or strip weak prefix `W/` from entity-tags
+        const normalizedEtag = etag.replace(/^W\//, '');
+        const matches = ifNoneMatch
+          .split(',')
+          .map(s => s.trim())
+          .some(token => token === '*' || token.replace(/^W\//, '') === normalizedEtag);
+        if (matches) {
+          res.writeHead(304, {
+            'Cache-Control': cacheControl,
+            'ETag': etag
+          });
+          res.end();
+          return;
+        }
       }
+      res.writeHead(200, {
+        'Content-Type': contentType,
+        'Cache-Control': cacheControl,
+        'ETag': etag
+      });
+      res.end(body);
     }
   });
 });
@@ -1358,4 +1460,18 @@ if (isMainModule) {
   });
 }
 
-export { server, cameraBufferWorker, renderHtmlWithPartials, loadPartials, renderNav, getFooterPartial, renderSummaryMarkdown, MIME_TYPES, db };
+export {
+  server,
+  cameraBufferWorker,
+  renderHtmlWithPartials,
+  loadPartials,
+  renderNav,
+  getFooterPartial,
+  renderSummaryMarkdown,
+  MIME_TYPES,
+  db,
+  syncRainfallMeasure,
+  ingestRainfallBatch,
+  getRainfallMeasureIds,
+  getRainfallTelemetrySnapshot
+};

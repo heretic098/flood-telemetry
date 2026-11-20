@@ -272,6 +272,54 @@ export const MIGRATIONS = [
           ON ea_warning_events(severity_level, status);
       `);
     }
+  },
+  {
+    version: 8,
+    name: 'purge_spurious_bicknells_wet_moor_and_routine_dunball_events',
+    up: (db) => {
+      // 1. Purge false-positive ENCROACHING / IMPASSABLE events logged on bicknells_bridge_access
+      // driven by unverified 7.00m/7.30m empirical thresholds on River Yeo 52120 [RULE-THRESH-01]
+      db.prepare(`
+        DELETE FROM telemetry_events
+        WHERE asset_id = 'bicknells_bridge_access'
+      `).run();
+
+      // 2. Purge false-positive DUTY_PUMPING sessions logged on wet_moor
+      // driven by normal River Yeo 52120 winter baseflow (6.75m threshold) [RULE-THRESH-01]
+      db.prepare(`
+        DELETE FROM telemetry_events
+        WHERE asset_id = 'wet_moor'
+      `).run();
+
+      // 3. Purge routine 3h semi-diurnal astronomical tide-lock sessions on dunball_outfall
+      // that neither reached the 6.50m AOD storm surge alert nor escalated to Tier 3 extended tide-lock
+      db.prepare(`
+        DELETE FROM telemetry_events
+        WHERE asset_id = 'dunball_outfall'
+          AND to_state = 'TIDE_LOCKED'
+          AND peak_stage_mAOD < 6.50
+          AND severity_tier < 3
+      `).run();
+    }
+  },
+  {
+    version: 9,
+    name: 'provision_historical_rainfall_table',
+    up: (db) => {
+      // Dedicated historical rainfall table, strictly isolated from telemetry_events ([RULE-ENT-01])
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS historical_rainfall (
+          measure_id TEXT NOT NULL,
+          date_time TEXT NOT NULL,
+          rainfall_mm REAL NOT NULL,
+          ingested_at TEXT NOT NULL DEFAULT (datetime('now')),
+          PRIMARY KEY (measure_id, date_time)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_historical_rainfall_measure_dt
+          ON historical_rainfall(measure_id, date_time DESC);
+      `);
+    }
   }
 ];
 

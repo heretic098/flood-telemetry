@@ -33,6 +33,21 @@ export const JARGON_DEFINITIONS = {
     term: 'Penning',
     title: 'Penning (Seasonal Water Level Management)',
     definition: 'Routine seasonal water retention. In summer and autumn, gates hold water in rhynes for livestock drinking and wetland ecology, distinct from winter flood evacuation.'
+  },
+  'Tipping Bucket Raingauge': {
+    term: 'Tipping Bucket Raingauge',
+    title: 'Tipping Bucket Raingauge (TBR)',
+    definition: 'An unheated funnel gauge that tips once for every 0.20 mm of rain collected, reporting discrete 15-minute rainfall totals in millimetres. Exposed upland ridges can under-read slightly in strong winds, and frost or dew can occasionally hold or release a single tip.'
+  },
+  'Antecedent Rainfall': {
+    term: 'Antecedent Rainfall',
+    title: 'Antecedent Rainfall (Prior Ground Wetness)',
+    definition: 'Rain that fell across the catchment over the preceding 24 to 48 hours before a new downpour. When lowland soils and moors are already waterlogged, fresh rainfall reaches ditches and rivers much faster.'
+  },
+  'Catchment Lag': {
+    term: 'Catchment Lag',
+    title: 'Catchment Lag (Upland-to-Levels Delay)',
+    definition: 'The time delay between rain falling on the Brendon, Blackdown, and Dorset hills and the resulting river rise arriving on the Somerset Levels downstream. How quickly rivers respond varies with storm intensity and prior ground saturation.'
   }
 };
 

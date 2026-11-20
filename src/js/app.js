@@ -1,4 +1,4 @@
-import { evaluateSpillway, evaluateGateState, aggregateGlobalStatus, evaluatePumpStatus, evaluateSowyChannel, evaluateAthelneySpillway, evaluateGravityClyse, evaluateBeerWall, evaluateOathLock, evaluateDunballEmergencyPumping, getSeasonalRegime, getActiveCrestHeight, getActiveCatchmentId, loadCatchmentConfig, evaluateHuishEpiscopi, evaluateMidelney, STATION_REGISTRY, GAUGE_DATUMS, HYDRO_THRESHOLDS, formatClearanceText, computeTrendVector, computeStageRates, disambiguateRiverTrend, evaluateRoadNetwork, evaluateStationFreshness, getValidStageOrFallback, CANONICAL_PUMP_THRESHOLDS } from './hydro_engine.js';
+import { evaluateSpillway, evaluateGateState, aggregateGlobalStatus, evaluatePumpStatus, evaluateSowyChannel, evaluateAthelneySpillway, evaluateGravityClyse, evaluateBeerWall, evaluateOathLock, evaluateDunballEmergencyPumping, getSeasonalRegime, getActiveCrestHeight, getActiveCatchmentId, loadCatchmentConfig, evaluateHuishEpiscopi, evaluateMidelney, STATION_REGISTRY, GAUGE_DATUMS, HYDRO_THRESHOLDS, formatClearanceText, computeTrendVector, computeStageRates, disambiguateRiverTrend, evaluateRoadNetwork, evaluateStationFreshness, getValidStageOrFallback, CANONICAL_PUMP_THRESHOLDS, PRECIPITATION_PALETTE, RAINFALL_CATCHMENT_ZONES, classifyRainfallIntensity } from './hydro_engine.js';
 import { initJargonPopovers, renderJargonTerm } from './jargon_popover.js';
 import { setCameraEventsCatalog, openVisualEvidence, initCameraGuideTriggers } from './camera_guide.js';
 import { createRefreshController } from './modules/refresh_controller.js';
@@ -12,7 +12,7 @@ import {
 } from './modules/dom_utils.js';
 export { escapeAttr, escapeHTML, formatSpanUnit, formatHeadDelta };
 import { renderCorridorRow } from './roads.js';
-import { renderMicroSparkline, renderSingleSparkline as renderSingleSparklineCore, renderDualSparkline as renderDualSparklineCore, bindSparklineEvents as bindSparklineEventsCore } from './sparkline.js';
+import { renderMicroSparkline, renderSingleSparkline as renderSingleSparklineCore, renderDualSparkline as renderDualSparklineCore, bindSparklineEvents as bindSparklineEventsCore, renderHyetographSparkline, bindHyetographEvents } from './sparkline.js';
 import { getStaffGaugeCameraForStation } from './staff_gauge_cameras.js';
 import { loadFrame, getStaffGaugePanelCopy, getStaffGaugePanelMode } from './modules/staff_gauge_panel.js';
 import { updateEAWarningSummaryBanner, buildCardEAWarningStripHtml, initEAWarningsDialog } from './modules/ea_warnings_panel.js';
@@ -108,6 +108,7 @@ export function renderHeroSpillwayBanner(opts) {
 
 let hydroConfig = null;
 let activeCatchmentId = 'somerset';
+let latestRainfallData = null;
 
 // Fetch live readings from the Environment Agency REST API
 // Fetch 96 readings = 24 hours of 15-minute telemetry backfill
@@ -202,6 +203,7 @@ export async function initApp() {
   initCameraGuideTriggers();
   initDashboardStaffGaugeTriggers(document.getElementById('cards-container'));
   initEAWarningsDialog(document.getElementById('cards-container'));
+  initRainfallInspectorDialog(document.getElementById('cards-container'));
   activeCatchmentId = getActiveCatchmentId();
   try {
     hydroConfig = await loadCatchmentConfig(activeCatchmentId);
@@ -530,7 +532,15 @@ export async function refreshLiveDashboard() {
   if (refreshBtn) refreshBtn.setAttribute('aria-busy', 'true');
 
   try {
-    const dbData = await fetchAllTelemetryFromDB();
+    const [dbData, fetchedRainfall] = await Promise.all([
+      fetchAllTelemetryFromDB(),
+      fetchRainfallFromDB()
+    ]);
+    if (fetchedRainfall) {
+      latestRainfallData = fetchedRainfall;
+    }
+    const effectiveRainfallData = fetchedRainfall || latestRainfallData;
+    updateBasinRainHeaderBadge(effectiveRainfallData, dbData?.rainfall_summary || null);
     const dbMeasures = dbData ? dbData.measures : null;
     const sysTimestamps = dbData ? dbData.system_timestamps : null;
     const measuresSummary = dbData ? dbData.measures_summary : null;
@@ -1586,7 +1596,7 @@ export async function refreshLiveDashboard() {
     staleInfo: confluenceStaleInfo,
     stats: [
       { label: 'Cut-off Clearance', value: huishClearanceWithTrend },
-      { label: 'Huish PS Status', htmlValue: huishEval.isPumpsCutoff ? '🔒 PUMPS LOCKED OUT' : (huishPump.stage >= 1 ? '🟢 ABOVE PUMP TRIGGER (Inferred)' : '⚪ GRAVITY DISCHARGE') },
+      { label: 'Huish PS Status', htmlValue: huishEval.isPumpsCutoff ? '🔒 PUMPS LOCKED OUT (≥8.20m)' : (huishEval.code === 'ALERT' ? '▲ FLOOD ALERT (≥8.48m)' : '⚪ STANDBY (<8.20m Cut-off)') },
       { label: 'River Isle (Midelney)', htmlValue: `${midelneyLevel.toFixed(2)}m AOD (${midelneyEval.isHeadLocked ? '🕒 HEAD-LOCKED' : '🟢 GRAVITY'})` }
     ],
     camLink: {
@@ -1613,8 +1623,8 @@ export async function refreshLiveDashboard() {
     narrative: `${huishEval.narrative} Midelney (River Isle at ${midelneyLevel.toFixed(2)}m AOD): ${midelneyEval.isHeadLocked ? 'Head-locked by high Parrett stage.' : 'Free gravity discharge to Parrett.'}`,
     pills: [
       {
-        html: `<strong>Huish Episcopi Pumping Station:</strong> ${huishEval.isPumpsCutoff ? '🔒 LOCKED OUT (Yeo ≥ 8.20m AOD)' : (huishPump.stage >= 1 ? '🟢 ABOVE PUMP TRIGGER (Inferred from EA Plan)' : '⚪ GRAVITY DISCHARGE / STANDBY')}`,
-        tooltip: `📍 Huish Episcopi PS: Cut-off at 8.20m AOD to prevent Parrett levee breach (Inferred from EA Plan)`
+        html: `<strong>Huish Episcopi Pumping Station:</strong> ${huishEval.isPumpsCutoff ? '🔒 LOCKED OUT (Yeo ≥ 8.20m AOD)' : '⚪ GRAVITY DISCHARGE / STANDBY (< 8.20m Cut-off)'}`,
+        tooltip: `📍 Huish Episcopi PS: Receiving River Yeo cut-off interlock at 8.20m AOD (internal Wet Moor drain triggers pending EA survey)`
       },
       {
         html: `<strong>Yeo Bankfull Cut-off:</strong> ${huishEval.clearanceText} (Limit: 8.20m AOD)`,
@@ -1692,6 +1702,9 @@ export async function refreshLiveDashboard() {
     if (drawer) drawer.classList.add('open');
   });
 
+  // Catchment Rainfall & Upland Inflow Card (Issue #66)
+  container.appendChild(renderCatchmentRainfallCard(latestRainfallData, dbData?.rainfall_summary || null));
+
   // Render Telemetry State Transitions & Visual Evidence Ledger [Issue #24]
   if (allCatalogEvents.length > 0) {
     container.appendChild(renderEventsTimeline(allCatalogEvents));
@@ -1730,6 +1743,15 @@ export async function refreshLiveDashboard() {
 
   // Bind synchronized crosshair & tooltip event listeners across all cards
   bindSparklineEvents(container);
+  bindHyetographEvents(container, {
+    stickyDelay: 1200,
+    refreshController,
+    onHoverChange: (ratio) => {
+      currentHoverRatio = ratio;
+      isUserInspecting = ratio !== null;
+      updateCountdownDisplay();
+    }
+  });
 
   // Smooth-scroll and focus target card if URL hash is present (Issue #17 Deep Linking)
   if (typeof window !== 'undefined' && window.location && window.location.hash) {
@@ -2230,14 +2252,15 @@ export function renderRoadNetworkCard(roadEvaluations, activeEventsMap = null) {
   return card;
 }
 
-function getPumpEvaluation(stationId, moorLevel, moorConfigId, stationFallbackName, defaultPumps = 2) {
+export function getPumpEvaluation(stationId, moorLevel, moorConfigId, stationFallbackName, defaultPumps = 2, configOverride = undefined) {
   const regime = getSeasonalRegime();
   const isSummer = regime.isSummer;
   const seasonKey = isSummer ? 'summer' : 'winter';
+  const activeConfig = configOverride !== undefined ? configOverride : hydroConfig;
 
   let psConfig = null;
-  if (hydroConfig && hydroConfig.moors && hydroConfig.moors[moorConfigId]) {
-    const moor = hydroConfig.moors[moorConfigId];
+  if (activeConfig && activeConfig.moors && activeConfig.moors[moorConfigId]) {
+    const moor = activeConfig.moors[moorConfigId];
     if (moor.pumping_stations) {
       psConfig = moor.pumping_stations.find(ps => ps.id === stationId);
     }
@@ -2251,33 +2274,89 @@ function getPumpEvaluation(stationId, moorLevel, moorConfigId, stationFallbackNa
 
   if (psConfig && psConfig.thresholds && psConfig.thresholds[seasonKey]) {
     const t = psConfig.thresholds[seasonKey];
+    if (typeof t.lead === 'number' && typeof t.duty === 'number') {
+      return evaluatePumpStatus(
+        moorLevel,
+        psConfig.name || stationFallbackName,
+        psConfig.total_pumps || defaultPumps,
+        t.lead,
+        t.duty,
+        t.mobile_order,
+        t.mobile_active,
+        t.critical_spill,
+        isSummer
+      );
+    }
+  }
+
+  // Fallback to canonical seasonal thresholds if hydroConfig not loaded yet [RULE-SSOT-01].
+  // Never fall back to currymoor_ps for unsurveyed or receiving-river stations (e.g. huish_episcopi_ps).
+  const fb = CANONICAL_PUMP_THRESHOLDS[stationId] && CANONICAL_PUMP_THRESHOLDS[stationId][seasonKey];
+  if (fb && typeof fb.lead === 'number' && typeof fb.duty === 'number') {
     return evaluatePumpStatus(
       moorLevel,
-      psConfig.name || stationFallbackName,
-      psConfig.total_pumps || defaultPumps,
-      t.lead,
-      t.duty,
-      t.mobile_order || t.muchelney_road,
-      t.mobile_active || t.secondary_road || t.river_cutoff,
-      t.critical_spill || t.river_cutoff,
+      stationFallbackName,
+      defaultPumps,
+      fb.lead,
+      fb.duty,
+      fb.mobile_order,
+      fb.mobile_active,
+      fb.critical_spill,
       isSummer
     );
   }
 
-  // Fallback to canonical seasonal thresholds if hydroConfig not loaded yet [RULE-SSOT-01]
-  const fb = (CANONICAL_PUMP_THRESHOLDS[stationId] && CANONICAL_PUMP_THRESHOLDS[stationId][seasonKey])
-    || CANONICAL_PUMP_THRESHOLDS.currymoor_ps[seasonKey];
-  return evaluatePumpStatus(
-    moorLevel,
-    stationFallbackName,
-    defaultPumps,
-    fb.lead,
-    fb.duty,
-    fb.mobile_order,
-    fb.mobile_active,
-    fb.critical_spill,
-    isSummer
-  );
+  const stationName = psConfig?.name || stationFallbackName || stationId;
+  const totalPumps = psConfig?.total_pumps || defaultPumps;
+
+  if (stationId === 'huish_episcopi_ps') {
+    const huishEval = evaluateHuishEpiscopi(moorLevel, isSummer);
+    const isCutoff = Boolean(huishEval.isPumpsCutoff);
+    const isAlert = huishEval.code === 'ALERT';
+    return {
+      stationName,
+      stage: 0,
+      stageLabel: isAlert
+        ? 'FLOOD ALERT / PUMPS LOCKED (≥8.48m AOD)'
+        : (isCutoff ? 'PUMPS LOCKED OUT (RIVER ≥8.20m CUT-OFF)' : 'STANDBY (<8.20m RIVER CUT-OFF)'),
+      badgeClass: isAlert ? 'stage-4' : (isCutoff ? 'stage-3' : 'stage-0'),
+      statusText: isCutoff
+        ? '🔒 PUMPS LOCKED OUT (≥8.20m Cut-off)'
+        : '⚪ STANDBY (<8.20m River Cut-off)',
+      runningCount: 0,
+      totalPumps,
+      mode: isCutoff ? 'CUT_OFF' : 'STANDBY',
+      mobileStatus: 'OFF',
+      isPumpsCutoff: isCutoff,
+      isAlert,
+      progressPct: 0,
+      thresholds: null,
+      isSummer,
+      regimeTag: '🔒 8.20m River Cut-off Interlock',
+      confidence: 'TIER_2_CUTOFF_ONLY',
+      confidenceTag: '⚠️ INTERNAL MOOR TRIGGERS PENDING EA SURVEY',
+      narrative: huishEval.narrative
+    };
+  }
+
+  return {
+    stationName,
+    stage: 0,
+    stageLabel: 'STANDBY (PENDING EA ASSET SURVEY)',
+    badgeClass: 'stage-0',
+    statusText: '⚪ STANDBY (Pending EA Survey)',
+    runningCount: 0,
+    totalPumps,
+    mode: 'STANDBY',
+    mobileStatus: 'OFF',
+    progressPct: 0,
+    thresholds: null,
+    isSummer,
+    regimeTag: '⚠️ Pending EA Asset Survey',
+    confidence: 'UNSURVEYED',
+    confidenceTag: '⚠️ PENDING EA ASSET SURVEY',
+    narrative: `${stationName}: Internal moor pump triggers pending EA Trigger Point Plan verification.`
+  };
 }
 
 /**
@@ -2371,7 +2450,7 @@ export function getPumpTriggerDelta(pumpEval, currentLevel) {
 }
 
 export function renderPumpTriggerGauge(pumpEval, drivingInfo) {
-  if (!pumpEval || !pumpEval.thresholds) return '';
+  if (!pumpEval || !Array.isArray(pumpEval.thresholds) || pumpEval.thresholds.length === 0) return '';
 
   const info = drivingInfo || {
     stationId: '52127',
@@ -2659,6 +2738,607 @@ export function bindSparklineEvents(container = document) {
       updateCountdownDisplay();
     }
   });
+}
+
+// ============================================================================
+// Catchment Rainfall & Hyetograph Progressive Disclosure [Issue #66]
+// ============================================================================
+
+const RAINFALL_ZONE_ORDER = ['tone_upland', 'parrett_upland', 'isle_upland', 'moors_lowland'];
+
+let rainfallDialogInitialized = false;
+let rainfallDialogLastTrigger = null;
+let rainfallInspectorTeardowns = [];
+
+/**
+ * Fetches `/api/rainfall` from the local backend cache.
+ * Returns null gracefully on network or parse error.
+ */
+export async function fetchRainfallFromDB() {
+  try {
+    const res = await fetch('/api/rainfall');
+    if (!res || !res.ok) return null;
+    const data = await res.json();
+    if (data && data.status === 'ok') {
+      return data;
+    }
+  } catch (err) {
+    console.warn('Failed to fetch from /api/rainfall:', err);
+  }
+  return null;
+}
+
+/**
+ * Aggregates active stations' 15-minute rainfall series for a pillar ('upland' or 'lowland')
+ * into a chronological spatial-mean series with monotonic cumulative_mm.
+ *
+ * @param {Array<object>} [stations=[]]
+ * @param {'upland'|'lowland'} [pillar='upland']
+ * @returns {Array<{ timestamp: string, rainfall_mm: number, cumulative_mm: number }>}
+ */
+export function buildPillarAggregateSeries(stations = [], pillar = 'upland') {
+  if (!Array.isArray(stations) || stations.length === 0) return [];
+  const active = stations.filter(
+    s => s && s.pillar === pillar && !s.is_stale && Array.isArray(s.series_15min) && s.series_15min.length > 0
+  );
+  if (active.length === 0) return [];
+
+  const buckets = new Map();
+  for (const st of active) {
+    for (const pt of st.series_15min) {
+      if (!pt || typeof pt.timestamp !== 'string' || typeof pt.rainfall_mm !== 'number' || !Number.isFinite(pt.rainfall_mm)) {
+        continue;
+      }
+      const prev = buckets.get(pt.timestamp) || { sum: 0, count: 0 };
+      prev.sum += pt.rainfall_mm;
+      prev.count += 1;
+      buckets.set(pt.timestamp, prev);
+    }
+  }
+
+  const sortedTimestamps = Array.from(buckets.keys()).sort((a, b) => Date.parse(a) - Date.parse(b));
+  let runningCum = 0;
+  return sortedTimestamps.map((ts) => {
+    const bucket = buckets.get(ts);
+    const meanMm = Number((bucket.sum / Math.max(1, bucket.count)).toFixed(2));
+    runningCum = Number((runningCum + meanMm).toFixed(2));
+    return {
+      timestamp: ts,
+      rainfall_mm: meanMm,
+      cumulative_mm: runningCum
+    };
+  });
+}
+
+function safeRainfallNumber(val) {
+  return typeof val === 'number' && Number.isFinite(val) && val >= 0 ? val : 0.0;
+}
+
+/**
+ * Computes null-safe metadata, active/stale counts, and atmospheric palette tokens
+ * for Level 0 header badge and Level 1 rainfall card.
+ *
+ * @param {object|null|undefined} rainfallData
+ * @param {object|null|undefined} [fallbackSummary=null]
+ */
+export function getRainfallBadgeMeta(rainfallData, fallbackSummary = null) {
+  const summary = (rainfallData && rainfallData.rainfall_summary) || fallbackSummary || {};
+  const catchments = (rainfallData && rainfallData.catchments) || {};
+  const stations = Array.isArray(rainfallData?.stations) ? rainfallData.stations : [];
+
+  let totalStations = 0;
+  let activeStations = 0;
+  let hasStationCounts = false;
+
+  const zoneValues = Object.values(catchments);
+  if (zoneValues.length > 0) {
+    hasStationCounts = true;
+    for (const z of zoneValues) {
+      if (!z || typeof z !== 'object') continue;
+      totalStations += Number(z.station_count) || 0;
+      activeStations += Number(z.active_station_count) || 0;
+    }
+  } else if (stations.length > 0) {
+    hasStationCounts = true;
+    totalStations = stations.length;
+    activeStations = stations.filter(s => s && !s.is_stale && (s.valid_reading_count ?? 1) > 0).length;
+  } else {
+    totalStations = 12;
+    activeStations = 0;
+  }
+
+  const staleStations = Math.max(0, totalStations - activeStations);
+  const basin1h = safeRainfallNumber(summary.basin_1h_mean_mm);
+  const basin6h = Math.max(basin1h, safeRainfallNumber(summary.basin_6h_mean_mm));
+  const basin24h = Math.max(basin6h, safeRainfallNumber(summary.basin_24h_mean_mm));
+  const basin48h = Math.max(basin24h, safeRainfallNumber(summary.basin_48h_mean_mm));
+
+  const hasSummaryData = Boolean(
+    summary &&
+    typeof summary === 'object' &&
+    (
+      (typeof summary.upland_peak_station === 'string' && summary.upland_peak_station.trim().length > 0) ||
+      (typeof summary.upland_peak_station_id === 'string' && summary.upland_peak_station_id.trim().length > 0) ||
+      basin1h > 0 ||
+      basin6h > 0 ||
+      basin24h > 0 ||
+      basin48h > 0 ||
+      (typeof summary.rate_category === 'string' && ['LIGHT', 'MODERATE', 'HEAVY', 'TORRENTIAL'].includes(summary.rate_category.toUpperCase()))
+    )
+  );
+
+  const isAllStale = hasStationCounts ? activeStations === 0 : !hasSummaryData;
+  const isSummaryOnly = !hasStationCounts && hasSummaryData;
+
+  if (isAllStale) {
+    return {
+      isAllStale: true,
+      isSummaryOnly: false,
+      totalStations,
+      activeStations: 0,
+      staleStations,
+      basin1h,
+      basin6h,
+      basin24h,
+      basin48h,
+      badgeClass: 'badge-precip-stale',
+      pillClass: 'precip-stale',
+      icon: '🕒',
+      label: 'AWAITING TBR',
+      headerSuffix: 'Awaiting Live TBR'
+    };
+  }
+
+  const tier = classifyRainfallIntensity(basin1h);
+  const icon = tier.code === 'TORRENTIAL'
+    ? '⛈️'
+    : (tier.code === 'HEAVY' || tier.code === 'MODERATE' ? '🌦️' : '🌧️');
+
+  return {
+    isAllStale: false,
+    isSummaryOnly,
+    totalStations,
+    activeStations: isSummaryOnly ? null : activeStations,
+    staleStations: isSummaryOnly ? null : staleStations,
+    basin1h,
+    basin6h,
+    basin24h,
+    basin48h,
+    badgeClass: tier.badge_class,
+    pillClass: `precip-${tier.code.toLowerCase()}`,
+    icon,
+    label: tier.code,
+    headerSuffix: tier.label
+  };
+}
+
+/**
+ * Updates the Level 0 neutral meteorological badge in the secondary header bar (#basin-rain-pill).
+ * Rainfall never enters the primary life-safety #alert-banner.
+ *
+ * @param {object|null|undefined} rainfallData
+ * @param {object|null|undefined} [fallbackSummary=null]
+ */
+export function updateBasinRainHeaderBadge(rainfallData, fallbackSummary = null) {
+  if (typeof document === 'undefined') return;
+  const pill = document.getElementById('basin-rain-pill');
+  if (!pill) return;
+
+  const meta = getRainfallBadgeMeta(rainfallData, fallbackSummary);
+  pill.className = `basin-rain-pill ${meta.pillClass}`;
+  const val1h = meta.isAllStale ? '—' : `${meta.basin1h.toFixed(1)}mm`;
+  const val24h = meta.isAllStale ? '—' : `${meta.basin24h.toFixed(1)}mm`;
+  pill.textContent = `🌧️ Basin Rain: ${val1h} (1h) | ${val24h} (24h) • ${meta.headerSuffix}`;
+}
+
+function renderCatchmentZoneRow(zoneId, zoneData, primaryKeys = ['6h', '24h']) {
+  const zoneMeta = RAINFALL_CATCHMENT_ZONES[zoneId] || {};
+  const label = zoneData?.short_label || zoneMeta.short_label || zoneId;
+  const river = zoneData?.river || zoneMeta.river || '';
+  const totalCount = Number(zoneData?.station_count) || 0;
+  const activeCount = Number(zoneData?.active_station_count) || 0;
+  const allStale = zoneData ? Boolean(zoneData.all_stale) : activeCount === 0;
+  const hasFreezingRisk = Boolean(zoneData?.has_freezing_risk);
+
+  const m1h = safeRainfallNumber(zoneData?.mean_1h_mm);
+  const m6h = safeRainfallNumber(zoneData?.mean_6h_mm);
+  const m24h = safeRainfallNumber(zoneData?.mean_24h_mm);
+  const m48h = safeRainfallNumber(zoneData?.mean_48h_mm);
+  const peakStation = typeof zoneData?.peak_station === 'string' && zoneData.peak_station.trim().length > 0
+    ? zoneData.peak_station.trim()
+    : null;
+  const peak24h = safeRainfallNumber(zoneData?.peak_24h_mm);
+
+  const windows = [
+    { key: '1h', val: m1h },
+    { key: '6h', val: m6h },
+    { key: '24h', val: m24h },
+    { key: '48h', val: m48h }
+  ];
+
+  const metricsHtml = windows.map((w) => {
+    const isFocus = primaryKeys.includes(w.key);
+    const displayVal = allStale ? '—' : `${w.val.toFixed(1)}mm`;
+    return `
+      <span class="rainfall-zone-stat${isFocus ? ' is-focus' : ''}">
+        <span class="rz-key">${w.key}</span>
+        <strong>${displayVal}</strong>
+      </span>
+    `;
+  }).join('');
+
+  const peakText = peakStation
+    ? `Peak (24h): ${escapeHTML(peakStation)} (${peak24h.toFixed(1)}mm)`
+    : 'Peak (24h): No active gauges';
+
+  const statusTagHtml = allStale
+    ? '<span class="rainfall-zone-badge is-stale">🕒 All stale</span>'
+    : `<span class="rainfall-zone-badge is-active">${activeCount}/${totalCount} active</span>`;
+
+  const frostHtml = hasFreezingRisk
+    ? '<span class="rainfall-zone-badge is-frost" title="Near-freezing conditions may delay tipping-bucket liquid tips">❄️ Frost risk</span>'
+    : '';
+
+  return `
+    <div class="rainfall-zone-row">
+      <div class="rainfall-zone-head">
+        <div>
+          <strong class="rainfall-zone-name">${escapeHTML(label)}</strong>
+          ${river ? `<span class="rainfall-zone-river">${escapeHTML(river)}</span>` : ''}
+        </div>
+        <div class="rainfall-zone-badges">
+          ${statusTagHtml}
+          ${frostHtml}
+        </div>
+      </div>
+      <div class="rainfall-zone-stats">${metricsHtml}</div>
+      <div class="rainfall-zone-peak">${peakText}</div>
+    </div>
+  `;
+}
+
+/**
+ * Renders the Level 1 Catchment Rainfall & Upland Inflow Dashboard Card (#card-rainfall)
+ * implementing the Two-Pillar Spatial Model, discrete bar hyetographs, null-safe peak
+ * station reporting, and qualitative catchment lag micro-copy.
+ *
+ * @param {object|null|undefined} rainfallData
+ * @param {object|null|undefined} [fallbackSummary=null]
+ * @returns {HTMLElement}
+ */
+export function renderCatchmentRainfallCard(rainfallData, fallbackSummary = null) {
+  const card = document.createElement('article');
+  card.className = 'moor-card rainfall-catchment-card';
+  card.id = 'card-rainfall';
+  card.setAttribute('tabindex', '0');
+  card.setAttribute('aria-label', 'Catchment Rainfall and Upland Inflow');
+
+  const summary = (rainfallData && rainfallData.rainfall_summary) || fallbackSummary || {};
+  const catchments = (rainfallData && rainfallData.catchments) || {};
+  const stations = Array.isArray(rainfallData?.stations) ? rainfallData.stations : [];
+  const meta = getRainfallBadgeMeta(rainfallData, fallbackSummary);
+
+  const peakName = typeof summary.upland_peak_station === 'string' && summary.upland_peak_station.trim().length > 0
+    ? summary.upland_peak_station.trim()
+    : null;
+  const peak24h = safeRainfallNumber(summary.upland_peak_24h_mm);
+  const peak1h = safeRainfallNumber(summary.upland_peak_1h_mm);
+
+  const uplandSeries = buildPillarAggregateSeries(stations, 'upland');
+  const lowlandSeries = buildPillarAggregateSeries(stations, 'lowland');
+
+  const uplandEmptyMsg = meta.isAllStale
+    ? 'All upland raingauges are currently stale or uncached'
+    : 'No upland 15-min rainfall readings in 24h window';
+  const lowlandEmptyMsg = meta.isAllStale
+    ? 'All lowland raingauges are currently stale or uncached'
+    : 'No lowland 15-min rainfall readings in 24h window';
+
+  const legendItems = [
+    { label: 'Light', hex: PRECIPITATION_PALETTE.LIGHT.hex },
+    { label: 'Moderate', hex: PRECIPITATION_PALETTE.MODERATE.hex },
+    { label: 'Heavy', hex: PRECIPITATION_PALETTE.HEAVY.hex },
+    { label: 'Torrential', hex: PRECIPITATION_PALETTE.TORRENTIAL.hex },
+    { label: 'Σ Mass Curve', hex: PRECIPITATION_PALETTE.CUMULATIVE_LINE.hex, isLine: true }
+  ].map(item => `
+    <span class="rainfall-legend-item">
+      <span class="${item.isLine ? 'rainfall-legend-line' : 'rainfall-legend-swatch'}" style="background:${item.hex};"></span>
+      <span>${escapeHTML(item.label)}</span>
+    </span>
+  `).join('');
+
+  card.innerHTML = `
+    <div class="card-header rainfall-card-header">
+      <div>
+        <h2 class="card-title">🌧️ Catchment Rainfall &amp; Upland Inflow</h2>
+        <div class="river-tag">
+          12 EA ${renderJargonTerm('Tipping Bucket Raingauge', 'Tipping-Bucket Raingauges')} • Atmospheric Forcing (mm depth)
+        </div>
+      </div>
+      <div class="status-badge ${escapeAttr(meta.badgeClass)}" aria-live="polite">
+        <span aria-hidden="true">${meta.icon}</span>
+        <span class="sr-only">Rainfall Intensity: </span>
+        <span>${escapeHTML(meta.label)}</span>
+      </div>
+    </div>
+
+    <div class="rainfall-summary-strip" role="group" aria-label="Basin Rolling Rainfall Totals">
+      <div class="rainfall-kpi-tile">
+        <span class="rainfall-kpi-label">1h Basin Mean</span>
+        <strong class="rainfall-kpi-value">${meta.isAllStale ? '—' : `${meta.basin1h.toFixed(1)} mm`}</strong>
+      </div>
+      <div class="rainfall-kpi-tile">
+        <span class="rainfall-kpi-label">6h Basin Mean</span>
+        <strong class="rainfall-kpi-value">${meta.isAllStale ? '—' : `${meta.basin6h.toFixed(1)} mm`}</strong>
+      </div>
+      <div class="rainfall-kpi-tile">
+        <span class="rainfall-kpi-label">24h Basin Mean</span>
+        <strong class="rainfall-kpi-value">${meta.isAllStale ? '—' : `${meta.basin24h.toFixed(1)} mm`}</strong>
+      </div>
+      <div class="rainfall-kpi-tile">
+        <span class="rainfall-kpi-label">48h Basin Mean</span>
+        <strong class="rainfall-kpi-value">${meta.isAllStale ? '—' : `${meta.basin48h.toFixed(1)} mm`}</strong>
+      </div>
+      <div class="rainfall-kpi-tile">
+        <span class="rainfall-kpi-label">Gauge Network</span>
+        <strong class="rainfall-kpi-value">${meta.isSummaryOnly ? 'Summary active' : `${meta.activeStations}/${meta.totalStations} active`}</strong>
+        <span class="rainfall-kpi-sub">${meta.isSummaryOnly ? 'Awaiting per-gauge detail' : (meta.staleStations > 0 ? `${meta.staleStations} stale` : 'All reporting fresh')}</span>
+      </div>
+      <div class="rainfall-kpi-tile rainfall-kpi-peak">
+        <span class="rainfall-kpi-label">Upland Peak (24h)</span>
+        <strong class="rainfall-kpi-value">${peakName ? escapeHTML(peakName) : 'No active upland gauges'}</strong>
+        <span class="rainfall-kpi-sub">${peakName ? `${peak24h.toFixed(1)} mm (24h) • ${peak1h.toFixed(1)} mm (1h)` : 'Awaiting fresh upland tips'}</span>
+      </div>
+    </div>
+
+    <div class="rainfall-pillars-grid">
+      <section class="rainfall-pillar-panel" aria-label="Pillar 1: Upland River Surge Drivers">
+        <div class="rainfall-pillar-header">
+          <div>
+            <h3 class="rainfall-pillar-title">⛰️ Pillar 1: Upland River Surge Drivers</h3>
+            <p class="rainfall-pillar-subtitle">Brendon, Blackdown &amp; Dorset Hills — Focus: <strong>6h</strong> surge window &amp; <strong>24h</strong> totals</p>
+          </div>
+        </div>
+        <div class="rainfall-zones-list">
+          ${renderCatchmentZoneRow('tone_upland', catchments.tone_upland, ['6h', '24h'])}
+          ${renderCatchmentZoneRow('parrett_upland', catchments.parrett_upland, ['6h', '24h'])}
+          ${renderCatchmentZoneRow('isle_upland', catchments.isle_upland, ['6h', '24h'])}
+        </div>
+        <div class="rainfall-hyetograph-slot">
+          ${renderHyetographSparkline(uplandSeries, {
+            title: 'Upland Mean 24h Hyetograph (15m bars + Σ mm)',
+            emptyMessage: uplandEmptyMsg
+          })}
+        </div>
+      </section>
+
+      <section class="rainfall-pillar-panel" aria-label="Pillar 2: Lowland Basin Saturation">
+        <div class="rainfall-pillar-header">
+          <div>
+            <h3 class="rainfall-pillar-title">🌾 Pillar 2: Lowland Basin Saturation</h3>
+            <p class="rainfall-pillar-subtitle">Curry Moor, Northmoor &amp; KSD — Focus: <strong>48h</strong> ${renderJargonTerm('Antecedent Rainfall', 'antecedent saturation')} &amp; <strong>1h</strong> intensity</p>
+          </div>
+        </div>
+        <div class="rainfall-zones-list">
+          ${renderCatchmentZoneRow('moors_lowland', catchments.moors_lowland, ['48h', '1h'])}
+        </div>
+        <div class="rainfall-hyetograph-slot">
+          ${renderHyetographSparkline(lowlandSeries, {
+            title: 'Lowland Moors 24h Hyetograph (15m bars + Σ mm)',
+            emptyMessage: lowlandEmptyMsg
+          })}
+        </div>
+        <div class="rainfall-lag-callout">
+          <p>
+            <strong>ℹ️ Understanding ${renderJargonTerm('Catchment Lag')}:</strong>
+            Rain falling over the Brendon, Blackdown, and Dorset hills takes time to travel downstream onto the Levels. How quickly river stages respond depends on storm intensity and ${renderJargonTerm('Antecedent Rainfall', 'antecedent ground wetness')}.
+          </p>
+          <p class="rainfall-epistemic-note">
+            Raingauges report raw liquid rainfall depth (mm) at 0.20 mm/tip only — they do not measure river flow volume or sluice gate positions.
+          </p>
+        </div>
+      </section>
+    </div>
+
+    <div class="rainfall-card-footer">
+      <div class="rainfall-legend-bar" aria-label="Hyetograph intensity colour legend">${legendItems}</div>
+      <div class="rainfall-footer-actions">
+        <span class="rainfall-provenance-note">
+          UK Environment Agency 15-min TBR Telemetry •
+          <a href="https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/" target="_blank" rel="noopener noreferrer">Open Government Licence v3.0 ↗</a>
+        </span>
+        <button type="button"
+                class="rainfall-inspector-trigger"
+                id="btn-open-rainfall-inspector"
+                aria-haspopup="dialog"
+                aria-controls="rainfall-inspector-dialog">
+          🔍 Inspect All 12 Raingauges
+        </button>
+      </div>
+    </div>
+  `;
+
+  return card;
+}
+
+/**
+ * Renders the Level 2 Deep Technical Drawer HTML for all 12 TBR raingauge stations.
+ *
+ * @param {object|null|undefined} rainfallData
+ * @returns {string}
+ */
+export function renderRainfallInspectorContent(rainfallData) {
+  const stations = Array.isArray(rainfallData?.stations) ? rainfallData.stations : [];
+  const catchments = (rainfallData && rainfallData.catchments) || {};
+
+  if (stations.length === 0) {
+    return '<p class="rainfall-inspector-empty">No raingauge telemetry is currently cached. Check back once the Environment Agency ingest cycle completes.</p>';
+  }
+
+  return RAINFALL_ZONE_ORDER.map((zoneId) => {
+    const zoneMeta = RAINFALL_CATCHMENT_ZONES[zoneId] || {};
+    const zoneStats = catchments[zoneId] || {};
+    const zoneStations = stations.filter(s => s && s.catchment === zoneId);
+    if (zoneStations.length === 0) return '';
+
+    const activeCount = Number(zoneStats.active_station_count ?? zoneStations.filter(s => !s.is_stale).length);
+    const stationCardsHtml = zoneStations.map((st) => {
+      const elevationLabel = (typeof st.elevation_mAOD === 'number' && Number.isFinite(st.elevation_mAOD))
+        ? `${st.elevation_mAOD.toFixed(1)}m AOD`
+        : 'Collector elevation pending EA survey';
+      const freshnessTag = st.is_stale
+        ? `<span class="rainfall-zone-badge is-stale">🕒 STALE${typeof st.age_minutes === 'number' ? ` (${Math.round(st.age_minutes / 60)}h)` : ''}</span>`
+        : '<span class="rainfall-zone-badge is-active">🟢 FRESH</span>';
+      const frostTag = st.freezing_risk
+        ? '<span class="rainfall-zone-badge is-frost">❄️ FREEZING RISK</span>'
+        : '';
+      const rawStationUrl = typeof st.provenance?.station_url === 'string' ? st.provenance.station_url.trim() : '';
+      const fallbackStationUrl = `https://environment.data.gov.uk/flood-monitoring/id/stations/${encodeURIComponent(st.id || '')}`;
+      const stationUrl = /^https?:\/\//i.test(rawStationUrl) ? rawStationUrl : fallbackStationUrl;
+
+      const hasNoReadings = Boolean(st.is_stale && (st.valid_reading_count ?? 0) === 0);
+      const fmtStationMm = (val) => (hasNoReadings ? '—' : `${safeRainfallNumber(val).toFixed(1)}mm`);
+      const rateText = hasNoReadings ? 'Awaiting sync' : (st.rate_label || 'Dry (0.0 mm/h)');
+
+      return `
+        <div class="rainfall-station-inspector-card">
+          <div class="rainfall-station-top">
+            <div>
+              <h5 class="rainfall-station-name">${escapeHTML(st.name || st.id)}</h5>
+              <div class="rainfall-station-meta">ID: <code>${escapeHTML(st.id)}</code> • ${escapeHTML(elevationLabel)}</div>
+            </div>
+            <div class="rainfall-zone-badges">
+              ${freshnessTag}
+              ${frostTag}
+            </div>
+          </div>
+          <div class="rainfall-station-totals">
+            <span>1h: <strong>${fmtStationMm(st.last_1h_mm)}</strong></span>
+            <span>6h: <strong>${fmtStationMm(st.last_6h_mm)}</strong></span>
+            <span>24h: <strong>${fmtStationMm(st.last_24h_mm)}</strong></span>
+            <span>48h: <strong>${fmtStationMm(st.last_48h_mm)}</strong></span>
+            <span>Rate: <strong>${escapeHTML(rateText)}</strong></span>
+          </div>
+          <div class="rainfall-station-sparkline">
+            ${renderHyetographSparkline(st.series_15min || [], {
+              title: `${st.ea_label || st.name || st.id} 24h Hyetograph`,
+              emptyMessage: st.is_stale ? 'Gauge batch stale — awaiting EA readings' : 'No 15-min tips in 24h window'
+            })}
+          </div>
+          <div class="rainfall-station-links">
+            <a href="${escapeAttr(stationUrl)}" target="_blank" rel="noopener noreferrer" class="ext-link-btn">EA Station ${escapeHTML(st.id)} ↗</a>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    return `
+      <section class="rainfall-inspector-zone-group">
+        <div class="rainfall-inspector-zone-header">
+          <h4>${escapeHTML(zoneStats.label || zoneMeta.label || zoneId)}</h4>
+          <span class="rainfall-zone-badge ${activeCount > 0 ? 'is-active' : 'is-stale'}">${activeCount}/${zoneStations.length} active</span>
+        </div>
+        <div class="rainfall-inspector-stations-grid">
+          ${stationCardsHtml}
+        </div>
+      </section>
+    `;
+  }).join('');
+}
+
+export function closeRainfallInspectorDialog() {
+  rainfallInspectorTeardowns.forEach((fn) => {
+    if (typeof fn === 'function') fn();
+  });
+  rainfallInspectorTeardowns = [];
+  refreshController.setScrubbing(false);
+
+  if (typeof document === 'undefined') return;
+  const dialog = document.getElementById('rainfall-inspector-dialog');
+  if (dialog) {
+    if (typeof dialog.close === 'function' && dialog.open) {
+      dialog.close();
+    } else {
+      dialog.open = false;
+    }
+    dialog.classList.remove('open');
+  }
+  if (rainfallDialogLastTrigger && rainfallDialogLastTrigger.isConnected && typeof rainfallDialogLastTrigger.focus === 'function') {
+    rainfallDialogLastTrigger.focus();
+  }
+  rainfallDialogLastTrigger = null;
+}
+
+export async function openRainfallInspectorDialog(triggerEl = null) {
+  if (typeof document === 'undefined') return;
+  const dialog = document.getElementById('rainfall-inspector-dialog');
+  const bodyEl = document.getElementById('rainfall-inspector-body');
+  if (!dialog || !bodyEl) return;
+
+  rainfallDialogLastTrigger = triggerEl || document.activeElement;
+  if (typeof dialog.showModal === 'function' && !dialog.open) {
+    dialog.showModal();
+  } else {
+    dialog.open = true;
+  }
+  dialog.classList.add('open');
+
+  if (!latestRainfallData) {
+    bodyEl.innerHTML = '<p class="rainfall-inspector-loading">Loading tipping-bucket raingauge telemetry...</p>';
+    const fetched = await fetchRainfallFromDB();
+    if (fetched) latestRainfallData = fetched;
+  }
+
+  rainfallInspectorTeardowns.forEach((fn) => {
+    if (typeof fn === 'function') fn();
+  });
+  bodyEl.innerHTML = renderRainfallInspectorContent(latestRainfallData);
+  rainfallInspectorTeardowns = bindHyetographEvents(bodyEl, { stickyDelay: 1200, refreshController }) || [];
+
+  const closeBtn = document.getElementById('rainfall-inspector-close');
+  if (closeBtn && typeof closeBtn.focus === 'function') {
+    closeBtn.focus();
+  }
+}
+
+export function initRainfallInspectorDialog(container = null) {
+  if (typeof document === 'undefined' || rainfallDialogInitialized) return;
+  rainfallDialogInitialized = true;
+
+  const dialog = document.getElementById('rainfall-inspector-dialog');
+  const closeBtn = document.getElementById('rainfall-inspector-close');
+  if (closeBtn) {
+    closeBtn.addEventListener('click', () => closeRainfallInspectorDialog());
+  }
+  if (dialog) {
+    dialog.addEventListener('click', (e) => {
+      if (e.target === dialog) closeRainfallInspectorDialog();
+    });
+    dialog.addEventListener('cancel', (e) => {
+      e.preventDefault();
+      closeRainfallInspectorDialog();
+    });
+  }
+
+  const root = container || document;
+  root.addEventListener('click', (e) => {
+    const trigger = e.target?.closest?.('#btn-open-rainfall-inspector');
+    if (trigger) {
+      e.preventDefault();
+      openRainfallInspectorDialog(trigger);
+    }
+  });
+}
+
+export function resetRainfallInspectorForTests() {
+  rainfallInspectorTeardowns.forEach((fn) => {
+    if (typeof fn === 'function') fn();
+  });
+  rainfallInspectorTeardowns = [];
+  refreshController.setScrubbing(false);
+  rainfallDialogInitialized = false;
+  rainfallDialogLastTrigger = null;
+  latestRainfallData = null;
 }
 
 if (typeof document !== 'undefined') {

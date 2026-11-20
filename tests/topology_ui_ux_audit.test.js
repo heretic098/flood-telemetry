@@ -1012,4 +1012,329 @@ test('UI/UX Audit (Issue #59 review): THROTTLED / REVERSE_LOCK clyse nodes never
   const topologyJs = fs.readFileSync(path.join(process.cwd(), 'src/js/topology.js'), 'utf8');
   assert.match(topologyJs, /downFreshness\.isOffline \|\| downFreshness\.isStale \|\| downFreshness\.isFlatlined/);
   assert.ok(!topologyJs.includes("Assumed to spill at about the same Parrett stage"), 'Allermoor copy must not assume a crest');
+
+  const { ASSET_DEFINITIONS } = await import('../src/js/hydro_engine.js');
+  for (const [assetKey, asset] of Object.entries(ASSET_DEFINITIONS)) {
+    if (asset.survey_tooltip) {
+      assert.ok(
+        !asset.survey_tooltip.includes('[RULE-'),
+        `ASSET_DEFINITIONS.${assetKey}.survey_tooltip must not leak internal [RULE-*] tokens into HTML attributes`
+      );
+    }
+    if (asset.survey_label) {
+      assert.ok(
+        !asset.survey_label.includes('[RULE-'),
+        `ASSET_DEFINITIONS.${assetKey}.survey_label must not leak internal [RULE-*] tokens into HTML`
+      );
+    }
+  }
+});
+
+test('UI/UX Audit 7.1 (Issue #67): Decoupled upland headwater rainfall badges, toolbar toggle & inspector hyetograph', async () => {
+  const topologyConfig = JSON.parse(fs.readFileSync(path.resolve('src/js/config/topology_network.json'), 'utf8'));
+
+  // 1. Declarative upland_rainfall_origins SSOT & non-overlapping SVG coordinates
+  assert.ok(Array.isArray(topologyConfig.upland_rainfall_origins), 'topology_network.json must define upland_rainfall_origins');
+  assert.deepEqual(
+    topologyConfig.upland_rainfall_origins,
+    TOPOLOGY_NETWORK_CONFIG.upland_rainfall_origins,
+    'upland_rainfall_origins must stay 100% synced with TOPOLOGY_NETWORK_CONFIG'
+  );
+  const originIds = topologyConfig.upland_rainfall_origins.map(o => o.id);
+  assert.deepEqual(originIds, ['tone_upland', 'parrett_upland', 'isle_upland']);
+
+  const boxes = topologyConfig.upland_rainfall_origins.map(o => o.svg_anchor);
+  for (let i = 0; i < boxes.length; i++) {
+    const b = boxes[i];
+    assert.ok(b.x >= 10 && b.x + b.w <= 950 && b.y >= 10 && b.y + b.h <= 610, `Origin badge ${i} must fit inside 960x620 viewBox`);
+    for (let j = i + 1; j < boxes.length; j++) {
+      const o = boxes[j];
+      const overlaps = b.x < o.x + o.w && b.x + b.w > o.x && b.y < o.y + o.h && b.y + b.h > o.y;
+      assert.equal(overlaps, false, `Origin badges ${i} and ${j} must not overlap`);
+    }
+  }
+
+  // 2. HTML toolbar toggle & stacked inspector hyetograph container
+  assert.ok(topologyHtml.includes('id="btn-rainfall-layer"'), 'topology.html must include Rainfall Layer toggle button');
+  assert.ok(topologyHtml.includes('id="node-hyetograph-section"'), 'topology.html must include #node-hyetograph-section');
+  const hyetoIdx = topologyHtml.indexOf('id="node-hyetograph-section"');
+  const sparkIdx = topologyHtml.indexOf('class="inspector-sparkline-section"');
+  assert.ok(hyetoIdx > 0 && sparkIdx > hyetoIdx, 'Upland TBR hyetograph must stack directly above river stage hydrograph');
+
+  // 3. Topology JS atmospheric styling, /api/rainfall fetch, PRECIPITATION_PALETTE, and [RULE-CALC-01] compliance
+  assert.ok(topologyJs.includes("fetch('/api/rainfall')"), 'topology.js must fetch /api/rainfall');
+  assert.ok(topologyJs.includes('rgba(30, 27, 75, 0.7)'), 'Upland rainfall badge must use rgba(30, 27, 75, 0.7) background');
+  assert.ok(topologyJs.includes('rgba(99, 102, 241, 0.4)'), 'Upland rainfall badge must use rgba(99, 102, 241, 0.4) border');
+  assert.ok(topologyJs.includes('PRECIPITATION_PALETTE'), 'topology.js must use PRECIPITATION_PALETTE from hydro_engine.js');
+  assert.ok(!/cumec|discharge_m3s|volumetric_flow/i.test(topologyJs), 'topology.js must never speculate on volumetric runoff/discharge [RULE-CALC-01]');
+
+  // 4. Null-safe behavioral verification of exported helpers
+  const {
+    buildUplandRainfallBadgeModel,
+    resolveCorrelatedUplandTbr,
+    renderInspectorHyetograph
+  } = await import('../src/js/topology.js');
+
+  const toneOrigin = topologyConfig.upland_rainfall_origins[0];
+  const nullModel = buildUplandRainfallBadgeModel(toneOrigin, null);
+  assert.equal(nullModel.hasLive, false);
+  assert.equal(nullModel.primaryText, '🌧️ Blackdowns: — (24h)');
+  assert.ok(!nullModel.primaryText.includes('NaN'));
+
+  const staleModel = buildUplandRainfallBadgeModel(toneOrigin, {
+    catchments: {
+      tone_upland: { station_count: 5, active_station_count: 0, all_stale: true, mean_24h_mm: 0, rate_label: 'Dry (0.0 mm/h)' }
+    }
+  });
+  assert.equal(staleModel.hasLive, false);
+  assert.match(staleModel.subText, /Awaiting live gauge sync/);
+
+  const liveModel = buildUplandRainfallBadgeModel(toneOrigin, {
+    catchments: {
+      tone_upland: {
+        station_count: 5,
+        active_station_count: 5,
+        all_stale: false,
+        mean_1h_mm: 1.4,
+        mean_6h_mm: 8.2,
+        mean_24h_mm: 22.4,
+        peak_24h_mm: 25.0,
+        peak_station: 'Maundown',
+        rate_label: 'Light (1.4 mm/h)'
+      }
+    }
+  });
+  assert.equal(liveModel.hasLive, true);
+  assert.equal(liveModel.primaryText, '🌧️ Blackdowns: 22.4 mm (24h)');
+
+  // Correlated TBR resolution for 52108 (Greenham) & 52116 (Chiselborough) vs 52163 (Dunball)
+  const payloadWithLive = {
+    stations: [
+      { id: '52100', ea_label: 'Maundown', correlated_river_station_id: '52108', pillar: 'upland', is_stale: true, valid_reading_count: 0, last_24h_mm: 0 },
+      { id: '45168', ea_label: 'Hockworthy', correlated_river_station_id: '52108', pillar: 'upland', is_stale: false, valid_reading_count: 10, last_24h_mm: 18.6 },
+      { id: '52148', ea_label: 'South Perrott', correlated_river_station_id: '52116', pillar: 'upland', is_stale: false, valid_reading_count: 10, last_24h_mm: 16.8 }
+    ]
+  };
+  const greenhamTbr = resolveCorrelatedUplandTbr('52108', payloadWithLive);
+  assert.equal(greenhamTbr.station.id, '45168', 'Must prefer active live upland TBR over stale peer');
+  assert.equal(greenhamTbr.peerCount, 1);
+
+  const chiselTbr = resolveCorrelatedUplandTbr('52116', payloadWithLive);
+  assert.equal(chiselTbr.station.id, '52148');
+
+  assert.equal(resolveCorrelatedUplandTbr('52163', payloadWithLive), null);
+
+  // Hyetograph rendering (empty & active)
+  const emptyHyeto = renderInspectorHyetograph({ id: '52100', is_stale: true, series_15min: [] });
+  assert.match(emptyHyeto, /Awaiting live 15-min TBR/);
+
+  const activeHyeto = renderInspectorHyetograph({
+    id: '52148',
+    ea_label: 'South Perrott <script>',
+    is_stale: false,
+    series_15min: [
+      { timestamp: '2026-11-19T12:00:00.000Z', rainfall_mm: 0.4, cumulative_mm: 0.4 },
+      { timestamp: '2026-11-19T12:15:00.000Z', rainfall_mm: 1.8, cumulative_mm: 2.2 }
+    ]
+  });
+  assert.ok(activeHyeto.includes('inspector-hyetograph-svg'));
+  assert.ok(activeHyeto.includes('hyetograph-tooltip'));
+  assert.ok(!activeHyeto.includes('<script>'), 'Must escape station labels in hyetograph HTML attributes');
+  assert.ok(!activeHyeto.includes('NaN'));
+});
+
+test('UI/UX Audit 7.2 (Issue #67 Fixes): Catchment/rainfall filter isolation, hyetograph tooltip bounds clamping & NaN/null safety', async () => {
+  const {
+    setupFilterListeners,
+    setupRainfallLayerToggle,
+    setupAreaFocusListeners,
+    renderInspectorHyetograph,
+    bindInspectorHyetographEvents
+  } = await import('../src/js/topology.js');
+
+  // 1. P1 #5: renderInspectorHyetograph must survive null, undefined, NaN, Infinity, and negative values
+  const dirtyHyeto = renderInspectorHyetograph({
+    id: '52148',
+    ea_label: 'South Perrott',
+    is_stale: false,
+    series_15min: [
+      null,
+      undefined,
+      { timestamp: '2026-11-19T12:00:00.000Z', rainfall_mm: NaN, cumulative_mm: NaN },
+      { timestamp: '2026-11-19T12:15:00.000Z', rainfall_mm: -2.5, cumulative_mm: -1.0 },
+      { timestamp: '2026-11-19T12:30:00.000Z', rainfall_mm: Infinity, cumulative_mm: Infinity },
+      { timestamp: '2026-11-19T12:45:00.000Z', rainfall_mm: 1.2, cumulative_mm: 1.2 }
+    ]
+  });
+  assert.ok(!dirtyHyeto.includes('NaN'), 'Dirty hyetograph must never emit NaN SVG coordinates');
+  assert.ok(!dirtyHyeto.includes('Infinity'), 'Dirty hyetograph must never emit Infinity SVG coordinates');
+  assert.ok(!dirtyHyeto.includes('-2.5'), 'Dirty hyetograph must never emit negative rainfall_mm');
+  assert.ok(!dirtyHyeto.includes('-1.0'), 'Dirty hyetograph must never emit negative cumulative_mm');
+  const seriesMatch = dirtyHyeto.match(/data-series="([^"]+)"/);
+  assert.ok(seriesMatch, 'Hyetograph SVG must serialize data-series');
+  const parsedSeries = JSON.parse(seriesMatch[1].replace(/&quot;/g, '"'));
+  assert.equal(parsedSeries.length, 6);
+  assert.deepEqual(parsedSeries.map(p => p.mm), [0, 0, 0, 0, 0, 1.2]);
+  assert.deepEqual(parsedSeries.map(p => p.cum), [0, 0, 0, 0, 0, 1.2]);
+
+  // Helper to create a minimal mock DOM element
+  function makeMockEl(opts = {}) {
+    const classes = new Set(opts.classes || []);
+    const attrs = { ...(opts.attrs || {}) };
+    const listeners = {};
+    return {
+      id: opts.id || '',
+      style: {},
+      dataset: { ...(opts.dataset || {}) },
+      clientWidth: opts.clientWidth ?? 0,
+      offsetWidth: opts.offsetWidth ?? 0,
+      innerText: '',
+      classList: {
+        add: (c) => classes.add(c),
+        remove: (c) => classes.delete(c),
+        toggle: (c, force) => {
+          const next = force !== undefined ? Boolean(force) : !classes.has(c);
+          if (next) classes.add(c);
+          else classes.delete(c);
+          return next;
+        },
+        contains: (c) => classes.has(c)
+      },
+      getAttribute: (k) => (k in attrs ? attrs[k] : null),
+      setAttribute: (k, v) => { attrs[k] = String(v); },
+      addEventListener: (ev, fn) => {
+        if (!listeners[ev]) listeners[ev] = [];
+        listeners[ev].push(fn);
+      },
+      trigger: (ev, eventObj = {}) => {
+        for (const fn of (listeners[ev] || [])) fn({ preventDefault: () => {}, ...eventObj });
+      },
+      querySelector: opts.querySelector || (() => null),
+      querySelectorAll: opts.querySelectorAll || (() => [])
+    };
+  }
+
+  const prevDocument = globalThis.document;
+  try {
+    // 2. P0 #1: Catchment filter buttons & area focus pills must never clear #btn-rainfall-layer,
+    // and #btn-rainfall-layer must never clear catchment filter buttons.
+    const filterAll = makeMockEl({ id: 'filter-all', classes: ['filter-btn', 'active'], attrs: { 'data-catchment': 'all', 'aria-pressed': 'true' } });
+    const filterTone = makeMockEl({ id: 'filter-tone', classes: ['filter-btn'], attrs: { 'data-catchment': 'tone', 'aria-pressed': 'false' } });
+    const filterParrett = makeMockEl({ id: 'filter-parrett', classes: ['filter-btn'], attrs: { 'data-catchment': 'parrett', 'aria-pressed': 'false' } });
+    const rainBtn = makeMockEl({ id: 'btn-rainfall-layer', classes: ['filter-btn', 'rainfall-layer-toggle', 'active'], attrs: { 'aria-pressed': 'true' } });
+    const areaLangport = makeMockEl({ classes: ['area-pill-btn'], attrs: { 'data-area': 'langport', 'aria-pressed': 'false' } });
+
+    const catchmentBtns = [filterAll, filterTone, filterParrett];
+    globalThis.document = {
+      getElementById: (id) => (id === 'btn-rainfall-layer' ? rainBtn : null),
+      querySelectorAll: (sel) => {
+        if (sel === '.filter-btn[data-catchment]' || sel === '.filter-buttons .filter-btn[data-catchment]') {
+          return catchmentBtns;
+        }
+        if (sel === '.area-pill-btn') {
+          return [areaLangport];
+        }
+        if (sel === '.filter-btn' || sel === '.filter-buttons .filter-btn') {
+          return [...catchmentBtns, rainBtn];
+        }
+        return [];
+      }
+    };
+
+    setupFilterListeners();
+    setupRainfallLayerToggle();
+    setupAreaFocusListeners();
+
+    // Click River Tone catchment filter -> #btn-rainfall-layer stays active
+    filterTone.trigger('click');
+    assert.equal(filterTone.classList.contains('active'), true);
+    assert.equal(filterTone.getAttribute('aria-pressed'), 'true');
+    assert.equal(filterAll.classList.contains('active'), false);
+    assert.equal(rainBtn.classList.contains('active'), true, 'Catchment click must NOT clear .active from #btn-rainfall-layer');
+    assert.equal(rainBtn.getAttribute('aria-pressed'), 'true', 'Catchment click must NOT reset aria-pressed on #btn-rainfall-layer');
+
+    // Click #btn-rainfall-layer -> toggles itself only; #filter-tone stays active
+    rainBtn.trigger('click');
+    assert.equal(rainBtn.classList.contains('active'), false);
+    assert.equal(rainBtn.getAttribute('aria-pressed'), 'false');
+    assert.equal(filterTone.classList.contains('active'), true, 'Rainfall toggle must NOT clear active catchment filter');
+    assert.equal(filterTone.getAttribute('aria-pressed'), 'true');
+
+    // Re-enable #btn-rainfall-layer and click Langport area pill (switches catchment to parrett)
+    rainBtn.trigger('click');
+    assert.equal(rainBtn.classList.contains('active'), true);
+    areaLangport.trigger('click');
+    assert.equal(filterParrett.classList.contains('active'), true);
+    assert.equal(filterTone.classList.contains('active'), false);
+    assert.equal(rainBtn.classList.contains('active'), true, 'Area focus switch must NOT clear .active from #btn-rainfall-layer');
+    assert.equal(rainBtn.getAttribute('aria-pressed'), 'true');
+
+    // 3. P1 #4: Tooltip bounds clamping in bindInspectorHyetographEvents()
+    const series24 = Array.from({ length: 12 }, (_, idx) => ({
+      t: `2026-11-19T${String(12 + idx).padStart(2, '0')}:00:00.000Z`,
+      mm: 0.8,
+      cum: (idx + 1) * 0.8
+    }));
+
+    // 3a. Measured wrapper & tooltip widths (300px wrapper, 220px tooltip)
+    const crosshairA = makeMockEl();
+    const dotA = makeMockEl();
+    const overlayA = makeMockEl();
+    const tooltipA = makeMockEl({ offsetWidth: 220 });
+    const svgA = makeMockEl({
+      dataset: { series: JSON.stringify(series24), maxMm: '1.0' },
+      querySelector: (s) => {
+        if (s === '.hyetograph-crosshair') return crosshairA;
+        if (s === '.hyetograph-dot-highlight') return dotA;
+        return null;
+      }
+    });
+    const wrapperA = makeMockEl({
+      clientWidth: 300,
+      querySelector: (s) => {
+        if (s === 'svg.inspector-hyetograph-svg') return svgA;
+        if (s === '.hyetograph-touch-overlay') return overlayA;
+        if (s === '.hyetograph-tooltip') return tooltipA;
+        return null;
+      }
+    });
+    const containerA = makeMockEl({ querySelector: (s) => (s === '.hyetograph-wrapper' ? wrapperA : null) });
+    bindInspectorHyetographEvents(containerA);
+
+    wrapperA.trigger('keydown', { key: 'Home' });
+    assert.equal(tooltipA.style.transform, 'none');
+    assert.equal(parseFloat(tooltipA.style.left), 0, 'Left-edge scrub must clamp tooltip left to 0px');
+
+    wrapperA.trigger('keydown', { key: 'End' });
+    assert.equal(tooltipA.style.transform, 'none');
+    assert.equal(parseFloat(tooltipA.style.left), 80, 'Right-edge scrub must clamp tooltip left to wrapperW - tipW (80px)');
+    assert.ok(parseFloat(tooltipA.style.left) + 220 <= 300, 'Right-edge tooltip must stay strictly within wrapper bounds');
+
+    // 3b. Unmeasured layout fallback (clientWidth=0 / offsetWidth=0) anchors to left/right edge
+    const tooltipB = makeMockEl({ offsetWidth: 0 });
+    const overlayB = makeMockEl();
+    const svgB = makeMockEl({ dataset: { series: JSON.stringify(series24), maxMm: '1.0' } });
+    const wrapperB = makeMockEl({
+      clientWidth: 0,
+      querySelector: (s) => {
+        if (s === 'svg.inspector-hyetograph-svg') return svgB;
+        if (s === '.hyetograph-touch-overlay') return overlayB;
+        if (s === '.hyetograph-tooltip') return tooltipB;
+        return null;
+      }
+    });
+    const containerB = makeMockEl({ querySelector: (s) => (s === '.hyetograph-wrapper' ? wrapperB : null) });
+    bindInspectorHyetographEvents(containerB);
+
+    wrapperB.trigger('keydown', { key: 'Home' });
+    assert.equal(tooltipB.style.left, '0');
+    assert.equal(tooltipB.style.transform, 'none');
+
+    wrapperB.trigger('keydown', { key: 'End' });
+    assert.equal(tooltipB.style.right, '0');
+    assert.equal(tooltipB.style.left, 'auto');
+    assert.equal(tooltipB.style.transform, 'none');
+  } finally {
+    globalThis.document = prevDocument;
+  }
 });

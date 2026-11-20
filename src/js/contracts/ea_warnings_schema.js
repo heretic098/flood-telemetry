@@ -100,7 +100,7 @@ export const warningEventSchema = object({
     asset_id: string({ minLength: 1 }),
     name: string({ minLength: 1 }),
     current_status: enumValues(['PASSABLE', 'ENCROACHING', 'IMPASSABLE']),
-    crown_elevation_mAOD: number(),
+    crown_elevation_mAOD: nullable(number()),
     clearance_m: nullable(number()),
     historical_median_lead_time_hours: optional(nullable(number()))
   }))),

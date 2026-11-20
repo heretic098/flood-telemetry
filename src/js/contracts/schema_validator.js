@@ -18,6 +18,15 @@ export class ValidationError extends Error {
   }
 }
 
+export const FORBIDDEN_CALC_KEYS = Object.freeze([
+  'cumecs',
+  'discharge_m3s',
+  'm3s',
+  'flow_rate',
+  'volumetric_flow',
+  'megalitres_per_day'
+]);
+
 /**
  * Creates a string validator
  */

@@ -148,6 +148,7 @@
         <span class="gt-badge-pill" id="gt-mode-badge">📡 REAL-TIME STREAM</span>
         <span class="gt-timestamp-display" id="gt-time-display">Showing latest live telemetry across all catchments</span>
         <span class="gt-relative-age" id="gt-age-display"></span>
+        <span class="basin-rain-pill precip-dry" id="basin-rain-pill" role="status" aria-live="polite" title="Basin-wide average rainfall across 12 Environment Agency Tipping-Bucket Raingauges (OGL v3.0)">🌧️ Basin Rain: -- (1h) | -- (24h)</span>
       </div>
       <div class="gt-right-group">
         <span class="gt-sync-status" id="gt-sync-status" aria-live="polite">💡 Hover over or scrub any sparkline to inspect synchronized crosshair</span>
@@ -272,6 +273,27 @@
 
       <div class="drawer-footer-note">
         <p>Contains public sector information licensed under the <a href="https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/" target="_blank" rel="noopener noreferrer">Open Government Licence v3.0</a> (UK Environment Agency Flood Monitoring API).</p>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Catchment Rainfall & 12-Station Hyetograph Inspector Modal Drawer [Issue #66] -->
+  <dialog class="sys-health-backdrop rainfall-inspector-dialog" id="rainfall-inspector-dialog" aria-labelledby="rainfall-modal-title" aria-modal="true">
+    <div class="sys-health-drawer rainfall-inspector-drawer">
+      <div class="drawer-header">
+        <div>
+          <h3 id="rainfall-modal-title">🌧️ Catchment Rainfall &amp; 12-Gauge Hyetograph Inspector</h3>
+          <p class="drawer-subtitle" id="rainfall-modal-subtitle">15-Minute Tipping-Bucket Raingauge Telemetry &amp; Cumulative Totals (mm)</p>
+        </div>
+        <button type="button" class="close-drawer-btn" id="rainfall-inspector-close" aria-label="Close catchment rainfall inspector">✕</button>
+      </div>
+
+      <div id="rainfall-inspector-body" class="rainfall-inspector-body" aria-live="polite">
+        <p class="rainfall-inspector-loading">Loading tipping-bucket raingauge telemetry...</p>
+      </div>
+
+      <div class="drawer-footer-note">
+        <p>Contains Environment Agency 15-minute rainfall telemetry (0.20 mm tip resolution) licensed under the <a href="https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/" target="_blank" rel="noopener noreferrer">Open Government Licence v3.0</a>. Gauges measure raw rainfall depth (mm) only.</p>
       </div>
     </div>
   </dialog>

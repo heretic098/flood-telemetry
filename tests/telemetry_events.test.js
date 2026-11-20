@@ -360,27 +360,84 @@ test('Telemetry Events: Polder transitions evaluate DUTY_PUMPING, MOBILE_ORDERED
   assert.equal(p5.peak_stage_mAOD, 6.55);
 });
 
-test('Telemetry Events: Tidal Gate evaluates DISCHARGING vs TIDE_LOCKED with head differential', () => {
+test('Telemetry Events: Tidal Gate evaluates DISCHARGING vs TIDE_LOCKED with head differential and suppresses routine tide noise', () => {
   const gate = ASSET_DEFINITIONS.dunball_outfall;
+  const winterRegime = { isSummer: false, label: 'Winter' };
 
   // 1. Low tide in estuary: safe gravity discharge (Sea: 1.20m, Inland: 2.50m)
   const t1 = evaluateAssetTransition(gate, null, {
     sea: [{ dateTime: '2026-11-01T12:00:00Z', value: 1.20 }],
     inland: [{ dateTime: '2026-11-01T12:00:00Z', value: 2.50 }]
-  });
+  }, winterRegime);
   assert.equal(t1.action, 'NONE');
   assert.equal(t1.to_state, 'DISCHARGING');
   assert.equal(t1.severity_tier, 1);
   assert.equal(t1.clearance_m, 1.30); // 1.30m positive head
 
-  // 2. High spring tide: seals tide-locked (Sea: 3.50m, Inland: 2.50m)
-  const t2 = evaluateAssetTransition(gate, null, {
+  // 2. Routine semi-diurnal high tide with calm inland KSD (Sea: 3.50m < 6.50m surge alert, Inland: 2.50m < 2.80m watch):
+  // Evaluates physical state to TIDE_LOCKED at Severity Tier 1 (action: NONE) without spamming telemetry_events
+  const tRoutine = evaluateAssetTransition(gate, null, {
     sea: [{ dateTime: '2026-11-01T12:15:00Z', value: 3.50 }],
     inland: [{ dateTime: '2026-11-01T12:15:00Z', value: 2.50 }]
-  });
+  }, winterRegime);
+  assert.equal(tRoutine.action, 'NONE');
+  assert.equal(tRoutine.to_state, 'TIDE_LOCKED');
+  assert.equal(tRoutine.severity_tier, 1);
+
+  // 3. Elevated inland KSD during tide-lock (Sea: 3.50m, Inland: 2.85m >= 2.80m winter watch) -> opens Tier 2 incident
+  const t2 = evaluateAssetTransition(gate, null, {
+    sea: [{ dateTime: '2026-11-01T12:30:00Z', value: 3.50 }],
+    inland: [{ dateTime: '2026-11-01T12:30:00Z', value: 2.85 }]
+  }, winterRegime);
   assert.equal(t2.action, 'OPEN');
   assert.equal(t2.to_state, 'TIDE_LOCKED');
   assert.equal(t2.severity_tier, 2);
+
+  // 4. Estuarine storm surge tide-lock (Sea: 6.55m >= 6.50m surge alert, Inland: 2.50m) -> opens Tier 2 incident
+  const tSurge = evaluateAssetTransition(gate, null, {
+    sea: [{ dateTime: '2026-11-01T12:45:00Z', value: 6.55 }],
+    inland: [{ dateTime: '2026-11-01T12:45:00Z', value: 2.50 }]
+  }, winterRegime);
+  assert.equal(tSurge.action, 'OPEN');
+  assert.equal(tSurge.to_state, 'TIDE_LOCKED');
+  assert.equal(tSurge.severity_tier, 2);
+
+  // 5. Active session passed without explicit .status ('ACTIVE') retains TIDE_LOCKED and never drops severity_tier to undefined
+  const unlabelledActiveSession = {
+    to_state: 'TIDE_LOCKED',
+    start_time: '2026-11-01T12:30:00Z',
+    trigger_stage_mAOD: 3.50,
+    peak_stage_mAOD: 3.50
+  };
+  const tRetained = evaluateAssetTransition(gate, unlabelledActiveSession, {
+    sea: [{ dateTime: '2026-11-01T13:00:00Z', value: 3.40 }],
+    inland: [{ dateTime: '2026-11-01T13:00:00Z', value: 2.55 }]
+  }, winterRegime);
+  assert.equal(tRetained.action, 'UPDATE');
+  assert.equal(tRetained.to_state, 'TIDE_LOCKED');
+  assert.equal(tRetained.severity_tier, 2);
+
+  // 6. Extended tide-lock (>14h) with inlandStage in [2.65m, 2.80m winter / 3.10m summer) dead zone escalates to Tier 3 EXTENDED_TIDE_LOCK even without prior activeSession
+  const baseMs = Date.parse('2026-11-02T12:00:00Z');
+  const start15hAgoIso = new Date(baseMs - 15 * 3600 * 1000).toISOString();
+  const oneHourAgoIso = new Date(baseMs - 1 * 3600 * 1000).toISOString();
+  const nowIso = new Date(baseMs).toISOString();
+  const tExtendedDeadZone = evaluateAssetTransition(gate, null, {
+    sea: [
+      { dateTime: nowIso, value: 3.60 },
+      { dateTime: oneHourAgoIso, value: 3.55 },
+      { dateTime: start15hAgoIso, value: 3.50 }
+    ],
+    inland: [
+      { dateTime: nowIso, value: 2.72 },
+      { dateTime: oneHourAgoIso, value: 2.72 },
+      { dateTime: start15hAgoIso, value: 2.70 }
+    ]
+  }, winterRegime);
+  assert.equal(tExtendedDeadZone.action, 'OPEN');
+  assert.equal(tExtendedDeadZone.to_state, 'TIDE_LOCKED');
+  assert.equal(tExtendedDeadZone.severity_tier, 3);
+  assert.equal(tExtendedDeadZone.regime_signature?.anomaly_type, 'EXTENDED_TIDE_LOCK');
 });
 
 test('Telemetry Events: Sluice evaluates CLOSED, DIVERTING, THROTTLED, REVERSE_LOCK with IEEE-754 and stale-age parity', async () => {

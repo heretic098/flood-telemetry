@@ -910,7 +910,7 @@ export const STATION_REGISTRY = {
       datum: { tier: 1, label: 'Surveyed Datum', authority: 'EA Geodetic Benchmark (+5.00m ODN)' },
       invert: { tier: 1, label: 'Surveyed Bed Invert', authority: 'EA River Yeo Bed Survey' },
       alert: { tier: 3, label: 'EA Statistical Envelope', authority: 'EA stageScale.typicalRangeHigh (3.48m stage)' },
-      operational: { tier: 2, label: 'EA Operating Rules', authority: 'EA River Cut-off at 8.20m, Winter Duty 6.75m' }
+      operational: { tier: 2, label: 'EA Operating Rules', authority: 'EA Huish Episcopi PS Receiving River Cut-off Interlock at 8.20m AOD' }
     }
   },
   '52153': {
@@ -1421,10 +1421,10 @@ export const HYDRO_THRESHOLDS = {
     DATUM_MAOD: 5.000,
     GROUND_INVERT_MAOD: 5.80,
     BASELINE_MAOD: 5.80,
-    LEAD_PUMP_WINTER: 6.30,
-    DUTY_PUMP_WINTER: 6.75,
-    LEAD_PUMP_SUMMER: 6.70,
-    DUTY_PUMP_SUMMER: 6.90,
+    LEAD_PUMP_WINTER: null,
+    DUTY_PUMP_WINTER: null,
+    LEAD_PUMP_SUMMER: null,
+    DUTY_PUMP_SUMMER: null,
     MUCHELNEY_ROAD_MAOD: 7.30,
     RIVER_CUTOFF_MAOD: 8.20,
     ALERT_MAOD: 8.48,
@@ -1526,10 +1526,10 @@ export const HYDRO_THRESHOLDS = {
   HUISH_EPISCOPI: {
     DATUM_MAOD: 5.000,
     GROUND_INVERT_MAOD: 5.80,
-    LEAD_PUMP_WINTER: 6.30,
-    DUTY_PUMP_WINTER: 6.75,
-    LEAD_PUMP_SUMMER: 6.70,
-    DUTY_PUMP_SUMMER: 6.90,
+    LEAD_PUMP_WINTER: null,
+    DUTY_PUMP_WINTER: null,
+    LEAD_PUMP_SUMMER: null,
+    DUTY_PUMP_SUMMER: null,
     MUCHELNEY_ROAD_MAOD: 7.30,
     RIVER_CUTOFF_MAOD: 8.20,
     ALERT_MAOD: 8.48,
@@ -1556,10 +1556,10 @@ export const HYDRO_THRESHOLDS = {
   },
   WET_MOOR: {
     GROUND_MAOD: 5.80,
-    LEAD_PUMP_WINTER: 6.30,
-    DUTY_PUMP_WINTER: 6.75,
-    LEAD_PUMP_SUMMER: 6.70,
-    DUTY_PUMP_SUMMER: 6.90,
+    LEAD_PUMP_WINTER: null,
+    DUTY_PUMP_WINTER: null,
+    LEAD_PUMP_SUMMER: null,
+    DUTY_PUMP_SUMMER: null,
     RIVER_CUTOFF_MAOD: 8.20,
     MOBILE_ORDERED_MAOD: null,
     MOBILE_ACTIVE_MAOD: null,
@@ -2100,8 +2100,10 @@ export const TOPOLOGY_NETWORK_CONFIG = {
       name: "Wet Moor Polder Basin (Huish Episcopi & Midelney)",
       choke_point_nodes: ["52120", "52153", "52233"],
       pumping_stations: ["huish_episcopi_ps", "midelney_ps"],
-      primary_station: "52120",
-      survey_status: "TIER_2_FIXED_PUMPS_ONLY"
+      primary_station: null,
+      receiving_river_station: "52120",
+      secondary_river_station: "52153",
+      survey_status: "UNSURVEYED"
     },
     {
       id: "stanmoor",
@@ -2128,6 +2130,62 @@ export const TOPOLOGY_NETWORK_CONFIG = {
       primary_station: null,
       nearest_context_station: "52159",
       survey_status: "UNSURVEYED"
+    }
+  ],
+  upland_rainfall_origins: [
+    {
+      id: "tone_upland",
+      label: "Blackdowns",
+      full_label: "Blackdowns & Brendon Hills",
+      river: "River Tone",
+      catchment_filter: "tone",
+      entry_node_id: "52108",
+      correlated_river_station_ids: ["52108", "52109", "52111", "52162", "52118"],
+      tbr_station_ids: ["52100", "45168", "52101", "45232", "E14620"],
+      svg_anchor: {
+        x: 18,
+        y: 546,
+        w: 224,
+        h: 42,
+        connector_from: { x: 80, y: 546 },
+        connector_to: { x: 80, y: 518 }
+      }
+    },
+    {
+      id: "parrett_upland",
+      label: "Dorset Hills",
+      full_label: "Dorset Hills (Upper Parrett)",
+      river: "River Parrett",
+      catchment_filter: "parrett",
+      entry_node_id: "52116",
+      correlated_river_station_ids: ["52116", "52119", "52120", "52233"],
+      tbr_station_ids: ["52148", "52103"],
+      svg_anchor: {
+        x: 456,
+        y: 546,
+        w: 216,
+        h: 42,
+        connector_from: { x: 672, y: 564 },
+        connector_to: { x: 713, y: 545 }
+      }
+    },
+    {
+      id: "isle_upland",
+      label: "Isle Headwaters",
+      full_label: "Isle Headwaters (Chard & Blackdown East)",
+      river: "River Isle",
+      catchment_filter: "tributaries",
+      entry_node_id: "52153",
+      correlated_river_station_ids: ["52153"],
+      tbr_station_ids: ["52129"],
+      svg_anchor: {
+        x: 344,
+        y: 484,
+        w: 222,
+        h: 42,
+        connector_from: { x: 566, y: 500 },
+        connector_to: { x: 576, y: 432 }
+      }
     }
   ]
 };
@@ -2507,18 +2565,6 @@ export const CANONICAL_PUMP_THRESHOLDS = Object.freeze({
   dunball_mobile_ps: Object.freeze({
     summer: Object.freeze({ lead: 3.10, duty: 3.30, mobile_order: 3.50, mobile_active: 3.70, critical_spill: 4.10 }),
     winter: Object.freeze({ lead: 2.80, duty: 3.10, mobile_order: 3.30, mobile_active: 3.50, critical_spill: 3.80 })
-  }),
-  huish_episcopi_ps: Object.freeze({
-    summer: Object.freeze({
-      lead: HYDRO_THRESHOLDS.WET_MOOR.LEAD_PUMP_SUMMER,
-      duty: HYDRO_THRESHOLDS.WET_MOOR.DUTY_PUMP_SUMMER,
-      river_cutoff: HYDRO_THRESHOLDS.WET_MOOR.RIVER_CUTOFF_MAOD
-    }),
-    winter: Object.freeze({
-      lead: HYDRO_THRESHOLDS.WET_MOOR.LEAD_PUMP_WINTER,
-      duty: HYDRO_THRESHOLDS.WET_MOOR.DUTY_PUMP_WINTER,
-      river_cutoff: HYDRO_THRESHOLDS.WET_MOOR.RIVER_CUTOFF_MAOD
-    })
   })
 });
 
@@ -2556,15 +2602,13 @@ export function sanitizeStageValue(val) {
  * Evaluates Huish Episcopi Pumping Station on the River Yeo, including
  * automatic receiving river cut-off interlock (8.20m AOD) and alert threshold (8.48m AOD).
  */
-export function evaluateHuishEpiscopi(stage_mAOD, isSummer = false) {
+export function evaluateHuishEpiscopi(stage_mAOD, _isSummer = false) {
   const cleanStage = sanitizeStageValue(stage_mAOD);
   if (cleanStage === null) {
     return { code: "OFFLINE", label: "OFFLINE", badgeClass: "badge-offline", narrative: "No telemetry", severity: 1 };
   }
 
   const t = HYDRO_THRESHOLDS.HUISH_EPISCOPI;
-  const leadPump = isSummer ? t.LEAD_PUMP_SUMMER : t.LEAD_PUMP_WINTER;
-  const dutyPump = isSummer ? t.DUTY_PUMP_SUMMER : t.DUTY_PUMP_WINTER;
   const muchelneyRoad = t.MUCHELNEY_ROAD_MAOD;
   const riverCutoff = t.RIVER_CUTOFF_MAOD;
   const alertLevel = t.ALERT_MAOD;
@@ -2577,12 +2621,6 @@ export function evaluateHuishEpiscopi(stage_mAOD, isSummer = false) {
   if (cleanStage >= riverCutoff) {
     pumpStatus = "CUT_OFF";
     pumpLabel = "PUMPS LOCKED (RIVER FULL - ≥8.20m Cut-off)";
-  } else if (cleanStage >= dutyPump) {
-    pumpStatus = "DUTY_PUMPING";
-    pumpLabel = "ABOVE DUTY TRIGGER (Inferred from EA Plan)";
-  } else if (cleanStage >= leadPump) {
-    pumpStatus = "LEAD_PUMPING";
-    pumpLabel = "ABOVE LEAD TRIGGER (Inferred from EA Plan)";
   }
 
   let code = "SECURE";
@@ -2946,17 +2984,17 @@ export const ASSET_DEFINITIONS = Object.freeze({
     asset_id: 'bicknells_bridge_access',
     name: "Bicknell's Bridge & Huish Level (Langport ↔ Muchelney)",
     primary_station: '52120',
-    crown_elevation_mAOD: 7.30, // ⚠️ PENDING TOPOGRAPHIC SURVEY (Approach submergence)
-    caution_elevation_mAOD: 7.00,
+    crown_elevation_mAOD: null,
+    caution_elevation_mAOD: null,
     deadband_crown: HYDRO_DEADBANDS.road_crown,
     deadband_caution: HYDRO_DEADBANDS.road_caution,
     corridor_type: 'Lowland Rural Connector',
     driving_station_label: 'River Yeo @ Huish (52120)',
     ea_warning_target_area: '112FWFMTM10A',
     ea_target_area_name: 'Muchelney, Thorney and surrounding properties',
-    survey_tier: 'TIER_3_EMPIRICAL',
-    survey_label: '⚠️ TRIGGER PROTOCOL (PENDING SURVEY)',
-    survey_tooltip: 'Approaches Pending Topographic Survey.',
+    survey_tier: 'UNSURVEYED',
+    survey_label: '⚠️ Pending Topographic Survey',
+    survey_tooltip: '⚠️ Pending Topographic Survey: Approach road elevations at Bicknell\'s Bridge are not published in primary engineering surveys; unverified empirical thresholds (7.00m/7.30m AOD) sat inside normal River Yeo winter flow (52120 typicalRange 6.44m–8.48m AOD) and automated stage triggers are disabled.',
     station_url: 'https://check-for-flooding.service.gov.uk/station/3063'
   }),
   moorland_new_cut_road: Object.freeze({
@@ -3046,7 +3084,7 @@ export const ASSET_DEFINITIONS = Object.freeze({
     ea_target_area_name: 'East Somerset Rivers (River Sowy & KSD)',
     survey_tier: 'UNSURVEYED',
     survey_label: '⚠️ Pending EA Asset Survey (Beasley\'s ~7.50m AOD Proxy)',
-    survey_tooltip: '⚠️ Pending EA Asset Survey: Allermoor\'s own crest level is not published in primary public records. EA Somerset Levels guidance notes it operates at approximately the same Parrett stage as Beasley\'s Spillway (~7.50m AOD proxy), closing Monk\'s Leaze Clyse and curtailing upstream tributary pumps. Automated OVERTOPPING event triggers are disabled [RULE-THRESH-01].',
+    survey_tooltip: '⚠️ Pending EA Asset Survey: Allermoor\'s own crest level is not published in primary public records. EA Somerset Levels guidance notes it operates at approximately the same Parrett stage as Beasley\'s Spillway (~7.50m AOD proxy), closing Monk\'s Leaze Clyse and curtailing upstream tributary pumps. Automated OVERTOPPING event triggers are disabled.',
     deadband_crest: HYDRO_DEADBANDS.weir_crest,
     deadband_pre_spill: HYDRO_DEADBANDS.pre_spill,
     station_url: 'https://check-for-flooding.service.gov.uk/station/3066'
@@ -3091,21 +3129,23 @@ export const ASSET_DEFINITIONS = Object.freeze({
     asset_type: 'polder',
     asset_id: 'wet_moor',
     name: 'Wet Moor Polder Basin (Huish Episcopi / Muchelney)',
-    primary_station: '52120',
-    secondary_station: '52153',
+    primary_station: null,
+    secondary_station: null,
+    receiving_river_station: '52120',
+    secondary_river_station: '52153',
     floor_elevation_mAOD: HYDRO_THRESHOLDS.WET_MOOR.GROUND_MAOD,
-    lead_pump_winter_mAOD: CANONICAL_PUMP_THRESHOLDS.huish_episcopi_ps.winter.lead,
-    lead_pump_summer_mAOD: CANONICAL_PUMP_THRESHOLDS.huish_episcopi_ps.summer.lead,
-    duty_pump_winter_mAOD: CANONICAL_PUMP_THRESHOLDS.huish_episcopi_ps.winter.duty,
-    duty_pump_summer_mAOD: CANONICAL_PUMP_THRESHOLDS.huish_episcopi_ps.summer.duty,
+    lead_pump_winter_mAOD: HYDRO_THRESHOLDS.WET_MOOR.LEAD_PUMP_WINTER,
+    lead_pump_summer_mAOD: HYDRO_THRESHOLDS.WET_MOOR.LEAD_PUMP_SUMMER,
+    duty_pump_winter_mAOD: HYDRO_THRESHOLDS.WET_MOOR.DUTY_PUMP_WINTER,
+    duty_pump_summer_mAOD: HYDRO_THRESHOLDS.WET_MOOR.DUTY_PUMP_SUMMER,
     river_cutoff_mAOD: HYDRO_THRESHOLDS.WET_MOOR.RIVER_CUTOFF_MAOD,
     mobile_ordered_mAOD: null,
     mobile_active_mAOD: null,
     critical_mAOD: null,
     rapid_inrush_threshold_mh: null,
-    survey_tier: 'TIER_2_FIXED_PUMPS_ONLY',
-    survey_label: '📋 EA Operating Rules (Huish Episcopi Fixed Pumps; Mobile Triggers Unsurveyed)',
-    authority: 'EA Huish Episcopi PS Operating Rules (Winter Duty 6.75m, Summer Duty 6.90m, River Cut-off 8.20m AOD; mobile pump triggers unpublished)',
+    survey_tier: 'UNSURVEYED',
+    survey_label: '⚠️ Pending EA Asset Survey (Decoupled from River Yeo 52120)',
+    survey_tooltip: 'Wet Moor internal rhyne/sump stage is not broadcast by an in-polder EA sensor; station 52120 measures the receiving River Yeo channel (typicalRange 6.44m–8.48m AOD, bankfull pump cut-off 8.20m AOD). Automated polder duty-pumping event triggers are disabled until dedicated internal moor thresholds are verified.',
     deadband_pump: HYDRO_DEADBANDS.polder_pump
   }),
   west_sedgemoor: Object.freeze({
@@ -3181,6 +3221,9 @@ export const ASSET_DEFINITIONS = Object.freeze({
     inland_station: 'E9094',
     extended_tide_lock_seconds: 14 * 3600,
     elevated_inland_mAOD: 2.65,
+    inland_watch_winter_mAOD: CANONICAL_PUMP_THRESHOLDS.dunball_mobile_ps.winter.lead,
+    inland_watch_summer_mAOD: CANONICAL_PUMP_THRESHOLDS.dunball_mobile_ps.summer.lead,
+    estuary_alert_mAOD: HYDRO_THRESHOLDS.DUNBALL.ESTUARY_ALERT_MAOD,
     deadband_flap: HYDRO_DEADBANDS.tidal_flap
   }),
 
@@ -3636,6 +3679,18 @@ export function evaluateAssetTransition(assetDef, activeSession = null, readings
     case 'road': {
       const Z_crown = assetDef.crown_elevation_mAOD;
       const Z_caut = assetDef.caution_elevation_mAOD;
+      if (
+        assetDef.survey_tier === 'UNSURVEYED' ||
+        Z_crown === null || Z_crown === undefined || !Number.isFinite(Z_crown) ||
+        Z_caut === null || Z_caut === undefined || !Number.isFinite(Z_caut)
+      ) {
+        evaluatedState = 'PASSABLE';
+        evaluatedSeverity = 1;
+        clearanceM = null;
+        clearanceDescriptor = 'pending topographic survey';
+        narrative = `${assetDef.name}: ⚠️ Pending Topographic Survey. Unsurveyed road approach elevations are not wired to automated ENCROACHING or IMPASSABLE stage event triggers.`;
+        break;
+      }
       const dbCrown = assetDef.deadband_crown ?? HYDRO_DEADBANDS.road_crown;
       const dbCaut = assetDef.deadband_caution ?? HYDRO_DEADBANDS.road_caution;
 
@@ -3843,6 +3898,11 @@ export function evaluateAssetTransition(assetDef, activeSession = null, readings
       const secStageRaw = (typeof secLatest === 'object' && secLatest !== null) ? secLatest.value : secLatest;
       const inlandStage = sanitizeStageValue(secStageRaw);
       const dbFlap = assetDef.deadband_flap ?? HYDRO_DEADBANDS.tidal_flap;
+      const inlandWatch = isSummer
+        ? (assetDef.inland_watch_summer_mAOD ?? 3.10)
+        : (assetDef.inland_watch_winter_mAOD ?? 2.80);
+      const estuaryAlert = assetDef.estuary_alert_mAOD ?? HYDRO_THRESHOLDS.DUNBALL.ESTUARY_ALERT_MAOD ?? 6.50;
+      const hasActiveTideLockSession = Boolean(activeSession && activeSession.status !== 'CLOSED' && currentSt === 'TIDE_LOCKED');
 
       if (inlandStage === null) {
         if (currentSt === 'TIDE_LOCKED') {
@@ -3858,18 +3918,21 @@ export function evaluateAssetTransition(assetDef, activeSession = null, readings
           evaluatedSeverity = 1;
           narrative = `${assetDef.name}: inland sensor offline; estuary low (<2.65m AOD).`;
         }
-      } else if (currentSt === 'TIDE_LOCKED') {
-        if (stage >= inlandStage - dbFlap) {
-          evaluatedState = 'TIDE_LOCKED';
-          evaluatedSeverity = 2;
-        } else {
-          evaluatedState = 'DISCHARGING';
-          evaluatedSeverity = 1;
-        }
       } else {
-        if (stage >= inlandStage) {
+        const isLocked = currentSt === 'TIDE_LOCKED'
+          ? (stage >= inlandStage - dbFlap)
+          : (stage >= inlandStage);
+
+        if (isLocked) {
           evaluatedState = 'TIDE_LOCKED';
-          evaluatedSeverity = 2;
+          // Routine 3h semi-diurnal high tides (inland KSD < 2.80m/3.10m watch and sea < 6.50m surge alert)
+          // remain Severity Tier 1 so they do not flood telemetry_events with twice-daily astronomical locks.
+          const isElevatedIncident = (
+            hasActiveTideLockSession ||
+            inlandStage >= inlandWatch ||
+            stage >= estuaryAlert
+          );
+          evaluatedSeverity = isElevatedIncident ? 2 : 1;
         } else {
           evaluatedState = 'DISCHARGING';
           evaluatedSeverity = 1;
@@ -3889,16 +3952,76 @@ export function evaluateAssetTransition(assetDef, activeSession = null, readings
       if (evaluatedState === 'TIDE_LOCKED' && inlandStage !== null) {
         const extDurationSec = assetDef.extended_tide_lock_seconds ?? (14 * 3600);
         const inlandElevatedThresh = assetDef.elevated_inland_mAOD ?? 2.65;
-        const currentDuration = activeSession?.start_time
-          ? Math.max(0, Math.floor((new Date(readingTime).getTime() - new Date(activeSession.start_time).getTime()) / 1000))
+        const readingTimeMs = new Date(readingTime).getTime();
+        const lockRefStart = (activeSession && activeSession.status !== 'CLOSED')
+          ? (activeSession.start_time || activeSession.tide_lock_start_time || null)
+          : null;
+        const sessionDurationSec = (lockRefStart && Number.isFinite(readingTimeMs))
+          ? Math.max(0, Math.floor((readingTimeMs - new Date(lockRefStart).getTime()) / 1000))
           : 0;
+
+        // Also compute continuous tide-lock duration from historical readings/secReadings so an
+        // inland stage in [2.65m, 2.80m winter / 3.10m summer) that remained Tier 1 (<14h)
+        // without opening a Tier 2 session still escalates to Tier 3 EXTENDED_TIDE_LOCK once >=14h.
+        let windowDurationSec = 0;
+        if (Number.isFinite(readingTimeMs)) {
+          const extractTimedPoints = (arr) => {
+            if (!Array.isArray(arr)) return [];
+            const pts = [];
+            for (const item of arr) {
+              if (!item || typeof item !== 'object') continue;
+              const dt = item.dateTime ?? item.date_time ?? item.timestamp ?? item.date;
+              const ms = dt ? Date.parse(dt) : NaN;
+              const val = sanitizeStageValue(item.value);
+              if (Number.isFinite(ms) && ms <= readingTimeMs && val !== null) {
+                pts.push({ ms, val });
+              }
+            }
+            pts.sort((a, b) => b.ms - a.ms);
+            return pts;
+          };
+
+          const seaPts = extractTimedPoints(readings);
+          const inlandPts = extractTimedPoints(secReadings);
+          const nearestVal = (pts, targetMs, fallbackVal) => {
+            if (pts.length === 0) return fallbackVal;
+            let best = pts[0].val;
+            let minDiff = Math.abs(pts[0].ms - targetMs);
+            for (let i = 1; i < pts.length; i++) {
+              const diff = Math.abs(pts[i].ms - targetMs);
+              if (diff < minDiff) {
+                minDiff = diff;
+                best = pts[i].val;
+              }
+            }
+            return best;
+          };
+
+          const candidateEpochs = Array.from(
+            new Set([...seaPts.map(p => p.ms), ...inlandPts.map(p => p.ms)])
+          ).sort((a, b) => b - a);
+
+          let earliestLockMs = readingTimeMs;
+          for (const epochMs of candidateEpochs) {
+            const sVal = nearestVal(seaPts, epochMs, stage);
+            const iVal = nearestVal(inlandPts, epochMs, inlandStage);
+            if (sVal !== null && iVal !== null && sVal >= (iVal - dbFlap)) {
+              earliestLockMs = epochMs;
+            } else {
+              break;
+            }
+          }
+          windowDurationSec = Math.max(0, Math.floor((readingTimeMs - earliestLockMs) / 1000));
+        }
+
+        const currentDuration = Math.max(sessionDurationSec, windowDurationSec);
 
         const inlandRates = computeStageRates(secReadings);
         const inlandRate1h = inlandRates.rate_1h_m_per_hr;
         const failedToDrain = (inlandRate1h === null || inlandRate1h >= -0.02);
 
         if (currentDuration >= extDurationSec && inlandStage > inlandElevatedThresh && failedToDrain) {
-          evaluatedSeverity = 3; // Escalate Tier 2 -> Tier 3 Warning
+          evaluatedSeverity = 3; // Escalate Tier 1/2 -> Tier 3 Warning
           const hours = (currentDuration / 3600).toFixed(1);
           regime_signature = {
             anomaly_type: 'EXTENDED_TIDE_LOCK',
@@ -4086,8 +4209,8 @@ export function evaluateAssetTransition(assetDef, activeSession = null, readings
         consecutiveNominalCount = 1;
         firstNominalReading = { dateTime: readingTime, value: stage };
         to_state = activeSession.to_state; // Keep elevated badge during debounce window
-        severity_tier = activeSession.severity_tier; // Latch peak severity during recovery debounce
-        peak_stage_mAOD = activeSession.peak_stage_mAOD; // Latch peak stage during recovery debounce
+        severity_tier = activeSession.severity_tier ?? 2; // Latch peak severity during recovery debounce
+        peak_stage_mAOD = activeSession.peak_stage_mAOD ?? stage; // Latch peak stage during recovery debounce
         peak_time = activeSession.peak_time || activeSession.start_time || readingTime;
         max_rate_1h_m_per_hr = activeSession.max_rate_1h_m_per_hr;
         narrative = `${assetDef.name} level receding below threshold; confirming 30-min debounce recovery (1/2 confirmed)...`;
@@ -4561,9 +4684,14 @@ export function evaluateRoadCorridor(assetDef, readingsSource = [], activeSessio
     };
   }
 
-  // Physical clearance to crown
-  const clearanceM = Number((Z_crown - stage).toFixed(3));
-  const clearanceText = formatClearanceText(clearanceM, 'road crown');
+  // Physical clearance to crown (null-safe for unsurveyed roads [RULE-THRESH-01])
+  const isUnsurveyed = (
+    assetDef.survey_tier === 'UNSURVEYED' ||
+    Z_crown === null || Z_crown === undefined || !Number.isFinite(Z_crown) ||
+    Z_caution === null || Z_caution === undefined || !Number.isFinite(Z_caution)
+  );
+  const clearanceM = isUnsurveyed ? null : Number((Z_crown - stage).toFixed(3));
+  const clearanceText = isUnsurveyed ? 'Pending Topographic Survey' : formatClearanceText(clearanceM, 'road crown');
 
   let status = 'PASSABLE';
   let severityTier = 1;
@@ -4580,10 +4708,18 @@ export function evaluateRoadCorridor(assetDef, readingsSource = [], activeSessio
   let inspectionWindowMet = false;
 
   const prevSessionState = activeSession?.to_state || null;
-  const isRisingSurge = (rateOfRise >= 0.03 && stage >= (Z_caution - 0.10));
+  const isRisingSurge = !isUnsurveyed && (rateOfRise >= 0.03 && stage >= (Z_caution - 0.10));
 
   // Determine State & Phase
-  if (prevSessionState === 'IMPASSABLE' || options.forceClearing) {
+  if (isUnsurveyed) {
+    status = 'PASSABLE';
+    severityTier = 1;
+    phase = 'NOMINAL';
+    badgeSymbol = '🟢';
+    badgeLabel = 'PASSABLE';
+    badgeClass = 'badge-passable';
+    narrative = `⚠️ Approach road elevations pending topographic survey; automated river-stage triggers disabled. Check official Travel Somerset highways notices during flood warnings.`;
+  } else if (prevSessionState === 'IMPASSABLE' || options.forceClearing) {
     // Road was submerged / closed
     if (stage >= Z_crown - dbCrown && !options.forceClearing) {
       // Still submerged
@@ -4661,9 +4797,6 @@ export function evaluateRoadCorridor(assetDef, readingsSource = [], activeSessio
       const curryStage = sanitizeStageValue(secReadings[0]?.value ?? secReadings[0] ?? null);
       if (stage >= Z_crown) isImpassable = true;
       else if (stage >= Z_caution || (curryStage !== null && curryStage >= 7.35)) isEncroaching = true;
-    } else if (assetDef.asset_id === 'bicknells_bridge_access') {
-      if (stage >= Z_crown) isImpassable = true;
-      else if (stage >= Z_caution) isEncroaching = true;
     } else if (assetDef.asset_id === 'moorland_new_cut_road') {
       if (stage >= Z_crown) isImpassable = true;
       else if (stage >= Z_caution) isEncroaching = true;
@@ -4842,6 +4975,1157 @@ export function evaluateRoadNetwork(readingsSource, activeEvents = null, options
     summary_badge: summaryBadge
   };
 }
+
+// ============================================================================
+// Environment Agency Tipping-Bucket Raingauge (TBR) SSOT Registry &
+// Temporal Rolling Accumulator Engine (Issues #61 & #64)
+// ============================================================================
+
+/**
+ * Open Government Licence v3.0 (OGL v3.0) provenance and physical sensor metadata
+ * for UK Environment Agency automated Tipping-Bucket Raingauges (TBR).
+ * Enforces [RULE-PROV-01], [RULE-HUM-01], and [RULE-ENT-01].
+ */
+export const RAINGAUGE_PROVENANCE = Object.freeze({
+  authority: 'UK Environment Agency Real-Time Flood Monitoring & Hydrology Data Explorer API',
+  licence: 'Open Government Licence v3.0 (OGL v3.0)',
+  licence_url: 'https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/',
+  attribution: 'Contains Environment Agency information © Crown copyright and database right',
+  sensor_type: 'tipping_bucket_raingauge',
+  sensor_classification: 'ambient_environmental_sensor',
+  is_civil_state_machine_entity: false,
+  tip_resolution_mm: 0.20,
+  interval_minutes: 15,
+  period_seconds: 900,
+  unit: 'mm',
+  value_type: 'total'
+});
+
+/**
+ * Dedicated Atmospheric Indigo/Violet Color Palette (--precip-*).
+ * Orthogonal to Estuarine Deep Blue (#0284c7, reserved for Dunball low-tide discharge
+ * under UI-COL-01/02) and life-safety flood alert red/amber.
+ */
+export const PRECIPITATION_PALETTE = Object.freeze({
+  DRY: Object.freeze({ token: '--precip-0', hex: '#64748b', label: 'Dry' }),
+  LIGHT: Object.freeze({ token: '--precip-1', hex: '#a5b4fc', label: 'Light' }),
+  MODERATE: Object.freeze({ token: '--precip-2', hex: '#818cf8', label: 'Moderate' }),
+  HEAVY: Object.freeze({ token: '--precip-3', hex: '#6366f1', label: 'Heavy' }),
+  TORRENTIAL: Object.freeze({ token: '--precip-4', hex: '#c084fc', label: 'Torrential' }),
+  CUMULATIVE_LINE: Object.freeze({ token: '--precip-sum', hex: '#e0e7ff', label: 'Cumulative Mass Curve' })
+});
+
+/**
+ * Canonical Somerset Catchment Zones for Spatial Precipitation Aggregation.
+ */
+export const RAINFALL_CATCHMENT_ZONES = Object.freeze({
+  tone_upland: Object.freeze({
+    id: 'tone_upland',
+    label: 'River Tone Headwaters (Brendon & Blackdown Hills)',
+    short_label: 'Blackdowns',
+    topology_badge_prefix: 'Blackdowns',
+    pillar: 'upland',
+    river: 'River Tone',
+    downstream_station_ids: Object.freeze(['52108', '52109', '52111', '52162', '52118'])
+  }),
+  parrett_upland: Object.freeze({
+    id: 'parrett_upland',
+    label: 'Upper Parrett & Yeo Headwaters (Dorset Hills)',
+    short_label: 'Dorset Hills',
+    topology_badge_prefix: 'Dorset Hills',
+    pillar: 'upland',
+    river: 'River Parrett & River Yeo',
+    downstream_station_ids: Object.freeze(['52116', '52119', '52120', '52233'])
+  }),
+  isle_upland: Object.freeze({
+    id: 'isle_upland',
+    label: 'Upper River Isle Headwaters (Chard & Blackdown East)',
+    short_label: 'Isle Headwaters',
+    topology_badge_prefix: 'Isle Headwaters',
+    pillar: 'upland',
+    river: 'River Isle',
+    downstream_station_ids: Object.freeze(['52153'])
+  }),
+  moors_lowland: Object.freeze({
+    id: 'moors_lowland',
+    alias_ids: Object.freeze(['lowland_levels']),
+    label: 'Central Lowland Moors & King\'s Sedgemoor Drain',
+    short_label: 'Lowland Moors & KSD',
+    topology_badge_prefix: 'Lowland Moors',
+    pillar: 'lowland',
+    river: 'Curry Moor, Northmoor & King\'s Sedgemoor Drain',
+    downstream_station_ids: Object.freeze(['52127', '52159', '52157', 'E9531', 'E9094'])
+  })
+});
+
+function createRaingaugeStationEntry(def) {
+  const stationUrl = `https://environment.data.gov.uk/flood-monitoring/id/stations/${def.id}`;
+  const measureUrl = `https://environment.data.gov.uk/flood-monitoring/id/measures/${def.measure_id}`;
+  return Object.freeze({
+    id: def.id,
+    notation: def.id,
+    wiski_id: def.wiski_id,
+    name: def.name,
+    ea_label: def.ea_label,
+    measure_id: def.measure_id,
+    catchment: def.catchment,
+    catchment_tags: Object.freeze(def.catchment_tags),
+    pillar: def.pillar,
+    sub_catchment: def.sub_catchment,
+    correlated_river_station_id: def.correlated_river_station_id,
+    grid_reference: def.grid_reference,
+    lat: def.lat,
+    long: def.long,
+    easting: def.easting,
+    northing: def.northing,
+    coordinates: Object.freeze({
+      lat: def.lat,
+      long: def.long,
+      easting: def.easting,
+      northing: def.northing,
+      grid_reference: def.grid_reference
+    }),
+    // EA Flood Monitoring & Hydrology APIs do not publish surveyed collector mAOD elevations
+    // for TBR stations; kept explicitly null per [RULE-THRESH-01] & [RULE-HUM-01].
+    elevation_mAOD: null,
+    survey_status: 'UNSURVEYED',
+    tip_resolution_mm: 0.20,
+    interval_minutes: 15,
+    period_seconds: 900,
+    unit: 'mm',
+    sensor_type: 'tipping_bucket_raingauge',
+    sensor_classification: 'ambient_environmental_sensor',
+    is_civil_asset: false,
+    provenance: Object.freeze({
+      authority: RAINGAUGE_PROVENANCE.authority,
+      licence: RAINGAUGE_PROVENANCE.licence,
+      licence_url: RAINGAUGE_PROVENANCE.licence_url,
+      attribution: RAINGAUGE_PROVENANCE.attribution,
+      station_url: stationUrl,
+      measure_url: measureUrl
+    })
+  });
+}
+
+/**
+ * Single Source of Truth (SSOT) Registry for Somerset Environment Agency
+ * Automated Tipping-Bucket Raingauges (TBR) ([RULE-SSOT-01]).
+ *
+ * All 12 stations are verified active 15-minute TBR outstations from the
+ * UK Environment Agency Flood Monitoring & Hydrology Data Explorer APIs (OGL v3.0).
+ * Raingauges are ambient environmental sensors outside the civil asset state machine ([RULE-ENT-01]).
+ */
+export const RAINGAUGE_REGISTRY = Object.freeze({
+  '52100': createRaingaugeStationEntry({
+    id: '52100',
+    wiski_id: '402074',
+    name: 'Maundown (Clatworthy / Brendon Hills)',
+    ea_label: 'Maundown',
+    measure_id: '52100-rainfall-tipping_bucket_raingauge-t-15_min-mm',
+    catchment: 'tone_upland',
+    catchment_tags: ['tone_upland', 'brendon_hills'],
+    pillar: 'upland',
+    sub_catchment: 'River Tone Headwaters (Brendon Hills)',
+    correlated_river_station_id: '52108',
+    grid_reference: 'ST064291',
+    lat: 51.054044,
+    long: -3.336105,
+    easting: 306450,
+    northing: 129150
+  }),
+  '45168': createRaingaugeStationEntry({
+    id: '45168',
+    wiski_id: '358163',
+    name: 'Hockworthy (Upper Tone West)',
+    ea_label: 'Hockworthy',
+    measure_id: '45168-rainfall-tipping_bucket_raingauge-t-15_min-mm',
+    catchment: 'tone_upland',
+    catchment_tags: ['tone_upland', 'upper_tone'],
+    pillar: 'upland',
+    sub_catchment: 'Upper River Tone (Greenham Reach)',
+    correlated_river_station_id: '52108',
+    grid_reference: 'ST029202',
+    lat: 50.973456,
+    long: -3.383642,
+    easting: 302950,
+    northing: 120250
+  }),
+  '52101': createRaingaugeStationEntry({
+    id: '52101',
+    wiski_id: '402746',
+    name: 'Fulwood (Blagdon Hill / Blackdown Hills)',
+    ea_label: 'Fulwood',
+    measure_id: '52101-rainfall-tipping_bucket_raingauge-t-15_min-mm',
+    catchment: 'tone_upland',
+    catchment_tags: ['tone_upland', 'blackdown_hills'],
+    pillar: 'upland',
+    sub_catchment: 'Blackdown Hills North / Mid Tone',
+    correlated_river_station_id: '52109',
+    grid_reference: 'ST212197',
+    lat: 50.971757,
+    long: -3.122948,
+    easting: 321250,
+    northing: 119750
+  }),
+  '45232': createRaingaugeStationEntry({
+    id: '45232',
+    wiski_id: '352859',
+    name: 'Stopgate Farm (Churchstanton / Blackdown Hills)',
+    ea_label: 'Stopgate Farm',
+    measure_id: '45232-rainfall-tipping_bucket_raingauge-t-15_min-mm',
+    catchment: 'tone_upland',
+    catchment_tags: ['tone_upland', 'blackdown_hills'],
+    pillar: 'upland',
+    sub_catchment: 'Blackdown Hills Plateau',
+    correlated_river_station_id: '52111',
+    grid_reference: 'ST232097',
+    lat: 50.882121,
+    long: -3.092361,
+    easting: 323250,
+    northing: 109750
+  }),
+  'E14620': createRaingaugeStationEntry({
+    id: 'E14620',
+    wiski_id: null,
+    name: 'Kingston St Mary (Taunton Urban / Quantock South)',
+    ea_label: 'Kingston St Mary',
+    measure_id: 'E14620-rainfall-tipping_bucket_raingauge-t-15_min-mm',
+    catchment: 'tone_upland',
+    catchment_tags: ['tone_upland', 'taunton_urban'],
+    pillar: 'upland',
+    sub_catchment: 'Taunton Urban Drainage & Quantock South',
+    correlated_river_station_id: '52111',
+    grid_reference: 'ST227300',
+    lat: 51.064563,
+    long: -3.103786,
+    easting: 322750,
+    northing: 130050
+  }),
+  '52148': createRaingaugeStationEntry({
+    id: '52148',
+    wiski_id: '398493',
+    name: 'South Perrott (Crewkerne / Dorset Border)',
+    ea_label: 'South Perrott',
+    measure_id: '52148-rainfall-tipping_bucket_raingauge-t-15_min-mm',
+    catchment: 'parrett_upland',
+    catchment_tags: ['parrett_upland', 'dorset_border'],
+    pillar: 'upland',
+    sub_catchment: 'Upper River Parrett (Chedington & Crewkerne)',
+    correlated_river_station_id: '52116',
+    grid_reference: 'ST476062',
+    lat: 50.853381,
+    long: -2.745053,
+    easting: 347650,
+    northing: 106250
+  }),
+  '52103': createRaingaugeStationEntry({
+    id: '52103',
+    wiski_id: '400409',
+    name: 'Sutton Bingham (Yeovil / Upper River Yeo)',
+    ea_label: 'Sutton Bingham',
+    measure_id: '52103-rainfall-tipping_bucket_raingauge-t-15_min-mm',
+    catchment: 'parrett_upland',
+    catchment_tags: ['parrett_upland', 'yeo_upland'],
+    pillar: 'upland',
+    sub_catchment: 'Upper River Yeo (Yeovil Headwaters)',
+    correlated_river_station_id: '52120',
+    grid_reference: 'ST556116',
+    lat: 50.902608,
+    long: -2.632068,
+    easting: 355650,
+    northing: 111650
+  }),
+  '52129': createRaingaugeStationEntry({
+    id: '52129',
+    wiski_id: '399184',
+    name: 'Chard Snowdon Hill (Upper River Isle)',
+    ea_label: 'Chards Snowdon Hill',
+    measure_id: '52129-rainfall-tipping_bucket_raingauge-t-15_min-mm',
+    catchment: 'isle_upland',
+    catchment_tags: ['isle_upland', 'chard_headwaters'],
+    pillar: 'upland',
+    sub_catchment: 'Upper River Isle (Chard Headwaters)',
+    correlated_river_station_id: '52153',
+    grid_reference: 'ST310089',
+    lat: 50.875913,
+    long: -2.981351,
+    easting: 331050,
+    northing: 108950
+  }),
+  '52147': createRaingaugeStationEntry({
+    id: '52147',
+    wiski_id: '401445',
+    name: 'West Sedgemoor (Curry Moor & Stathe)',
+    ea_label: 'West Sedgemoor',
+    measure_id: '52147-rainfall-tipping_bucket_raingauge-t-15_min-mm',
+    catchment: 'moors_lowland',
+    catchment_tags: ['moors_lowland', 'lowland_levels', 'curry_moor'],
+    pillar: 'lowland',
+    sub_catchment: 'Curry Moor, Stanmoor & West Sedgemoor Basin',
+    correlated_river_station_id: '52127',
+    grid_reference: 'ST375286',
+    lat: 51.053779,
+    long: -2.892367,
+    easting: 337550,
+    northing: 128650
+  }),
+  '52105': createRaingaugeStationEntry({
+    id: '52105',
+    wiski_id: '403538',
+    name: 'Rivers House (Bridgwater / Northmoor & Lower KSD)',
+    ea_label: 'Rivers House',
+    measure_id: '52105-rainfall-tipping_bucket_raingauge-t-15_min-mm',
+    catchment: 'moors_lowland',
+    catchment_tags: ['moors_lowland', 'lowland_levels', 'northmoor', 'ksd_lowland'],
+    pillar: 'lowland',
+    sub_catchment: 'Northmoor, Westonzoyland & Lower Parrett',
+    correlated_river_station_id: '52159',
+    grid_reference: 'ST301377',
+    lat: 51.134741,
+    long: -2.999693,
+    easting: 330150,
+    northing: 137750
+  }),
+  '52227': createRaingaugeStationEntry({
+    id: '52227',
+    wiski_id: '405278',
+    name: 'Gold Corner (King\'s Sedgemoor Drain / Polden)',
+    ea_label: 'Gold Corner',
+    measure_id: '52227-rainfall-tipping_bucket_raingauge-t-15_min-mm',
+    catchment: 'moors_lowland',
+    catchment_tags: ['moors_lowland', 'lowland_levels', 'ksd_polden'],
+    pillar: 'lowland',
+    sub_catchment: 'King\'s Sedgemoor Drain & Polden Ridge',
+    correlated_river_station_id: 'E9094',
+    grid_reference: 'ST367430',
+    lat: 51.183161,
+    long: -2.90631,
+    easting: 336750,
+    northing: 143050
+  }),
+  '52102': createRaingaugeStationEntry({
+    id: '52102',
+    wiski_id: '403910',
+    name: 'Somerton (River Cary / Upper KSD Feeder)',
+    ea_label: 'Somerton',
+    measure_id: '52102-rainfall-tipping_bucket_raingauge-t-15_min-mm',
+    catchment: 'moors_lowland',
+    catchment_tags: ['moors_lowland', 'lowland_levels', 'cary_ksd_feeder'],
+    pillar: 'lowland',
+    sub_catchment: 'River Cary & Upper King\'s Sedgemoor Drain',
+    correlated_river_station_id: 'E9531',
+    grid_reference: 'ST484297',
+    lat: 51.064754,
+    long: -2.737025,
+    easting: 348450,
+    northing: 129750
+  })
+});
+
+/**
+ * Plausibility bounds for a single 15-minute TBR interval reading (mm).
+ * Rejects negative fault sentinels (e.g. -99) and electrical spikes (> 100.0 mm / 15 min).
+ */
+export const RAINFALL_INTERVAL_BOUNDS_MM = Object.freeze({
+  min_mm: 0.0,
+  max_mm: 100.0
+});
+
+/**
+ * Ambient air temperature threshold (°C) at or below which unheated TBR collector
+ * funnels risk snow-capping / frozen blockages ("snow blindness").
+ */
+export const FREEZING_RISK_TEMP_C = 1.0;
+
+/**
+ * Default maximum expected transmission age (minutes) before a TBR outstation
+ * is tagged with STALE_BATCH.
+ */
+export const DEFAULT_RAINGAUGE_STALE_MINUTES = 120;
+
+/**
+ * Standardized 1-hour rainfall intensity classification tiers (mm/hr).
+ */
+export const RAINFALL_INTENSITY_TIERS = Object.freeze([
+  Object.freeze({
+    code: 'DRY',
+    min_mm_hr: 0.0,
+    max_mm_hr: 0.0,
+    upper_exclusive_mm_hr: 0.1,
+    label: 'Dry',
+    color_token: PRECIPITATION_PALETTE.DRY.token,
+    color_hex: PRECIPITATION_PALETTE.DRY.hex,
+    badge_class: 'badge-precip-dry'
+  }),
+  Object.freeze({
+    code: 'LIGHT',
+    min_mm_hr: 0.1,
+    max_mm_hr: 2.4,
+    upper_exclusive_mm_hr: 2.5,
+    label: 'Light',
+    color_token: PRECIPITATION_PALETTE.LIGHT.token,
+    color_hex: PRECIPITATION_PALETTE.LIGHT.hex,
+    badge_class: 'badge-precip-light'
+  }),
+  Object.freeze({
+    code: 'MODERATE',
+    min_mm_hr: 2.5,
+    max_mm_hr: 9.9,
+    upper_exclusive_mm_hr: 10.0,
+    label: 'Moderate',
+    color_token: PRECIPITATION_PALETTE.MODERATE.token,
+    color_hex: PRECIPITATION_PALETTE.MODERATE.hex,
+    badge_class: 'badge-precip-moderate'
+  }),
+  Object.freeze({
+    code: 'HEAVY',
+    min_mm_hr: 10.0,
+    max_mm_hr: 24.9,
+    upper_exclusive_mm_hr: 25.0,
+    label: 'Heavy',
+    color_token: PRECIPITATION_PALETTE.HEAVY.token,
+    color_hex: PRECIPITATION_PALETTE.HEAVY.hex,
+    badge_class: 'badge-precip-heavy'
+  }),
+  Object.freeze({
+    code: 'TORRENTIAL',
+    min_mm_hr: 25.0,
+    max_mm_hr: Infinity,
+    upper_exclusive_mm_hr: Infinity,
+    label: 'Torrential',
+    color_token: PRECIPITATION_PALETTE.TORRENTIAL.token,
+    color_hex: PRECIPITATION_PALETTE.TORRENTIAL.hex,
+    badge_class: 'badge-precip-torrential'
+  })
+]);
+
+/**
+ * Sanitizes a single 15-minute rainfall reading value (mm).
+ * Strictly rejects null, undefined, booleans, empty strings, NaN, Infinity,
+ * negative values, and implausible spikes (> 100.0 mm per 15-minute interval).
+ *
+ * @param {any} val
+ * @returns {number|null}
+ */
+export function sanitizeRainfallReadingValue(val) {
+  if (val === null || val === undefined) return null;
+  if (typeof val !== 'number' && typeof val !== 'string') return null;
+  if (typeof val === 'string' && val.trim() === '') return null;
+
+  const num = typeof val === 'number' ? val : Number(val);
+  if (!Number.isFinite(num) || Number.isNaN(num)) return null;
+  if (num < RAINFALL_INTERVAL_BOUNDS_MM.min_mm || num > RAINFALL_INTERVAL_BOUNDS_MM.max_mm) {
+    return null;
+  }
+  return num;
+}
+
+/**
+ * Classifies a 1-hour rainfall accumulation / intensity rate (mm/hr) into
+ * standardized plain-English categories: DRY, LIGHT, MODERATE, HEAVY, TORRENTIAL.
+ *
+ * @param {number|null|undefined} rateMmPerHour
+ * @returns {{ code: string, category: string, label: string, rate_label: string, rate_mm_per_hr: number, color_token: string, color_hex: string, badge_class: string }}
+ */
+export function classifyRainfallIntensity(rateMmPerHour) {
+  const cleanRate = (typeof rateMmPerHour === 'number' && Number.isFinite(rateMmPerHour) && rateMmPerHour >= 0)
+    ? Number(rateMmPerHour.toFixed(2))
+    : 0.0;
+
+  let matchedTier = RAINFALL_INTENSITY_TIERS[0];
+  for (let i = RAINFALL_INTENSITY_TIERS.length - 1; i >= 0; i--) {
+    const tier = RAINFALL_INTENSITY_TIERS[i];
+    if (cleanRate >= tier.min_mm_hr) {
+      matchedTier = tier;
+      break;
+    }
+  }
+
+  const displayRate = matchedTier.code === 'DRY'
+    ? '0.0'
+    : (Number(cleanRate.toFixed(1)) >= matchedTier.upper_exclusive_mm_hr
+      ? (Math.floor(cleanRate * 10) / 10).toFixed(1)
+      : cleanRate.toFixed(1));
+
+  return {
+    code: matchedTier.code,
+    category: matchedTier.code,
+    label: matchedTier.label,
+    rate_label: `${matchedTier.label} (${displayRate} mm/h)`,
+    rate_mm_per_hr: cleanRate,
+    color_token: matchedTier.color_token,
+    color_hex: matchedTier.color_hex,
+    badge_class: matchedTier.badge_class
+  };
+}
+
+function parseNormalizedRainfallReadings(readings) {
+  if (!Array.isArray(readings) || readings.length === 0) {
+    return { validReadings: [], rejectedCount: 0 };
+  }
+
+  const byEpoch = new Map();
+  let rejectedCount = 0;
+
+  for (let i = 0; i < readings.length; i++) {
+    const item = readings[i];
+    if (!item || typeof item !== 'object') {
+      rejectedCount++;
+      continue;
+    }
+
+    const rawDate = item.dateTime ?? item.date_time ?? item.timestamp ?? item.date ?? null;
+    if (typeof rawDate !== 'string' || rawDate.trim() === '') {
+      rejectedCount++;
+      continue;
+    }
+
+    const epochMs = Date.parse(rawDate);
+    if (!Number.isFinite(epochMs) || Number.isNaN(epochMs)) {
+      rejectedCount++;
+      continue;
+    }
+
+    const rawVal = item.rainfall_mm !== undefined ? item.rainfall_mm : item.value;
+    const cleanMm = sanitizeRainfallReadingValue(rawVal);
+    if (cleanMm === null) {
+      rejectedCount++;
+      continue;
+    }
+
+    if (!byEpoch.has(epochMs)) {
+      byEpoch.set(epochMs, {
+        epochMs,
+        timestamp: new Date(epochMs).toISOString(),
+        rawTimestamp: rawDate,
+        rainfall_mm: cleanMm
+      });
+    }
+  }
+
+  const validReadings = Array.from(byEpoch.values()).sort((a, b) => a.epochMs - b.epochMs);
+  return { validReadings, rejectedCount };
+}
+
+function resolveReferenceEpochMs(validReadings, options = {}) {
+  const explicitRef = options.nowMs ?? options.referenceTime ?? null;
+  if (explicitRef !== null && explicitRef !== undefined) {
+    const parsed = typeof explicitRef === 'number' ? explicitRef : Date.parse(String(explicitRef));
+    if (Number.isFinite(parsed) && !Number.isNaN(parsed)) {
+      return parsed;
+    }
+  }
+  if (validReadings.length > 0) {
+    return validReadings[validReadings.length - 1].epochMs;
+  }
+  return Date.now();
+}
+
+/**
+ * Builds a chronological (ascending) 24-hour 15-minute quantized rainfall series
+ * with monotonically rising cumulative mass totals (`cumulative_mm`) for SVG hyetographs.
+ *
+ * @param {Array<object>} readings
+ * @param {object} [options]
+ * @param {number|string|Date} [options.nowMs]
+ * @param {number|string|Date} [options.referenceTime]
+ * @param {number} [options.windowHours=24]
+ * @param {number} [options.futureDriftToleranceMs=120000]
+ * @returns {Array<{ timestamp: string, rainfall_mm: number, cumulative_mm: number }>}
+ */
+export function buildRainfallSeries15Min(readings, options = {}) {
+  const { validReadings } = parseNormalizedRainfallReadings(readings);
+  if (validReadings.length === 0) return [];
+
+  const refMs = resolveReferenceEpochMs(validReadings, options);
+  const windowHours = (typeof options.windowHours === 'number' && options.windowHours > 0)
+    ? options.windowHours
+    : 24;
+  const windowMs = windowHours * 3600 * 1000;
+  const futureDriftMs = options.futureDriftToleranceMs ?? 120 * 1000;
+  const lowerBoundMs = refMs - windowMs;
+  const upperBoundMs = refMs + futureDriftMs;
+
+  const series = [];
+  let runningCumulative = 0;
+
+  for (let i = 0; i < validReadings.length; i++) {
+    const r = validReadings[i];
+    if (r.epochMs > lowerBoundMs && r.epochMs <= upperBoundMs) {
+      runningCumulative = Number((runningCumulative + r.rainfall_mm).toFixed(2));
+      series.push({
+        timestamp: r.timestamp,
+        rainfall_mm: Number(r.rainfall_mm.toFixed(2)),
+        cumulative_mm: runningCumulative
+      });
+    }
+  }
+
+  return series;
+}
+
+/**
+ * Computes rolling temporal precipitation accumulations (1h, 6h, 24h, 48h in mm),
+ * 1-hour intensity classification, quantized 24h hyetograph series, and sensor anomaly
+ * flags (`FREEZING_RISK`, `STALE_BATCH`).
+ *
+ * Strictly enforces [RULE-CALC-01] (zero volumetric runoff or discharge speculation)
+ * and interval monotonicity (0 <= R_1h <= R_6h <= R_24h <= R_48h).
+ *
+ * @param {Array<object>|null|undefined} readings
+ * @param {object} [options]
+ * @param {number|string|Date} [options.nowMs] - Reference epoch ms or ISO timestamp
+ * @param {number|string|Date} [options.referenceTime] - Alias for nowMs
+ * @param {number|null} [options.ambientTempC] - Optional ambient air temperature (°C) for FREEZING_RISK
+ * @param {number} [options.maxStaleMinutes=120] - Staleness threshold in minutes for STALE_BATCH
+ * @param {number} [options.futureDriftToleranceMs=120000] - Forward RTC drift tolerance (ms)
+ * @returns {object}
+ */
+export function computeRainfallAccumulators(readings, options = {}) {
+  const { validReadings, rejectedCount } = parseNormalizedRainfallReadings(readings);
+  const maxStaleMinutes = (typeof options.maxStaleMinutes === 'number' && options.maxStaleMinutes > 0)
+    ? options.maxStaleMinutes
+    : (typeof options.maxAgeHours === 'number' && options.maxAgeHours > 0
+      ? options.maxAgeHours * 60
+      : DEFAULT_RAINGAUGE_STALE_MINUTES);
+
+  const rawTemp = options.ambientTempC ?? options.temperatureC ?? options.ambient_temp_c ?? null;
+  const ambientTempC = (typeof rawTemp === 'number' && Number.isFinite(rawTemp)) ? rawTemp : null;
+  const freezingRisk = ambientTempC !== null && ambientTempC <= FREEZING_RISK_TEMP_C;
+
+  if (validReadings.length === 0) {
+    const dryIntensity = classifyRainfallIntensity(0);
+    const anomalyFlags = ['STALE_BATCH'];
+    if (freezingRisk) anomalyFlags.push('FREEZING_RISK');
+
+    return {
+      last_1h_mm: 0.0,
+      last_6h_mm: 0.0,
+      last_24h_mm: 0.0,
+      last_48h_mm: 0.0,
+      r_1h_mm: 0.0,
+      r_6h_mm: 0.0,
+      r_24h_mm: 0.0,
+      r_48h_mm: 0.0,
+      rate_mm_per_hr: 0.0,
+      intensity_category: dryIntensity.code,
+      rate_category: dryIntensity.code,
+      rate_label: dryIntensity.rate_label,
+      intensity: dryIntensity,
+      is_stale: true,
+      freezing_risk: freezingRisk,
+      ambient_temp_c: ambientTempC,
+      age_minutes: null,
+      latest_timestamp: null,
+      anomaly_flags: anomalyFlags,
+      valid_reading_count: 0,
+      rejected_reading_count: rejectedCount,
+      series_15min: []
+    };
+  }
+
+  const refMs = resolveReferenceEpochMs(validReadings, options);
+  const futureDriftMs = options.futureDriftToleranceMs ?? 120 * 1000;
+  const upperBoundMs = refMs + futureDriftMs;
+
+  const cut1h = refMs - 1 * 3600 * 1000;
+  const cut6h = refMs - 6 * 3600 * 1000;
+  const cut24h = refMs - 24 * 3600 * 1000;
+  const cut48h = refMs - 48 * 3600 * 1000;
+
+  let sum1h = 0;
+  let sum6h = 0;
+  let sum24h = 0;
+  let sum48h = 0;
+  const series15Min = [];
+  let latestEligibleReading = null;
+  let eligibleCount = 0;
+  let futureRejectedCount = 0;
+
+  for (let i = 0; i < validReadings.length; i++) {
+    const r = validReadings[i];
+    if (r.epochMs > upperBoundMs) {
+      futureRejectedCount++;
+      continue;
+    }
+
+    eligibleCount++;
+    latestEligibleReading = r;
+
+    if (r.epochMs > cut48h) {
+      sum48h += r.rainfall_mm;
+      if (r.epochMs > cut24h) {
+        sum24h += r.rainfall_mm;
+        series15Min.push({
+          timestamp: r.timestamp,
+          rainfall_mm: Number(r.rainfall_mm.toFixed(2)),
+          cumulative_mm: Number(sum24h.toFixed(2))
+        });
+        if (r.epochMs > cut6h) {
+          sum6h += r.rainfall_mm;
+          if (r.epochMs > cut1h) {
+            sum1h += r.rainfall_mm;
+          }
+        }
+      }
+    }
+  }
+
+  if (eligibleCount === 0 || !latestEligibleReading) {
+    const dryIntensity = classifyRainfallIntensity(0);
+    const anomalyFlags = ['STALE_BATCH'];
+    if (freezingRisk) anomalyFlags.push('FREEZING_RISK');
+
+    return {
+      last_1h_mm: 0.0,
+      last_6h_mm: 0.0,
+      last_24h_mm: 0.0,
+      last_48h_mm: 0.0,
+      r_1h_mm: 0.0,
+      r_6h_mm: 0.0,
+      r_24h_mm: 0.0,
+      r_48h_mm: 0.0,
+      rate_mm_per_hr: 0.0,
+      intensity_category: dryIntensity.code,
+      rate_category: dryIntensity.code,
+      rate_label: dryIntensity.rate_label,
+      intensity: dryIntensity,
+      is_stale: true,
+      freezing_risk: freezingRisk,
+      ambient_temp_c: ambientTempC,
+      age_minutes: null,
+      latest_timestamp: null,
+      anomaly_flags: anomalyFlags,
+      valid_reading_count: 0,
+      rejected_reading_count: rejectedCount + futureRejectedCount,
+      series_15min: []
+    };
+  }
+
+  const last1hMm = Number(sum1h.toFixed(2));
+  const last6hMm = Number(Math.max(last1hMm, sum6h).toFixed(2));
+  const last24hMm = Number(Math.max(last6hMm, sum24h).toFixed(2));
+  const last48hMm = Number(Math.max(last24hMm, sum48h).toFixed(2));
+
+  const ageMs = Math.max(0, refMs - latestEligibleReading.epochMs);
+  const ageMinutes = Math.floor(ageMs / 60000);
+  const isStale = ageMinutes > maxStaleMinutes;
+
+  const anomalyFlags = [];
+  if (isStale) anomalyFlags.push('STALE_BATCH');
+  if (freezingRisk) anomalyFlags.push('FREEZING_RISK');
+
+  const intensity = classifyRainfallIntensity(last1hMm);
+
+  return {
+    last_1h_mm: last1hMm,
+    last_6h_mm: last6hMm,
+    last_24h_mm: last24hMm,
+    last_48h_mm: last48hMm,
+    r_1h_mm: last1hMm,
+    r_6h_mm: last6hMm,
+    r_24h_mm: last24hMm,
+    r_48h_mm: last48hMm,
+    rate_mm_per_hr: last1hMm,
+    intensity_category: intensity.code,
+    rate_category: intensity.code,
+    rate_label: intensity.rate_label,
+    intensity,
+    is_stale: isStale,
+    freezing_risk: freezingRisk,
+    ambient_temp_c: ambientTempC,
+    age_minutes: ageMinutes,
+    latest_timestamp: latestEligibleReading.timestamp,
+    anomaly_flags: anomalyFlags,
+    valid_reading_count: eligibleCount,
+    rejected_reading_count: rejectedCount + futureRejectedCount,
+    series_15min: series15Min
+  };
+}
+
+/**
+ * Aggregates station rainfall accumulations into sub-catchment spatial arithmetic means (mm),
+ * peak station intensities, and a basin-wide status summary.
+ *
+ * Strictly enforces [RULE-CALC-01]: spatial aggregations are arithmetic mean precipitation
+ * depths (mm) and rates (mm/hr); zero volumetric runoff (m^3) or discharge (m^3/s / cumecs)
+ * conversion is performed.
+ *
+ * @param {Record<string, Array<object>>|Map<string, Array<object>>|null|undefined} readingsByStationOrMeasure
+ * @param {object} [options]
+ * @param {Record<string, object>} [options.registry=RAINGAUGE_REGISTRY]
+ * @param {number|string|Date} [options.nowMs]
+ * @param {number|string|Date} [options.referenceTime]
+ * @param {number|null} [options.ambientTempC]
+ * @param {number} [options.maxStaleMinutes=120]
+ * @returns {{ catchments: Record<string, object>, stations: Array<object>, stations_by_id: Record<string, object>, rainfall_summary: object }}
+ */
+export function aggregateCatchmentRainfall(readingsByStationOrMeasure = {}, options = {}) {
+  const registry = options.registry || RAINGAUGE_REGISTRY;
+  const sourceMap = (readingsByStationOrMeasure instanceof Map)
+    ? Object.fromEntries(readingsByStationOrMeasure.entries())
+    : (readingsByStationOrMeasure && typeof readingsByStationOrMeasure === 'object' ? readingsByStationOrMeasure : {});
+
+  const stations = [];
+  const stationsById = {};
+
+  for (const stationDef of Object.values(registry)) {
+    if (!stationDef || typeof stationDef !== 'object') continue;
+    const rawReadings = sourceMap[stationDef.id] ?? sourceMap[stationDef.measure_id] ?? [];
+    const stationTemp = (options.stationTemperatures && typeof options.stationTemperatures === 'object')
+      ? (options.stationTemperatures[stationDef.id] ?? options.stationTemperatures[stationDef.measure_id] ?? options.ambientTempC)
+      : options.ambientTempC;
+
+    const acc = computeRainfallAccumulators(rawReadings, {
+      ...options,
+      ambientTempC: stationTemp
+    });
+
+    const stationRecord = {
+      id: stationDef.id,
+      notation: stationDef.notation || stationDef.id,
+      wiski_id: stationDef.wiski_id ?? null,
+      name: stationDef.name,
+      ea_label: stationDef.ea_label || stationDef.name,
+      measure_id: stationDef.measure_id,
+      catchment: stationDef.catchment,
+      catchment_tags: stationDef.catchment_tags || [stationDef.catchment],
+      pillar: stationDef.pillar || (stationDef.catchment === 'moors_lowland' ? 'lowland' : 'upland'),
+      sub_catchment: stationDef.sub_catchment || '',
+      correlated_river_station_id: stationDef.correlated_river_station_id || null,
+      elevation_mAOD: stationDef.elevation_mAOD ?? null,
+      survey_status: stationDef.survey_status || 'UNSURVEYED',
+      coordinates: stationDef.coordinates || {
+        lat: stationDef.lat,
+        long: stationDef.long,
+        easting: stationDef.easting,
+        northing: stationDef.northing,
+        grid_reference: stationDef.grid_reference
+      },
+      tip_resolution_mm: stationDef.tip_resolution_mm ?? 0.20,
+      provenance: stationDef.provenance || RAINGAUGE_PROVENANCE,
+      last_1h_mm: acc.last_1h_mm,
+      last_6h_mm: acc.last_6h_mm,
+      last_24h_mm: acc.last_24h_mm,
+      last_48h_mm: acc.last_48h_mm,
+      rate_mm_per_hr: acc.rate_mm_per_hr,
+      rate_label: acc.rate_label,
+      intensity_category: acc.intensity_category,
+      rate_category: acc.rate_category,
+      is_stale: acc.is_stale,
+      freezing_risk: acc.freezing_risk,
+      age_minutes: acc.age_minutes,
+      latest_timestamp: acc.latest_timestamp,
+      anomaly_flags: acc.anomaly_flags,
+      valid_reading_count: acc.valid_reading_count,
+      rejected_reading_count: acc.rejected_reading_count,
+      series_15min: acc.series_15min
+    };
+
+    stations.push(stationRecord);
+    stationsById[stationRecord.id] = stationRecord;
+  }
+
+  const canonicalZones = ['tone_upland', 'parrett_upland', 'isle_upland', 'moors_lowland'];
+  const catchments = {};
+
+  for (const zoneId of canonicalZones) {
+    const zoneMeta = RAINFALL_CATCHMENT_ZONES[zoneId] || {
+      id: zoneId,
+      label: zoneId,
+      short_label: zoneId,
+      pillar: zoneId === 'moors_lowland' ? 'lowland' : 'upland',
+      river: ''
+    };
+
+    const zoneStations = stations.filter(
+      s => s.catchment === zoneId || (Array.isArray(s.catchment_tags) && s.catchment_tags.includes(zoneId))
+    );
+    const activeStations = zoneStations.filter(s => !s.is_stale && s.valid_reading_count > 0);
+    const denom = activeStations.length;
+
+    let mean1h = 0.0;
+    let mean6h = 0.0;
+    let mean24h = 0.0;
+    let mean48h = 0.0;
+
+    if (denom > 0) {
+      const sum1h = activeStations.reduce((acc, s) => acc + s.last_1h_mm, 0);
+      const sum6h = activeStations.reduce((acc, s) => acc + s.last_6h_mm, 0);
+      const sum24h = activeStations.reduce((acc, s) => acc + s.last_24h_mm, 0);
+      const sum48h = activeStations.reduce((acc, s) => acc + s.last_48h_mm, 0);
+
+      mean1h = Number((sum1h / denom).toFixed(2));
+      mean6h = Number(Math.max(mean1h, sum6h / denom).toFixed(2));
+      mean24h = Number(Math.max(mean6h, sum24h / denom).toFixed(2));
+      mean48h = Number(Math.max(mean24h, sum48h / denom).toFixed(2));
+    }
+
+    let peak24hStation = activeStations[0] || null;
+    let peak1hStation = activeStations[0] || null;
+
+    for (const s of activeStations) {
+      if (
+        !peak24hStation ||
+        s.last_24h_mm > peak24hStation.last_24h_mm ||
+        (s.last_24h_mm === peak24hStation.last_24h_mm && s.last_1h_mm > peak24hStation.last_1h_mm)
+      ) {
+        peak24hStation = s;
+      }
+      if (
+        !peak1hStation ||
+        s.last_1h_mm > peak1hStation.last_1h_mm ||
+        (s.last_1h_mm === peak1hStation.last_1h_mm && s.last_24h_mm > peak1hStation.last_24h_mm)
+      ) {
+        peak1hStation = s;
+      }
+    }
+
+    const peak1hMm = peak1hStation ? peak1hStation.last_1h_mm : 0.0;
+    const peak6hMm = activeStations.length > 0 ? Math.max(...activeStations.map(s => s.last_6h_mm)) : 0.0;
+    const peak24hMm = peak24hStation ? peak24hStation.last_24h_mm : 0.0;
+    const peak48hMm = activeStations.length > 0 ? Math.max(...activeStations.map(s => s.last_48h_mm)) : 0.0;
+
+    const meanIntensity = classifyRainfallIntensity(mean1h);
+    const peakIntensity = classifyRainfallIntensity(peak1hMm);
+
+    catchments[zoneId] = {
+      id: zoneId,
+      label: zoneMeta.label,
+      short_label: zoneMeta.short_label,
+      pillar: zoneMeta.pillar,
+      river: zoneMeta.river,
+      station_count: zoneStations.length,
+      active_station_count: activeStations.length,
+      mean_1h_mm: mean1h,
+      mean_6h_mm: mean6h,
+      mean_24h_mm: mean24h,
+      mean_48h_mm: mean48h,
+      peak_1h_mm: Number(peak1hMm.toFixed(2)),
+      peak_6h_mm: Number(peak6hMm.toFixed(2)),
+      peak_24h_mm: Number(peak24hMm.toFixed(2)),
+      peak_48h_mm: Number(peak48hMm.toFixed(2)),
+      peak_station: peak24hStation ? peak24hStation.name : null,
+      peak_station_id: peak24hStation ? peak24hStation.id : null,
+      peak_intensity_station: peak1hStation ? peak1hStation.name : null,
+      peak_intensity_station_id: peak1hStation ? peak1hStation.id : null,
+      rate_category: meanIntensity.code,
+      peak_rate_category: peakIntensity.code,
+      rate_label: meanIntensity.rate_label,
+      has_freezing_risk: zoneStations.some(s => s.freezing_risk),
+      all_stale: zoneStations.length === 0 || zoneStations.every(s => s.is_stale)
+    };
+  }
+
+  // Provide non-enumerable alias `lowland_levels` -> `moors_lowland` so both
+  // canonical key and alias work without duplicating entries in Object.keys/JSON.
+  if (catchments.moors_lowland) {
+    Object.defineProperty(catchments, 'lowland_levels', {
+      value: catchments.moors_lowland,
+      enumerable: false,
+      configurable: true
+    });
+  }
+
+  // Basin-wide summary for /api/status (Issue #65)
+  const activeBasinStations = stations.filter(s => !s.is_stale && s.valid_reading_count > 0);
+  const basinDenom = activeBasinStations.length;
+  const basin1hMeanMm = basinDenom > 0
+    ? Number((activeBasinStations.reduce((acc, s) => acc + s.last_1h_mm, 0) / basinDenom).toFixed(2))
+    : 0.0;
+  const basin6hMeanMm = basinDenom > 0
+    ? Number(Math.max(basin1hMeanMm, activeBasinStations.reduce((acc, s) => acc + s.last_6h_mm, 0) / basinDenom).toFixed(2))
+    : 0.0;
+  const basin24hMeanMm = basinDenom > 0
+    ? Number(Math.max(basin6hMeanMm, activeBasinStations.reduce((acc, s) => acc + s.last_24h_mm, 0) / basinDenom).toFixed(2))
+    : 0.0;
+  const basin48hMeanMm = basinDenom > 0
+    ? Number(Math.max(basin24hMeanMm, activeBasinStations.reduce((acc, s) => acc + s.last_48h_mm, 0) / basinDenom).toFixed(2))
+    : 0.0;
+
+  const activeUplandStations = activeBasinStations.filter(s => s.pillar === 'upland');
+  let uplandPeakStation = activeUplandStations[0] || null;
+  for (const s of activeUplandStations) {
+    if (
+      !uplandPeakStation ||
+      s.last_24h_mm > uplandPeakStation.last_24h_mm ||
+      (s.last_24h_mm === uplandPeakStation.last_24h_mm && s.last_1h_mm > uplandPeakStation.last_1h_mm)
+    ) {
+      uplandPeakStation = s;
+    }
+  }
+
+  const basinIntensity = classifyRainfallIntensity(basin1hMeanMm);
+
+  const rainfallSummary = {
+    basin_1h_mean_mm: basin1hMeanMm,
+    basin_6h_mean_mm: basin6hMeanMm,
+    basin_24h_mean_mm: basin24hMeanMm,
+    basin_48h_mean_mm: basin48hMeanMm,
+    upland_peak_station: uplandPeakStation ? uplandPeakStation.name : null,
+    upland_peak_station_id: uplandPeakStation ? uplandPeakStation.id : null,
+    upland_peak_24h_mm: uplandPeakStation ? uplandPeakStation.last_24h_mm : 0.0,
+    upland_peak_1h_mm: uplandPeakStation ? uplandPeakStation.last_1h_mm : 0.0,
+    rate_category: basinIntensity.code
+  };
+
+  return {
+    catchments,
+    stations,
+    stations_by_id: stationsById,
+    rainfall_summary: rainfallSummary
+  };
+}
+
+/**
+ * Empirically measures the out-of-sample cross-correlation lag (in hours) between
+ * 15-minute rainfall accumulations (mm) and positive downstream river stage rises (m).
+ *
+ * Strictly complies with [RULE-HUM-01], [RULE-SUB-01], and [RULE-CALC-01]:
+ * correlates observed point rainfall depth (mm) against observed positive stage change
+ * (delta_h in metres) without any volumetric runoff or discharge inference.
+ *
+ * @param {Array<object>} rainfallReadings - 15-min rainfall readings ({ dateTime|date_time, rainfall_mm|value })
+ * @param {Array<object>} stageReadings - 15-min stage readings ({ dateTime|date_time, value|stage_mAOD })
+ * @param {object} [options]
+ * @param {number} [options.minLagHours=0.5]
+ * @param {number} [options.maxLagHours=24.0]
+ * @param {number} [options.minSamplePairs=16]
+ * @returns {{ peak_lag_hours: number|null, peak_correlation_r: number|null, sample_pairs: number, sufficient_data: boolean, lag_profile: Array<{ lag_hours: number, correlation_r: number, sample_pairs: number }> }}
+ */
+export function computeEmpiricalCatchmentLag(rainfallReadings, stageReadings, options = {}) {
+  const STEP_MS = 15 * 60 * 1000;
+  const minLagHours = options.minLagHours ?? 0.5;
+  const maxLagHours = options.maxLagHours ?? 24.0;
+  const minSamplePairs = options.minSamplePairs ?? 16;
+
+  const { validReadings: cleanRain } = parseNormalizedRainfallReadings(rainfallReadings);
+  if (!Array.isArray(stageReadings) || cleanRain.length < minSamplePairs || stageReadings.length < minSamplePairs) {
+    return {
+      peak_lag_hours: null,
+      peak_correlation_r: null,
+      sample_pairs: 0,
+      sufficient_data: false,
+      lag_profile: []
+    };
+  }
+
+  const rainBySlot = new Map();
+  for (const r of cleanRain) {
+    const slot = Math.round(r.epochMs / STEP_MS) * STEP_MS;
+    rainBySlot.set(slot, (rainBySlot.get(slot) || 0) + r.rainfall_mm);
+  }
+
+  const stageBySlot = new Map();
+  for (const item of stageReadings) {
+    if (!item || typeof item !== 'object') continue;
+    const rawDate = item.dateTime ?? item.date_time ?? item.timestamp ?? item.date ?? null;
+    if (typeof rawDate !== 'string') continue;
+    const epochMs = Date.parse(rawDate);
+    if (!Number.isFinite(epochMs)) continue;
+    const rawStage = item.stage_mAOD !== undefined ? item.stage_mAOD : item.value;
+    const cleanStage = sanitizeStageValue(rawStage);
+    if (cleanStage === null) continue;
+    const slot = Math.round(epochMs / STEP_MS) * STEP_MS;
+    if (!stageBySlot.has(slot)) {
+      stageBySlot.set(slot, cleanStage);
+    }
+  }
+
+  // Compute positive 15-min stage rise delta_h >= 0 (in metres)
+  const stageRiseBySlot = new Map();
+  const sortedStageSlots = Array.from(stageBySlot.keys()).sort((a, b) => a - b);
+  for (let i = 1; i < sortedStageSlots.length; i++) {
+    const currSlot = sortedStageSlots[i];
+    const prevSlot = sortedStageSlots[i - 1];
+    if (currSlot - prevSlot === STEP_MS) {
+      const deltaM = stageBySlot.get(currSlot) - stageBySlot.get(prevSlot);
+      stageRiseBySlot.set(currSlot, Math.max(0, deltaM));
+    }
+  }
+
+  const minSteps = Math.max(0, Math.round((minLagHours * 3600 * 1000) / STEP_MS));
+  const maxSteps = Math.max(minSteps, Math.round((maxLagHours * 3600 * 1000) / STEP_MS));
+  const rainSlots = Array.from(rainBySlot.keys()).sort((a, b) => a - b);
+
+  const lagProfile = [];
+  let bestLagHours = null;
+  let bestR = -Infinity;
+  let bestPairs = 0;
+
+  for (let stepLag = minSteps; stepLag <= maxSteps; stepLag++) {
+    const lagMs = stepLag * STEP_MS;
+    const xs = [];
+    const ys = [];
+
+    for (let i = 0; i < rainSlots.length; i++) {
+      const rSlot = rainSlots[i];
+      const targetSlot = rSlot + lagMs;
+      if (stageRiseBySlot.has(targetSlot)) {
+        xs.push(rainBySlot.get(rSlot));
+        ys.push(stageRiseBySlot.get(targetSlot));
+      }
+    }
+
+    const n = xs.length;
+    if (n < minSamplePairs) continue;
+
+    let sumX = 0;
+    let sumY = 0;
+    for (let i = 0; i < n; i++) {
+      sumX += xs[i];
+      sumY += ys[i];
+    }
+    const meanX = sumX / n;
+    const meanY = sumY / n;
+
+    let cov = 0;
+    let varX = 0;
+    let varY = 0;
+    for (let i = 0; i < n; i++) {
+      const dx = xs[i] - meanX;
+      const dy = ys[i] - meanY;
+      cov += dx * dy;
+      varX += dx * dx;
+      varY += dy * dy;
+    }
+
+    if (varX <= 1e-12 || varY <= 1e-12) continue;
+    const r = Number((cov / Math.sqrt(varX * varY)).toFixed(4));
+    const lagHours = Number(((stepLag * 15) / 60).toFixed(2));
+
+    lagProfile.push({
+      lag_hours: lagHours,
+      correlation_r: r,
+      sample_pairs: n
+    });
+
+    if (r > bestR) {
+      bestR = r;
+      bestLagHours = lagHours;
+      bestPairs = n;
+    }
+  }
+
+  if (bestLagHours === null) {
+    return {
+      peak_lag_hours: null,
+      peak_correlation_r: null,
+      sample_pairs: 0,
+      sufficient_data: false,
+      lag_profile: []
+    };
+  }
+
+  return {
+    peak_lag_hours: bestLagHours,
+    peak_correlation_r: bestR,
+    sample_pairs: bestPairs,
+    sufficient_data: true,
+    lag_profile: lagProfile
+  };
+}
+
 
 
 

@@ -41,7 +41,7 @@ function createTestDb() {
 test('Migration v7: Provisions ea_warning_events schema and indices', () => {
   const db = createTestDb();
   const version = db.pragma('user_version', { simple: true });
-  assert.equal(version, 7, 'user_version must be 7');
+  assert.ok(version >= 7, 'user_version must be at least 7');
 
   const tableInfo = db.prepare("PRAGMA table_info(ea_warning_events)").all();
   const colNames = tableInfo.map(c => c.name);

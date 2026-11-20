@@ -178,16 +178,23 @@ test('new infrastructure pill evaluation functions return expected status string
 });
 
 test('evaluateHuishEpiscopi enforces hydraulic operating cut-off and alert stages', () => {
-  // Baseflow / normal stage (< 8.20m AOD) -> SECURE
-  const baseflow = evaluateHuishEpiscopi(6.68, true);
-  assert.equal(baseflow.code, 'SECURE');
-  assert.equal(baseflow.isRoadFlooded, false);
-  assert.equal(baseflow.isPumpsCutoff, false);
-  assert.ok(baseflow.clearanceText.includes('to Cut-off'));
+  // Baseflow / normal stage (< 8.20m AOD) -> SECURE & STANDBY (never DUTY_PUMPING / LEAD_PUMPING)
+  const baseflowSummer = evaluateHuishEpiscopi(6.68, true);
+  assert.equal(baseflowSummer.code, 'SECURE');
+  assert.equal(baseflowSummer.pumpStatus, 'STANDBY');
+  assert.equal(baseflowSummer.isRoadFlooded, false);
+  assert.equal(baseflowSummer.isPumpsCutoff, false);
+  assert.ok(baseflowSummer.clearanceText.includes('to Cut-off'));
+
+  const baseflowWinter = evaluateHuishEpiscopi(6.80, false);
+  assert.equal(baseflowWinter.code, 'SECURE');
+  assert.equal(baseflowWinter.pumpStatus, 'STANDBY');
+  assert.equal(baseflowWinter.isPumpsCutoff, false);
 
   // Stage between 7.30m and 8.20m is SECURE hydraulically (muchelneyRoadMargin tracks road elevation helper)
   const stage735 = evaluateHuishEpiscopi(7.35, true);
   assert.equal(stage735.code, 'SECURE');
+  assert.equal(stage735.pumpStatus, 'STANDBY');
   assert.equal(stage735.isRoadFlooded, true);
   assert.equal(stage735.isPumpsCutoff, false);
   assert.ok(stage735.clearanceText.includes('to Cut-off'));
@@ -195,12 +202,14 @@ test('evaluateHuishEpiscopi enforces hydraulic operating cut-off and alert stage
   // River cut-off at >= 8.20m AOD (< 8.48m AOD) -> CUT_OFF
   const cutoff = evaluateHuishEpiscopi(8.25, true);
   assert.equal(cutoff.code, 'CUT_OFF');
+  assert.equal(cutoff.pumpStatus, 'CUT_OFF');
   assert.equal(cutoff.isPumpsCutoff, true);
   assert.ok(cutoff.label.includes('PUMPS LOCKED'));
 
   // Flood alert at >= 8.48m AOD -> ALERT
   const alert = evaluateHuishEpiscopi(8.50, true);
   assert.equal(alert.code, 'ALERT');
+  assert.equal(alert.pumpStatus, 'CUT_OFF');
   assert.equal(alert.isPumpsCutoff, true);
   assert.ok(alert.label.includes('FLOOD ALERT'));
 });
