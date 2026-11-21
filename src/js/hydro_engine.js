@@ -2141,7 +2141,7 @@ export const TOPOLOGY_NETWORK_CONFIG = {
       catchment_filter: "tone",
       entry_node_id: "52108",
       correlated_river_station_ids: ["52108", "52109", "52111", "52162", "52118"],
-      tbr_station_ids: ["52100", "45168", "52101", "45232", "E14620"],
+      tbr_station_ids: ["52100", "45168", "52101", "45232", "E14620", "51126"],
       svg_anchor: {
         x: 18,
         y: 546,
@@ -2159,7 +2159,7 @@ export const TOPOLOGY_NETWORK_CONFIG = {
       catchment_filter: "parrett",
       entry_node_id: "52116",
       correlated_river_station_ids: ["52116", "52119", "52120", "52233"],
-      tbr_station_ids: ["52148", "52103"],
+      tbr_station_ids: ["52148", "52103", "52149"],
       svg_anchor: {
         x: 456,
         y: 546,
@@ -5111,7 +5111,7 @@ function createRaingaugeStationEntry(def) {
  * Single Source of Truth (SSOT) Registry for Somerset Environment Agency
  * Automated Tipping-Bucket Raingauges (TBR) ([RULE-SSOT-01]).
  *
- * All 12 stations are verified active 15-minute TBR outstations from the
+ * All 14 stations are verified active 15-minute TBR outstations from the
  * UK Environment Agency Flood Monitoring & Hydrology Data Explorer APIs (OGL v3.0).
  * Raingauges are ambient environmental sensors outside the civil asset state machine ([RULE-ENT-01]).
  */
@@ -5201,6 +5201,23 @@ export const RAINGAUGE_REGISTRY = Object.freeze({
     easting: 322750,
     northing: 130050
   }),
+  '51126': createRaingaugeStationEntry({
+    id: '51126',
+    wiski_id: '404517',
+    name: 'Quantock Farm (Quantock Hills Ridge)',
+    ea_label: 'Quantock Farm',
+    measure_id: '51126-rainfall-tipping_bucket_raingauge-t-15_min-mm',
+    catchment: 'tone_upland',
+    catchment_tags: ['tone_upland', 'quantock_hills'],
+    pillar: 'upland',
+    sub_catchment: 'Quantock Hills Ridge (Orographic Proxy — Tone North / West Somerset Divide)',
+    correlated_river_station_id: '52111',
+    grid_reference: 'ST160368',
+    lat: 51.124753,
+    long: -3.200962,
+    easting: 316050,
+    northing: 136850
+  }),
   '52148': createRaingaugeStationEntry({
     id: '52148',
     wiski_id: '398493',
@@ -5234,6 +5251,23 @@ export const RAINGAUGE_REGISTRY = Object.freeze({
     long: -2.632068,
     easting: 355650,
     northing: 111650
+  }),
+  '52149': createRaingaugeStationEntry({
+    id: '52149',
+    wiski_id: '400022',
+    name: 'Sherborne (Upper River Yeo East)',
+    ea_label: 'Sherborne',
+    measure_id: '52149-rainfall-tipping_bucket_raingauge-t-15_min-mm',
+    catchment: 'parrett_upland',
+    catchment_tags: ['parrett_upland', 'yeo_upland'],
+    pillar: 'upland',
+    sub_catchment: 'Eastern Upper River Yeo (Sherborne & River Wriggle)',
+    correlated_river_station_id: '52120',
+    grid_reference: 'ST630154',
+    lat: 50.937299,
+    long: -2.527224,
+    easting: 363050,
+    northing: 115450
   }),
   '52129': createRaingaugeStationEntry({
     id: '52129',

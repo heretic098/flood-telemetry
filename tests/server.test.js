@@ -184,7 +184,7 @@ test('GET /api/rainfall returns 200 and OGL v3.0 catchment & station rainfall pa
   const json = JSON.parse(res.body);
   assert.equal(json.status, 'ok');
   assert.ok(json.catchments && json.catchments.tone_upland && json.catchments.moors_lowland);
-  assert.ok(Array.isArray(json.stations) && json.stations.length === 12);
+  assert.ok(Array.isArray(json.stations) && json.stations.length === 14);
   assert.match(json.provenance.licence, /Open Government Licence v3\.0/);
 });
 

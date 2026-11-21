@@ -575,7 +575,7 @@
       "catchment_filter": "tone",
       "entry_node_id": "52108",
       "correlated_river_station_ids": ["52108", "52109", "52111", "52162", "52118"],
-      "tbr_station_ids": ["52100", "45168", "52101", "45232", "E14620"],
+      "tbr_station_ids": ["52100", "45168", "52101", "45232", "E14620", "51126"],
       "svg_anchor": {
         "x": 18,
         "y": 546,
@@ -593,7 +593,7 @@
       "catchment_filter": "parrett",
       "entry_node_id": "52116",
       "correlated_river_station_ids": ["52116", "52119", "52120", "52233"],
-      "tbr_station_ids": ["52148", "52103"],
+      "tbr_station_ids": ["52148", "52103", "52149"],
       "svg_anchor": {
         "x": 456,
         "y": 546,

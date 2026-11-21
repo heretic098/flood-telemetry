@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { JARGON_DEFINITIONS, renderJargonTerm } from '../src/js/jargon_popover.js';
-import { DEFAULT_TOPOLOGY_EDGES, TOPOLOGY_NETWORK_CONFIG, HYDRO_THRESHOLDS } from '../src/js/hydro_engine.js';
+import { DEFAULT_TOPOLOGY_EDGES, TOPOLOGY_NETWORK_CONFIG, HYDRO_THRESHOLDS, RAINGAUGE_REGISTRY } from '../src/js/hydro_engine.js';
 import { resolveCandidateCamerasForAsset } from '../src/js/event_camera_correlator.js';
 import { CAMERA_CATALOG } from '../src/js/api/camera_buffer.js';
 
@@ -1042,6 +1042,18 @@ test('UI/UX Audit 7.1 (Issue #67): Decoupled upland headwater rainfall badges, t
   );
   const originIds = topologyConfig.upland_rainfall_origins.map(o => o.id);
   assert.deepEqual(originIds, ['tone_upland', 'parrett_upland', 'isle_upland']);
+
+  for (const origin of topologyConfig.upland_rainfall_origins) {
+    const registryIds = Object.values(RAINGAUGE_REGISTRY)
+      .filter(st => st.catchment === origin.id)
+      .map(st => st.id)
+      .sort();
+    assert.deepEqual(
+      [...origin.tbr_station_ids].sort(),
+      registryIds,
+      `upland_rainfall_origins[${origin.id}].tbr_station_ids must stay 100% synced with RAINGAUGE_REGISTRY`
+    );
+  }
 
   const boxes = topologyConfig.upland_rainfall_origins.map(o => o.svg_anchor);
   for (let i = 0; i < boxes.length; i++) {

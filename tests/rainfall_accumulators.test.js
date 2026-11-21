@@ -58,11 +58,12 @@ function assertNoForbiddenVolumetricKeys(obj, path = 'root') {
   }
 }
 
-test('Issue #61: RAINGAUGE_REGISTRY codifies 12 verified EA TBR stations across all catchment zones with OGL v3.0 provenance', () => {
+test('Issue #61: RAINGAUGE_REGISTRY codifies 14 verified EA TBR stations across all catchment zones with OGL v3.0 provenance', () => {
   const entries = Object.values(RAINGAUGE_REGISTRY);
-  assert.ok(
-    entries.length >= 8 && entries.length <= 12,
-    `Expected 8-12 curated TBR stations in RAINGAUGE_REGISTRY, found ${entries.length}`
+  assert.equal(
+    entries.length,
+    14,
+    `Expected 14 curated TBR stations in RAINGAUGE_REGISTRY, found ${entries.length}`
   );
   assert.equal(Object.isFrozen(RAINGAUGE_REGISTRY), true, 'RAINGAUGE_REGISTRY must be frozen');
 
@@ -343,7 +344,7 @@ test('Issue #64: aggregateCatchmentRainfall computes spatial arithmetic means, e
 
   // tone_upland: 2 active stations (52100 with 30.0mm 24h, 52101 with 10.0mm 24h) -> mean 24h = 20.0mm, mean 1h = 2.0mm
   const tone = result.catchments.tone_upland;
-  assert.equal(tone.station_count, 5);
+  assert.equal(tone.station_count, 6);
   assert.equal(tone.active_station_count, 2);
   assert.equal(tone.mean_1h_mm, 2.0);
   assert.equal(tone.mean_6h_mm, 5.0);
@@ -351,6 +352,9 @@ test('Issue #64: aggregateCatchmentRainfall computes spatial arithmetic means, e
   assert.equal(tone.peak_24h_mm, 30.0);
   assert.equal(tone.peak_station_id, '52100');
   assert.equal(tone.rate_category, 'LIGHT');
+
+  // parrett_upland: 3 registered stations (52148, 52103, 52149)
+  assert.equal(result.catchments.parrett_upland.station_count, 3);
 
   // moors_lowland: 2 active stations (52147 with 8.0mm, 52227 with 12.0mm) -> mean 24h = 10.0mm, mean 1h = 1.2mm
   const moors = result.catchments.moors_lowland;
@@ -408,19 +412,20 @@ test('Issue #64: aggregateCatchmentRainfall excludes stale gauges (> maxStaleMin
   const liveIso = new Date(refMs).toISOString();
   const dead84hIso = new Date(refMs - 84 * 3600 * 1000).toISOString();
 
-  // 1 live tone_upland gauge at 20.0 mm/h (HEAVY) + 4 dead 84h-old tone_upland gauges
+  // 1 live tone_upland gauge at 20.0 mm/h (HEAVY) + 5 dead 84h-old tone_upland gauges
   const readingsByStation = {
     '52100': [{ dateTime: liveIso, value: 20.0 }],
     '45168': [{ dateTime: dead84hIso, value: 0.4 }],
     '52101': [{ dateTime: dead84hIso, value: 0.2 }],
     '45232': [{ dateTime: dead84hIso, value: 0.6 }],
-    'E14620': [{ dateTime: dead84hIso, value: 0.8 }]
+    'E14620': [{ dateTime: dead84hIso, value: 0.8 }],
+    '51126': [{ dateTime: dead84hIso, value: 0.4 }]
   };
 
   const result = aggregateCatchmentRainfall(readingsByStation, { nowMs: refMs });
   const tone = result.catchments.tone_upland;
 
-  assert.equal(tone.station_count, 5);
+  assert.equal(tone.station_count, 6);
   assert.equal(tone.active_station_count, 1, 'Stale 84h-old gauges must be excluded from active_station_count');
   assert.equal(tone.mean_1h_mm, 20.0, 'Spatial mean must not be diluted by stale offline gauges');
   assert.equal(tone.rate_category, 'HEAVY');

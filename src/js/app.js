@@ -1,4 +1,4 @@
-import { evaluateSpillway, evaluateGateState, aggregateGlobalStatus, evaluatePumpStatus, evaluateSowyChannel, evaluateAthelneySpillway, evaluateGravityClyse, evaluateBeerWall, evaluateOathLock, evaluateDunballEmergencyPumping, getSeasonalRegime, getActiveCrestHeight, getActiveCatchmentId, loadCatchmentConfig, evaluateHuishEpiscopi, evaluateMidelney, STATION_REGISTRY, GAUGE_DATUMS, HYDRO_THRESHOLDS, formatClearanceText, computeTrendVector, computeStageRates, disambiguateRiverTrend, evaluateRoadNetwork, evaluateStationFreshness, getValidStageOrFallback, CANONICAL_PUMP_THRESHOLDS, PRECIPITATION_PALETTE, RAINFALL_CATCHMENT_ZONES, classifyRainfallIntensity } from './hydro_engine.js';
+import { evaluateSpillway, evaluateGateState, aggregateGlobalStatus, evaluatePumpStatus, evaluateSowyChannel, evaluateAthelneySpillway, evaluateGravityClyse, evaluateBeerWall, evaluateOathLock, evaluateDunballEmergencyPumping, getSeasonalRegime, getActiveCrestHeight, getActiveCatchmentId, loadCatchmentConfig, evaluateHuishEpiscopi, evaluateMidelney, STATION_REGISTRY, RAINGAUGE_REGISTRY, GAUGE_DATUMS, HYDRO_THRESHOLDS, formatClearanceText, computeTrendVector, computeStageRates, disambiguateRiverTrend, evaluateRoadNetwork, evaluateStationFreshness, getValidStageOrFallback, CANONICAL_PUMP_THRESHOLDS, PRECIPITATION_PALETTE, RAINFALL_CATCHMENT_ZONES, classifyRainfallIntensity } from './hydro_engine.js';
 import { initJargonPopovers, renderJargonTerm } from './jargon_popover.js';
 import { setCameraEventsCatalog, openVisualEvidence, initCameraGuideTriggers } from './camera_guide.js';
 import { createRefreshController } from './modules/refresh_controller.js';
@@ -2843,7 +2843,7 @@ export function getRainfallBadgeMeta(rainfallData, fallbackSummary = null) {
     totalStations = stations.length;
     activeStations = stations.filter(s => s && !s.is_stale && (s.valid_reading_count ?? 1) > 0).length;
   } else {
-    totalStations = 12;
+    totalStations = Object.keys(RAINGAUGE_REGISTRY).length;
     activeStations = 0;
   }
 
@@ -3052,7 +3052,7 @@ export function renderCatchmentRainfallCard(rainfallData, fallbackSummary = null
       <div>
         <h2 class="card-title">🌧️ Catchment Rainfall &amp; Upland Inflow</h2>
         <div class="river-tag">
-          12 EA ${renderJargonTerm('Tipping Bucket Raingauge', 'Tipping-Bucket Raingauges')} • Atmospheric Forcing (mm depth)
+          ${Object.keys(RAINGAUGE_REGISTRY).length} EA ${renderJargonTerm('Tipping Bucket Raingauge', 'Tipping-Bucket Raingauges')} • Atmospheric Forcing (mm depth)
         </div>
       </div>
       <div class="status-badge ${escapeAttr(meta.badgeClass)}" aria-live="polite">
@@ -3152,7 +3152,7 @@ export function renderCatchmentRainfallCard(rainfallData, fallbackSummary = null
                 id="btn-open-rainfall-inspector"
                 aria-haspopup="dialog"
                 aria-controls="rainfall-inspector-dialog">
-          🔍 Inspect All 12 Raingauges
+          🔍 Inspect All ${Object.keys(RAINGAUGE_REGISTRY).length} Raingauges
         </button>
       </div>
     </div>
@@ -3162,7 +3162,7 @@ export function renderCatchmentRainfallCard(rainfallData, fallbackSummary = null
 }
 
 /**
- * Renders the Level 2 Deep Technical Drawer HTML for all 12 TBR raingauge stations.
+ * Renders the Level 2 Deep Technical Drawer HTML for all registered TBR raingauge stations.
  *
  * @param {object|null|undefined} rainfallData
  * @returns {string}

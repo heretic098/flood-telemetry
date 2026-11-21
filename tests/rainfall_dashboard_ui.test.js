@@ -187,8 +187,10 @@ test('Issue #66 Level 1: renderCatchmentRainfallCard renders rolling totals, Two
   assert.match(html, /24h Basin Mean/);
   assert.match(html, /48h Basin Mean/);
   // Active station count & peak station
-  assert.match(html, /4\/12 active/);
-  assert.match(html, /8 stale/);
+  assert.match(html, /4\/14 active/);
+  assert.match(html, /10 stale/);
+  assert.match(html, /14 EA /);
+  assert.match(html, /Inspect All 14 Raingauges/);
   assert.match(html, /Maundown \(Clatworthy \/ Brendon Hills\)/);
   // Two-pillar structure
   assert.match(html, /Pillar 1: Upland River Surge Drivers/);
@@ -218,7 +220,7 @@ test('Issue #66 Level 1: renderCatchmentRainfallCard renders rolling totals, Two
     stations: emptyAgg.stations
   });
   const emptyHtml = emptyCard.innerHTML;
-  assert.match(emptyHtml, /0\/12 active/);
+  assert.match(emptyHtml, /0\/14 active/);
   assert.match(emptyHtml, /No active upland gauges/);
   assert.match(emptyHtml, /AWAITING TBR/);
   assert.ok(!emptyHtml.includes('0.0 mm'), 'Empty/all-stale KPI tiles must display — instead of 0.0 mm');
@@ -267,7 +269,7 @@ test('Issue #66 Level 1: renderCatchmentRainfallCard renders rolling totals, Two
   assert.ok(xssCard.innerHTML.includes('&lt;script&gt;alert(1)&lt;/script&gt;'));
 });
 
-test('Issue #66 Level 2: renderRainfallInspectorContent & dialog lifecycle handle 12 stations and empty DB safely', async () => {
+test('Issue #66 Level 2: renderRainfallInspectorContent & dialog lifecycle handle 14 stations and empty DB safely', async () => {
   const { MockEl } = setupMinimalDom();
   resetRainfallInspectorForTests();
 
