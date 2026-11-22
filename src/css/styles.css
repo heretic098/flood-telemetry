@@ -28,12 +28,12 @@
   --status-open-border: #0571b0;
   --status-open-text: #38bdf8;
 
-  /* Atmospheric Precipitation Palette (Orthogonal to River Cyan/Red & Estuarine #0284c7) */
+  /* Atmospheric Precipitation Palette (Orthogonal to River Cyan/Red & Estuarine #0284c7; monotonically brightening on dark surfaces) */
   --precip-0: #64748b;
-  --precip-1: #a5b4fc;
-  --precip-2: #818cf8;
-  --precip-3: #6366f1;
-  --precip-4: #c084fc;
+  --precip-1: #818cf8;
+  --precip-2: #a5b4fc;
+  --precip-3: #c084fc;
+  --precip-4: #f0abfc;
   --precip-sum: #e0e7ff;
 }
 
@@ -4167,21 +4167,84 @@ svg.inspector-sparkline-svg {
 
 .header-summary-row {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.65rem;
   width: 100%;
   margin: 0.65rem 0 0.85rem 0;
 }
 
 .header-summary-row .road-status-banner,
-.header-summary-row .ea-warning-banner {
+.header-summary-row .ea-warning-banner,
+.header-summary-row .rainfall-summary-banner {
   margin: 0;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1024px) {
   .header-summary-row {
     grid-template-columns: 1fr;
   }
+}
+
+.rainfall-summary-banner {
+  width: 100%;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  overflow: hidden;
+  transition: all 0.2s ease;
+  background: rgba(30, 41, 59, 0.88);
+  border: 1px solid var(--precip-0);
+  color: #f8fafc;
+}
+
+.rainfall-summary-banner.precip-light {
+  background: rgba(30, 27, 75, 0.78);
+  border-color: var(--precip-1);
+}
+
+.rainfall-summary-banner.precip-moderate {
+  background: rgba(49, 46, 129, 0.72);
+  border-color: var(--precip-2);
+}
+
+.rainfall-summary-banner.precip-heavy {
+  background: rgba(88, 28, 135, 0.62);
+  border-color: var(--precip-3);
+}
+
+.rainfall-summary-banner.precip-torrential {
+  background: rgba(112, 26, 117, 0.68);
+  border-color: var(--precip-4);
+}
+
+.rainfall-banner-inner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.65rem 1.15rem;
+  min-height: 44px;
+  text-decoration: none;
+  color: inherit;
+  font-weight: 500;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.rainfall-banner-inner:hover {
+  filter: brightness(1.18);
+}
+
+.rainfall-banner-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.rainfall-banner-action {
+  font-weight: 600;
+  text-decoration: underline;
+  margin-left: 0.75rem;
+  white-space: nowrap;
 }
 
 .ea-warning-banner {
@@ -6003,23 +6066,286 @@ svg.inspector-sparkline-svg {
   border-radius: 9999px;
   font-size: 0.76rem;
   font-weight: 600;
-  background: rgba(30, 27, 75, 0.72);
-  border: 1px solid rgba(129, 140, 248, 0.45);
-  color: #e0e7ff;
+  background: rgba(15, 23, 42, 0.88);
+  border: 1px solid var(--precip-1);
+  color: #f8fafc;
   white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+  transition: filter 0.15s ease, border-color 0.15s ease;
+}
+
+a.basin-rain-pill:hover {
+  filter: brightness(1.18);
+}
+
+a.basin-rain-pill:focus-visible {
+  outline: 2px solid var(--precip-2);
+  outline-offset: 2px;
+}
+
+/* Dedicated Rainfall Page Layout (rainfall.html) */
+.rainfall-page-container {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 1rem 1.5rem 2.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.rainfall-page-banner {
+  width: 100%;
+  padding: 0.75rem 1.15rem;
+  border-radius: 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-align: center;
+  background: rgba(30, 41, 59, 0.9);
+  border: 1px solid var(--precip-0);
+  color: #f8fafc;
+}
+
+.rainfall-page-banner.precip-light {
+  background: rgba(30, 27, 75, 0.78);
+  border-color: var(--precip-1);
+}
+
+.rainfall-page-banner.precip-moderate {
+  background: rgba(49, 46, 129, 0.72);
+  border-color: var(--precip-2);
+}
+
+.rainfall-page-banner.precip-heavy {
+  background: rgba(88, 28, 135, 0.62);
+  border-color: var(--precip-3);
+}
+
+.rainfall-page-banner.precip-torrential {
+  background: rgba(112, 26, 117, 0.68);
+  border-color: var(--precip-4);
+}
+
+.rainfall-period-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.65rem;
+  padding: 0.5rem 0.85rem;
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(129, 140, 248, 0.25);
+  border-radius: 0.65rem;
+}
+
+.rainfall-period-btn {
+  min-height: 44px;
+  padding: 0.45rem 0.95rem;
+  border-radius: 9999px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(30, 41, 59, 0.8);
+  color: #e2e8f0;
+  font-size: 0.84rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.rainfall-period-btn:hover {
+  border-color: var(--precip-2);
+  color: #f8fafc;
+}
+
+.rainfall-period-btn:focus-visible {
+  outline: 2px solid var(--precip-2);
+  outline-offset: 2px;
+}
+
+.rainfall-period-btn.active {
+  background: rgba(49, 46, 129, 0.82);
+  border-color: var(--precip-2);
+  color: #f8fafc;
+}
+
+.rainfall-period-hint {
+  margin-left: auto;
+  font-size: 0.8rem;
+  color: #cbd5e1;
+}
+
+.rainfall-archive-notice {
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  background: rgba(30, 41, 59, 0.9);
+  border: 1px solid rgba(165, 180, 252, 0.4);
+  border-left: 4px solid var(--precip-2);
+  color: #e2e8f0;
+  font-size: 0.84rem;
+  line-height: 1.5;
+}
+
+.rainfall-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(129, 140, 248, 0.25);
+  border-radius: 0.65rem;
+}
+
+.rainfall-filter-btn {
+  min-height: 44px;
+  padding: 0.4rem 0.85rem;
+  border-radius: 9999px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: rgba(30, 41, 59, 0.8);
+  color: #e2e8f0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.rainfall-filter-btn:hover {
+  border-color: var(--precip-2);
+  color: #f8fafc;
+}
+
+.rainfall-filter-btn.active {
+  background: rgba(49, 46, 129, 0.78);
+  border-color: var(--precip-2);
+  color: #f8fafc;
+}
+
+.rainfall-inline-section {
+  background: rgba(15, 23, 42, 0.88);
+  border: 1px solid rgba(129, 140, 248, 0.28);
+  border-radius: 0.75rem;
+  padding: 1.25rem;
+}
+
+.rainfall-inline-header {
+  margin-bottom: 1rem;
+  border-bottom: 1px solid rgba(165, 180, 252, 0.16);
+  padding-bottom: 0.75rem;
+}
+
+.rainfall-inline-title {
+  margin: 0 0 0.25rem 0;
+  font-size: 1.15rem;
+  color: #f8fafc;
+}
+
+.rainfall-inline-subtitle {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #cbd5e1;
+}
+
+.rainfall-explainer-section {
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(129, 140, 248, 0.25);
+  border-radius: 0.75rem;
+  padding: 1.25rem;
+}
+
+.rainfall-explainer-section h3 {
+  margin: 0 0 0.85rem 0;
+  font-size: 1.05rem;
+  color: #f8fafc;
+}
+
+.rainfall-explainer-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin-bottom: 0.85rem;
+}
+
+.rainfall-explainer-card {
+  background: rgba(30, 41, 59, 0.65);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 0.5rem;
+  padding: 0.9rem 1rem;
+}
+
+.rainfall-explainer-card h4 {
+  margin: 0 0 0.45rem 0;
+  font-size: 0.92rem;
+  color: #e0e7ff;
+}
+
+.rainfall-explainer-card p {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.55;
+  color: #cbd5e1;
+}
+
+.rainfall-explainer-attribution {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #94a3b8;
+}
+
+.rainfall-explainer-attribution a {
+  color: #a5b4fc;
+  text-decoration: underline;
+}
+
+.hyetograph-full-link {
+  display: inline-block;
+  margin-top: 0.35rem;
+  color: #a5b4fc;
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+.hyetograph-full-link:hover {
+  color: #e0e7ff;
+}
+
+@media (max-width: 768px) {
+  .rainfall-page-container {
+    padding: 0.75rem 0.85rem 2rem;
+  }
+  .rainfall-explainer-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .basin-rain-pill.precip-stale,
 .basin-rain-pill.precip-dry {
-  background: rgba(30, 41, 59, 0.85);
-  border-color: rgba(148, 163, 184, 0.4);
-  color: #e2e8f0;
+  background: rgba(30, 41, 59, 0.9);
+  border-color: var(--precip-0);
+  color: #f8fafc;
+}
+
+.basin-rain-pill.precip-light {
+  background: rgba(30, 27, 75, 0.78);
+  border-color: var(--precip-1);
+  color: #f8fafc;
+}
+
+.basin-rain-pill.precip-moderate {
+  background: rgba(49, 46, 129, 0.72);
+  border-color: var(--precip-2);
+  color: #f8fafc;
+}
+
+.basin-rain-pill.precip-heavy {
+  background: rgba(88, 28, 135, 0.62);
+  border-color: var(--precip-3);
+  color: #f8fafc;
 }
 
 .basin-rain-pill.precip-torrential {
-  background: rgba(88, 28, 135, 0.48);
+  background: rgba(112, 26, 117, 0.68);
   border-color: var(--precip-4);
-  color: #f3e8ff;
+  color: #f8fafc;
 }
 
 .moor-card.rainfall-catchment-card {
@@ -6041,33 +6367,33 @@ svg.inspector-sparkline-svg {
 
 .badge-precip-dry,
 .badge-precip-stale {
-  background: rgba(30, 41, 59, 0.88);
+  background: rgba(30, 41, 59, 0.9);
   border: 1px solid var(--precip-0);
-  color: #e2e8f0;
+  color: #f8fafc;
 }
 
 .badge-precip-light {
-  background: rgba(49, 46, 129, 0.45);
+  background: rgba(30, 27, 75, 0.78);
   border: 1px solid var(--precip-1);
-  color: #e0e7ff;
+  color: #f8fafc;
 }
 
 .badge-precip-moderate {
-  background: rgba(67, 56, 202, 0.45);
+  background: rgba(49, 46, 129, 0.72);
   border: 1px solid var(--precip-2);
-  color: #e0e7ff;
+  color: #f8fafc;
 }
 
 .badge-precip-heavy {
-  background: rgba(79, 70, 229, 0.5);
+  background: rgba(88, 28, 135, 0.62);
   border: 1px solid var(--precip-3);
   color: #f8fafc;
 }
 
 .badge-precip-torrential {
-  background: rgba(107, 33, 168, 0.55);
+  background: rgba(112, 26, 117, 0.68);
   border: 1px solid var(--precip-4);
-  color: #f3e8ff;
+  color: #f8fafc;
 }
 
 .rainfall-summary-strip {
@@ -6376,54 +6702,6 @@ svg.inspector-sparkline-svg {
   text-decoration: underline;
 }
 
-.rainfall-inspector-trigger {
-  min-height: 44px;
-  padding: 0.5rem 0.95rem;
-  border-radius: 0.5rem;
-  background: rgba(79, 70, 229, 0.35);
-  border: 1px solid var(--precip-1);
-  color: #f8fafc;
-  font-size: 0.82rem;
-  font-weight: 700;
-  cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease;
-}
-
-.rainfall-inspector-trigger:hover {
-  background: rgba(99, 102, 241, 0.5);
-  border-color: #e0e7ff;
-}
-
-.rainfall-inspector-trigger:focus-visible {
-  outline: 2px solid #e0e7ff;
-  outline-offset: 2px;
-}
-
-.rainfall-inspector-dialog {
-  border: none;
-  padding: 0;
-  margin: 0;
-  max-width: 100vw;
-  max-height: 100vh;
-}
-
-.rainfall-inspector-dialog .close-drawer-btn {
-  min-width: 44px;
-  min-height: 44px;
-  flex-shrink: 0;
-}
-
-.rainfall-inspector-drawer {
-  max-width: 960px;
-}
-
-.rainfall-inspector-body {
-  display: flex;
-  flex-direction: column;
-  gap: 1.1rem;
-  margin-top: 0.75rem;
-}
-
 .rainfall-inspector-zone-header {
   display: flex;
   justify-content: space-between;
@@ -6515,8 +6793,5 @@ svg.inspector-sparkline-svg {
   }
   .basin-rain-pill {
     white-space: normal;
-  }
-  .rainfall-inspector-trigger {
-    width: 100%;
   }
 }

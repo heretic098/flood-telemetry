@@ -126,7 +126,7 @@
       INITIALIZING SYSTEM TELEMETRY...
     </div>
 
-    <!-- Summary Banners Row: Roads & Access + Official EA Flood Warnings -->
+    <!-- Summary Banners Row: Roads & Access + Official EA Flood Warnings + Catchment Rainfall -->
     <div class="header-summary-row">
       <div id="road-status-summary-banner" class="road-status-banner banner-passable" role="region" aria-label="Roads &amp; Access Status Summary">
         <a href="roads.html" class="road-banner-inner" id="road-banner-link">
@@ -141,6 +141,13 @@
           <span class="ea-banner-action" id="ea-warning-banner-action">View Official Briefing</span>
         </button>
       </div>
+
+      <div id="rainfall-summary-banner" class="rainfall-summary-banner precip-dry" role="region" aria-label="Catchment Rainfall Summary">
+        <a href="rainfall.html" class="rainfall-banner-inner" id="rainfall-banner-link">
+          <span class="rainfall-banner-text" id="rainfall-banner-text">🌧️ <strong>Catchment Rainfall:</strong> -- (1h) | -- (24h)</span>
+          <span class="rainfall-banner-action" id="rainfall-banner-action">View Rainfall ↗</span>
+        </a>
+      </div>
     </div>
 
     <div class="global-timestamp-bar" id="global-timestamp-banner" role="region" aria-label="Telemetry Freshness Status">
@@ -148,7 +155,7 @@
         <span class="gt-badge-pill" id="gt-mode-badge">📡 REAL-TIME STREAM</span>
         <span class="gt-timestamp-display" id="gt-time-display">Showing latest live telemetry across all catchments</span>
         <span class="gt-relative-age" id="gt-age-display"></span>
-        <span class="basin-rain-pill precip-dry" id="basin-rain-pill" role="status" aria-live="polite" title="Basin-wide average rainfall across 14 Environment Agency Tipping-Bucket Raingauges (OGL v3.0)">🌧️ Basin Rain: -- (1h) | -- (24h)</span>
+        <a href="rainfall.html" class="basin-rain-pill precip-dry" id="basin-rain-pill" aria-live="polite" title="Basin-wide average rainfall across 14 Environment Agency Tipping-Bucket Raingauges (OGL v3.0) — open full Catchment Rainfall view">🌧️ Basin Rain: -- (1h) | -- (24h)</a>
       </div>
       <div class="gt-right-group">
         <span class="gt-sync-status" id="gt-sync-status" aria-live="polite">💡 Hover over or scrub any sparkline to inspect synchronized crosshair</span>
@@ -180,6 +187,7 @@
         <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
           <a href="roads.html" style="color: #38bdf8; font-weight: 600; text-decoration: underline;">🚗 Monitored Roads &amp; Access Status →</a>
           <a href="topology.html" style="color: #38bdf8; font-weight: 600; text-decoration: underline;">🗺️ Hydrological Network Topology →</a>
+          <a href="rainfall.html" style="color: #a5b4fc; font-weight: 600; text-decoration: underline;">🌧️ Catchment Rainfall &amp; 14 Raingauges →</a>
           <a href="methodology.html" style="color: #38bdf8; font-weight: 600; text-decoration: underline;">📐 Datum &amp; Survey Methodology →</a>
           <a href="https://check-for-flooding.service.gov.uk" target="_blank" rel="noopener noreferrer" style="color: #38bdf8; font-weight: 600; text-decoration: underline;">UK Environment Agency Flood Warnings ↗</a>
         </div>
@@ -273,27 +281,6 @@
 
       <div class="drawer-footer-note">
         <p>Contains public sector information licensed under the <a href="https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/" target="_blank" rel="noopener noreferrer">Open Government Licence v3.0</a> (UK Environment Agency Flood Monitoring API).</p>
-      </div>
-    </div>
-  </dialog>
-
-  <!-- Catchment Rainfall & 14-Station Hyetograph Inspector Modal Drawer [Issue #66] -->
-  <dialog class="sys-health-backdrop rainfall-inspector-dialog" id="rainfall-inspector-dialog" aria-labelledby="rainfall-modal-title" aria-modal="true">
-    <div class="sys-health-drawer rainfall-inspector-drawer">
-      <div class="drawer-header">
-        <div>
-          <h3 id="rainfall-modal-title">🌧️ Catchment Rainfall &amp; 14-Gauge Hyetograph Inspector</h3>
-          <p class="drawer-subtitle" id="rainfall-modal-subtitle">15-Minute Tipping-Bucket Raingauge Telemetry &amp; Cumulative Totals (mm)</p>
-        </div>
-        <button type="button" class="close-drawer-btn" id="rainfall-inspector-close" aria-label="Close catchment rainfall inspector">✕</button>
-      </div>
-
-      <div id="rainfall-inspector-body" class="rainfall-inspector-body" aria-live="polite">
-        <p class="rainfall-inspector-loading">Loading tipping-bucket raingauge telemetry...</p>
-      </div>
-
-      <div class="drawer-footer-note">
-        <p>Contains Environment Agency 15-minute rainfall telemetry (0.20 mm tip resolution) licensed under the <a href="https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/" target="_blank" rel="noopener noreferrer">Open Government Licence v3.0</a>. Gauges measure raw rainfall depth (mm) only.</p>
       </div>
     </div>
   </dialog>

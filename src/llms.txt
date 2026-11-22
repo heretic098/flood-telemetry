@@ -8,6 +8,7 @@ Somerset Flood Telemetry (https://floodtelemetry.uk/) is an independent, communi
 - [Main Dashboard](https://floodtelemetry.uk/): Live hydrological telemetry cards, spillway overtopping evaluations, lowland polder states, and estuarine tidal locking status.
 - [Roads & Access Corridors](https://floodtelemetry.uk/roads.html): Highway passability assessments, surveyed crown elevations, and clearance margins for 8 monitored Somerset Levels highway corridors.
 - [River Network Topology](https://floodtelemetry.uk/topology.html): Interactive schematic node-and-reach topological map from upland headwaters to the Bristol Channel sea outfall at Dunball.
+- [Catchment Rainfall & Raingauges](https://floodtelemetry.uk/rainfall.html): Live 15-minute tipping-bucket raingauge telemetry across 14 Environment Agency stations covering Somerset upland headwaters and lowland moors.
 - [Methodology & Invariants](https://floodtelemetry.uk/methodology.html): Technical documentation on geodetic benchmarks, vertical datums (mAOD Newlyn), Villemonte weir submergence physics, tipping-bucket rainfall (TBR) sensor physics, and epistemic humility standards.
 
 ## Monitored Assets Summary

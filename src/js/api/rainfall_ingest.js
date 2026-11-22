@@ -196,18 +196,29 @@ export async function syncRainfallMeasure(
  * @returns {{ catchments: Record<string, object>, stations: Array<object>, stations_by_id: Record<string, object>, rainfall_summary: object, latest_rainfall_reading_at: string|null, updated_at: string }}
  */
 export function getRainfallTelemetrySnapshot(dbInstance, options = {}) {
+  const period = hydroEngine.normalizeRainfallPeriod(options.period);
+  const periodCfg = hydroEngine.RAINFALL_PERIOD_CONFIG[period];
   const rawRef = options.nowMs ?? options.referenceTime ?? Date.now();
   const parsedRef = typeof rawRef === 'number' ? rawRef : Date.parse(String(rawRef));
   const nowMs = (Number.isFinite(parsedRef) && !Number.isNaN(parsedRef)) ? parsedRef : Date.now();
   const futureDriftMs = options.futureDriftToleranceMs ?? 120 * 1000;
   const upperBoundMs = nowMs + futureDriftMs;
-  const lookbackMs = 50 * 3600 * 1000;
+  const lookbackMs = periodCfg.lookback_hours * 3600 * 1000;
   const sinceIso = new Date(nowMs - lookbackMs).toISOString();
 
   const registry = options.registry || hydroEngine.RAINGAUGE_REGISTRY;
   const readingsByMeasure = {};
+  let earliestRainfallReadingAt = null;
 
   if (dbInstance && typeof dbInstance.prepare === 'function') {
+    const earliestRow = dbInstance.prepare(`
+      SELECT MIN(date_time) AS earliest_ts
+      FROM historical_rainfall
+    `).get();
+    if (earliestRow && typeof earliestRow.earliest_ts === 'string') {
+      earliestRainfallReadingAt = earliestRow.earliest_ts;
+    }
+
     const recentStmt = dbInstance.prepare(`
       SELECT date_time, rainfall_mm
       FROM historical_rainfall
@@ -248,6 +259,7 @@ export function getRainfallTelemetrySnapshot(dbInstance, options = {}) {
 
   const aggregated = hydroEngine.aggregateCatchmentRainfall(readingsByMeasure, {
     ...options,
+    period,
     registry,
     nowMs
   });
@@ -264,8 +276,20 @@ export function getRainfallTelemetrySnapshot(dbInstance, options = {}) {
     }
   }
 
+  const earliestMs = earliestRainfallReadingAt ? Date.parse(earliestRainfallReadingAt) : NaN;
+  const archiveCoverageHours = Number.isFinite(earliestMs)
+    ? Number(Math.max(0, (nowMs - earliestMs) / 3600000).toFixed(1))
+    : 0.0;
+  const isPartialArchive = archiveCoverageHours < (periodCfg.window_hours * 0.9);
+
   return {
     ...aggregated,
+    period,
+    bucket_minutes: periodCfg.bucket_minutes,
+    bucket_label: periodCfg.bucket_label,
+    archive_coverage_hours: archiveCoverageHours,
+    is_partial_archive: isPartialArchive,
+    earliest_rainfall_reading_at: earliestRainfallReadingAt,
     latest_rainfall_reading_at: latestRainfallReadingAt,
     updated_at: new Date(nowMs).toISOString()
   };

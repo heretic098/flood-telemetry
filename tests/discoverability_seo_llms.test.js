@@ -51,7 +51,7 @@ test('Discoverability: /robots.txt serves valid directives and links sitemap', a
   assert.ok(res.body.includes('Sitemap: https://floodtelemetry.uk/sitemap.xml'), 'Must link to sitemap.xml');
 });
 
-test('Discoverability: /sitemap.xml serves valid XML with all 7 primary canonical URLs', async () => {
+test('Discoverability: /sitemap.xml serves valid XML with all primary canonical URLs', async () => {
   const res = await httpGet('/sitemap.xml');
   assert.equal(res.status, 200);
   assert.ok(res.headers['content-type'].includes('application/xml'), 'Content-Type must be application/xml');
@@ -62,6 +62,7 @@ test('Discoverability: /sitemap.xml serves valid XML with all 7 primary canonica
     'https://floodtelemetry.uk/',
     'https://floodtelemetry.uk/roads.html',
     'https://floodtelemetry.uk/topology.html',
+    'https://floodtelemetry.uk/rainfall.html',
     'https://floodtelemetry.uk/methodology.html',
     'https://floodtelemetry.uk/llms.txt',
     'https://floodtelemetry.uk/llms-full.txt',

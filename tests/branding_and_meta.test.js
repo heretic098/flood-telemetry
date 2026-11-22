@@ -9,6 +9,7 @@ const ROOT_DIR = path.resolve('.');
 const indexHtml = renderHtmlWithPartials(fs.readFileSync(path.join(ROOT_DIR, 'src/index.html'), 'utf8'), 'index.html');
 const roadsHtml = renderHtmlWithPartials(fs.readFileSync(path.join(ROOT_DIR, 'src/roads.html'), 'utf8'), 'roads.html');
 const topologyHtml = renderHtmlWithPartials(fs.readFileSync(path.join(ROOT_DIR, 'src/topology.html'), 'utf8'), 'topology.html');
+const rainfallHtml = renderHtmlWithPartials(fs.readFileSync(path.join(ROOT_DIR, 'src/rainfall.html'), 'utf8'), 'rainfall.html');
 const methodologyHtml = renderHtmlWithPartials(fs.readFileSync(path.join(ROOT_DIR, 'src/methodology.html'), 'utf8'), 'methodology.html');
 const stylesCss = fs.readFileSync(path.join(ROOT_DIR, 'src/css/styles.css'), 'utf8');
 const serverJs = fs.readFileSync(path.join(ROOT_DIR, 'server.js'), 'utf8');
@@ -17,6 +18,7 @@ const htmlPages = [
   { name: 'index.html', html: indexHtml },
   { name: 'roads.html', html: roadsHtml },
   { name: 'topology.html', html: topologyHtml },
+  { name: 'rainfall.html', html: rainfallHtml },
   { name: 'methodology.html', html: methodologyHtml }
 ];
 

@@ -117,13 +117,32 @@ test('Issue #61: RAINGAUGE_REGISTRY codifies 14 verified EA TBR stations across 
   assert.ok(RAINGAUGE_PROVENANCE.licence.includes('Open Government Licence v3.0'));
 });
 
-test('Issue #61 & #64: PRECIPITATION_PALETTE and classifyRainfallIntensity enforce orthogonal indigo/violet tokens and tier boundaries', () => {
+test('Issue #61 & #64: PRECIPITATION_PALETTE and classifyRainfallIntensity enforce monotonic indigo/violet/orchid tokens and UK frontal tier boundaries', () => {
   // Never collide with Estuarine Deep Blue (#0284c7) or life-safety red/amber
   const bannedColors = new Set(['#0284c7', '#ef4444', '#dc2626', '#f59e0b', '#d97706']);
   for (const entry of Object.values(PRECIPITATION_PALETTE)) {
     assert.ok(!bannedColors.has(entry.hex.toLowerCase()), `Palette color ${entry.hex} must not collide with estuarine blue or alert red/amber`);
   }
   assert.equal(RAINFALL_INTENSITY_TIERS.length, 5);
+
+  // Dark-mode luminance hierarchy: no inverted dim indigo (#6366f1); all wet tiers brighter than DRY,
+  // indigo step brightens (LIGHT -> MODERATE), violet/orchid step brightens (HEAVY -> TORRENTIAL), and TORRENTIAL is peak luminance.
+  const relLum = (hex) => {
+    const [r, g, b] = [1, 3, 5].map(i => {
+      const c = parseInt(hex.slice(i, i + 2), 16) / 255;
+      return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  };
+  const tierHexes = RAINFALL_INTENSITY_TIERS.map(t => t.color_hex);
+  assert.deepEqual(tierHexes, ['#64748b', '#818cf8', '#a5b4fc', '#c084fc', '#f0abfc']);
+  assert.ok(!tierHexes.includes('#6366f1'), 'Dim dark-mode-inverted #6366f1 must be removed from precipitation palette');
+  for (let i = 1; i < tierHexes.length; i++) {
+    assert.ok(relLum(tierHexes[i]) > relLum(tierHexes[0]), `Wet tier ${tierHexes[i]} must be brighter than DRY ${tierHexes[0]}`);
+  }
+  assert.ok(relLum(tierHexes[2]) > relLum(tierHexes[1]), 'MODERATE (#a5b4fc) must be brighter than LIGHT (#818cf8)');
+  assert.ok(relLum(tierHexes[4]) > relLum(tierHexes[3]), 'TORRENTIAL (#f0abfc) must be brighter than HEAVY (#c084fc)');
+  assert.ok(relLum(tierHexes[4]) > relLum(tierHexes[2]), 'TORRENTIAL (#f0abfc) must be the brightest tier overall');
 
   assert.equal(classifyRainfallIntensity(0.0).code, 'DRY');
   assert.equal(classifyRainfallIntensity(null).code, 'DRY');
@@ -134,21 +153,25 @@ test('Issue #61 & #64: PRECIPITATION_PALETTE and classifyRainfallIntensity enfor
 
   assert.equal(classifyRainfallIntensity(0.1).code, 'LIGHT');
   assert.equal(classifyRainfallIntensity(0.2).code, 'LIGHT');
-  assert.equal(classifyRainfallIntensity(2.4).code, 'LIGHT');
-  assert.equal(classifyRainfallIntensity(2.45).code, 'LIGHT');
-  assert.equal(classifyRainfallIntensity(2.45).rate_label, 'Light (2.4 mm/h)');
+  assert.equal(classifyRainfallIntensity(1.9).code, 'LIGHT');
+  assert.equal(classifyRainfallIntensity(1.95).code, 'LIGHT');
+  assert.equal(classifyRainfallIntensity(1.95).rate_label, 'Light (1.9 mm/h)');
 
-  assert.equal(classifyRainfallIntensity(2.5).code, 'MODERATE');
-  assert.equal(classifyRainfallIntensity(6.0).code, 'MODERATE');
-  assert.equal(classifyRainfallIntensity(9.9).code, 'MODERATE');
+  assert.equal(classifyRainfallIntensity(2.0).code, 'MODERATE');
+  assert.equal(classifyRainfallIntensity(2.0).label, 'Steady');
+  assert.equal(classifyRainfallIntensity(3.6).rate_label, 'Steady (3.6 mm/h)');
+  assert.equal(classifyRainfallIntensity(4.9).code, 'MODERATE');
 
-  assert.equal(classifyRainfallIntensity(10.0).code, 'HEAVY');
-  assert.equal(classifyRainfallIntensity(18.4).code, 'HEAVY');
-  assert.equal(classifyRainfallIntensity(24.9).code, 'HEAVY');
+  assert.equal(classifyRainfallIntensity(5.0).code, 'HEAVY');
+  assert.equal(classifyRainfallIntensity(5.0).label, 'Heavy');
+  assert.equal(classifyRainfallIntensity(7.5).code, 'HEAVY');
+  assert.equal(classifyRainfallIntensity(9.9).code, 'HEAVY');
 
-  assert.equal(classifyRainfallIntensity(25.0).code, 'TORRENTIAL');
+  assert.equal(classifyRainfallIntensity(10.0).code, 'TORRENTIAL');
+  assert.equal(classifyRainfallIntensity(10.0).label, 'Intense');
+  assert.equal(classifyRainfallIntensity(12.4).rate_label, 'Intense (12.4 mm/h)');
   assert.equal(classifyRainfallIntensity(42.6).code, 'TORRENTIAL');
-  assert.equal(classifyRainfallIntensity(42.6).color_hex, '#c084fc');
+  assert.equal(classifyRainfallIntensity(42.6).color_hex, '#f0abfc');
 });
 
 test('Issue #64: sanitizeRainfallReadingValue rejects nulls, booleans, negatives, NaNs, and fault spikes > 100mm', () => {
@@ -351,7 +374,7 @@ test('Issue #64: aggregateCatchmentRainfall computes spatial arithmetic means, e
   assert.equal(tone.mean_24h_mm, 20.0);
   assert.equal(tone.peak_24h_mm, 30.0);
   assert.equal(tone.peak_station_id, '52100');
-  assert.equal(tone.rate_category, 'LIGHT');
+  assert.equal(tone.rate_category, 'MODERATE');
 
   // parrett_upland: 3 registered stations (52148, 52103, 52149)
   assert.equal(result.catchments.parrett_upland.station_count, 3);
@@ -412,7 +435,7 @@ test('Issue #64: aggregateCatchmentRainfall excludes stale gauges (> maxStaleMin
   const liveIso = new Date(refMs).toISOString();
   const dead84hIso = new Date(refMs - 84 * 3600 * 1000).toISOString();
 
-  // 1 live tone_upland gauge at 20.0 mm/h (HEAVY) + 5 dead 84h-old tone_upland gauges
+  // 1 live tone_upland gauge at 20.0 mm/h (TORRENTIAL / Intense) + 5 dead 84h-old tone_upland gauges
   const readingsByStation = {
     '52100': [{ dateTime: liveIso, value: 20.0 }],
     '45168': [{ dateTime: dead84hIso, value: 0.4 }],
@@ -428,9 +451,9 @@ test('Issue #64: aggregateCatchmentRainfall excludes stale gauges (> maxStaleMin
   assert.equal(tone.station_count, 6);
   assert.equal(tone.active_station_count, 1, 'Stale 84h-old gauges must be excluded from active_station_count');
   assert.equal(tone.mean_1h_mm, 20.0, 'Spatial mean must not be diluted by stale offline gauges');
-  assert.equal(tone.rate_category, 'HEAVY');
+  assert.equal(tone.rate_category, 'TORRENTIAL');
   assert.equal(result.rainfall_summary.basin_1h_mean_mm, 20.0);
-  assert.equal(result.rainfall_summary.rate_category, 'HEAVY');
+  assert.equal(result.rainfall_summary.rate_category, 'TORRENTIAL');
 
   // Catchments with zero active gauges must report null peak_station and 0.0 peak totals
   const parrett = result.catchments.parrett_upland;
@@ -495,4 +518,48 @@ test('Issue #64: buildRainfallSeries15Min and computeEmpiricalCatchmentLag recov
   assert.equal(lagResult.peak_lag_hours, 4.0);
   assert.ok(lagResult.peak_correlation_r > 0.95, `Expected high correlation r > 0.95, got ${lagResult.peak_correlation_r}`);
   assertNoForbiddenVolumetricKeys(lagResult);
+});
+
+test('Adaptive Periods: computeRainfallAccumulators & aggregateCatchmentRainfall bucket 7d (3h) and 30d (day) while preserving live 1h-48h accumulators', () => {
+  const refMs = Date.parse('2026-11-22T00:00:00Z');
+  const readings = [
+    // 10 days ago (only in 30d)
+    { dateTime: new Date(refMs - 10 * 24 * 3600 * 1000).toISOString(), value: 12.0 },
+    // 4 days ago (in 7d and 30d, two readings in same 3h UTC bucket)
+    { dateTime: new Date(refMs - 4 * 24 * 3600 * 1000).toISOString(), value: 4.0 },
+    { dateTime: new Date(refMs - (4 * 24 * 3600 - 900) * 1000).toISOString(), value: 2.0 },
+    // 36h ago (in 48h, 7d, 30d)
+    { dateTime: new Date(refMs - 36 * 3600 * 1000).toISOString(), value: 5.0 },
+    // 30m ago (in 1h, 6h, 24h, 48h, 7d, 30d)
+    { dateTime: new Date(refMs - 30 * 60 * 1000).toISOString(), value: 1.4 }
+  ];
+
+  const acc7d = computeRainfallAccumulators(readings, { nowMs: refMs, period: '7d' });
+  assert.equal(acc7d.period, '7d');
+  assert.equal(acc7d.bucket_minutes, 180);
+  assert.equal(acc7d.bucket_label, '3h');
+  assert.equal(acc7d.last_1h_mm, 1.4);
+  assert.equal(acc7d.last_24h_mm, 1.4);
+  assert.equal(acc7d.last_48h_mm, 6.4);
+  assert.equal(acc7d.period_total_mm, 12.4); // 4.0 + 2.0 + 5.0 + 1.4
+  assert.equal(acc7d.series_15min.length, 1); // 24h 15-min series preserved
+  assert.equal(acc7d.series.length, 3); // 3 distinct 3h buckets
+  assert.equal(acc7d.series[0].rainfall_mm, 6.0);
+  assert.equal(acc7d.series[acc7d.series.length - 1].cumulative_mm, 12.4);
+
+  const acc30d = computeRainfallAccumulators(readings, { nowMs: refMs, period: '30d' });
+  assert.equal(acc30d.period, '30d');
+  assert.equal(acc30d.bucket_minutes, 1440);
+  assert.equal(acc30d.bucket_label, 'day');
+  assert.equal(acc30d.period_total_mm, 24.4); // 12.0 + 6.0 + 5.0 + 1.4
+  assert.equal(acc30d.series.length, 4); // 4 distinct daily buckets
+  assert.equal(acc30d.series[acc30d.series.length - 1].cumulative_mm, 24.4);
+
+  const agg30d = aggregateCatchmentRainfall({ '52100': readings }, { nowMs: refMs, period: '30d' });
+  assert.equal(agg30d.period, '30d');
+  assert.equal(agg30d.bucket_minutes, 1440);
+  assert.equal(agg30d.bucket_label, 'day');
+  assert.equal(agg30d.catchments.tone_upland.period_total_mm, 24.4);
+  assert.equal(agg30d.rainfall_summary.period_total_mm, 24.4);
+  assertNoForbiddenVolumetricKeys(agg30d);
 });

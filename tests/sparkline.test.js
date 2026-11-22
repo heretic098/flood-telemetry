@@ -299,9 +299,9 @@ test('Hyetograph: normalizeRainfallSeries enforces monotonic cumulative totals a
 test('Hyetograph: renderHyetographSparkline renders upward discrete bars, cumulative mass curve, and orthogonal palette', () => {
   const html = renderHyetographSparkline([
     { timestamp: '2026-11-19T10:00:00Z', rainfall_mm: 0.2, cumulative_mm: 0.2 },
-    { timestamp: '2026-11-19T10:15:00Z', rainfall_mm: 1.4, cumulative_mm: 1.6 },
-    { timestamp: '2026-11-19T10:30:00Z', rainfall_mm: 3.2, cumulative_mm: 4.8 },
-    { timestamp: '2026-11-19T10:45:00Z', rainfall_mm: 7.0, cumulative_mm: 11.8 }
+    { timestamp: '2026-11-19T10:15:00Z', rainfall_mm: 0.8, cumulative_mm: 1.0 },
+    { timestamp: '2026-11-19T10:30:00Z', rainfall_mm: 1.6, cumulative_mm: 2.6 },
+    { timestamp: '2026-11-19T10:45:00Z', rainfall_mm: 3.2, cumulative_mm: 5.8 }
   ], { title: 'Test Uplands Hyetograph' });
 
   assert.ok(html.includes('hyetograph-wrapper'));
@@ -310,10 +310,10 @@ test('Hyetograph: renderHyetographSparkline renders upward discrete bars, cumula
   assert.ok(html.includes('role="region"'));
   assert.ok(html.includes('class="hyetograph-bar"'));
   assert.ok(html.includes('class="hyetograph-cumulative-line"'));
-  assert.ok(html.includes(PRECIPITATION_PALETTE.LIGHT.hex), 'Light rain must use #a5b4fc');
-  assert.ok(html.includes(PRECIPITATION_PALETTE.MODERATE.hex), 'Moderate rain must use #818cf8');
-  assert.ok(html.includes(PRECIPITATION_PALETTE.HEAVY.hex), 'Heavy rain must use #6366f1');
-  assert.ok(html.includes(PRECIPITATION_PALETTE.TORRENTIAL.hex), 'Torrential rain must use #c084fc');
+  assert.ok(html.includes(PRECIPITATION_PALETTE.LIGHT.hex), 'Light rain must use #818cf8');
+  assert.ok(html.includes(PRECIPITATION_PALETTE.MODERATE.hex), 'Steady rain must use #a5b4fc');
+  assert.ok(html.includes(PRECIPITATION_PALETTE.HEAVY.hex), 'Heavy rain must use #c084fc');
+  assert.ok(html.includes(PRECIPITATION_PALETTE.TORRENTIAL.hex), 'Intense rain must use #f0abfc');
   assert.ok(html.includes(PRECIPITATION_PALETTE.CUMULATIVE_LINE.hex), 'Cumulative mass curve must use #e0e7ff');
 
   // Strict UI-COL-01/02 orthogonal separation: never estuarine blue or flood red/amber
@@ -348,4 +348,26 @@ test('Hyetograph: renderHyetographSparkline escapes HTML attribute breakout payl
   assert.ok(!html.includes("data-timestamps='"), 'Must not use single-quoted raw JSON attributes');
   assert.ok(!html.includes('<svg onload=alert(3)>'), 'Must not inject raw <svg> elements');
   assert.ok(!/data-timestamps="[^"]*"\s+onload=/i.test(html), 'Must not break out into an event handler attribute');
+});
+
+test('Hyetograph: renderHyetographSparkline supports adaptive 7d (3h) and 30d (day) buckets with intensity scaling', () => {
+  const html7d = renderHyetographSparkline([
+    { timestamp: '2026-11-15T00:00:00Z', rainfall_mm: 9.0, cumulative_mm: 9.0 }, // 3.0 mm/h -> Steady (#a5b4fc)
+    { timestamp: '2026-11-15T03:00:00Z', rainfall_mm: 18.0, cumulative_mm: 27.0 } // 6.0 mm/h -> Heavy (#c084fc)
+  ], { title: '7D Hyetograph', bucketMinutes: 180, bucketLabel: '3h', periodLabel: '7d' });
+
+  assert.ok(html7d.includes('mm/3h'), '7d hyetograph must label peak in mm/3h');
+  assert.ok(html7d.includes('data-bucket-minutes="180"'));
+  assert.ok(html7d.includes('data-bucket-label="3h"'));
+  assert.ok(html7d.includes(PRECIPITATION_PALETTE.MODERATE.hex));
+  assert.ok(html7d.includes(PRECIPITATION_PALETTE.HEAVY.hex));
+
+  const html30d = renderHyetographSparkline([
+    { timestamp: '2026-11-01T00:00:00Z', rainfall_mm: 24.0, cumulative_mm: 24.0 } // 1.0 mm/h -> Light (#818cf8)
+  ], { title: '30D Hyetograph', bucketMinutes: 1440, bucketLabel: 'day', periodLabel: '30d' });
+
+  assert.ok(html30d.includes('mm/day'), '30d hyetograph must label peak in mm/day');
+  assert.ok(html30d.includes('data-bucket-minutes="1440"'));
+  assert.ok(html30d.includes('data-bucket-label="day"'));
+  assert.ok(html30d.includes(PRECIPITATION_PALETTE.LIGHT.hex));
 });

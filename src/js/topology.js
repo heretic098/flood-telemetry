@@ -30,6 +30,7 @@ import {
   evaluateStationFreshness,
   TOPOLOGY_NETWORK_CONFIG,
   PRECIPITATION_PALETTE,
+  classifyRainfallIntensity,
   RAINGAUGE_REGISTRY,
   RAINGAUGE_PROVENANCE
 } from './hydro_engine.js';
@@ -2480,11 +2481,7 @@ function getHyetographBarColor(rainfallMm) {
   if (typeof rainfallMm !== 'number' || !Number.isFinite(rainfallMm) || rainfallMm <= 0) {
     return PRECIPITATION_PALETTE.DRY.hex;
   }
-  const ratePerHr = rainfallMm * 4;
-  if (ratePerHr < 2.5) return PRECIPITATION_PALETTE.LIGHT.hex;
-  if (ratePerHr < 10.0) return PRECIPITATION_PALETTE.MODERATE.hex;
-  if (ratePerHr < 25.0) return PRECIPITATION_PALETTE.HEAVY.hex;
-  return PRECIPITATION_PALETTE.TORRENTIAL.hex;
+  return classifyRainfallIntensity(rainfallMm * 4).color_hex;
 }
 
 /**

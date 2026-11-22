@@ -1,4 +1,4 @@
-import { evaluateSpillway, evaluateGateState, aggregateGlobalStatus, evaluatePumpStatus, evaluateSowyChannel, evaluateAthelneySpillway, evaluateGravityClyse, evaluateBeerWall, evaluateOathLock, evaluateDunballEmergencyPumping, getSeasonalRegime, getActiveCrestHeight, getActiveCatchmentId, loadCatchmentConfig, evaluateHuishEpiscopi, evaluateMidelney, STATION_REGISTRY, RAINGAUGE_REGISTRY, GAUGE_DATUMS, HYDRO_THRESHOLDS, formatClearanceText, computeTrendVector, computeStageRates, disambiguateRiverTrend, evaluateRoadNetwork, evaluateStationFreshness, getValidStageOrFallback, CANONICAL_PUMP_THRESHOLDS, PRECIPITATION_PALETTE, RAINFALL_CATCHMENT_ZONES, classifyRainfallIntensity } from './hydro_engine.js';
+import { evaluateSpillway, evaluateGateState, aggregateGlobalStatus, evaluatePumpStatus, evaluateSowyChannel, evaluateAthelneySpillway, evaluateGravityClyse, evaluateBeerWall, evaluateOathLock, evaluateDunballEmergencyPumping, getSeasonalRegime, getActiveCrestHeight, getActiveCatchmentId, loadCatchmentConfig, evaluateHuishEpiscopi, evaluateMidelney, STATION_REGISTRY, RAINGAUGE_REGISTRY, GAUGE_DATUMS, HYDRO_THRESHOLDS, formatClearanceText, computeTrendVector, computeStageRates, disambiguateRiverTrend, evaluateRoadNetwork, evaluateStationFreshness, getValidStageOrFallback, CANONICAL_PUMP_THRESHOLDS, classifyRainfallIntensity } from './hydro_engine.js';
 import { initJargonPopovers, renderJargonTerm } from './jargon_popover.js';
 import { setCameraEventsCatalog, openVisualEvidence, initCameraGuideTriggers } from './camera_guide.js';
 import { createRefreshController } from './modules/refresh_controller.js';
@@ -12,7 +12,7 @@ import {
 } from './modules/dom_utils.js';
 export { escapeAttr, escapeHTML, formatSpanUnit, formatHeadDelta };
 import { renderCorridorRow } from './roads.js';
-import { renderMicroSparkline, renderSingleSparkline as renderSingleSparklineCore, renderDualSparkline as renderDualSparklineCore, bindSparklineEvents as bindSparklineEventsCore, renderHyetographSparkline, bindHyetographEvents } from './sparkline.js';
+import { renderMicroSparkline, renderSingleSparkline as renderSingleSparklineCore, renderDualSparkline as renderDualSparklineCore, bindSparklineEvents as bindSparklineEventsCore } from './sparkline.js';
 import { getStaffGaugeCameraForStation } from './staff_gauge_cameras.js';
 import { loadFrame, getStaffGaugePanelCopy, getStaffGaugePanelMode } from './modules/staff_gauge_panel.js';
 import { updateEAWarningSummaryBanner, buildCardEAWarningStripHtml, initEAWarningsDialog } from './modules/ea_warnings_panel.js';
@@ -136,6 +136,7 @@ export async function setupCatchmentNav(currentCatchmentId) {
   const isDashboard = pathname.endsWith('index.html') || pathname === '/' || pathname.endsWith('/somerset') || pathname.endsWith('/somerset/');
   const isRoads = pathname.endsWith('roads.html');
   const isTopology = pathname.endsWith('topology.html');
+  const isRainfall = pathname.endsWith('rainfall.html');
   const isMethodology = pathname.endsWith('methodology.html');
 
   // If server-side partial injection already rendered nav links, safely update active state in place without re-creating DOM
@@ -147,6 +148,7 @@ export async function setupCatchmentNav(currentCatchmentId) {
       if (href === 'index.html' && isDashboard) isActive = true;
       else if (href === 'roads.html' && isRoads) isActive = true;
       else if (href === 'topology.html' && isTopology) isActive = true;
+      else if (href === 'rainfall.html' && isRainfall) isActive = true;
       else if (href === 'methodology.html' && isMethodology) isActive = true;
 
       if (isActive) {
@@ -203,7 +205,6 @@ export async function initApp() {
   initCameraGuideTriggers();
   initDashboardStaffGaugeTriggers(document.getElementById('cards-container'));
   initEAWarningsDialog(document.getElementById('cards-container'));
-  initRainfallInspectorDialog(document.getElementById('cards-container'));
   activeCatchmentId = getActiveCatchmentId();
   try {
     hydroConfig = await loadCatchmentConfig(activeCatchmentId);
@@ -541,6 +542,7 @@ export async function refreshLiveDashboard() {
     }
     const effectiveRainfallData = fetchedRainfall || latestRainfallData;
     updateBasinRainHeaderBadge(effectiveRainfallData, dbData?.rainfall_summary || null);
+    updateRainfallSummaryBanner(effectiveRainfallData, dbData?.rainfall_summary || null);
     const dbMeasures = dbData ? dbData.measures : null;
     const sysTimestamps = dbData ? dbData.system_timestamps : null;
     const measuresSummary = dbData ? dbData.measures_summary : null;
@@ -1702,9 +1704,6 @@ export async function refreshLiveDashboard() {
     if (drawer) drawer.classList.add('open');
   });
 
-  // Catchment Rainfall & Upland Inflow Card (Issue #66)
-  container.appendChild(renderCatchmentRainfallCard(latestRainfallData, dbData?.rainfall_summary || null));
-
   // Render Telemetry State Transitions & Visual Evidence Ledger [Issue #24]
   if (allCatalogEvents.length > 0) {
     container.appendChild(renderEventsTimeline(allCatalogEvents));
@@ -1743,15 +1742,6 @@ export async function refreshLiveDashboard() {
 
   // Bind synchronized crosshair & tooltip event listeners across all cards
   bindSparklineEvents(container);
-  bindHyetographEvents(container, {
-    stickyDelay: 1200,
-    refreshController,
-    onHoverChange: (ratio) => {
-      currentHoverRatio = ratio;
-      isUserInspecting = ratio !== null;
-      updateCountdownDisplay();
-    }
-  });
 
   // Smooth-scroll and focus target card if URL hash is present (Issue #17 Deep Linking)
   if (typeof window !== 'undefined' && window.location && window.location.hash) {
@@ -2741,14 +2731,9 @@ export function bindSparklineEvents(container = document) {
 }
 
 // ============================================================================
-// Catchment Rainfall & Hyetograph Progressive Disclosure [Issue #66]
+// Catchment Rainfall Summary Helpers (Overview Header Pill & Summary Banner)
+// Full Two-Pillar model & 14-gauge inline view live on rainfall.html / rainfall.js
 // ============================================================================
-
-const RAINFALL_ZONE_ORDER = ['tone_upland', 'parrett_upland', 'isle_upland', 'moors_lowland'];
-
-let rainfallDialogInitialized = false;
-let rainfallDialogLastTrigger = null;
-let rainfallInspectorTeardowns = [];
 
 /**
  * Fetches `/api/rainfall` from the local backend cache.
@@ -2766,48 +2751,6 @@ export async function fetchRainfallFromDB() {
     console.warn('Failed to fetch from /api/rainfall:', err);
   }
   return null;
-}
-
-/**
- * Aggregates active stations' 15-minute rainfall series for a pillar ('upland' or 'lowland')
- * into a chronological spatial-mean series with monotonic cumulative_mm.
- *
- * @param {Array<object>} [stations=[]]
- * @param {'upland'|'lowland'} [pillar='upland']
- * @returns {Array<{ timestamp: string, rainfall_mm: number, cumulative_mm: number }>}
- */
-export function buildPillarAggregateSeries(stations = [], pillar = 'upland') {
-  if (!Array.isArray(stations) || stations.length === 0) return [];
-  const active = stations.filter(
-    s => s && s.pillar === pillar && !s.is_stale && Array.isArray(s.series_15min) && s.series_15min.length > 0
-  );
-  if (active.length === 0) return [];
-
-  const buckets = new Map();
-  for (const st of active) {
-    for (const pt of st.series_15min) {
-      if (!pt || typeof pt.timestamp !== 'string' || typeof pt.rainfall_mm !== 'number' || !Number.isFinite(pt.rainfall_mm)) {
-        continue;
-      }
-      const prev = buckets.get(pt.timestamp) || { sum: 0, count: 0 };
-      prev.sum += pt.rainfall_mm;
-      prev.count += 1;
-      buckets.set(pt.timestamp, prev);
-    }
-  }
-
-  const sortedTimestamps = Array.from(buckets.keys()).sort((a, b) => Date.parse(a) - Date.parse(b));
-  let runningCum = 0;
-  return sortedTimestamps.map((ts) => {
-    const bucket = buckets.get(ts);
-    const meanMm = Number((bucket.sum / Math.max(1, bucket.count)).toFixed(2));
-    runningCum = Number((runningCum + meanMm).toFixed(2));
-    return {
-      timestamp: ts,
-      rainfall_mm: meanMm,
-      cumulative_mm: runningCum
-    };
-  });
 }
 
 function safeRainfallNumber(val) {
@@ -2931,414 +2874,25 @@ export function updateBasinRainHeaderBadge(rainfallData, fallbackSummary = null)
   pill.textContent = `🌧️ Basin Rain: ${val1h} (1h) | ${val24h} (24h) • ${meta.headerSuffix}`;
 }
 
-function renderCatchmentZoneRow(zoneId, zoneData, primaryKeys = ['6h', '24h']) {
-  const zoneMeta = RAINFALL_CATCHMENT_ZONES[zoneId] || {};
-  const label = zoneData?.short_label || zoneMeta.short_label || zoneId;
-  const river = zoneData?.river || zoneMeta.river || '';
-  const totalCount = Number(zoneData?.station_count) || 0;
-  const activeCount = Number(zoneData?.active_station_count) || 0;
-  const allStale = zoneData ? Boolean(zoneData.all_stale) : activeCount === 0;
-  const hasFreezingRisk = Boolean(zoneData?.has_freezing_risk);
-
-  const m1h = safeRainfallNumber(zoneData?.mean_1h_mm);
-  const m6h = safeRainfallNumber(zoneData?.mean_6h_mm);
-  const m24h = safeRainfallNumber(zoneData?.mean_24h_mm);
-  const m48h = safeRainfallNumber(zoneData?.mean_48h_mm);
-  const peakStation = typeof zoneData?.peak_station === 'string' && zoneData.peak_station.trim().length > 0
-    ? zoneData.peak_station.trim()
-    : null;
-  const peak24h = safeRainfallNumber(zoneData?.peak_24h_mm);
-
-  const windows = [
-    { key: '1h', val: m1h },
-    { key: '6h', val: m6h },
-    { key: '24h', val: m24h },
-    { key: '48h', val: m48h }
-  ];
-
-  const metricsHtml = windows.map((w) => {
-    const isFocus = primaryKeys.includes(w.key);
-    const displayVal = allStale ? '—' : `${w.val.toFixed(1)}mm`;
-    return `
-      <span class="rainfall-zone-stat${isFocus ? ' is-focus' : ''}">
-        <span class="rz-key">${w.key}</span>
-        <strong>${displayVal}</strong>
-      </span>
-    `;
-  }).join('');
-
-  const peakText = peakStation
-    ? `Peak (24h): ${escapeHTML(peakStation)} (${peak24h.toFixed(1)}mm)`
-    : 'Peak (24h): No active gauges';
-
-  const statusTagHtml = allStale
-    ? '<span class="rainfall-zone-badge is-stale">🕒 All stale</span>'
-    : `<span class="rainfall-zone-badge is-active">${activeCount}/${totalCount} active</span>`;
-
-  const frostHtml = hasFreezingRisk
-    ? '<span class="rainfall-zone-badge is-frost" title="Near-freezing conditions may delay tipping-bucket liquid tips">❄️ Frost risk</span>'
-    : '';
-
-  return `
-    <div class="rainfall-zone-row">
-      <div class="rainfall-zone-head">
-        <div>
-          <strong class="rainfall-zone-name">${escapeHTML(label)}</strong>
-          ${river ? `<span class="rainfall-zone-river">${escapeHTML(river)}</span>` : ''}
-        </div>
-        <div class="rainfall-zone-badges">
-          ${statusTagHtml}
-          ${frostHtml}
-        </div>
-      </div>
-      <div class="rainfall-zone-stats">${metricsHtml}</div>
-      <div class="rainfall-zone-peak">${peakText}</div>
-    </div>
-  `;
-}
-
 /**
- * Renders the Level 1 Catchment Rainfall & Upland Inflow Dashboard Card (#card-rainfall)
- * implementing the Two-Pillar Spatial Model, discrete bar hyetographs, null-safe peak
- * station reporting, and qualitative catchment lag micro-copy.
+ * Updates the compact 1-row Catchment Rainfall Summary Banner on Overview (#rainfall-summary-banner).
  *
  * @param {object|null|undefined} rainfallData
  * @param {object|null|undefined} [fallbackSummary=null]
- * @returns {HTMLElement}
  */
-export function renderCatchmentRainfallCard(rainfallData, fallbackSummary = null) {
-  const card = document.createElement('article');
-  card.className = 'moor-card rainfall-catchment-card';
-  card.id = 'card-rainfall';
-  card.setAttribute('tabindex', '0');
-  card.setAttribute('aria-label', 'Catchment Rainfall and Upland Inflow');
+export function updateRainfallSummaryBanner(rainfallData, fallbackSummary = null) {
+  if (typeof document === 'undefined') return;
+  const banner = document.getElementById('rainfall-summary-banner');
+  const textEl = document.getElementById('rainfall-banner-text');
+  if (!banner || !textEl) return;
 
-  const summary = (rainfallData && rainfallData.rainfall_summary) || fallbackSummary || {};
-  const catchments = (rainfallData && rainfallData.catchments) || {};
-  const stations = Array.isArray(rainfallData?.stations) ? rainfallData.stations : [];
   const meta = getRainfallBadgeMeta(rainfallData, fallbackSummary);
-
-  const peakName = typeof summary.upland_peak_station === 'string' && summary.upland_peak_station.trim().length > 0
-    ? summary.upland_peak_station.trim()
-    : null;
-  const peak24h = safeRainfallNumber(summary.upland_peak_24h_mm);
-  const peak1h = safeRainfallNumber(summary.upland_peak_1h_mm);
-
-  const uplandSeries = buildPillarAggregateSeries(stations, 'upland');
-  const lowlandSeries = buildPillarAggregateSeries(stations, 'lowland');
-
-  const uplandEmptyMsg = meta.isAllStale
-    ? 'All upland raingauges are currently stale or uncached'
-    : 'No upland 15-min rainfall readings in 24h window';
-  const lowlandEmptyMsg = meta.isAllStale
-    ? 'All lowland raingauges are currently stale or uncached'
-    : 'No lowland 15-min rainfall readings in 24h window';
-
-  const legendItems = [
-    { label: 'Light', hex: PRECIPITATION_PALETTE.LIGHT.hex },
-    { label: 'Moderate', hex: PRECIPITATION_PALETTE.MODERATE.hex },
-    { label: 'Heavy', hex: PRECIPITATION_PALETTE.HEAVY.hex },
-    { label: 'Torrential', hex: PRECIPITATION_PALETTE.TORRENTIAL.hex },
-    { label: 'Σ Mass Curve', hex: PRECIPITATION_PALETTE.CUMULATIVE_LINE.hex, isLine: true }
-  ].map(item => `
-    <span class="rainfall-legend-item">
-      <span class="${item.isLine ? 'rainfall-legend-line' : 'rainfall-legend-swatch'}" style="background:${item.hex};"></span>
-      <span>${escapeHTML(item.label)}</span>
-    </span>
-  `).join('');
-
-  card.innerHTML = `
-    <div class="card-header rainfall-card-header">
-      <div>
-        <h2 class="card-title">🌧️ Catchment Rainfall &amp; Upland Inflow</h2>
-        <div class="river-tag">
-          ${Object.keys(RAINGAUGE_REGISTRY).length} EA ${renderJargonTerm('Tipping Bucket Raingauge', 'Tipping-Bucket Raingauges')} • Atmospheric Forcing (mm depth)
-        </div>
-      </div>
-      <div class="status-badge ${escapeAttr(meta.badgeClass)}" aria-live="polite">
-        <span aria-hidden="true">${meta.icon}</span>
-        <span class="sr-only">Rainfall Intensity: </span>
-        <span>${escapeHTML(meta.label)}</span>
-      </div>
-    </div>
-
-    <div class="rainfall-summary-strip" role="group" aria-label="Basin Rolling Rainfall Totals">
-      <div class="rainfall-kpi-tile">
-        <span class="rainfall-kpi-label">1h Basin Mean</span>
-        <strong class="rainfall-kpi-value">${meta.isAllStale ? '—' : `${meta.basin1h.toFixed(1)} mm`}</strong>
-      </div>
-      <div class="rainfall-kpi-tile">
-        <span class="rainfall-kpi-label">6h Basin Mean</span>
-        <strong class="rainfall-kpi-value">${meta.isAllStale ? '—' : `${meta.basin6h.toFixed(1)} mm`}</strong>
-      </div>
-      <div class="rainfall-kpi-tile">
-        <span class="rainfall-kpi-label">24h Basin Mean</span>
-        <strong class="rainfall-kpi-value">${meta.isAllStale ? '—' : `${meta.basin24h.toFixed(1)} mm`}</strong>
-      </div>
-      <div class="rainfall-kpi-tile">
-        <span class="rainfall-kpi-label">48h Basin Mean</span>
-        <strong class="rainfall-kpi-value">${meta.isAllStale ? '—' : `${meta.basin48h.toFixed(1)} mm`}</strong>
-      </div>
-      <div class="rainfall-kpi-tile">
-        <span class="rainfall-kpi-label">Gauge Network</span>
-        <strong class="rainfall-kpi-value">${meta.isSummaryOnly ? 'Summary active' : `${meta.activeStations}/${meta.totalStations} active`}</strong>
-        <span class="rainfall-kpi-sub">${meta.isSummaryOnly ? 'Awaiting per-gauge detail' : (meta.staleStations > 0 ? `${meta.staleStations} stale` : 'All reporting fresh')}</span>
-      </div>
-      <div class="rainfall-kpi-tile rainfall-kpi-peak">
-        <span class="rainfall-kpi-label">Upland Peak (24h)</span>
-        <strong class="rainfall-kpi-value">${peakName ? escapeHTML(peakName) : 'No active upland gauges'}</strong>
-        <span class="rainfall-kpi-sub">${peakName ? `${peak24h.toFixed(1)} mm (24h) • ${peak1h.toFixed(1)} mm (1h)` : 'Awaiting fresh upland tips'}</span>
-      </div>
-    </div>
-
-    <div class="rainfall-pillars-grid">
-      <section class="rainfall-pillar-panel" aria-label="Pillar 1: Upland River Surge Drivers">
-        <div class="rainfall-pillar-header">
-          <div>
-            <h3 class="rainfall-pillar-title">⛰️ Pillar 1: Upland River Surge Drivers</h3>
-            <p class="rainfall-pillar-subtitle">Brendon, Blackdown &amp; Dorset Hills — Focus: <strong>6h</strong> surge window &amp; <strong>24h</strong> totals</p>
-          </div>
-        </div>
-        <div class="rainfall-zones-list">
-          ${renderCatchmentZoneRow('tone_upland', catchments.tone_upland, ['6h', '24h'])}
-          ${renderCatchmentZoneRow('parrett_upland', catchments.parrett_upland, ['6h', '24h'])}
-          ${renderCatchmentZoneRow('isle_upland', catchments.isle_upland, ['6h', '24h'])}
-        </div>
-        <div class="rainfall-hyetograph-slot">
-          ${renderHyetographSparkline(uplandSeries, {
-            title: 'Upland Mean 24h Hyetograph (15m bars + Σ mm)',
-            emptyMessage: uplandEmptyMsg
-          })}
-        </div>
-      </section>
-
-      <section class="rainfall-pillar-panel" aria-label="Pillar 2: Lowland Basin Saturation">
-        <div class="rainfall-pillar-header">
-          <div>
-            <h3 class="rainfall-pillar-title">🌾 Pillar 2: Lowland Basin Saturation</h3>
-            <p class="rainfall-pillar-subtitle">Curry Moor, Northmoor &amp; KSD — Focus: <strong>48h</strong> ${renderJargonTerm('Antecedent Rainfall', 'antecedent saturation')} &amp; <strong>1h</strong> intensity</p>
-          </div>
-        </div>
-        <div class="rainfall-zones-list">
-          ${renderCatchmentZoneRow('moors_lowland', catchments.moors_lowland, ['48h', '1h'])}
-        </div>
-        <div class="rainfall-hyetograph-slot">
-          ${renderHyetographSparkline(lowlandSeries, {
-            title: 'Lowland Moors 24h Hyetograph (15m bars + Σ mm)',
-            emptyMessage: lowlandEmptyMsg
-          })}
-        </div>
-        <div class="rainfall-lag-callout">
-          <p>
-            <strong>ℹ️ Understanding ${renderJargonTerm('Catchment Lag')}:</strong>
-            Rain falling over the Brendon, Blackdown, and Dorset hills takes time to travel downstream onto the Levels. How quickly river stages respond depends on storm intensity and ${renderJargonTerm('Antecedent Rainfall', 'antecedent ground wetness')}.
-          </p>
-          <p class="rainfall-epistemic-note">
-            Raingauges report raw liquid rainfall depth (mm) at 0.20 mm/tip only — they do not measure river flow volume or sluice gate positions.
-          </p>
-        </div>
-      </section>
-    </div>
-
-    <div class="rainfall-card-footer">
-      <div class="rainfall-legend-bar" aria-label="Hyetograph intensity colour legend">${legendItems}</div>
-      <div class="rainfall-footer-actions">
-        <span class="rainfall-provenance-note">
-          UK Environment Agency 15-min TBR Telemetry •
-          <a href="https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/" target="_blank" rel="noopener noreferrer">Open Government Licence v3.0 ↗</a>
-        </span>
-        <button type="button"
-                class="rainfall-inspector-trigger"
-                id="btn-open-rainfall-inspector"
-                aria-haspopup="dialog"
-                aria-controls="rainfall-inspector-dialog">
-          🔍 Inspect All ${Object.keys(RAINGAUGE_REGISTRY).length} Raingauges
-        </button>
-      </div>
-    </div>
-  `;
-
-  return card;
-}
-
-/**
- * Renders the Level 2 Deep Technical Drawer HTML for all registered TBR raingauge stations.
- *
- * @param {object|null|undefined} rainfallData
- * @returns {string}
- */
-export function renderRainfallInspectorContent(rainfallData) {
-  const stations = Array.isArray(rainfallData?.stations) ? rainfallData.stations : [];
-  const catchments = (rainfallData && rainfallData.catchments) || {};
-
-  if (stations.length === 0) {
-    return '<p class="rainfall-inspector-empty">No raingauge telemetry is currently cached. Check back once the Environment Agency ingest cycle completes.</p>';
+  banner.className = `rainfall-summary-banner ${meta.pillClass}`;
+  if (meta.isAllStale) {
+    textEl.innerHTML = `${escapeHTML(meta.icon)} <strong>Catchment Rainfall:</strong> Awaiting Live TBR`;
+    return;
   }
-
-  return RAINFALL_ZONE_ORDER.map((zoneId) => {
-    const zoneMeta = RAINFALL_CATCHMENT_ZONES[zoneId] || {};
-    const zoneStats = catchments[zoneId] || {};
-    const zoneStations = stations.filter(s => s && s.catchment === zoneId);
-    if (zoneStations.length === 0) return '';
-
-    const activeCount = Number(zoneStats.active_station_count ?? zoneStations.filter(s => !s.is_stale).length);
-    const stationCardsHtml = zoneStations.map((st) => {
-      const elevationLabel = (typeof st.elevation_mAOD === 'number' && Number.isFinite(st.elevation_mAOD))
-        ? `${st.elevation_mAOD.toFixed(1)}m AOD`
-        : 'Collector elevation pending EA survey';
-      const freshnessTag = st.is_stale
-        ? `<span class="rainfall-zone-badge is-stale">🕒 STALE${typeof st.age_minutes === 'number' ? ` (${Math.round(st.age_minutes / 60)}h)` : ''}</span>`
-        : '<span class="rainfall-zone-badge is-active">🟢 FRESH</span>';
-      const frostTag = st.freezing_risk
-        ? '<span class="rainfall-zone-badge is-frost">❄️ FREEZING RISK</span>'
-        : '';
-      const rawStationUrl = typeof st.provenance?.station_url === 'string' ? st.provenance.station_url.trim() : '';
-      const fallbackStationUrl = `https://environment.data.gov.uk/flood-monitoring/id/stations/${encodeURIComponent(st.id || '')}`;
-      const stationUrl = /^https?:\/\//i.test(rawStationUrl) ? rawStationUrl : fallbackStationUrl;
-
-      const hasNoReadings = Boolean(st.is_stale && (st.valid_reading_count ?? 0) === 0);
-      const fmtStationMm = (val) => (hasNoReadings ? '—' : `${safeRainfallNumber(val).toFixed(1)}mm`);
-      const rateText = hasNoReadings ? 'Awaiting sync' : (st.rate_label || 'Dry (0.0 mm/h)');
-
-      return `
-        <div class="rainfall-station-inspector-card">
-          <div class="rainfall-station-top">
-            <div>
-              <h5 class="rainfall-station-name">${escapeHTML(st.name || st.id)}</h5>
-              <div class="rainfall-station-meta">ID: <code>${escapeHTML(st.id)}</code> • ${escapeHTML(elevationLabel)}</div>
-            </div>
-            <div class="rainfall-zone-badges">
-              ${freshnessTag}
-              ${frostTag}
-            </div>
-          </div>
-          <div class="rainfall-station-totals">
-            <span>1h: <strong>${fmtStationMm(st.last_1h_mm)}</strong></span>
-            <span>6h: <strong>${fmtStationMm(st.last_6h_mm)}</strong></span>
-            <span>24h: <strong>${fmtStationMm(st.last_24h_mm)}</strong></span>
-            <span>48h: <strong>${fmtStationMm(st.last_48h_mm)}</strong></span>
-            <span>Rate: <strong>${escapeHTML(rateText)}</strong></span>
-          </div>
-          <div class="rainfall-station-sparkline">
-            ${renderHyetographSparkline(st.series_15min || [], {
-              title: `${st.ea_label || st.name || st.id} 24h Hyetograph`,
-              emptyMessage: st.is_stale ? 'Gauge batch stale — awaiting EA readings' : 'No 15-min tips in 24h window'
-            })}
-          </div>
-          <div class="rainfall-station-links">
-            <a href="${escapeAttr(stationUrl)}" target="_blank" rel="noopener noreferrer" class="ext-link-btn">EA Station ${escapeHTML(st.id)} ↗</a>
-          </div>
-        </div>
-      `;
-    }).join('');
-
-    return `
-      <section class="rainfall-inspector-zone-group">
-        <div class="rainfall-inspector-zone-header">
-          <h4>${escapeHTML(zoneStats.label || zoneMeta.label || zoneId)}</h4>
-          <span class="rainfall-zone-badge ${activeCount > 0 ? 'is-active' : 'is-stale'}">${activeCount}/${zoneStations.length} active</span>
-        </div>
-        <div class="rainfall-inspector-stations-grid">
-          ${stationCardsHtml}
-        </div>
-      </section>
-    `;
-  }).join('');
-}
-
-export function closeRainfallInspectorDialog() {
-  rainfallInspectorTeardowns.forEach((fn) => {
-    if (typeof fn === 'function') fn();
-  });
-  rainfallInspectorTeardowns = [];
-  refreshController.setScrubbing(false);
-
-  if (typeof document === 'undefined') return;
-  const dialog = document.getElementById('rainfall-inspector-dialog');
-  if (dialog) {
-    if (typeof dialog.close === 'function' && dialog.open) {
-      dialog.close();
-    } else {
-      dialog.open = false;
-    }
-    dialog.classList.remove('open');
-  }
-  if (rainfallDialogLastTrigger && rainfallDialogLastTrigger.isConnected && typeof rainfallDialogLastTrigger.focus === 'function') {
-    rainfallDialogLastTrigger.focus();
-  }
-  rainfallDialogLastTrigger = null;
-}
-
-export async function openRainfallInspectorDialog(triggerEl = null) {
-  if (typeof document === 'undefined') return;
-  const dialog = document.getElementById('rainfall-inspector-dialog');
-  const bodyEl = document.getElementById('rainfall-inspector-body');
-  if (!dialog || !bodyEl) return;
-
-  rainfallDialogLastTrigger = triggerEl || document.activeElement;
-  if (typeof dialog.showModal === 'function' && !dialog.open) {
-    dialog.showModal();
-  } else {
-    dialog.open = true;
-  }
-  dialog.classList.add('open');
-
-  if (!latestRainfallData) {
-    bodyEl.innerHTML = '<p class="rainfall-inspector-loading">Loading tipping-bucket raingauge telemetry...</p>';
-    const fetched = await fetchRainfallFromDB();
-    if (fetched) latestRainfallData = fetched;
-  }
-
-  rainfallInspectorTeardowns.forEach((fn) => {
-    if (typeof fn === 'function') fn();
-  });
-  bodyEl.innerHTML = renderRainfallInspectorContent(latestRainfallData);
-  rainfallInspectorTeardowns = bindHyetographEvents(bodyEl, { stickyDelay: 1200, refreshController }) || [];
-
-  const closeBtn = document.getElementById('rainfall-inspector-close');
-  if (closeBtn && typeof closeBtn.focus === 'function') {
-    closeBtn.focus();
-  }
-}
-
-export function initRainfallInspectorDialog(container = null) {
-  if (typeof document === 'undefined' || rainfallDialogInitialized) return;
-  rainfallDialogInitialized = true;
-
-  const dialog = document.getElementById('rainfall-inspector-dialog');
-  const closeBtn = document.getElementById('rainfall-inspector-close');
-  if (closeBtn) {
-    closeBtn.addEventListener('click', () => closeRainfallInspectorDialog());
-  }
-  if (dialog) {
-    dialog.addEventListener('click', (e) => {
-      if (e.target === dialog) closeRainfallInspectorDialog();
-    });
-    dialog.addEventListener('cancel', (e) => {
-      e.preventDefault();
-      closeRainfallInspectorDialog();
-    });
-  }
-
-  const root = container || document;
-  root.addEventListener('click', (e) => {
-    const trigger = e.target?.closest?.('#btn-open-rainfall-inspector');
-    if (trigger) {
-      e.preventDefault();
-      openRainfallInspectorDialog(trigger);
-    }
-  });
-}
-
-export function resetRainfallInspectorForTests() {
-  rainfallInspectorTeardowns.forEach((fn) => {
-    if (typeof fn === 'function') fn();
-  });
-  rainfallInspectorTeardowns = [];
-  refreshController.setScrubbing(false);
-  rainfallDialogInitialized = false;
-  rainfallDialogLastTrigger = null;
-  latestRainfallData = null;
+  textEl.innerHTML = `${escapeHTML(meta.icon)} <strong>Catchment Rainfall:</strong> ${escapeHTML(meta.headerSuffix)} • ${meta.basin1h.toFixed(1)}mm (1h) | ${meta.basin24h.toFixed(1)}mm (24h)`;
 }
 
 if (typeof document !== 'undefined') {

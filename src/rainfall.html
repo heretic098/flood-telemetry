@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!-- INCLUDE: head -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebPage",
+        "@id": "https://floodtelemetry.uk/rainfall.html#webpage",
+        "url": "https://floodtelemetry.uk/rainfall.html",
+        "name": "Somerset Levels Catchment Rainfall & Raingauges | Flood Telemetry",
+        "description": "Live 15-minute tipping-bucket raingauge telemetry across 14 UK Environment Agency stations covering Somerset Levels upland headwaters and lowland moors.",
+        "isPartOf": {
+          "@type": "WebSite",
+          "@id": "https://floodtelemetry.uk/#website",
+          "name": "Somerset Flood Telemetry",
+          "url": "https://floodtelemetry.uk/"
+        }
+      },
+      {
+        "@type": "Dataset",
+        "@id": "https://floodtelemetry.uk/rainfall.html#dataset",
+        "name": "Somerset Levels 15-Minute Tipping-Bucket Raingauge Telemetry",
+        "description": "Rolling 1h, 6h, 24h, and 48h liquid rainfall depth accumulations (mm) across 14 UK Environment Agency tipping-bucket raingauges in the River Tone, Parrett, Yeo, Isle, and Lowland Moors catchments.",
+        "url": "https://floodtelemetry.uk/rainfall.html",
+        "license": "https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/",
+        "distribution": [
+          {
+            "@type": "DataDownload",
+            "encodingFormat": "application/json",
+            "contentUrl": "https://floodtelemetry.uk/api/rainfall"
+          },
+          {
+            "@type": "DataDownload",
+            "encodingFormat": "text/markdown",
+            "contentUrl": "https://floodtelemetry.uk/api/summary.md"
+          }
+        ]
+      }
+    ]
+  }
+  </script>
+</head>
+<body>
+
+  <!-- Sticky Network Offline Banner -->
+  <div id="network-offline-banner" class="network-offline-banner" role="alert" aria-live="assertive" style="display: none;"></div>
+
+  <!-- Print Situation Report Header (Shown only during @media print) -->
+  <div class="print-situation-header" aria-hidden="true">
+    <div class="print-title-group">
+      <h1>Somerset Levels &amp; Moors — Catchment Rainfall Briefing</h1>
+      <p class="print-subtitle">14 UK Environment Agency 15-Minute Tipping-Bucket Raingauges (mm Depth)</p>
+    </div>
+    <div class="print-situation-meta">
+      <span><strong>Audit &amp; Freshness:</strong> <span id="print-time-stamp">Loading...</span></span>
+      <span><strong>Authority:</strong> UK Environment Agency Telemetry (OGL v3.0)</span>
+      <span><strong>Classification:</strong> Ambient Environmental Context</span>
+    </div>
+  </div>
+
+  <header role="banner">
+    <div class="header-top">
+      <div class="title-group">
+        <h1>Somerset Levels Catchment Rainfall</h1>
+        <div class="live-pill rainfall-live-pill" id="live-toggle" title="Real-time 15-minute tipping-bucket raingauge telemetry" role="status" aria-live="polite">
+          <span class="live-dot"></span>
+          <span>RAINFALL &amp; CATCHMENTS</span>
+        </div>
+      </div>
+      <!-- INCLUDE: nav -->
+      <div class="header-right-group">
+        <div class="telemetry-freshness-pill prov-high" id="ea-freshness-pill" role="status" aria-live="polite">📡 Telemetry: Loading...</div>
+        <div class="auto-refresh-group" id="auto-refresh-group">
+          <div class="countdown-pill" id="countdown-pill" role="status" aria-live="polite" title="Auto-refresh countdown">⏱️ 60s</div>
+          <button type="button" class="refresh-now-btn" id="btn-refresh-now" aria-label="Refresh live rainfall telemetry now" title="Refresh live rainfall telemetry now">🔄 Refresh</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="rainfall-page-banner precip-dry" id="rainfall-status-banner" role="status" aria-live="polite">
+      INITIALIZING CATCHMENT RAINFALL TELEMETRY...
+    </div>
+
+    <div class="rainfall-period-bar" role="toolbar" aria-label="Select rainfall time window">
+      <span class="filter-label">Period:</span>
+      <button type="button" class="rainfall-period-btn active" data-period="24h" aria-pressed="true">24h</button>
+      <button type="button" class="rainfall-period-btn" data-period="7d" aria-pressed="false">7d</button>
+      <button type="button" class="rainfall-period-btn" data-period="30d" aria-pressed="false">30d Archive</button>
+      <span class="rainfall-period-hint" id="rainfall-period-hint">15-minute bars • Live rolling totals</span>
+    </div>
+  </header>
+
+  <main class="rainfall-page-container" role="main" aria-label="Somerset Levels Catchment Rainfall and Tipping-Bucket Raingauges">
+
+    <!-- Honest Partial Archive Coverage Notice [RULE-HUM-01] -->
+    <div id="rainfall-archive-notice" class="rainfall-archive-notice" role="note" aria-live="polite" style="display: none;"></div>
+
+    <noscript>
+      <div class="noscript-fallback-card" style="padding: 1.5rem; background: #1e293b; border: 1px solid #334155; border-radius: 8px; color: #f8fafc; margin-bottom: 1.5rem;">
+        <h2 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 0.75rem; color: #a5b4fc;">🌧️ Somerset Levels Catchment Rainfall Network (Static Briefing)</h2>
+        <p style="margin-bottom: 1rem; line-height: 1.6;">JavaScript is currently disabled in your browser. Interactive 24h hyetographs, rolling 1h/6h/24h/48h basin totals, and 60s auto-refresh require JavaScript. Raw JSON telemetry is available at <a href="/api/rainfall" style="color: #a5b4fc; text-decoration: underline;">/api/rainfall</a> and plain-text situation briefings at <a href="/api/summary.md" style="color: #a5b4fc; text-decoration: underline;">/api/summary.md</a>.</p>
+        <h3 style="font-size: 1rem; font-weight: 600; margin-bottom: 0.5rem; color: #cbd5e1;">14 Monitored Environment Agency Tipping-Bucket Raingauges (0.20 mm / tip):</h3>
+        <ul style="margin-left: 1.5rem; margin-bottom: 1rem; line-height: 1.6;">
+          <li><strong>River Tone Headwaters (Brendon, Blackdown &amp; Quantock Hills):</strong> Maundown (52100), Hockworthy (45168), Fulwood (52101), Stopgate Farm (45232), Kingston St Mary (E14620), Quantock Farm (51126).</li>
+          <li><strong>Upper Parrett &amp; Yeo Headwaters (Dorset Hills):</strong> South Perrott (52148), Sutton Bingham (52103), Sherborne (52149).</li>
+          <li><strong>Upper River Isle Headwaters:</strong> Chard Snowdon Hill (52129).</li>
+          <li><strong>Central Lowland Moors &amp; KSD:</strong> West Sedgemoor (52147), Rivers House (52105), Gold Corner (52227), Somerton (52102).</li>
+        </ul>
+        <p style="font-size: 0.85rem; color: #cbd5e1;">Contains UK Environment Agency rainfall telemetry licensed under the <a href="https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/" target="_blank" rel="noopener noreferrer" style="color: #a5b4fc; text-decoration: underline;">Open Government Licence v3.0 ↗</a>. Raingauges measure raw liquid rainfall depth (mm) only.</p>
+      </div>
+    </noscript>
+
+    <!-- Two-Pillar Spatial Model Overview & Basin KPIs -->
+    <section id="rainfall-overview-container" class="rainfall-overview-section" aria-label="Basin Rainfall Overview and Two-Pillar Spatial Model">
+      <!-- Populated dynamically by rainfall.js -->
+    </section>
+
+    <!-- Catchment Zone Filter Bar for Inline 14-Gauge Directory -->
+    <div class="rainfall-filter-bar" role="toolbar" aria-label="Filter tipping-bucket raingauges by catchment zone">
+      <span class="filter-label">Filter Raingauges:</span>
+      <button type="button" class="rainfall-filter-btn active" data-zone="all" aria-pressed="true">All (14)</button>
+      <button type="button" class="rainfall-filter-btn" data-zone="tone_upland" aria-pressed="false">Blackdowns / Tone (6)</button>
+      <button type="button" class="rainfall-filter-btn" data-zone="parrett_upland" aria-pressed="false">Dorset Hills / Yeo (3)</button>
+      <button type="button" class="rainfall-filter-btn" data-zone="isle_upland" aria-pressed="false">Isle Headwaters (1)</button>
+      <button type="button" class="rainfall-filter-btn" data-zone="moors_lowland" aria-pressed="false">Lowland Moors &amp; KSD (4)</button>
+    </div>
+
+    <!-- All 14 EA Tipping-Bucket Raingauges Rendered Directly Inline -->
+    <section class="rainfall-inline-section" aria-label="All 14 Environment Agency Tipping-Bucket Raingauges">
+      <div class="rainfall-inline-header">
+        <div>
+          <h2 class="rainfall-inline-title">📡 All 14 Environment Agency Tipping-Bucket Raingauges</h2>
+          <p class="rainfall-inline-subtitle">15-minute liquid rainfall depth accumulations (0.20 mm/tip) and interactive 24h hyetographs grouped by catchment zone.</p>
+        </div>
+      </div>
+      <div id="rainfall-stations-container" class="rainfall-stations-container" aria-live="polite">
+        <p class="rainfall-inspector-loading">Loading tipping-bucket raingauge telemetry...</p>
+      </div>
+    </section>
+
+    <!-- Plain-Spoken Hydrological Lag & Epistemic Boundaries Explainer -->
+    <section class="rainfall-explainer-section" aria-label="Understanding Catchment Lag and Sensor Limitations">
+      <h3>ℹ️ Understanding Catchment Lag &amp; Raingauge Limits</h3>
+      <div class="rainfall-explainer-grid">
+        <div class="rainfall-explainer-card">
+          <h4>⛰️ Upland Surge vs. Lowland Saturation</h4>
+          <p>
+            Rain falling over the Brendon, Blackdown, Quantock, and Dorset hills drains into the upper Tone, Parrett, Yeo, and Isle before travelling downstream onto the Somerset Levels. How quickly river stages respond depends on storm intensity and <span class="jargon-term" tabindex="0" role="button" aria-haspopup="dialog" aria-expanded="false" data-term="Antecedent Rainfall">antecedent ground wetness <span class="jargon-help-icon" aria-hidden="true">?</span></span>.
+          </p>
+        </div>
+        <div class="rainfall-explainer-card">
+          <h4>🌧️ Raw Liquid Depth Only (No Flow Speculation)</h4>
+          <p>
+            Environment Agency <span class="jargon-term" tabindex="0" role="button" aria-haspopup="dialog" aria-expanded="false" data-term="Tipping Bucket Raingauge">tipping-bucket raingauges <span class="jargon-help-icon" aria-hidden="true">?</span></span> report raw liquid rainfall depth (mm) in 0.20 mm increments. They are ambient environmental sensors — they do not measure river flow rates, sluice gate positions, or pump run-states. Unheated funnels can also lag during freezing weather or snow.
+          </p>
+        </div>
+      </div>
+      <p class="rainfall-explainer-attribution">
+        Contains public sector information licensed under the <a href="https://www.nationalarchives.gov.uk/doc/open-government-licence/version/3/" target="_blank" rel="noopener noreferrer">Open Government Licence v3.0 ↗</a> (UK Environment Agency Flood Monitoring API). See <a href="methodology.html">Methodology &amp; Sensor Physics →</a> for full provenance details.
+      </p>
+    </section>
+
+  </main>
+
+  <!-- INCLUDE: footer -->
+
+  <script type="module" src="js/sparkline.js"></script>
+  <script type="module" src="js/rainfall.js"></script>
+</body>
+</html>

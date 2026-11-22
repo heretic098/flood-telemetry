@@ -5,21 +5,28 @@ import path from 'node:path';
 
 import {
   updateBasinRainHeaderBadge,
-  renderCatchmentRainfallCard,
-  renderRainfallInspectorContent,
-  openRainfallInspectorDialog,
-  closeRainfallInspectorDialog,
-  initRainfallInspectorDialog,
-  resetRainfallInspectorForTests,
+  updateRainfallSummaryBanner,
+  getRainfallBadgeMeta as getOverviewRainfallMeta
+} from '../src/js/app.js';
+import {
+  renderCatchmentRainfallOverview,
+  renderAllRaingaugesInline,
+  updateRainfallPageBanner,
+  updateArchiveCoverageNotice,
+  setRainfallPeriod,
+  getCurrentPeriod,
+  resetRainfallPageStateForTests,
   buildPillarAggregateSeries,
   getRainfallBadgeMeta,
   refreshController
-} from '../src/js/app.js';
+} from '../src/js/rainfall.js';
 import { JARGON_DEFINITIONS } from '../src/js/jargon_popover.js';
 import { bindHyetographEvents } from '../src/js/sparkline.js';
 import { aggregateCatchmentRainfall, PRECIPITATION_PALETTE } from '../src/js/hydro_engine.js';
 
 const indexHtml = fs.readFileSync(path.resolve('src/index.html'), 'utf8');
+const rainfallHtml = fs.readFileSync(path.resolve('src/rainfall.html'), 'utf8');
+const topologyHtml = fs.readFileSync(path.resolve('src/topology.html'), 'utf8');
 const stylesCss = fs.readFileSync(path.resolve('src/css/styles.css'), 'utf8');
 
 function setupMinimalDom() {
@@ -167,20 +174,30 @@ test('Issue #66 Level 0: updateBasinRainHeaderBadge updates #basin-rain-pill and
     upland_peak_1h_mm: 3.6,
     rate_category: 'MODERATE'
   });
-  assert.match(rainPill.textContent, /3\.2mm \(1h\) \| 14\.2mm \(24h\) • Moderate/);
-  assert.ok(!rainPill.className.includes('precip-stale'));
+  assert.match(rainPill.textContent, /3\.2mm \(1h\) \| 14\.2mm \(24h\) • Steady/);
+  // Overview Summary Banner (#rainfall-summary-banner) updates alongside #basin-rain-pill
+  const summaryBanner = new MockEl('div', 'rainfall-summary-banner');
+  const summaryText = new MockEl('span', 'rainfall-banner-text');
+  updateRainfallSummaryBanner(null, {
+    basin_1h_mean_mm: 3.2,
+    basin_6h_mean_mm: 6.8,
+    basin_24h_mean_mm: 14.2,
+    basin_48h_mean_mm: 18.0,
+    upland_peak_station: 'Maundown (Clatworthy / Brendon Hills)',
+    upland_peak_24h_mm: 21.0,
+    upland_peak_1h_mm: 3.6,
+    rate_category: 'MODERATE'
+  });
+  assert.ok(summaryBanner.className.includes('precip-moderate'));
+  assert.match(summaryText.innerHTML, /Steady • 3\.2mm \(1h\) \| 14\.2mm \(24h\)/);
+  assert.equal(getOverviewRainfallMeta(null, { basin_1h_mean_mm: 3.2 }).headerSuffix, 'Steady');
 });
 
-test('Issue #66 Level 1: renderCatchmentRainfallCard renders rolling totals, Two-Pillar layout, OGL v3.0, and null-safe empty/stale state', () => {
+test('Dedicated Rainfall Tab (rainfall.html): renderCatchmentRainfallOverview renders rolling totals, Two-Pillar layout, OGL v3.0, and null-safe empty/stale state', () => {
   setupMinimalDom();
   const payload = makeSampleRainfallPayload();
-  const card = renderCatchmentRainfallCard(payload);
+  const html = renderCatchmentRainfallOverview(payload);
 
-  assert.equal(card.id, 'card-rainfall');
-  assert.ok(card.classList.contains('moor-card'));
-  assert.ok(card.classList.contains('rainfall-catchment-card'));
-
-  const html = card.innerHTML;
   // Rolling windows 1h, 6h, 24h, 48h
   assert.match(html, /1h Basin Mean/);
   assert.match(html, /6h Basin Mean/);
@@ -190,7 +207,6 @@ test('Issue #66 Level 1: renderCatchmentRainfallCard renders rolling totals, Two
   assert.match(html, /4\/14 active/);
   assert.match(html, /10 stale/);
   assert.match(html, /14 EA /);
-  assert.match(html, /Inspect All 14 Raingauges/);
   assert.match(html, /Maundown \(Clatworthy \/ Brendon Hills\)/);
   // Two-pillar structure
   assert.match(html, /Pillar 1: Upland River Surge Drivers/);
@@ -213,16 +229,15 @@ test('Issue #66 Level 1: renderCatchmentRainfallCard renders rolling totals, Two
 
   // Null-safe empty / all-stale state
   const emptyAgg = aggregateCatchmentRainfall({}, { nowMs: Date.parse('2026-11-19T22:00:00Z') });
-  const emptyCard = renderCatchmentRainfallCard({
+  const emptyHtml = renderCatchmentRainfallOverview({
     status: 'ok',
     rainfall_summary: emptyAgg.rainfall_summary,
     catchments: emptyAgg.catchments,
     stations: emptyAgg.stations
   });
-  const emptyHtml = emptyCard.innerHTML;
   assert.match(emptyHtml, /0\/14 active/);
   assert.match(emptyHtml, /No active upland gauges/);
-  assert.match(emptyHtml, /AWAITING TBR/);
+  assert.match(emptyHtml, /AWAITING LIVE TBR/);
   assert.ok(!emptyHtml.includes('0.0 mm'), 'Empty/all-stale KPI tiles must display — instead of 0.0 mm');
   assert.ok(!emptyHtml.includes('0.0mm'), 'Empty/all-stale zone rows must display — instead of 0.0mm');
   assert.ok(emptyHtml.includes('<strong class="rainfall-kpi-value">—</strong>'));
@@ -245,13 +260,9 @@ test('Issue #66 Level 1: renderCatchmentRainfallCard renders rolling totals, Two
   assert.equal(fallbackMeta.isAllStale, false);
   assert.equal(fallbackMeta.isSummaryOnly, true);
   assert.equal(fallbackMeta.label, 'LIGHT');
-  const fallbackCard = renderCatchmentRainfallCard(null, fallbackSummary);
-  assert.match(fallbackCard.innerHTML, /1\.5 mm/);
-  assert.match(fallbackCard.innerHTML, /Summary active/);
-  assert.ok(!fallbackCard.innerHTML.includes('AWAITING TBR'));
 
   // XSS escaping on upland_peak_station
-  const xssCard = renderCatchmentRainfallCard({
+  const xssHtml = renderCatchmentRainfallOverview({
     rainfall_summary: {
       basin_1h_mean_mm: 1.0,
       basin_6h_mean_mm: 2.0,
@@ -265,57 +276,43 @@ test('Issue #66 Level 1: renderCatchmentRainfallCard renders rolling totals, Two
     catchments: {},
     stations: []
   });
-  assert.ok(!xssCard.innerHTML.includes('<script>alert(1)</script>'));
-  assert.ok(xssCard.innerHTML.includes('&lt;script&gt;alert(1)&lt;/script&gt;'));
+  assert.ok(!xssHtml.includes('<script>alert(1)</script>'));
+  assert.ok(xssHtml.includes('&lt;script&gt;alert(1)&lt;/script&gt;'));
 });
 
-test('Issue #66 Level 2: renderRainfallInspectorContent & dialog lifecycle handle 14 stations and empty DB safely', async () => {
+test('Dedicated Rainfall Tab: renderAllRaingaugesInline renders all 14 stations inline, supports zone filtering, and rejects unsafe URLs', () => {
   const { MockEl } = setupMinimalDom();
-  resetRainfallInspectorForTests();
-
-  const dialog = new MockEl('dialog', 'rainfall-inspector-dialog');
-  const body = new MockEl('div', 'rainfall-inspector-body');
-  const closeBtn = new MockEl('button', 'rainfall-inspector-close');
-  const triggerBtn = new MockEl('button', 'btn-open-rainfall-inspector');
+  const pageBanner = new MockEl('div', 'rainfall-status-banner');
 
   const payload = makeSampleRainfallPayload();
-  const inspectorHtml = renderRainfallInspectorContent(payload);
-  assert.match(inspectorHtml, /Maundown \(Clatworthy \/ Brendon Hills\)/);
-  assert.match(inspectorHtml, /Collector elevation pending EA survey/);
-  assert.match(inspectorHtml, /FREEZING RISK/);
-  assert.ok(!inspectorHtml.includes('check-for-flooding.service.gov.uk/station/52100'));
+  updateRainfallPageBanner(payload);
+  assert.match(pageBanner.textContent, /CATCHMENT RAINFALL:/);
+  assert.match(pageBanner.textContent, /4\/14 EA RAINGAUGES LIVE/);
+
+  const allHtml = renderAllRaingaugesInline(payload, 'all');
+  const cardMatches = allHtml.match(/class="rainfall-station-inspector-card"/g) || [];
+  assert.equal(cardMatches.length, 14, 'All 14 EA tipping-bucket raingauges must render inline');
+  assert.match(allHtml, /Maundown \(Clatworthy \/ Brendon Hills\)/);
+  assert.match(allHtml, /Quantock Farm \(Quantock Hills Ridge\)/);
+  assert.match(allHtml, /Sherborne \(Upper River Yeo East\)/);
+  assert.match(allHtml, /Collector elevation pending EA survey/);
+  assert.match(allHtml, /FREEZING RISK/);
+  assert.ok(!allHtml.includes('check-for-flooding.service.gov.uk/station/52100'));
+
+  // Zone filtering
+  const toneOnlyHtml = renderAllRaingaugesInline(payload, 'tone_upland');
+  const toneCardMatches = toneOnlyHtml.match(/class="rainfall-station-inspector-card"/g) || [];
+  assert.equal(toneCardMatches.length, 6, 'tone_upland filter must show all 6 Tone upland stations');
 
   // Non-HTTP(S) station_url provenance must be rejected and fall back safely
   const xssUrlPayload = makeSampleRainfallPayload();
   xssUrlPayload.stations[0].provenance = { station_url: 'javascript:alert(1)' };
-  const xssUrlHtml = renderRainfallInspectorContent(xssUrlPayload);
+  const xssUrlHtml = renderAllRaingaugesInline(xssUrlPayload);
   assert.ok(!xssUrlHtml.includes('javascript:alert(1)'), 'Must reject javascript: URI in station_url');
   assert.ok(xssUrlHtml.includes(`https://environment.data.gov.uk/flood-monitoring/id/stations/${encodeURIComponent(xssUrlPayload.stations[0].id)}`));
 
-  globalThis.fetch = async () => ({
-    ok: true,
-    json: async () => payload
-  });
-
-  initRainfallInspectorDialog();
-  await openRainfallInspectorDialog(triggerBtn);
-  assert.equal(dialog.open, true);
-  assert.ok(dialog.classList.contains('open'));
-  assert.equal(closeBtn.focused, true);
-  assert.match(body.innerHTML, /15-min|Hyetograph/);
-
-  // Simulate user scrubbing inside modal before immediately closing
-  refreshController.setScrubbing(true);
-  assert.equal(refreshController.isScrubbing, true);
-
-  closeRainfallInspectorDialog();
-  assert.equal(dialog.open, false);
-  assert.equal(triggerBtn.focused, true);
-  assert.equal(refreshController.isScrubbing, false, 'Closing inspector dialog must clear scrubbing pause');
-  assert.equal(refreshController.getState().isUserInspecting, false);
-
-  // Empty DB fallback in inspector
-  assert.match(renderRainfallInspectorContent(null), /No raingauge telemetry is currently cached/);
+  // Empty DB fallback
+  assert.match(renderAllRaingaugesInline(null), /No raingauge telemetry is currently cached/);
 });
 
 test('Issue #66 Hyetograph Scrubbing: bindHyetographEvents supports keyboard ArrowLeft/ArrowRight/Escape scrubbing', () => {
@@ -425,15 +422,94 @@ test('Issue #66 Governance: Jargon popovers, HTML, and CSS tokens satisfy domain
     assert.ok(!/6-to-14\s*hour/i.test(def.definition));
   }
 
-  assert.ok(indexHtml.includes('id="basin-rain-pill"'));
-  assert.ok(indexHtml.includes('id="rainfall-inspector-dialog"'));
-  assert.ok(stylesCss.includes('--precip-1: #a5b4fc'));
-  assert.ok(stylesCss.includes('--precip-2: #818cf8'));
-  assert.ok(stylesCss.includes('--precip-3: #6366f1'));
-  assert.ok(stylesCss.includes('--precip-4: #c084fc'));
+  // Overview has clickable #basin-rain-pill + compact #rainfall-summary-banner linking to rainfall.html, and no modal dialog
+  assert.ok(indexHtml.includes('href="rainfall.html" class="basin-rain-pill precip-dry" id="basin-rain-pill"'));
+  assert.ok(indexHtml.includes('id="rainfall-summary-banner"'));
+  assert.ok(!indexHtml.includes('id="rainfall-inspector-dialog"'), 'Cramped rainfall modal dialog must be retired from index.html');
+
+  // Dedicated rainfall.html structure & Topology deep link
+  assert.ok(rainfallHtml.includes('id="rainfall-status-banner"'));
+  assert.ok(rainfallHtml.includes('id="rainfall-overview-container"'));
+  assert.ok(rainfallHtml.includes('id="rainfall-stations-container"'));
+  assert.ok(rainfallHtml.includes('id="rainfall-archive-notice"'));
+  assert.ok(rainfallHtml.includes('class="rainfall-period-bar"'));
+  assert.ok(rainfallHtml.includes('data-period="24h"'));
+  assert.ok(rainfallHtml.includes('data-period="7d"'));
+  assert.ok(rainfallHtml.includes('data-period="30d"'));
+  assert.ok(rainfallHtml.includes('class="rainfall-filter-bar"'));
+  assert.ok(rainfallHtml.includes('<noscript>'));
+  assert.ok(topologyHtml.includes('href="rainfall.html"'), 'Topology node inspector must link to rainfall.html');
+
+  assert.ok(stylesCss.includes('--precip-0: #64748b'));
+  assert.ok(stylesCss.includes('--precip-1: #818cf8'));
+  assert.ok(stylesCss.includes('--precip-2: #a5b4fc'));
+  assert.ok(stylesCss.includes('--precip-3: #c084fc'));
+  assert.ok(stylesCss.includes('--precip-4: #f0abfc'));
   assert.ok(stylesCss.includes('--precip-sum: #e0e7ff'));
-  assert.match(stylesCss, /\.rainfall-inspector-trigger\s*\{[\s\S]*?min-height:\s*44px/);
-  assert.match(stylesCss, /\.rainfall-inspector-dialog\s*\{[\s\S]*?border:\s*none[\s\S]*?padding:\s*0[\s\S]*?margin:\s*0[\s\S]*?max-width:\s*100vw[\s\S]*?max-height:\s*100vh/);
-  assert.match(stylesCss, /\.rainfall-inspector-dialog\s+\.close-drawer-btn\s*\{[\s\S]*?min-width:\s*44px[\s\S]*?min-height:\s*44px[\s\S]*?flex-shrink:\s*0/);
+  assert.match(stylesCss, /\.rainfall-period-btn\s*\{[\s\S]*?min-height:\s*44px/);
   assert.match(stylesCss, /\.rainfall-inspector-stations-grid\s*\{[\s\S]*?minmax\(min\(260px,\s*100%\),\s*1fr\)/);
+});
+
+test('Dedicated Rainfall Tab: adaptive period switcher (24h/7d/30d), request-sequence guard, and honest partial archive notice', async () => {
+  const { MockEl } = setupMinimalDom();
+  resetRainfallPageStateForTests();
+
+  const noticeEl = new MockEl('div', 'rainfall-archive-notice');
+  const overviewEl = new MockEl('section', 'rainfall-overview-container');
+  const stationsEl = new MockEl('div', 'rainfall-stations-container');
+  const hintEl = new MockEl('span', 'rainfall-period-hint');
+  new MockEl('div', 'rainfall-status-banner');
+
+  const payload7d = {
+    ...makeSampleRainfallPayload(),
+    period: '7d',
+    bucket_minutes: 180,
+    bucket_label: '3h',
+    archive_coverage_hours: 48.0,
+    is_partial_archive: true
+  };
+  const payload30d = {
+    ...makeSampleRainfallPayload(),
+    period: '30d',
+    bucket_minutes: 1440,
+    bucket_label: 'day',
+    archive_coverage_hours: 720.0,
+    is_partial_archive: false
+  };
+
+  // Partial archive notice renders honestly when is_partial_archive is true and hides when complete
+  updateArchiveCoverageNotice(payload7d);
+  assert.equal(noticeEl.style.display, 'block');
+  assert.match(noticeEl.textContent, /Partial Archive Coverage/);
+  assert.match(noticeEl.textContent, /not assumed dry/);
+
+  updateArchiveCoverageNotice(payload30d);
+  assert.equal(noticeEl.style.display, 'none');
+
+  // Request-sequence guard: slow 7d fetch resolving AFTER fast 30d fetch must NOT overwrite 30d DOM
+  let resolveSlow7d;
+  const slow7dPromise = new Promise((resolve) => { resolveSlow7d = resolve; });
+  globalThis.fetch = (url) => {
+    if (String(url).includes('period=7d')) {
+      return slow7dPromise.then(() => ({ ok: true, json: async () => payload7d }));
+    }
+    return Promise.resolve({ ok: true, json: async () => payload30d });
+  };
+
+  const p7d = setRainfallPeriod('7d');
+  const p30d = setRainfallPeriod('30d');
+  await p30d;
+  assert.equal(getCurrentPeriod(), '30d');
+  assert.match(overviewEl.innerHTML, /30D Basin Mean/);
+  assert.match(overviewEl.innerHTML, /daily bars/);
+  assert.match(stationsEl.innerHTML, /mm\/day/);
+  assert.match(hintEl.textContent, /30D window/);
+
+  // Now resolve stale 7d request — DOM must stay on 30d
+  resolveSlow7d();
+  await p7d;
+  assert.equal(getCurrentPeriod(), '30d');
+  assert.match(overviewEl.innerHTML, /30D Basin Mean/);
+  assert.ok(!overviewEl.innerHTML.includes('7D Basin Mean'), 'Stale 7d response must not overwrite newer 30d view');
+  resetRainfallPageStateForTests();
 });

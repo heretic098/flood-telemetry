@@ -1179,8 +1179,17 @@ export function renderHyetographSparkline(seriesInput, options = {}) {
   const dims = getSparklineDimensions({ width, height, marginTop, marginBottom, marginLeft, marginRight });
 
   const { bars, cumulative, timestamps, totalCumulativeMm, maxBarMm, count } = normalizeRainfallSeries(seriesInput);
-  const titleText = options.title || '24h 15-min Rainfall Hyetograph';
-  const emptyMessage = options.emptyMessage || 'Awaiting 15-min rainfall readings';
+  const bucketMinutes = (typeof options.bucketMinutes === 'number' && Number.isFinite(options.bucketMinutes) && options.bucketMinutes > 0)
+    ? options.bucketMinutes
+    : 15;
+  const bucketLabel = (typeof options.bucketLabel === 'string' && options.bucketLabel.trim().length > 0)
+    ? options.bucketLabel.trim()
+    : (bucketMinutes >= 1440 ? 'day' : (bucketMinutes >= 60 ? `${Math.round(bucketMinutes / 60)}h` : `${bucketMinutes}m`));
+  const periodLabel = (typeof options.periodLabel === 'string' && options.periodLabel.trim().length > 0)
+    ? options.periodLabel.trim()
+    : '24h';
+  const titleText = options.title || `${periodLabel} ${bucketLabel} Rainfall Hyetograph`;
+  const emptyMessage = options.emptyMessage || `Awaiting ${bucketLabel} rainfall readings`;
 
   if (count === 0) {
     return `
@@ -1215,7 +1224,7 @@ export function renderHyetographSparkline(seriesInput, options = {}) {
     const x = Math.max(dims.marginLeft, Math.min(dims.marginLeft + dims.drawWidth - barW, centerX - barW / 2));
     const barH = Math.max(2, (mm / barMax) * dims.drawHeight);
     const y = baselineY - barH;
-    const tier = classifyRainfallIntensity(mm * 4);
+    const tier = classifyRainfallIntensity(mm * (60 / bucketMinutes));
     return `<rect class="hyetograph-bar" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${barH.toFixed(1)}" rx="0.8" fill="${tier.color_hex}" fill-opacity="0.9" />`;
   }).join('');
 
@@ -1254,15 +1263,15 @@ export function renderHyetographSparkline(seriesInput, options = {}) {
     `;
 
   return `
-    <div class="sparkline-wrapper hyetograph-wrapper" tabindex="0" role="region" aria-label="${escapeAttr(titleText)}. Use Left and Right Arrow keys to inspect 15-minute rainfall bars and cumulative total.">
+    <div class="sparkline-wrapper hyetograph-wrapper" tabindex="0" role="region" aria-label="${escapeAttr(titleText)}. Use Left and Right Arrow keys to inspect ${escapeAttr(bucketLabel)} rainfall bars and cumulative total.">
       <div class="sparkline-header">
         <div class="sparkline-title-group">
           <span class="stream-dot" style="background:${PRECIPITATION_PALETTE.HEAVY.hex}; color:${PRECIPITATION_PALETTE.HEAVY.hex}"></span>
           <span class="sparkline-title">${escapeHTML(titleText)}</span>
         </div>
         <div class="sparkline-stats-bar">
-          <span class="sparkline-stat-pill precip-stat-pill" title="24-hour cumulative rainfall">Σ <strong>${totalCumulativeMm.toFixed(1)} mm</strong></span>
-          <span class="sparkline-stat-pill precip-stat-pill" title="Peak 15-minute interval">Peak: <strong>${maxBarMm.toFixed(1)} mm/15m</strong></span>
+          <span class="sparkline-stat-pill precip-stat-pill" title="${escapeAttr(periodLabel)} cumulative rainfall">Σ <strong>${totalCumulativeMm.toFixed(1)} mm</strong></span>
+          <span class="sparkline-stat-pill precip-stat-pill" title="Peak ${escapeAttr(bucketLabel)} interval">Peak: <strong>${maxBarMm.toFixed(1)} mm/${escapeHTML(bucketLabel)}</strong></span>
         </div>
       </div>
       <svg class="hyetograph-svg"
@@ -1271,11 +1280,13 @@ export function renderHyetographSparkline(seriesInput, options = {}) {
            data-points="${escapeAttr(JSON.stringify(bars))}"
            data-cumulative-points="${escapeAttr(JSON.stringify(cumulative))}"
            data-timestamps="${escapeAttr(JSON.stringify(timestamps))}"
+           data-bucket-minutes="${bucketMinutes}"
+           data-bucket-label="${escapeAttr(bucketLabel)}"
            data-ymin="0"
            data-ymax="${cumMax}"
            data-bar-max="${barMax}"
            data-unit="mm"
-           aria-label="${escapeAttr(titleText)}. 24-hour total ${totalCumulativeMm.toFixed(1)}mm, peak 15-minute interval ${maxBarMm.toFixed(1)}mm.">
+           aria-label="${escapeAttr(titleText)}. ${escapeAttr(periodLabel)} total ${totalCumulativeMm.toFixed(1)}mm, peak ${escapeAttr(bucketLabel)} interval ${maxBarMm.toFixed(1)}mm.">
         ${gridMarkup}
         ${barRects}
         ${!isDryWindow ? `<polyline class="hyetograph-cumulative-line" fill="none" stroke="${PRECIPITATION_PALETTE.CUMULATIVE_LINE.hex}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" points="${cumPoints}" />` : ''}
@@ -1341,10 +1352,14 @@ export function bindHyetographEvents(container = document, options = {}) {
     if (tooltip) {
       const leftPct = Math.max(18, Math.min(82, (targetX / dims.width) * 100));
       tooltip.style.left = `${leftPct.toFixed(1)}%`;
+      const bucketMinutes = Number(svg.dataset.bucketMinutes) || 15;
+      const bucketLabel = svg.dataset.bucketLabel || '15m';
       const formatted = formatTimestampTooltip(timestamps[index]);
-      const timeLabel = formatted.isValid ? `${formatted.dateStr} ${formatted.timeStr}` : `Step ${index + 1}`;
-      const intensity = classifyRainfallIntensity(barVal * 4);
-      tooltip.innerHTML = `<span class="tooltip-time">${escapeHTML(timeLabel)}</span><span class="tooltip-val">${barVal.toFixed(1)}mm/15m (${escapeHTML(intensity.label)}) · Σ ${cumVal.toFixed(1)}mm</span>`;
+      const timeLabel = formatted.isValid
+        ? (bucketMinutes >= 1440 ? formatted.dateStr : `${formatted.dateStr} ${formatted.timeStr}`)
+        : `Step ${index + 1}`;
+      const intensity = classifyRainfallIntensity(barVal * (60 / bucketMinutes));
+      tooltip.innerHTML = `<span class="tooltip-time">${escapeHTML(timeLabel)}</span><span class="tooltip-val">${barVal.toFixed(1)}mm/${escapeHTML(bucketLabel)} (${escapeHTML(intensity.label)}) · Σ ${cumVal.toFixed(1)}mm</span>`;
     }
   };
 

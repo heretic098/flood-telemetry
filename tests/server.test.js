@@ -235,6 +235,7 @@ test('Server Partials: Injects nav and footer with correct active tabs across al
     { path: '/index.html', activeLabel: '📊 Overview', activeHref: 'index.html' },
     { path: '/roads.html', activeLabel: '🚗 Roads &amp; Access', activeHref: 'roads.html' },
     { path: '/topology.html', activeLabel: '🗺️ River Topology', activeHref: 'topology.html' },
+    { path: '/rainfall.html', activeLabel: '🌧️ Rainfall', activeHref: 'rainfall.html' },
     { path: '/methodology.html', activeLabel: '📖 Methodology', activeHref: 'methodology.html' }
   ];
 

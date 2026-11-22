@@ -158,6 +158,7 @@ function renderNav(targetPage = 'index.html') {
   const isIndex = baseName === 'index.html' || baseName === '' || baseName === '/';
   const isRoads = baseName === 'roads.html';
   const isTopology = baseName === 'topology.html';
+  const isRainfall = baseName === 'rainfall.html';
   const isMethodology = baseName === 'methodology.html';
 
   return navTemplate
@@ -167,6 +168,8 @@ function renderNav(targetPage = 'index.html') {
     .replace('{{NAV_ROADS_CURRENT}}', isRoads ? ' aria-current="page"' : '')
     .replace('{{NAV_TOPOLOGY_ACTIVE}}', isTopology ? ' active' : '')
     .replace('{{NAV_TOPOLOGY_CURRENT}}', isTopology ? ' aria-current="page"' : '')
+    .replace('{{NAV_RAINFALL_ACTIVE}}', isRainfall ? ' active' : '')
+    .replace('{{NAV_RAINFALL_CURRENT}}', isRainfall ? ' aria-current="page"' : '')
     .replace('{{NAV_METHODOLOGY_ACTIVE}}', isMethodology ? ' active' : '')
     .replace('{{NAV_METHODOLOGY_CURRENT}}', isMethodology ? ' aria-current="page"' : '');
 }
@@ -203,6 +206,12 @@ const PAGE_META_MAP = {
     description: 'Interactive topological schematic of the River Tone, River Parrett, and connected lowland moor basins across Somerset.',
     ogTitle: 'River Network Topology Map | Somerset Levels Flood Status',
     ogDescription: 'Interactive topological schematic of the River Tone, River Parrett, and connected lowland moor basins across Somerset.'
+  },
+  'rainfall.html': {
+    title: 'Somerset Levels Catchment Rainfall &amp; Raingauges | Flood Telemetry',
+    description: 'Live 15-minute tipping-bucket raingauge telemetry across 14 UK Environment Agency stations covering Somerset Levels upland headwaters and lowland moors.',
+    ogTitle: 'Somerset Levels Catchment Rainfall &amp; Raingauges | Flood Telemetry',
+    ogDescription: 'Live 15-minute tipping-bucket raingauge telemetry across 14 UK Environment Agency stations covering Somerset Levels upland headwaters and lowland moors.'
   },
   'methodology.html': {
     title: 'Methodology & Telemetry Provenance | Somerset Levels Flood Status',
@@ -941,11 +950,18 @@ const server = http.createServer(async (req, res) => {
   if (pathname === '/api/rainfall' || pathname === '/api/rainfall/') {
     try {
       const nowMs = Date.now();
-      const snapshot = getRainfallTelemetrySnapshot(db, { nowMs });
+      const requestedPeriod = urlObj.searchParams.get('period');
+      const snapshot = getRainfallTelemetrySnapshot(db, { nowMs, period: requestedPeriod });
 
       const rainfallPayload = {
         status: 'ok',
         source: 'sqlite',
+        period: snapshot.period,
+        bucket_minutes: snapshot.bucket_minutes,
+        bucket_label: snapshot.bucket_label,
+        archive_coverage_hours: snapshot.archive_coverage_hours,
+        is_partial_archive: snapshot.is_partial_archive,
+        earliest_rainfall_reading_at: snapshot.earliest_rainfall_reading_at,
         updated_at: snapshot.updated_at,
         latest_rainfall_reading_at: snapshot.latest_rainfall_reading_at,
         provenance: RAINGAUGE_PROVENANCE,

@@ -166,6 +166,30 @@ async function run() {
         minCount: 8,
         description: '.road-corridor-row elements'
       }
+    },
+    {
+      name: 'Rainfall View Desktop',
+      url: `${baseUrl}/rainfall.html`,
+      width: 1440,
+      height: 1850,
+      outPath: path.join(outDirArg, 'rainfall_main.png'),
+      domAssertion: {
+        selector: '#rainfall-stations-container .rainfall-station-inspector-card',
+        minCount: 14,
+        description: '.rainfall-station-inspector-card elements'
+      }
+    },
+    {
+      name: 'Rainfall View Mobile',
+      url: `${baseUrl}/rainfall.html`,
+      width: 375,
+      height: 1400,
+      outPath: path.join(outDirArg, 'rainfall_mobile_375.png'),
+      domAssertion: {
+        selector: '#rainfall-stations-container .rainfall-station-inspector-card',
+        minCount: 14,
+        description: '.rainfall-station-inspector-card elements'
+      }
     }
   ];
 

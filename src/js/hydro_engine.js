@@ -5002,16 +5002,18 @@ export const RAINGAUGE_PROVENANCE = Object.freeze({
 });
 
 /**
- * Dedicated Atmospheric Indigo/Violet Color Palette (--precip-*).
+ * Dedicated Atmospheric Indigo/Violet/Orchid Color Palette (--precip-*).
+ * Luminance increases monotonically on dark (#0f172a) surfaces from slate-grey
+ * through indigo and lavender to vivid orchid for intense rain.
  * Orthogonal to Estuarine Deep Blue (#0284c7, reserved for Dunball low-tide discharge
  * under UI-COL-01/02) and life-safety flood alert red/amber.
  */
 export const PRECIPITATION_PALETTE = Object.freeze({
   DRY: Object.freeze({ token: '--precip-0', hex: '#64748b', label: 'Dry' }),
-  LIGHT: Object.freeze({ token: '--precip-1', hex: '#a5b4fc', label: 'Light' }),
-  MODERATE: Object.freeze({ token: '--precip-2', hex: '#818cf8', label: 'Moderate' }),
-  HEAVY: Object.freeze({ token: '--precip-3', hex: '#6366f1', label: 'Heavy' }),
-  TORRENTIAL: Object.freeze({ token: '--precip-4', hex: '#c084fc', label: 'Torrential' }),
+  LIGHT: Object.freeze({ token: '--precip-1', hex: '#818cf8', label: 'Light' }),
+  MODERATE: Object.freeze({ token: '--precip-2', hex: '#a5b4fc', label: 'Steady' }),
+  HEAVY: Object.freeze({ token: '--precip-3', hex: '#c084fc', label: 'Heavy' }),
+  TORRENTIAL: Object.freeze({ token: '--precip-4', hex: '#f0abfc', label: 'Intense' }),
   CUMULATIVE_LINE: Object.freeze({ token: '--precip-sum', hex: '#e0e7ff', label: 'Cumulative Mass Curve' })
 });
 
@@ -5378,7 +5380,55 @@ export const FREEZING_RISK_TEMP_C = 1.0;
 export const DEFAULT_RAINGAUGE_STALE_MINUTES = 120;
 
 /**
- * Standardized 1-hour rainfall intensity classification tiers (mm/hr).
+ * Canonical period and adaptive hyetograph bucketing configurations for `/api/rainfall`.
+ * Enforces [RULE-SSOT-01] across backend aggregation, API contracts, and frontend hyetographs.
+ */
+export const RAINFALL_PERIOD_CONFIG = Object.freeze({
+  '24h': Object.freeze({
+    period: '24h',
+    window_hours: 24,
+    lookback_hours: 50,
+    bucket_minutes: 15,
+    bucket_label: '15m',
+    expected_bars: 96,
+    label: '24h'
+  }),
+  '7d': Object.freeze({
+    period: '7d',
+    window_hours: 168,
+    lookback_hours: 170,
+    bucket_minutes: 180,
+    bucket_label: '3h',
+    expected_bars: 56,
+    label: '7d'
+  }),
+  '30d': Object.freeze({
+    period: '30d',
+    window_hours: 720,
+    lookback_hours: 722,
+    bucket_minutes: 1440,
+    bucket_label: 'day',
+    expected_bars: 30,
+    label: '30d'
+  })
+});
+
+/**
+ * Normalizes a requested rainfall period string to a canonical key ('24h' | '7d' | '30d').
+ * Unknown or empty values safely default to '24h'.
+ *
+ * @param {any} rawPeriod
+ * @returns {'24h'|'7d'|'30d'}
+ */
+export function normalizeRainfallPeriod(rawPeriod) {
+  const key = typeof rawPeriod === 'string' ? rawPeriod.trim().toLowerCase() : '24h';
+  return Object.prototype.hasOwnProperty.call(RAINFALL_PERIOD_CONFIG, key) ? key : '24h';
+}
+
+/**
+ * UK-frontal-calibrated 1-hour rainfall intensity classification tiers (mm/hr).
+ * Preserves canonical machine codes (DRY, LIGHT, MODERATE, HEAVY, TORRENTIAL)
+ * and badge classes (badge-precip-*) for API/CSS backward compatibility.
  */
 export const RAINFALL_INTENSITY_TIERS = Object.freeze([
   Object.freeze({
@@ -5394,8 +5444,8 @@ export const RAINFALL_INTENSITY_TIERS = Object.freeze([
   Object.freeze({
     code: 'LIGHT',
     min_mm_hr: 0.1,
-    max_mm_hr: 2.4,
-    upper_exclusive_mm_hr: 2.5,
+    max_mm_hr: 1.9,
+    upper_exclusive_mm_hr: 2.0,
     label: 'Light',
     color_token: PRECIPITATION_PALETTE.LIGHT.token,
     color_hex: PRECIPITATION_PALETTE.LIGHT.hex,
@@ -5403,19 +5453,19 @@ export const RAINFALL_INTENSITY_TIERS = Object.freeze([
   }),
   Object.freeze({
     code: 'MODERATE',
-    min_mm_hr: 2.5,
-    max_mm_hr: 9.9,
-    upper_exclusive_mm_hr: 10.0,
-    label: 'Moderate',
+    min_mm_hr: 2.0,
+    max_mm_hr: 4.9,
+    upper_exclusive_mm_hr: 5.0,
+    label: 'Steady',
     color_token: PRECIPITATION_PALETTE.MODERATE.token,
     color_hex: PRECIPITATION_PALETTE.MODERATE.hex,
     badge_class: 'badge-precip-moderate'
   }),
   Object.freeze({
     code: 'HEAVY',
-    min_mm_hr: 10.0,
-    max_mm_hr: 24.9,
-    upper_exclusive_mm_hr: 25.0,
+    min_mm_hr: 5.0,
+    max_mm_hr: 9.9,
+    upper_exclusive_mm_hr: 10.0,
     label: 'Heavy',
     color_token: PRECIPITATION_PALETTE.HEAVY.token,
     color_hex: PRECIPITATION_PALETTE.HEAVY.hex,
@@ -5423,10 +5473,10 @@ export const RAINFALL_INTENSITY_TIERS = Object.freeze([
   }),
   Object.freeze({
     code: 'TORRENTIAL',
-    min_mm_hr: 25.0,
+    min_mm_hr: 10.0,
     max_mm_hr: Infinity,
     upper_exclusive_mm_hr: Infinity,
-    label: 'Torrential',
+    label: 'Intense',
     color_token: PRECIPITATION_PALETTE.TORRENTIAL.token,
     color_hex: PRECIPITATION_PALETTE.TORRENTIAL.hex,
     badge_class: 'badge-precip-torrential'
@@ -5616,6 +5666,8 @@ export function buildRainfallSeries15Min(readings, options = {}) {
  * @returns {object}
  */
 export function computeRainfallAccumulators(readings, options = {}) {
+  const periodKey = normalizeRainfallPeriod(options.period);
+  const periodCfg = RAINFALL_PERIOD_CONFIG[periodKey];
   const { validReadings, rejectedCount } = parseNormalizedRainfallReadings(readings);
   const maxStaleMinutes = (typeof options.maxStaleMinutes === 'number' && options.maxStaleMinutes > 0)
     ? options.maxStaleMinutes
@@ -5633,6 +5685,10 @@ export function computeRainfallAccumulators(readings, options = {}) {
     if (freezingRisk) anomalyFlags.push('FREEZING_RISK');
 
     return {
+      period: periodKey,
+      bucket_minutes: periodCfg.bucket_minutes,
+      bucket_label: periodCfg.bucket_label,
+      period_total_mm: 0.0,
       last_1h_mm: 0.0,
       last_6h_mm: 0.0,
       last_24h_mm: 0.0,
@@ -5654,7 +5710,8 @@ export function computeRainfallAccumulators(readings, options = {}) {
       anomaly_flags: anomalyFlags,
       valid_reading_count: 0,
       rejected_reading_count: rejectedCount,
-      series_15min: []
+      series_15min: [],
+      series: []
     };
   }
 
@@ -5666,12 +5723,16 @@ export function computeRainfallAccumulators(readings, options = {}) {
   const cut6h = refMs - 6 * 3600 * 1000;
   const cut24h = refMs - 24 * 3600 * 1000;
   const cut48h = refMs - 48 * 3600 * 1000;
+  const cutPeriod = refMs - periodCfg.window_hours * 3600 * 1000;
+  const bucketMs = periodCfg.bucket_minutes * 60 * 1000;
 
   let sum1h = 0;
   let sum6h = 0;
   let sum24h = 0;
   let sum48h = 0;
+  let sumPeriod = 0;
   const series15Min = [];
+  const periodBuckets = periodKey === '24h' ? null : new Map();
   let latestEligibleReading = null;
   let eligibleCount = 0;
   let futureRejectedCount = 0;
@@ -5685,6 +5746,14 @@ export function computeRainfallAccumulators(readings, options = {}) {
 
     eligibleCount++;
     latestEligibleReading = r;
+
+    if (r.epochMs > cutPeriod) {
+      sumPeriod += r.rainfall_mm;
+      if (periodBuckets) {
+        const bucketStartMs = Math.floor(r.epochMs / bucketMs) * bucketMs;
+        periodBuckets.set(bucketStartMs, (periodBuckets.get(bucketStartMs) || 0) + r.rainfall_mm);
+      }
+    }
 
     if (r.epochMs > cut48h) {
       sum48h += r.rainfall_mm;
@@ -5711,6 +5780,10 @@ export function computeRainfallAccumulators(readings, options = {}) {
     if (freezingRisk) anomalyFlags.push('FREEZING_RISK');
 
     return {
+      period: periodKey,
+      bucket_minutes: periodCfg.bucket_minutes,
+      bucket_label: periodCfg.bucket_label,
+      period_total_mm: 0.0,
       last_1h_mm: 0.0,
       last_6h_mm: 0.0,
       last_24h_mm: 0.0,
@@ -5732,7 +5805,8 @@ export function computeRainfallAccumulators(readings, options = {}) {
       anomaly_flags: anomalyFlags,
       valid_reading_count: 0,
       rejected_reading_count: rejectedCount + futureRejectedCount,
-      series_15min: []
+      series_15min: [],
+      series: []
     };
   }
 
@@ -5740,6 +5814,24 @@ export function computeRainfallAccumulators(readings, options = {}) {
   const last6hMm = Number(Math.max(last1hMm, sum6h).toFixed(2));
   const last24hMm = Number(Math.max(last6hMm, sum24h).toFixed(2));
   const last48hMm = Number(Math.max(last24hMm, sum48h).toFixed(2));
+  const periodTotalMm = periodKey === '24h'
+    ? last24hMm
+    : Number(Math.max(last48hMm, sumPeriod).toFixed(2));
+
+  let adaptiveSeries = series15Min;
+  if (periodBuckets) {
+    const sortedKeys = Array.from(periodBuckets.keys()).sort((a, b) => a - b);
+    let runningCum = 0;
+    adaptiveSeries = sortedKeys.map((bucketStartMs) => {
+      const mm = Number((periodBuckets.get(bucketStartMs) || 0).toFixed(2));
+      runningCum = Number((runningCum + mm).toFixed(2));
+      return {
+        timestamp: new Date(bucketStartMs).toISOString(),
+        rainfall_mm: mm,
+        cumulative_mm: runningCum
+      };
+    });
+  }
 
   const ageMs = Math.max(0, refMs - latestEligibleReading.epochMs);
   const ageMinutes = Math.floor(ageMs / 60000);
@@ -5752,6 +5844,10 @@ export function computeRainfallAccumulators(readings, options = {}) {
   const intensity = classifyRainfallIntensity(last1hMm);
 
   return {
+    period: periodKey,
+    bucket_minutes: periodCfg.bucket_minutes,
+    bucket_label: periodCfg.bucket_label,
+    period_total_mm: periodTotalMm,
     last_1h_mm: last1hMm,
     last_6h_mm: last6hMm,
     last_24h_mm: last24hMm,
@@ -5773,7 +5869,8 @@ export function computeRainfallAccumulators(readings, options = {}) {
     anomaly_flags: anomalyFlags,
     valid_reading_count: eligibleCount,
     rejected_reading_count: rejectedCount + futureRejectedCount,
-    series_15min: series15Min
+    series_15min: series15Min,
+    series: adaptiveSeries
   };
 }
 
@@ -5795,6 +5892,8 @@ export function computeRainfallAccumulators(readings, options = {}) {
  * @returns {{ catchments: Record<string, object>, stations: Array<object>, stations_by_id: Record<string, object>, rainfall_summary: object }}
  */
 export function aggregateCatchmentRainfall(readingsByStationOrMeasure = {}, options = {}) {
+  const periodKey = normalizeRainfallPeriod(options.period);
+  const periodCfg = RAINFALL_PERIOD_CONFIG[periodKey];
   const registry = options.registry || RAINGAUGE_REGISTRY;
   const sourceMap = (readingsByStationOrMeasure instanceof Map)
     ? Object.fromEntries(readingsByStationOrMeasure.entries())
@@ -5812,6 +5911,7 @@ export function aggregateCatchmentRainfall(readingsByStationOrMeasure = {}, opti
 
     const acc = computeRainfallAccumulators(rawReadings, {
       ...options,
+      period: periodKey,
       ambientTempC: stationTemp
     });
 
@@ -5842,6 +5942,9 @@ export function aggregateCatchmentRainfall(readingsByStationOrMeasure = {}, opti
       last_6h_mm: acc.last_6h_mm,
       last_24h_mm: acc.last_24h_mm,
       last_48h_mm: acc.last_48h_mm,
+      period_total_mm: acc.period_total_mm,
+      bucket_minutes: acc.bucket_minutes,
+      bucket_label: acc.bucket_label,
       rate_mm_per_hr: acc.rate_mm_per_hr,
       rate_label: acc.rate_label,
       intensity_category: acc.intensity_category,
@@ -5853,7 +5956,8 @@ export function aggregateCatchmentRainfall(readingsByStationOrMeasure = {}, opti
       anomaly_flags: acc.anomaly_flags,
       valid_reading_count: acc.valid_reading_count,
       rejected_reading_count: acc.rejected_reading_count,
-      series_15min: acc.series_15min
+      series_15min: acc.series_15min,
+      series: acc.series
     };
 
     stations.push(stationRecord);
@@ -5882,17 +5986,22 @@ export function aggregateCatchmentRainfall(readingsByStationOrMeasure = {}, opti
     let mean6h = 0.0;
     let mean24h = 0.0;
     let mean48h = 0.0;
+    let meanPeriod = 0.0;
 
     if (denom > 0) {
       const sum1h = activeStations.reduce((acc, s) => acc + s.last_1h_mm, 0);
       const sum6h = activeStations.reduce((acc, s) => acc + s.last_6h_mm, 0);
       const sum24h = activeStations.reduce((acc, s) => acc + s.last_24h_mm, 0);
       const sum48h = activeStations.reduce((acc, s) => acc + s.last_48h_mm, 0);
+      const sumPeriod = activeStations.reduce((acc, s) => acc + s.period_total_mm, 0);
 
       mean1h = Number((sum1h / denom).toFixed(2));
       mean6h = Number(Math.max(mean1h, sum6h / denom).toFixed(2));
       mean24h = Number(Math.max(mean6h, sum24h / denom).toFixed(2));
       mean48h = Number(Math.max(mean24h, sum48h / denom).toFixed(2));
+      meanPeriod = periodKey === '24h'
+        ? mean24h
+        : Number(Math.max(mean48h, sumPeriod / denom).toFixed(2));
     }
 
     let peak24hStation = activeStations[0] || null;
@@ -5919,6 +6028,7 @@ export function aggregateCatchmentRainfall(readingsByStationOrMeasure = {}, opti
     const peak6hMm = activeStations.length > 0 ? Math.max(...activeStations.map(s => s.last_6h_mm)) : 0.0;
     const peak24hMm = peak24hStation ? peak24hStation.last_24h_mm : 0.0;
     const peak48hMm = activeStations.length > 0 ? Math.max(...activeStations.map(s => s.last_48h_mm)) : 0.0;
+    const peakPeriodMm = activeStations.length > 0 ? Math.max(...activeStations.map(s => s.period_total_mm)) : 0.0;
 
     const meanIntensity = classifyRainfallIntensity(mean1h);
     const peakIntensity = classifyRainfallIntensity(peak1hMm);
@@ -5935,10 +6045,12 @@ export function aggregateCatchmentRainfall(readingsByStationOrMeasure = {}, opti
       mean_6h_mm: mean6h,
       mean_24h_mm: mean24h,
       mean_48h_mm: mean48h,
+      period_total_mm: meanPeriod,
       peak_1h_mm: Number(peak1hMm.toFixed(2)),
       peak_6h_mm: Number(peak6hMm.toFixed(2)),
       peak_24h_mm: Number(peak24hMm.toFixed(2)),
       peak_48h_mm: Number(peak48hMm.toFixed(2)),
+      peak_period_mm: Number(peakPeriodMm.toFixed(2)),
       peak_station: peak24hStation ? peak24hStation.name : null,
       peak_station_id: peak24hStation ? peak24hStation.id : null,
       peak_intensity_station: peak1hStation ? peak1hStation.name : null,
@@ -5976,6 +6088,11 @@ export function aggregateCatchmentRainfall(readingsByStationOrMeasure = {}, opti
   const basin48hMeanMm = basinDenom > 0
     ? Number(Math.max(basin24hMeanMm, activeBasinStations.reduce((acc, s) => acc + s.last_48h_mm, 0) / basinDenom).toFixed(2))
     : 0.0;
+  const basinPeriodMeanMm = basinDenom > 0
+    ? (periodKey === '24h'
+      ? basin24hMeanMm
+      : Number(Math.max(basin48hMeanMm, activeBasinStations.reduce((acc, s) => acc + s.period_total_mm, 0) / basinDenom).toFixed(2)))
+    : 0.0;
 
   const activeUplandStations = activeBasinStations.filter(s => s.pillar === 'upland');
   let uplandPeakStation = activeUplandStations[0] || null;
@@ -5992,6 +6109,10 @@ export function aggregateCatchmentRainfall(readingsByStationOrMeasure = {}, opti
   const basinIntensity = classifyRainfallIntensity(basin1hMeanMm);
 
   const rainfallSummary = {
+    period: periodKey,
+    bucket_minutes: periodCfg.bucket_minutes,
+    bucket_label: periodCfg.bucket_label,
+    period_total_mm: basinPeriodMeanMm,
     basin_1h_mean_mm: basin1hMeanMm,
     basin_6h_mean_mm: basin6hMeanMm,
     basin_24h_mean_mm: basin24hMeanMm,
@@ -6004,6 +6125,9 @@ export function aggregateCatchmentRainfall(readingsByStationOrMeasure = {}, opti
   };
 
   return {
+    period: periodKey,
+    bucket_minutes: periodCfg.bucket_minutes,
+    bucket_label: periodCfg.bucket_label,
     catchments,
     stations,
     stations_by_id: stationsById,

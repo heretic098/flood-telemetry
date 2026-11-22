@@ -245,7 +245,7 @@ test('GET /api/rainfall & /api/status aggregate real historical_rainfall batches
   assert.equal(maundown.last_1h_mm, 3.6);
   assert.equal(maundown.last_24h_mm, 32.2);
   assert.equal(maundown.intensity_category, 'MODERATE');
-  assert.equal(maundown.rate_label, 'Moderate (3.6 mm/h)');
+  assert.equal(maundown.rate_label, 'Steady (3.6 mm/h)');
   assert.equal(maundown.rejected_reading_count, 1, 'Future-drifted reading must be counted as rejected');
   assert.equal(maundown.series_15min.length, 5);
   assert.equal(maundown.series_15min[maundown.series_15min.length - 1].cumulative_mm, 32.2);
@@ -278,7 +278,7 @@ test('GET /api/rainfall & /api/status aggregate real historical_rainfall batches
   // Isle Upland heavy intensity
   const isle = payload.catchments.isle_upland;
   assert.equal(isle.active_station_count, 1);
-  assert.equal(isle.rate_category, 'HEAVY');
+  assert.equal(isle.rate_category, 'TORRENTIAL');
 
   // Raw unescaped text contract (no HTML entity double-escaping in JSON API)
   assert.ok(parrett.river.includes('&'), 'Raw "&" must not be HTML-escaped in API JSON');
@@ -400,4 +400,48 @@ test('Contract validation strictly rejects malformed /api/rainfall payloads and 
   const missingCatchment = structuredClone(validBase);
   delete missingCatchment.catchments.isle_upland;
   assert.equal(validateApiRainfallPayload(missingCatchment).valid, false);
+});
+
+test('GET /api/rainfall?period=7d|30d|invalid returns adaptive bucketed series and honest archive coverage metadata', async () => {
+  db.exec('DELETE FROM historical_rainfall');
+  const nowMs = Date.now();
+  const isoAgoHours = (h) => new Date(nowMs - h * 3600 * 1000).toISOString();
+
+  // Seed 5 days of history for 52100 (so 7d & 30d are partial archives, 24h is full)
+  ingestRainfallBatch(db, RAINGAUGE_REGISTRY['52100'].measure_id, [
+    { dateTime: isoAgoHours(120), rainfall_mm: 8.0 },
+    { dateTime: isoAgoHours(40), rainfall_mm: 4.0 },
+    { dateTime: isoAgoHours(1), rainfall_mm: 1.6 }
+  ]);
+
+  const res7d = await httpGet('/api/rainfall?period=7d');
+  assert.equal(res7d.status, 200);
+  const json7d = JSON.parse(res7d.body);
+  assert.equal(validateApiRainfallPayload(json7d).valid, true);
+  assert.equal(json7d.period, '7d');
+  assert.equal(json7d.bucket_minutes, 180);
+  assert.equal(json7d.bucket_label, '3h');
+  assert.equal(json7d.is_partial_archive, true);
+  assert.ok(json7d.archive_coverage_hours >= 119 && json7d.archive_coverage_hours <= 121);
+  const st7d = json7d.stations.find(s => s.id === '52100');
+  assert.equal(st7d.period_total_mm, 13.6);
+  assert.equal(st7d.last_24h_mm, 1.6);
+
+  const res30d = await httpGet('/api/rainfall?period=30d');
+  assert.equal(res30d.status, 200);
+  const json30d = JSON.parse(res30d.body);
+  assert.equal(validateApiRainfallPayload(json30d).valid, true);
+  assert.equal(json30d.period, '30d');
+  assert.equal(json30d.bucket_minutes, 1440);
+  assert.equal(json30d.bucket_label, 'day');
+  assert.equal(json30d.is_partial_archive, true);
+
+  // Unknown period safely defaults to 24h
+  const resInvalid = await httpGet('/api/rainfall?period=999y');
+  assert.equal(resInvalid.status, 200);
+  const jsonInvalid = JSON.parse(resInvalid.body);
+  assert.equal(validateApiRainfallPayload(jsonInvalid).valid, true);
+  assert.equal(jsonInvalid.period, '24h');
+  assert.equal(jsonInvalid.bucket_minutes, 15);
+  assert.equal(jsonInvalid.bucket_label, '15m');
 });

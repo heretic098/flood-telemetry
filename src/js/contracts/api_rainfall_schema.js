@@ -33,6 +33,12 @@ export const RAINFALL_RATE_CATEGORIES = Object.freeze([
   'TORRENTIAL'
 ]);
 
+export const RAINFALL_PERIODS = Object.freeze([
+  '24h',
+  '7d',
+  '30d'
+]);
+
 export const CANONICAL_RAINFALL_CATCHMENT_IDS = Object.freeze([
   'tone_upland',
   'parrett_upland',
@@ -55,6 +61,12 @@ export const RAINFALL_FORBIDDEN_CALC_KEYS = Object.freeze([
 export const rainfallSeriesPointSchema = object({
   timestamp: isoDate(),
   rainfall_mm: number({ min: 0, max: 100 }),
+  cumulative_mm: number({ min: 0 })
+});
+
+export const rainfallAdaptiveSeriesPointSchema = object({
+  timestamp: isoDate(),
+  rainfall_mm: number({ min: 0 }),
   cumulative_mm: number({ min: 0 })
 });
 
@@ -104,6 +116,9 @@ export const rainfallStationSchema = object({
   last_6h_mm: number({ min: 0 }),
   last_24h_mm: number({ min: 0 }),
   last_48h_mm: number({ min: 0 }),
+  period_total_mm: optional(number({ min: 0 })),
+  bucket_minutes: optional(number({ min: 15, integer: true })),
+  bucket_label: optional(string({ minLength: 1 })),
   rate_mm_per_hr: number({ min: 0 }),
   rate_label: string({ minLength: 1 }),
   intensity_category: enumValues(RAINFALL_RATE_CATEGORIES),
@@ -115,7 +130,8 @@ export const rainfallStationSchema = object({
   anomaly_flags: optional(array(enumValues(RAINFALL_ANOMALY_FLAGS))),
   valid_reading_count: optional(number({ min: 0, integer: true })),
   rejected_reading_count: optional(number({ min: 0, integer: true })),
-  series_15min: array(rainfallSeriesPointSchema)
+  series_15min: array(rainfallSeriesPointSchema),
+  series: optional(array(rainfallAdaptiveSeriesPointSchema))
 });
 
 export const rainfallCatchmentSchema = object({
@@ -130,10 +146,12 @@ export const rainfallCatchmentSchema = object({
   mean_6h_mm: number({ min: 0 }),
   mean_24h_mm: number({ min: 0 }),
   mean_48h_mm: number({ min: 0 }),
+  period_total_mm: optional(number({ min: 0 })),
   peak_1h_mm: number({ min: 0 }),
   peak_6h_mm: number({ min: 0 }),
   peak_24h_mm: number({ min: 0 }),
   peak_48h_mm: number({ min: 0 }),
+  peak_period_mm: optional(number({ min: 0 })),
   peak_station: nullable(string({ minLength: 1 })),
   peak_station_id: optional(nullable(string({ minLength: 1 }))),
   peak_intensity_station: optional(nullable(string({ minLength: 1 }))),
@@ -146,6 +164,10 @@ export const rainfallCatchmentSchema = object({
 });
 
 export const rainfallSummarySchema = object({
+  period: optional(enumValues(RAINFALL_PERIODS)),
+  bucket_minutes: optional(number({ min: 15, integer: true })),
+  bucket_label: optional(string({ minLength: 1 })),
+  period_total_mm: optional(number({ min: 0 })),
   basin_1h_mean_mm: optional(number({ min: 0 })),
   basin_6h_mean_mm: optional(number({ min: 0 })),
   basin_24h_mean_mm: number({ min: 0 }),
@@ -160,6 +182,12 @@ export const rainfallSummarySchema = object({
 export const apiRainfallSchema = object({
   status: string({ pattern: /^ok$/ }),
   source: optional(string({ minLength: 1 })),
+  period: optional(enumValues(RAINFALL_PERIODS)),
+  bucket_minutes: optional(number({ min: 15, integer: true })),
+  bucket_label: optional(string({ minLength: 1 })),
+  archive_coverage_hours: optional(number({ min: 0 })),
+  is_partial_archive: optional(boolean()),
+  earliest_rainfall_reading_at: optional(nullable(isoDate({ allowSqlite: true }))),
   updated_at: isoDate({ allowSqlite: true }),
   latest_rainfall_reading_at: nullable(isoDate({ allowSqlite: true })),
   provenance: rainfallProvenanceSchema,
@@ -275,23 +303,25 @@ export function validateApiRainfallPayload(payload) {
         errors.push(`${prefix}: non-stale station must have non-null age_minutes and latest_timestamp`);
       }
 
-      if (Array.isArray(st.series_15min)) {
+      for (const seriesKey of ['series_15min', 'series']) {
+        const seriesArr = st[seriesKey];
+        if (!Array.isArray(seriesArr)) continue;
         let prevEpoch = -Infinity;
         let prevCum = -Infinity;
-        for (let j = 0; j < st.series_15min.length; j++) {
-          const pt = st.series_15min[j];
+        for (let j = 0; j < seriesArr.length; j++) {
+          const pt = seriesArr[j];
           if (!pt || typeof pt !== 'object') continue;
           const epoch = Date.parse(pt.timestamp);
           if (Number.isFinite(epoch)) {
             if (epoch <= prevEpoch) {
-              errors.push(`${prefix}.series_15min[${j}]: timestamps must be strictly chronologically ascending`);
+              errors.push(`${prefix}.${seriesKey}[${j}]: timestamps must be strictly chronologically ascending`);
               break;
             }
             prevEpoch = epoch;
           }
           if (typeof pt.cumulative_mm === 'number') {
             if (pt.cumulative_mm < prevCum) {
-              errors.push(`${prefix}.series_15min[${j}]: cumulative_mm must be monotonically non-decreasing`);
+              errors.push(`${prefix}.${seriesKey}[${j}]: cumulative_mm must be monotonically non-decreasing`);
               break;
             }
             prevCum = pt.cumulative_mm;
