@@ -1,8 +1,15 @@
 node_modules
 .git
-telemetry.db*
-flood_telemetry.db*
+.github
 .agents
 .env
+.DS_Store
+*.db
+*.db-wal
+*.db-shm
+camera_buffer
+data/camera_buffer
 private_outreach
+tests
+docs
 
