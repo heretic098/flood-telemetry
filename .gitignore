@@ -6,5 +6,6 @@ node_modules/
 private_outreach/
 camera_buffer/
 data/camera_buffer/
+data/tidal_poc_cache/
 
 
