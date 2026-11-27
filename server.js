@@ -388,8 +388,12 @@ export async function syncBackfillTelemetry(dbInstance = db, measures = null, fe
         continue;
       }
 
-      if (data.items && Array.isArray(data.items)) {
-        const enrichedItems = computeBatchStageRates(data.items);
+      if (validation.rejectedCount > 0) {
+        console.warn(`[Backfill Worker Sanitizer] Dropped ${validation.rejectedCount} invalid reading(s) for ${id}:`, validation.warnings.slice(0, 2).join('; '));
+      }
+
+      if (validation.cleanItems.length > 0) {
+        const enrichedItems = computeBatchStageRates(validation.cleanItems);
         const items = enrichedItems.map(item => ({
           measure_id: id,
           dateTime: item.dateTime,
@@ -436,11 +440,15 @@ export async function syncMeasure(measureId, limit = 96, fetchFn = globalThis.fe
       return null;
     }
 
-    if (data.items && data.items.length > 0) {
-      const stmt = dbInstance.prepare("INSERT OR REPLACE INTO telemetry (measure_id, readings_json, updated_at) VALUES (?, ?, datetime('now'))");
-      stmt.run(measureId, JSON.stringify(data.items));
+    if (validation.rejectedCount > 0) {
+      console.warn(`[SQLite Ingest Sanitizer] Dropped ${validation.rejectedCount} invalid reading(s) for ${measureId}:`, validation.warnings.slice(0, 2).join('; '));
+    }
 
-      const enrichedItems = computeBatchStageRates(data.items);
+    if (validation.cleanItems.length > 0) {
+      const stmt = dbInstance.prepare("INSERT OR REPLACE INTO telemetry (measure_id, readings_json, updated_at) VALUES (?, ?, datetime('now'))");
+      stmt.run(measureId, JSON.stringify(validation.cleanItems));
+
+      const enrichedItems = computeBatchStageRates(validation.cleanItems);
       const histStmt = dbInstance.prepare(`
         INSERT INTO historical_telemetry (measure_id, date_time, value, delta_15m_m, rate_1h_m_per_hr, rate_3h_m_per_hr)
         VALUES (?, ?, ?, ?, ?, ?)
@@ -464,7 +472,7 @@ export async function syncMeasure(measureId, limit = 96, fetchFn = globalThis.fe
       });
       histTx(enrichedItems);
 
-      return data.items;
+      return validation.cleanItems;
     }
   } catch (err) {
     console.warn(`[SQLite Ingest Warning] Failed to sync ${measureId}:`, err.message);

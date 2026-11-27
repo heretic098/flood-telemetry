@@ -107,13 +107,16 @@ test('SEC-03: fetchWebcamImageSecure blocks disallowed SSRF target domains', asy
   );
 });
 
-test('SEC-06: sanitizeStageValue enforces plausibility bounds (-2.0m to 100.0m AOD)', () => {
+test('SEC-06: sanitizeStageValue enforces plausibility bounds (-8.0m to 100.0m AOD)', () => {
   assert.equal(sanitizeStageValue(7.45), 7.45);
   assert.equal(sanitizeStageValue(76.14), 76.14); // Upper Tone catchment elevation
   assert.equal(sanitizeStageValue(-1.5), -1.5);
-  assert.equal(sanitizeStageValue(-3.0), null); // Out of bounds
+  assert.equal(sanitizeStageValue(-6.3), -6.3); // Hinkley Point Bristol Channel spring low tide
+  assert.equal(sanitizeStageValue(-8.5), null); // Out of bounds
+  assert.equal(sanitizeStageValue(-99.0), null); // EA fault sentinel
   assert.equal(sanitizeStageValue(150.0), null); // Out of bounds
   assert.equal(sanitizeStageValue(NaN), null);
+  assert.equal(sanitizeStageValue(Infinity), null);
   assert.equal(sanitizeStageValue(null), null);
 });
 

@@ -5,6 +5,8 @@
  */
 
 export { escapeHTML, escapeAttr, formatHeadDelta } from './modules/dom_utils.js';
+import { STAGE_PLAUSIBILITY_MIN_M, STAGE_PLAUSIBILITY_MAX_M } from './contracts/ea_telemetry_schema.js';
+export { STAGE_PLAUSIBILITY_MIN_M, STAGE_PLAUSIBILITY_MAX_M };
 
 export function getSeasonalRegime(date = new Date()) {
   const month = date.getMonth(); // 0-indexed: 0 = Jan, 3 = Apr, 9 = Oct, 11 = Dec
@@ -1229,9 +1231,36 @@ export function getValidStageOrFallback(readings, fallbackValue) {
   return fallbackValue;
 }
 
+export const DEFAULT_MIN_FLATLINE_READINGS = 48; // 12h @ 15-min intervals (inland river/moor gauges)
+export const TIDAL_MIN_FLATLINE_READINGS = 12;   // 3h @ 15-min intervals (macro-tidal gauges; 0 false positives across 369d archive where max normal low-tide sill run is 7 readings / 1.75h)
+
+/**
+ * Determines whether a station ID or EA measure ID corresponds to a macro-tidal gauge
+ * (e.g., Hinkley Point 52106, Dunball Sea 52163, Bridgwater Tidal 52124).
+ *
+ * @param {string|null|undefined} stationOrMeasureId
+ * @returns {boolean}
+ */
+export function isTidalStationOrMeasure(stationOrMeasureId) {
+  if (typeof stationOrMeasureId !== 'string') return false;
+  const trimmed = stationOrMeasureId.trim();
+  if (!trimmed) return false;
+  if (trimmed.includes('-tidal_level-')) return true;
+  if (trimmed === '52106') return true; // Hinkley Point coastal tide gauge (ingest-only)
+  const regEntry = (typeof STATION_REGISTRY === 'object' && STATION_REGISTRY !== null)
+    ? STATION_REGISTRY[trimmed]
+    : null;
+  if (regEntry) {
+    if (regEntry.node_type === 'tidal_outfall') return true;
+    if (typeof regEntry.measure_id === 'string' && regEntry.measure_id.includes('-tidal_level-')) return true;
+  }
+  return false;
+}
+
 /**
  * Evaluates the freshness of station telemetry readings against latency and flatline thresholds.
- * Detects both latency staleness (>2h age) and zero-variance frozen sensor failure (>=12h/24h static).
+ * Detects both latency staleness (>2h age) and zero-variance frozen sensor failure
+ * (>=12h static for inland gauges, >=3h static for macro-tidal gauges).
  * Prevents "zombie gauges" from silently presenting stale readings as fresh/nominal.
  *
  * @param {Array|null|undefined} readings - Array of reading items sorted descending by time (latest first)
@@ -1239,7 +1268,10 @@ export function getValidStageOrFallback(readings, fallbackValue) {
  * @param {number} [options.maxAgeHours=2.0] - Age in hours after which data is classified as STALE
  * @param {number} [options.nowMs=Date.now()] - Current epoch timestamp
  * @param {string} [options.fallbackLabel='Fallback Baseline'] - Label when no readings are available
- * @param {number} [options.minFlatlineReadings=48] - Minimum readings to evaluate flatline (48 = 12h @ 15m)
+ * @param {boolean} [options.isTidal] - Explicitly enable macro-tidal flatline threshold (12 readings = 3h)
+ * @param {string} [options.stationId] - Optional station ID to auto-detect tidal threshold from STATION_REGISTRY
+ * @param {string} [options.measureId] - Optional EA measure ID to auto-detect tidal threshold
+ * @param {number} [options.minFlatlineReadings] - Minimum consecutive latest readings to evaluate flatline (default 48 inland / 12 tidal)
  * @param {number} [options.flatlineThresholdM=0.001] - Max variance span to qualify as zero-variance flatline (<1mm)
  * @returns {object} { isFresh: boolean, isStale: boolean, isOffline: boolean, isFlatlined: boolean, flatlineHours: number|null, ageHours: number|null, ageMinutes: number|null, latestTimestamp: string|null, badgeText: string|null, badgeClass: string }
  */
@@ -1247,7 +1279,17 @@ export function evaluateStationFreshness(readings, options = {}) {
   const maxAgeHours = options.maxAgeHours ?? 2.0;
   const nowMs = options.nowMs ?? Date.now();
   const fallbackLabel = options.fallbackLabel || 'Fallback Baseline';
-  const minFlatlineReadings = options.minFlatlineReadings ?? 48;
+  const latestMetaId = (Array.isArray(readings) && readings.length > 0 && typeof readings[0] === 'object' && readings[0] !== null)
+    ? (readings[0].measure_id || readings[0].measure || null)
+    : null;
+  const isTidal = options.isTidal === true
+    || (options.isTidal !== false && (
+      isTidalStationOrMeasure(options.stationId)
+      || isTidalStationOrMeasure(options.measureId)
+      || isTidalStationOrMeasure(latestMetaId)
+    ));
+  const minFlatlineReadings = options.minFlatlineReadings
+    ?? (isTidal ? TIDAL_MIN_FLATLINE_READINGS : DEFAULT_MIN_FLATLINE_READINGS);
   const flatlineThresholdM = options.flatlineThresholdM ?? 0.001;
 
   if (!readings || !Array.isArray(readings) || readings.length === 0) {
@@ -1313,26 +1355,39 @@ export function evaluateStationFreshness(readings, options = {}) {
     }
   }
 
-  // Zero-Variance Sensor Flatline Detection
+  // Zero-Variance Sensor Flatline Detection (evaluated over latest consecutive run)
   if (validValues.length >= minFlatlineReadings) {
-    let minVal = Infinity;
-    let maxVal = -Infinity;
-    for (let i = 0; i < validValues.length; i++) {
+    let minVal = validValues[0];
+    let maxVal = validValues[0];
+    let flatlineRunCount = 1;
+    for (let i = 1; i < validValues.length; i++) {
       const v = validValues[i];
-      if (v < minVal) minVal = v;
-      if (v > maxVal) maxVal = v;
+      const nextMin = v < minVal ? v : minVal;
+      const nextMax = v > maxVal ? v : maxVal;
+      if ((nextMax - nextMin) < flatlineThresholdM) {
+        minVal = nextMin;
+        maxVal = nextMax;
+        flatlineRunCount++;
+      } else {
+        break;
+      }
     }
-    const span = maxVal - minVal;
 
-    if (span < flatlineThresholdM) {
-      const is24h = validValues.length >= 96;
-      const flatlineLabel = is24h ? '24h+' : '12h+';
+    if (flatlineRunCount >= minFlatlineReadings) {
+      const is24h = flatlineRunCount >= 96;
+      const is12h = flatlineRunCount >= 48;
+      const flatlineHours = is24h
+        ? 24
+        : (is12h ? 12 : Number((flatlineRunCount * 0.25).toFixed(1)));
+      const flatlineLabel = is24h
+        ? '24h+'
+        : (is12h ? '12h+' : `${Number.isInteger(flatlineHours) ? flatlineHours : flatlineHours.toFixed(1)}h+`);
       return {
         isFresh: false,
         isStale: true,
         isOffline: false,
         isFlatlined: true,
-        flatlineHours: is24h ? 24 : 12,
+        flatlineHours,
         ageHours,
         ageMinutes,
         latestTimestamp: dateStr,
@@ -2335,7 +2390,7 @@ export function evaluateTopologyNetwork(measures = {}, config = TOPOLOGY_NETWORK
             const upDateStr = (typeof upLatest === 'object' && upLatest !== null) ? (upLatest.dateTime || upLatest.date) : null;
             const upMs = upDateStr ? Date.parse(upDateStr) : NaN;
             const refNowMs = safeOptions.nowMs ?? (!isNaN(upMs) ? upMs : Date.now());
-            const downFreshness = evaluateStationFreshness(downReadings, { nowMs: refNowMs });
+            const downFreshness = evaluateStationFreshness(downReadings, { nowMs: refNowMs, stationId: rule.downstream_node_id });
             isDownstreamFlatlined = isDownstreamFlatlined || downFreshness.isFlatlined;
             isDownstreamStale = isDownstreamStale || (downFreshness.isStale && !downFreshness.isFlatlined) || downFreshness.isOffline;
           }
@@ -2586,13 +2641,15 @@ export const HYDRO_DEADBANDS = {
 };
 
 /**
- * Sanitizes and validates stage values against plausibility bounds (-2.0m to 15.0m AOD) (SEC-06).
+ * Sanitizes and validates stage values against plausibility bounds (-8.0m to 100.0m AOD / ASD) (SEC-06).
+ * Accommodates Bristol Channel spring low tides (e.g., Hinkley Point down to ~-6.3m AOD)
+ * and upper Tone catchment gauges (e.g., Greenham ~76m AOD) while rejecting EA fault sentinels (-99, 244514).
  */
 export function sanitizeStageValue(val) {
-  if (val === null || val === undefined || typeof val !== 'number' || isNaN(val)) {
+  if (val === null || val === undefined || typeof val !== 'number' || !Number.isFinite(val)) {
     return null;
   }
-  if (val < -2.0 || val > 100.0) {
+  if (val < STAGE_PLAUSIBILITY_MIN_M || val > STAGE_PLAUSIBILITY_MAX_M) {
     return null; // Out of bounds telemetry outlier
   }
   return val;
@@ -3894,6 +3951,22 @@ export function evaluateAssetTransition(assetDef, activeSession = null, readings
     }
 
     case 'tidal_gate': {
+      const seaFreshness = evaluateStationFreshness(readings, {
+        nowMs: options.nowMs ?? Date.now(),
+        stationId: assetDef.primary_station || '52163',
+        isTidal: true
+      });
+      if (seaFreshness.isFlatlined) {
+        evaluatedState = currentSt || 'DISCHARGING';
+        evaluatedSeverity = (activeSession && activeSession.status !== 'CLOSED')
+          ? (activeSession.severity_tier || 1)
+          : 1;
+        clearanceM = null;
+        clearanceDescriptor = 'sensor fault';
+        narrative = `${assetDef.name}: estuary sea sensor flatlined (${seaFreshness.flatlineHours}h+ static reading); suppressing false tide-lock / surge alert.`;
+        break;
+      }
+
       const secLatest = secReadings[0];
       const secStageRaw = (typeof secLatest === 'object' && secLatest !== null) ? secLatest.value : secLatest;
       const inlandStage = sanitizeStageValue(secStageRaw);
@@ -4045,7 +4118,7 @@ export function evaluateAssetTransition(assetDef, activeSession = null, readings
       const revDeadband = assetDef.reverse_lock_deadband ?? HYDRO_DEADBANDS.reverse_lock ?? 0.10;
 
       // Downstream Sensor Health & Flatline Inspection
-      const secFreshness = evaluateStationFreshness(secReadings, { nowMs: options.nowMs ?? Date.now() });
+      const secFreshness = evaluateStationFreshness(secReadings, { nowMs: options.nowMs ?? Date.now(), stationId: assetDef.secondary_station });
       const isDownstreamHealthy = downstreamStage !== null && !secFreshness.isFlatlined && !secFreshness.isStale && !secFreshness.isOffline;
 
       const deltaH = downstreamStage !== null ? Number((stage - downstreamStage).toFixed(2)) : 0;

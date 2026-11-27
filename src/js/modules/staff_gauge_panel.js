@@ -137,7 +137,7 @@ export function buildStaffGaugePanel(node, readings) {
   const entry = getStaffGaugeCameraForStation(node.id);
   if (!entry || entry.confidence === 'low') return null;
 
-  const freshness = evaluateStationFreshness(readings || []);
+  const freshness = evaluateStationFreshness(readings || [], { stationId: node.id });
   const mode = getStaffGaugePanelMode(entry, freshness);
 
   const panel = el('section', 'staff-gauge-panel');

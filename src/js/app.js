@@ -709,7 +709,7 @@ export async function refreshLiveDashboard() {
     const sowyStaleInfo = monksUpFreshness.isStale ? monksUpFreshness : (monksDownFreshness.isStale ? monksDownFreshness : null);
 
     const dunballInlandFreshness = evaluateStationFreshness(dunballInlandReadings, { fallbackLabel: 'Dunball Inland E9094 Baseline' });
-    const dunballSeaFreshness = evaluateStationFreshness(seaReadings, { fallbackLabel: 'Dunball Sea 52163 Baseline' });
+    const dunballSeaFreshness = evaluateStationFreshness(seaReadings, { fallbackLabel: 'Dunball Sea 52163 Baseline', stationId: '52163' });
     const dunballIsStale = dunballInlandFreshness.isStale || dunballSeaFreshness.isStale;
     const dunballStaleInfo = dunballInlandFreshness.isStale ? dunballInlandFreshness : (dunballSeaFreshness.isStale ? dunballSeaFreshness : null);
 

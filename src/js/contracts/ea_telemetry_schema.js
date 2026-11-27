@@ -6,9 +6,9 @@
  * 
  * Invariants:
  * - Rejects unparseable ISO-8601 dates.
- * - Enforces plausibility bounds (-5.0m to 100.0m stage) aligned with sanitizeStageValue().
- * - Rejects NaN, Infinity, electrical fault spikes (e.g. 999.9), or missing values.
- * - Handles both mASD (metres Above Station Datum) and mAOD (metres Above Ordnance Datum).
+ * - Enforces plausibility bounds (-8.0m to 100.0m stage) aligned with sanitizeStageValue().
+ * - Rejects NaN, Infinity, electrical fault spikes (e.g. -99, 999.9, 244514), pipe-delimited corrupt values, or missing values.
+ * - Handles both mASD (metres Above Station Datum) and mAOD (metres Above Ordnance Datum), including Bristol Channel spring low tides (down to ~-6.3m AOD at Hinkley Point).
  */
 
 import {
@@ -20,16 +20,34 @@ import {
   validate
 } from './schema_validator.js';
 
+export const STAGE_PLAUSIBILITY_MIN_M = -8.0;
+export const STAGE_PLAUSIBILITY_MAX_M = 100.0;
+
 /**
  * Custom finite stage value validator
  */
 export const stageReadingValue = {
   type: 'stageReadingValue',
   validate(val, path = '') {
+    const label = path || 'value';
     if (val === null || val === undefined) {
       return {
         valid: false,
-        errors: [`${path || 'value'}: stage reading value cannot be null or undefined`]
+        errors: [`${label}: stage reading value cannot be null or undefined`]
+      };
+    }
+
+    if (typeof val !== 'number' && typeof val !== 'string') {
+      return {
+        valid: false,
+        errors: [`${label}: expected finite numeric reading, received ${typeof val}`]
+      };
+    }
+
+    if (typeof val === 'string' && val.trim() === '') {
+      return {
+        valid: false,
+        errors: [`${label}: stage reading cannot be empty string`]
       };
     }
 
@@ -37,15 +55,15 @@ export const stageReadingValue = {
     if (!Number.isFinite(num) || Number.isNaN(num)) {
       return {
         valid: false,
-        errors: [`${path || 'value'}: expected finite numeric reading, received ${JSON.stringify(val)}`]
+        errors: [`${label}: expected finite numeric reading, received ${JSON.stringify(val)}`]
       };
     }
 
-    // Somerset Levels stage bounds (-5.0m to 100.0m AOD / ASD)
-    if (num < -5.0 || num > 100.0) {
+    // Somerset Levels & Bristol Channel stage bounds (-8.0m to 100.0m AOD / ASD)
+    if (num < STAGE_PLAUSIBILITY_MIN_M || num > STAGE_PLAUSIBILITY_MAX_M) {
       return {
         valid: false,
-        errors: [`${path || 'value'}: stage reading ${num} is out of plausible bounds (-5.0 to 100.0)`]
+        errors: [`${label}: stage reading ${num} is out of plausible bounds (${STAGE_PLAUSIBILITY_MIN_M} to ${STAGE_PLAUSIBILITY_MAX_M})`]
       };
     }
 
@@ -71,49 +89,100 @@ export const eaPayloadSchema = object({
 });
 
 /**
- * Validates an upstream EA readings response and extracts sanitized items.
- * 
+ * Resilient item-level sanitizer for EA stage/tidal reading batches (96–2,688+ readings).
+ * Enforces strict envelope structure while quarantining individual corrupted items
+ * (e.g., -99 sentinels, 244514 electrical spikes, pipe-delimited BST corrupt strings,
+ * NaN, or malformed timestamps) instead of discarding valid sibling readings.
+ *
  * @param {any} payload - Parsed JSON payload from EA API
- * @param {string} measureId - Target measure identifier
- * @returns {{ valid: boolean, errors: string[], cleanItems: Array<{ measure_id: string, dateTime: string, value: number }> }}
+ * @param {string} [measureId='unknown'] - Target measure identifier
+ * @returns {{ validEnvelope: boolean, errors: string[], cleanItems: Array<{ measure_id: string, dateTime: string, value: number }>, rejectedCount: number }}
  */
-export function validateEAIngestPayload(payload, measureId = 'unknown') {
+export function filterCleanStageItems(payload, measureId = 'unknown') {
   if (!payload || typeof payload !== 'object') {
     return {
-      valid: false,
+      validEnvelope: false,
       errors: [`[${measureId}] Payload must be a non-null JSON object`],
-      cleanItems: []
+      cleanItems: [],
+      rejectedCount: 0
     };
   }
 
-  // Handle case where items array is missing or empty
   if (!Array.isArray(payload.items)) {
     return {
-      valid: false,
+      validEnvelope: false,
       errors: [`[${measureId}] Expected "items" property to be an Array`],
-      cleanItems: []
+      cleanItems: [],
+      rejectedCount: 0
     };
   }
 
-  const result = validate(eaPayloadSchema, payload, measureId);
-  if (!result.valid) {
+  const cleanItems = [];
+  const errors = [];
+  let rejectedCount = 0;
+
+  for (let i = 0; i < payload.items.length; i++) {
+    const item = payload.items[i];
+    const check = validate(eaReadingItemSchema, item, `${measureId}.items[${i}]`);
+    if (!check.valid) {
+      rejectedCount++;
+      errors.push(...check.errors);
+      continue;
+    }
+
+    cleanItems.push({
+      measure_id: measureId,
+      dateTime: item.dateTime,
+      value: typeof item.value === 'number' ? item.value : Number(item.value)
+    });
+  }
+
+  return {
+    validEnvelope: true,
+    errors,
+    cleanItems,
+    rejectedCount
+  };
+}
+
+/**
+ * Validates an upstream EA readings response and extracts sanitized items.
+ * Keeps structural envelope validation strict (non-object / non-array `items` fails),
+ * filters out individual malformed/out-of-bounds items rather than dropping an entire batch,
+ * and returns `valid: false` if a non-empty batch contains zero valid readings.
+ *
+ * @param {any} payload - Parsed JSON payload from EA API
+ * @param {string} [measureId='unknown'] - Target measure identifier
+ * @returns {{ valid: boolean, errors: string[], warnings: string[], cleanItems: Array<{ measure_id: string, dateTime: string, value: number }>, rejectedCount: number }}
+ */
+export function validateEAIngestPayload(payload, measureId = 'unknown') {
+  const filtered = filterCleanStageItems(payload, measureId);
+  if (!filtered.validEnvelope) {
     return {
       valid: false,
-      errors: result.errors,
-      cleanItems: []
+      errors: filtered.errors,
+      warnings: [],
+      cleanItems: [],
+      rejectedCount: 0
     };
   }
 
-  const cleanItems = payload.items.map(item => ({
-    measure_id: measureId,
-    dateTime: item.dateTime,
-    value: Number(typeof item.value === 'number' ? item.value : Number(item.value))
-  }));
+  if (payload.items.length > 0 && filtered.cleanItems.length === 0) {
+    return {
+      valid: false,
+      errors: filtered.errors,
+      warnings: filtered.errors,
+      cleanItems: [],
+      rejectedCount: filtered.rejectedCount
+    };
+  }
 
   return {
     valid: true,
     errors: [],
-    cleanItems
+    warnings: filtered.errors,
+    cleanItems: filtered.cleanItems,
+    rejectedCount: filtered.rejectedCount
   };
 }
 

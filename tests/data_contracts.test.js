@@ -137,7 +137,7 @@ test('EA Ingest Contract: accepts valid EA reading items within plausibility bou
   assert.equal(res.cleanItems[0].value, 4.52);
 });
 
-test('EA Ingest Contract: rejects NaN, unparseable dates, and out-of-bounds readings (> 100m / < -5m)', () => {
+test('EA Ingest Contract: rejects NaN, unparseable dates, and out-of-bounds readings (> 100m / < -8m)', () => {
   // NaN reading
   const nanPayload = {
     items: [{ dateTime: '2026-11-02T12:00:00Z', value: NaN }]
@@ -149,6 +149,12 @@ test('EA Ingest Contract: rejects NaN, unparseable dates, and out-of-bounds read
     items: [{ dateTime: '2026-11-02T12:00:00Z', value: 999.9 }]
   };
   assert.equal(validateEAIngestPayload(spikePayload, '52118').valid, false);
+
+  // Sentinel below -8.0m (-99)
+  const sentinelPayload = {
+    items: [{ dateTime: '2026-11-02T12:00:00Z', value: -99 }]
+  };
+  assert.equal(validateEAIngestPayload(sentinelPayload, '52106').valid, false);
 
   // Unparseable timestamp
   const badDatePayload = {
